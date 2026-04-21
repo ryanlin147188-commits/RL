@@ -8,14 +8,15 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PLAYWRIGHT_HEADLESS=1 \
+    PLAYWRIGHT_HEADLESS=0 \
     NODE_PATH=/ms-playwright/node_modules
 
 WORKDIR /app
 
 # Node.js 20（robotframework-browser 必要）
+# xvfb：提供虛擬 framebuffer，讓 headed Chromium 可在無顯示器的 container 中啟動
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl ca-certificates gnupg \
+    && apt-get install -y --no-install-recommends curl ca-certificates gnupg xvfb \
     && mkdir -p /etc/apt/keyrings \
     && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
        | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
@@ -35,5 +36,7 @@ COPY . /app
 
 RUN mkdir -p /app/PIC
 
-# 啟動 Celery worker
-CMD ["celery", "-A", "tasks.celery_app", "worker", "--loglevel=info", "--concurrency=2"]
+# 啟動 Celery worker；透過 celery_entrypoint.sh 先拉起 Xvfb 虛擬顯示，
+# 再 exec celery，確保 headed Chromium 有可用 $DISPLAY。
+RUN chmod +x /app/celery_entrypoint.sh
+CMD ["/app/celery_entrypoint.sh"]

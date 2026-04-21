@@ -1,12 +1,14 @@
 import { useEffect, useRef } from 'react'
-import { Button, Space, Tag } from 'antd'
+import { Button, Space, Tag, message } from 'antd'
 import {
   CloseOutlined,
   ClearOutlined,
   DownOutlined,
   UpOutlined,
   LoadingOutlined,
+  FileSearchOutlined,
 } from '@ant-design/icons'
+import { Link } from 'react-router-dom'
 import useExecutionLogs from '../../hooks/useExecutionLogs'
 
 const LEVEL_COLOR = {
@@ -21,9 +23,17 @@ const LEVEL_COLOR = {
  * - 自動捲動至底
  * - 支援收合 / 清除 / 關閉
  */
-export default function ExecutionLogsDrawer({ taskId, collapsed, onToggleCollapse, onClose }) {
+export default function ExecutionLogsDrawer({
+  taskId,
+  reportId,
+  collapsed,
+  onToggleCollapse,
+  onClose,
+}) {
   const { logs, status, connected, clear } = useExecutionLogs(taskId)
   const bodyRef = useRef(null)
+  const notifiedRef = useRef(false)
+  const done = status === 'PASSED' || status === 'FAILED'
 
   // 新訊息進來自動捲到底
   useEffect(() => {
@@ -31,6 +41,24 @@ export default function ExecutionLogsDrawer({ taskId, collapsed, onToggleCollaps
       bodyRef.current.scrollTop = bodyRef.current.scrollHeight
     }
   }, [logs, collapsed])
+
+  // 執行結束時彈出報告提示（僅觸發一次）
+  useEffect(() => {
+    if (!done || notifiedRef.current || !reportId) return
+    notifiedRef.current = true
+    const api = status === 'PASSED' ? message.success : message.error
+    api({
+      content: (
+        <span>
+          執行完成（{status}）—
+          <Link to={`/reports/${reportId}`} style={{ marginLeft: 6 }}>
+            查看測試報告 →
+          </Link>
+        </span>
+      ),
+      duration: 6,
+    })
+  }, [done, status, reportId])
 
   const statusTag = (() => {
     if (status === 'PASSED') return <Tag color="success">PASSED</Tag>
@@ -84,6 +112,18 @@ export default function ExecutionLogsDrawer({ taskId, collapsed, onToggleCollaps
           <span style={{ fontSize: 11, color: '#6e7681' }}>{logs.length} 條</span>
         </Space>
         <Space size={4}>
+          {done && reportId && (
+            <Link to={`/reports/${reportId}`}>
+              <Button
+                type="primary"
+                size="small"
+                icon={<FileSearchOutlined />}
+                style={{ fontSize: 12 }}
+              >
+                查看報告
+              </Button>
+            </Link>
+          )}
           <Button
             type="text"
             size="small"

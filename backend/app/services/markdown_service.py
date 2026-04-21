@@ -118,12 +118,17 @@ def parse_markdown(md_text: str) -> Dict[str, Any]:
         steps_json.append(
             {
                 "id": f"s{index:03d}",
+                # bdd/step_desc/operator ─ 給舊版 index.html 與 backend 使用
                 "bdd": bdd,
                 "step_desc": step_desc,
+                # keyword/description/condition ─ 給 React 前端 (frontend/src) 使用
+                "keyword": bdd,
+                "description": step_desc,
                 "action": action,
                 "locator": target,
                 "input": input_data,
                 "operator": operator,
+                "condition": operator,
                 "expected": expected,
             }
         )
@@ -155,6 +160,29 @@ def _cell(value: Any) -> str:
     return s
 
 
+# React 前端 (frontend/src) 使用 keyword/description/condition
+# 舊 index.html 與 markdown_service 原生使用 bdd/step_desc/operator
+# render_markdown 需同時相容兩套欄位名稱，否則 React 儲存的步驟匯出 MD 會
+# 得到空白 BDD/步驟說明/比較條件欄位。
+_STEP_FIELD_ALIASES: List[Tuple[str, ...]] = [
+    ("bdd", "keyword"),
+    ("step_desc", "description", "desc"),
+    ("action",),
+    ("locator", "loc"),
+    ("input",),
+    ("operator", "condition", "compare"),
+    ("expected",),
+]
+
+
+def _pick(step: Dict[str, Any], aliases: Tuple[str, ...]) -> Any:
+    for key in aliases:
+        value = step.get(key)
+        if value not in (None, ""):
+            return value
+    return ""
+
+
 def render_markdown(*, test_case_name: str, ac_text: str | None, steps_json: List[Dict[str, Any]] | None, ddt_json: Dict[str, Any] | None) -> str:
     out: List[str] = []
     if test_case_name:
@@ -171,10 +199,7 @@ def render_markdown(*, test_case_name: str, ac_text: str | None, steps_json: Lis
     for step in steps_json or []:
         out.append(
             "| "
-            + " | ".join(
-                _cell(step.get(k))
-                for k in ("bdd", "step_desc", "action", "locator", "input", "operator", "expected")
-            )
+            + " | ".join(_cell(_pick(step, aliases)) for aliases in _STEP_FIELD_ALIASES)
             + " |"
         )
 

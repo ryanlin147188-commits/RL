@@ -242,6 +242,7 @@ def _build_robot_file(
     ddt: Optional[dict],
     case_tag: str,
     screenshot_dir: str,
+    headless: bool = False,
 ) -> tuple[str, list[list[dict]]]:
     """
     回傳 (.robot 檔內容, 每個 test case 的 step 清單)。
@@ -268,7 +269,7 @@ def _build_robot_file(
     lines.append("")
     lines.append("*** Keywords ***")
     lines.append("Setup Browser Session")
-    lines.append("    New Browser    chromium    headless=true")
+    lines.append(f"    New Browser    chromium    headless={'true' if headless else 'false'}")
     lines.append("    New Context    viewport={'width': 1280, 'height': 720}")
     lines.append("    New Page")
     lines.append("")
@@ -351,7 +352,7 @@ def run_testcase(
     result_json = os.path.join(workdir, "step_results.json")
 
     # ── 產生 .robot ────────────────────────────────────
-    robot_text, _ = _build_robot_file(steps, ddt, case_tag, screenshot_dir)
+    robot_text, _ = _build_robot_file(steps, ddt, case_tag, screenshot_dir, headless=headless)
     with open(robot_file, "w", encoding="utf-8") as f:
         f.write(robot_text)
     publish_log("INFO", f"  📝 已生成 {os.path.basename(robot_file)} ({len(steps)} 步驟)")

@@ -127,7 +127,7 @@ services:
       MINIO_ENDPOINT: http://minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
-      PLAYWRIGHT_HEADLESS: "1"
+      PLAYWRIGHT_HEADLESS: "0"  # 預設有頭模式；實際在 celery container 以 xvfb 虛擬顯示
     volumes:
       - pic_data:/app/PIC
 

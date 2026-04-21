@@ -80,9 +80,10 @@ def _build_commands(session_id: str, target_url: str) -> RecorderCommandResponse
     py = f"recorded_{session_id[:8]}.py"
     tz = f"trace_{session_id[:8]}.zip"
 
-    # ✅ Playwright codegen 內建 --save-trace 旗標，會在使用者操作的同一個瀏覽器
-    #   session 上開啟 tracing；視窗關閉時自動寫出 trace.zip。
-    #   可在 Playwright Trace Viewer (https://trace.playwright.dev) 開啟檢視。
+    # Playwright ≥ 1.35 才支援 codegen 的 --save-trace 旗標；較舊版本會回報
+    # "unknown option '--save-trace=...'" 而無法啟動 codegen。因此 one-liner
+    # 會採「先試 --save-trace，失敗時退回無 trace 版本」的雙階段策略，並在
+    # 上傳時動態偵測檔案是否存在，避免 curl 因找不到 trace.zip 而失敗。
     npx_cmd = (
         f'npx -y playwright codegen --target python '
         f'--save-trace="{tz}" -o "{py}" "{target_url}"'
@@ -91,12 +92,17 @@ def _build_commands(session_id: str, target_url: str) -> RecorderCommandResponse
         f'python -m playwright codegen --target python '
         f'--save-trace="{tz}" -o "{py}" "{target_url}"'
     )
+    pip_cmd_no_trace = (
+        f'python -m playwright codegen --target python -o "{py}" "{target_url}"'
+    )
     rf_cmd = f'rfbrowser codegen "{target_url}" -o {py}'
 
     # 完整一鍵流程 (PowerShell)：
     # 1) 切到 <project_root>\record\<sid>\ 工作目錄（避免在系統目錄執行）
-    # 2) 執行 codegen，同時產生 recorded.py 與 trace.zip
-    # 3) curl 同時上傳兩個檔案
+    # 2) 先試 codegen --save-trace；若失敗 ($LASTEXITCODE != 0 且未產出 .py)
+    #    判定為 Playwright 版本過舊，退回不含 --save-trace 的版本。
+    # 3) curl 上傳；trace.zip 僅在確實存在時加入 -F 參數，避免 curl 因找不到
+    #    檔案而回傳 error 26。
     ps_script = (
         f'if (Test-Path "{settings.RECORDER_HOST_ROOT}") {{ Set-Location "{settings.RECORDER_HOST_ROOT}" }}; '
         f'$wd = "record\\{session_id[:8]}"; '
@@ -107,10 +113,23 @@ def _build_commands(session_id: str, target_url: str) -> RecorderCommandResponse
         f'[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; '
         f'$env:PYTHONIOENCODING = "utf-8"; '
         f'$env:PYTHONUTF8 = "1"; '
-        # ① codegen → 同時生成 .py + trace.zip
+        # ① 先試 --save-trace（Playwright ≥ 1.35 才支援）
         f'{pip_cmd}; '
-        # ② curl 同時上傳 script + trace
-        f'curl.exe -F "script=@{py}" -F "trace=@{tz}" {upload_url}'
+        # 若 codegen 未成功產出 .py（例如舊版不認得 --save-trace），退回無 trace 版本
+        f'if (-not (Test-Path "{py}")) {{ '
+        f'  Write-Host "[info] --save-trace 不可用，改以無 trace 模式重試" -ForegroundColor Yellow; '
+        f'  {pip_cmd_no_trace}; '
+        f'}} '
+        # ② 上傳前再次檢查；若連基本 codegen 都失敗則直接中止
+        f'if (-not (Test-Path "{py}")) {{ '
+        f'  Write-Host "[error] codegen 未產出 {py}，請確認 Playwright 已安裝" -ForegroundColor Red; '
+        f'  exit 1; '
+        f'}} '
+        f'$curlArgs = @("-F", "script=@{py}"); '
+        f'if (Test-Path "{tz}") {{ $curlArgs += @("-F", "trace=@{tz}") }} '
+        f'else {{ Write-Host "[info] 未產生 trace.zip，僅上傳 script" -ForegroundColor Yellow }}; '
+        f'$curlArgs += "{upload_url}"; '
+        f'& curl.exe @curlArgs'
     )
     # 包成 -EncodedCommand：CMD / PowerShell / Windows Terminal 都能直接貼上執行
     import base64 as _b64

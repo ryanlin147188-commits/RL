@@ -53,7 +53,9 @@ def run_tests(self, task_id: str, report_id: str, testcase_ids: list[str]):
     def publish_log(level: str, msg: str) -> None:
         _pub(r, channel, f"[{_now()}] {msg}", level)
 
-    headless = os.environ.get("PLAYWRIGHT_HEADLESS", "1") not in ("0", "false", "False")
+    # 預設改為有頭模式（headed），讓瀏覽器視覺化執行方便除錯。
+    # Celery container 已安裝 xvfb，實際顯示走虛擬 framebuffer。
+    headless = os.environ.get("PLAYWRIGHT_HEADLESS", "0") not in ("0", "false", "False")
 
     # 供 robot_runner 子進程的 listener 讀取，以使用同一條 Redis channel
     os.environ["AUTOTEST_TASK_ID"] = task_id

@@ -116,6 +116,7 @@ export default function EditorPanel() {
     useStore()
   const [executing, setExecuting] = useState(false)
   const [activeTaskId, setActiveTaskId] = useState(null)
+  const [activeReportId, setActiveReportId] = useState(null)
   const [logsCollapsed, setLogsCollapsed] = useState(false)
 
   // ── 空狀態 ──────────────────────────────────────────
@@ -191,6 +192,7 @@ export default function EditorPanel() {
       })
       message.success(`已送出執行任務 (task_id: ${res.task_id?.slice(0, 8)}…)`)
       setActiveTaskId(res.task_id)
+      setActiveReportId(res.report_id)
       setLogsCollapsed(false)
     } catch (e) {
       message.error(`執行觸發失敗：${e.message}`)
@@ -270,9 +272,13 @@ export default function EditorPanel() {
         <ExecutionLogsDrawer
           key={activeTaskId}
           taskId={activeTaskId}
+          reportId={activeReportId}
           collapsed={logsCollapsed}
           onToggleCollapse={() => setLogsCollapsed((v) => !v)}
-          onClose={() => setActiveTaskId(null)}
+          onClose={() => {
+            setActiveTaskId(null)
+            setActiveReportId(null)
+          }}
         />
       )}
     </div>

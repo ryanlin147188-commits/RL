@@ -172,10 +172,6 @@
                     </h2>
                 </div>
                 <div id="mainActions" class="flex gap-3">
-                    <input type="file" id="mdImportInput" accept=".md,.markdown,text/markdown" class="hidden" aria-label="匯入 Markdown 測試案例" onchange="handleMarkdownImport(event)">
-                    <button onclick="document.getElementById('mdImportInput').click()" class="px-4 py-2 border border-slate-300 rounded-md text-slate-600 hover:bg-slate-50 font-medium transition flex items-center gap-2 shadow-sm" title="從 Markdown (.md) 匯入測試案例">
-                        <i class="fa-solid fa-file-import"></i> 匯入 MD
-                    </button>
                     <button onclick="exportMarkdown()" class="px-4 py-2 border border-slate-300 rounded-md text-slate-600 hover:bg-slate-50 font-medium transition flex items-center gap-2 shadow-sm" title="把目前測試案例匯出成 Markdown (.md)">
                         <i class="fa-solid fa-file-export"></i> 匯出 MD
                     </button>
@@ -382,19 +378,19 @@
                 <div class="grid grid-cols-4 gap-4">
                     <div class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm flex items-center gap-4">
                         <div class="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center text-blue-500 text-xl"><i class="fa-solid fa-list-check"></i></div>
-                        <div><p class="text-sm text-slate-500 font-medium">總執行案例</p><h4 class="text-2xl font-bold text-slate-800">—</h4></div>
+                        <div><p class="text-sm text-slate-500 font-medium">總執行案例</p><h4 id="metricTotalCases" class="text-2xl font-bold text-slate-800">—</h4></div>
                     </div>
                     <div class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm flex items-center gap-4">
                         <div class="w-12 h-12 rounded-full bg-green-50 flex items-center justify-center text-green-500 text-xl"><i class="fa-solid fa-check-circle"></i></div>
-                        <div><p class="text-sm text-slate-500 font-medium">整體通過率</p><h4 class="text-2xl font-bold text-slate-800">—<span class="text-lg text-slate-500">%</span></h4></div>
+                        <div><p class="text-sm text-slate-500 font-medium">整體通過率</p><h4 class="text-2xl font-bold text-slate-800"><span id="metricPassRate">—</span><span class="text-lg text-slate-500">%</span></h4></div>
                     </div>
                     <div class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm flex items-center gap-4">
                         <div class="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center text-red-500 text-xl"><i class="fa-solid fa-triangle-exclamation"></i></div>
-                        <div><p class="text-sm text-slate-500 font-medium">失敗案例</p><h4 class="text-2xl font-bold text-slate-800">—</h4></div>
+                        <div><p class="text-sm text-slate-500 font-medium">失敗案例</p><h4 id="metricFailedCases" class="text-2xl font-bold text-slate-800">—</h4></div>
                     </div>
                     <div class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm flex items-center gap-4">
                         <div class="w-12 h-12 rounded-full bg-purple-50 flex items-center justify-center text-purple-500 text-xl"><i class="fa-solid fa-stopwatch"></i></div>
-                        <div><p class="text-sm text-slate-500 font-medium">平均執行時間</p><h4 class="text-2xl font-bold text-slate-800">—<span class="text-lg text-slate-500">s</span></h4></div>
+                        <div><p class="text-sm text-slate-500 font-medium">平均執行時間</p><h4 class="text-2xl font-bold text-slate-800"><span id="metricAvgDuration">—</span><span class="text-lg text-slate-500">s</span></h4></div>
                     </div>
                 </div>
 
@@ -515,16 +511,15 @@
                                     <div class="relative bg-slate-200 rounded overflow-hidden border border-slate-300 aspect-video flex-1 flex flex-col">
                                         <!-- 模擬瀏覽器頂部 -->
                                         <div class="h-4 bg-slate-300 w-full flex items-center px-1 gap-1 shrink-0"><div class="w-1.5 h-1.5 rounded-full bg-red-400"></div><div class="w-1.5 h-1.5 rounded-full bg-amber-400"></div><div class="w-1.5 h-1.5 rounded-full bg-green-400"></div></div>
-                                        <!-- 模擬畫面底圖 -->
-                                        <div class="flex-1 bg-white relative p-4 flex flex-col justify-center items-center">
-                                            <!-- 模擬登入表單 UI -->
+                                        <!-- 動作前截圖區：JS 依 preScreenshotUrl 是否存在抽換內容 -->
+                                        <div id="preScreenshotArea" class="flex-1 bg-white relative p-4 flex flex-col justify-center items-center">
+                                            <!-- fallback：無截圖時的佔位 UI + 目標高亮紅框（selectReportStep 會動態覆寫） -->
                                             <div class="w-1/2 bg-slate-50 border border-slate-200 p-3 rounded shadow-sm">
                                                 <div class="w-1/2 h-3 bg-slate-200 rounded mb-4 mx-auto"></div>
-                                                <div id="mockInput1" class="w-full h-6 bg-white border border-slate-300 rounded mb-2"></div>
-                                                <div id="mockInput2" class="w-full h-6 bg-white border border-slate-300 rounded mb-3"></div>
-                                                <div id="mockBtn" class="w-full h-8 bg-blue-500 rounded"></div>
+                                                <div class="w-full h-6 bg-white border border-slate-300 rounded mb-2"></div>
+                                                <div class="w-full h-6 bg-white border border-slate-300 rounded mb-3"></div>
+                                                <div class="w-full h-8 bg-blue-500 rounded"></div>
                                             </div>
-                                            <!-- 目標高亮紅框 (動態定位) -->
                                             <div id="targetHighlightBox" class="absolute target-box border-2 border-red-500 z-10 transition-all duration-300"></div>
                                         </div>
                                     </div>
@@ -686,6 +681,7 @@
             append(`> 正在送出執行請求 (node_id=${currentTestCase}) ...`, 'text-slate-400');
 
             let task_id = null;
+            let report_id = null;
             try {
                 const resp = await apiFetch('/api/executions', {
                     method: 'POST',
@@ -693,7 +689,8 @@
                     body: JSON.stringify({ node_id: currentTestCase, trigger_type: 'Manual' })
                 });
                 task_id = resp.task_id;
-                append(`> 執行已啟動 task_id=${task_id} report_id=${resp.report_id}`, 'text-green-400');
+                report_id = resp.report_id;
+                append(`> 執行已啟動 task_id=${task_id} report_id=${report_id}`, 'text-green-400');
                 append('> 連線 WebSocket 即時日誌 ...', 'text-slate-400');
             } catch (e) {
                 append(`> ✗ 執行失敗：${e.message}`, 'text-red-400');
@@ -707,18 +704,149 @@
                 ws.onopen = () => append('> ✓ WebSocket 已連線', 'text-green-400');
                 ws.onmessage = (ev) => {
                     let msg = ev.data;
+                    let doneStatus = null;
                     try {
                         const j = JSON.parse(ev.data);
                         if (j.type === 'log' && j.message) msg = j.message;
-                        else if (j.type === 'done') msg = `> ✓ 執行完成：${j.status || ''}`;
+                        else if (j.type === 'done') {
+                            doneStatus = j.status || '';
+                            msg = `> ✓ 執行完成：${doneStatus}`;
+                        }
                     } catch (_) { /* 純字串訊息 */ }
                     append(String(msg));
+                    if (doneStatus) onExecutionDone(report_id, doneStatus, output, append);
                 };
                 ws.onerror = () => append('> ✗ WebSocket 錯誤', 'text-red-400');
                 ws.onclose = () => append('> WebSocket 連線關閉', 'text-slate-500');
             } catch (e) {
                 append(`> ✗ WebSocket 連線失敗：${e.message}`, 'text-red-400');
             }
+        }
+
+        // 執行完成 → 拉報告摘要 + 在終端機與 Toast 顯示可點擊的「查看報告」提示
+        async function onExecutionDone(reportId, status, output, append) {
+            const isPassed = status === 'PASSED';
+            showToast(`執行完成：${status}`, isPassed ? 'success' : 'error');
+
+            if (!reportId) return;
+
+            // 拉執行摘要統計
+            let summary = null;
+            try {
+                summary = await apiFetch(`/api/reports/${reportId}`);
+            } catch (e) {
+                append(`> ⚠ 無法取得報告摘要：${e.message}`, 'text-amber-400');
+            }
+
+            if (summary) {
+                const pass = summary.passed_cases ?? 0;
+                const fail = summary.failed_cases ?? 0;
+                const total = summary.total_cases ?? (pass + fail);
+                const dur = summary.duration_ms != null ? `${(summary.duration_ms / 1000).toFixed(2)}s` : '—';
+                append(
+                    `> 📊 報告摘要：通過 ${pass} / 失敗 ${fail} / 共 ${total} 案例 · 耗時 ${dur}`,
+                    isPassed ? 'text-green-300' : 'text-red-300'
+                );
+            }
+
+            // 終端機內嵌按鈕 → 跳到報告詳細檢視
+            const bar = document.createElement('div');
+            bar.className = 'font-mono text-xs mt-2 pt-2 border-t border-slate-700 flex items-center gap-3';
+            bar.innerHTML = `
+                <span class="text-slate-400">▸ 報告 ID：<span class="text-slate-200">${reportId.slice(0, 8)}…</span></span>
+                <button class="px-3 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium shadow transition flex items-center gap-1">
+                    <i class="fa-solid fa-file-lines"></i> 查看報告
+                </button>
+            `;
+            bar.querySelector('button').onclick = () => viewReport(reportId);
+            output.appendChild(bar);
+            output.scrollTop = output.scrollHeight;
+        }
+
+        // 把後端報告資料塞進 mockReportData 然後呼叫既有的 showDetailReport 檢視
+        async function viewReport(reportId) {
+            try {
+                const [summary, stepsResp] = await Promise.all([
+                    apiFetch(`/api/reports/${reportId}`),
+                    apiFetch(`/api/reports/${reportId}/steps`),
+                ]);
+
+                // 每個 testcase 再拉一次 /api/testcases/{id} 以取得步驟定義，
+                // 否則報告只會顯示 Step 0/1/2...，看不到真正的 BDD/描述/Action。
+                const tcIds = [...new Set(
+                    (stepsResp.steps || []).map(s => s.testcase_node_id).filter(Boolean)
+                )];
+                const tcPayloads = await Promise.all(
+                    tcIds.map(id => apiFetch(`/api/testcases/${id}`).catch(() => null))
+                );
+                const tcMap = {};
+                tcIds.forEach((id, i) => { if (tcPayloads[i]) tcMap[id] = tcPayloads[i]; });
+
+                mockReportData[reportId] = adaptReportPayload(summary, stepsResp, tcMap);
+                showDetailReport(reportId);
+            } catch (e) {
+                showToast(`取得報告失敗：${e.message}`, 'error');
+            }
+        }
+
+        // 把後端 payload 轉為 showDetailReport 期望的格式（bdd/desc/action/...）
+        function adaptReportPayload(summary, stepsResp, tcMap = {}) {
+            const bucket = {}; // 依 testcase_node_id 分組
+            for (const s of (stepsResp.steps || [])) {
+                const key = s.testcase_node_id || 'default';
+                if (!bucket[key]) bucket[key] = [];
+                bucket[key].push(s);
+            }
+            const cases = Object.entries(bucket).map(([nodeId, rawSteps]) => {
+                // step_index 編碼 = round_idx * 1000 + step_i；取餘數得到原始步驟位置。
+                const tcSteps = (tcMap[nodeId]?.steps_json) || [];
+                return {
+                    name: testCases[nodeId]?.title || testCases[nodeId]?.filename || nodeId.slice(0, 8),
+                    steps: rawSteps.map((s, i) => {
+                        const globalIdx = s.step_index ?? i;
+                        const pos = globalIdx % 1000;
+                        const roundIdx = Math.floor(globalIdx / 1000);
+                        const def = tcSteps[pos] || {};
+                        const bdd = def.bdd || def.keyword || '';
+                        const descText = def.step_desc || def.description || def.desc || '';
+                        const roundPrefix = roundIdx > 0 ? `[Row ${roundIdx + 1}] ` : '';
+                        return {
+                            id: s.id || `s${i}`,
+                            bdd,
+                            desc: roundPrefix + (descText || `Step ${pos + 1}`),
+                            action: def.action || '',
+                            duration: `${((s.duration_ms || 0) / 1000).toFixed(2)}s`,
+                            status: s.status === 'PASSED' ? 'Passed' : 'Failed',
+                            loc: def.locator || def.loc || '',
+                            input: def.input || '',
+                            errorMsg: s.error_message || '',
+                            highlight: s.target_highlight_json || null,
+                            postState: s.status === 'FAILED' ? 'error' : 'empty',
+                            preScreenshotUrl: s.pre_screenshot_url || null,
+                            postScreenshotUrl: s.post_screenshot_url || null,
+                        };
+                    }),
+                };
+            });
+
+            // 用第一個有效的 testcase_node_id 作為「編輯此案例」的導覽目標。
+            // 多個 testcase 時優先選有失敗步驟的那個（較可能是使用者想除錯的）。
+            const firstFailed = Object.entries(bucket).find(
+                ([, steps]) => steps.some(s => s.status === 'FAILED')
+            );
+            const navCaseId = (firstFailed && firstFailed[0] !== 'default' && firstFailed[0])
+                || Object.keys(bucket).find(k => k !== 'default')
+                || null;
+
+            return {
+                title: `執行報告 ${String(summary.id || '').slice(0, 8)}`,
+                time: summary.created_at || '',
+                duration: summary.duration_ms != null ? `${(summary.duration_ms / 1000).toFixed(2)}s` : '—',
+                status: (summary.status === 'PASSED') ? 'Passed' : 'Failed',
+                projectId: summary.project_id || null,
+                testCaseId: navCaseId,
+                cases: cases.length ? cases : [{ name: '—', steps: [] }],
+            };
         }
 
         function closeTerminal() {
@@ -797,7 +925,7 @@
                 const tr = document.createElement('tr');
                 tr.className = 'hover:bg-slate-50 transition';
                 tr.innerHTML = `
-                    <td class="p-2"><input type="text" value="${esc(step.tcid)}" placeholder="TC-${String(idx + 1).padStart(2, '0')}" onchange="updateStep(${idx}, 'tcid', this.value)" class="w-full border border-slate-200 rounded p-1 text-xs font-mono focus:ring-1 focus:ring-blue-400 outline-none"></td>
+                    <td class="p-2 text-center font-mono text-xs text-slate-600 select-none">TC-${String(idx + 1).padStart(2, '0')}</td>
                     <td class="p-2 col-bdd">
                         <select onchange="updateStep(${idx}, 'bdd', this.value)" class="w-full border border-slate-200 rounded p-1 text-xs bg-white focus:ring-1 focus:ring-blue-400 outline-none">
                             ${bddOptions.map(o => `<option ${step.bdd === o ? 'selected' : ''}>${o}</option>`).join('')}
@@ -943,42 +1071,7 @@
             event.target.value = '';
         }
 
-        // ── Markdown (RL_TMP 7-column DSL) 匯入 / 匯出 ────────────────
-        async function handleMarkdownImport(event) {
-            const file = event.target.files[0];
-            event.target.value = '';
-            if (!file) return;
-            if (!currentTestCase) {
-                showToast('請先在左側選擇一個測試案例節點', 'error');
-                return;
-            }
-            try {
-                const md = await file.text();
-                const res = await fetch(`/api/testcases/${currentTestCase}/import-md`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ markdown: md }),
-                });
-                if (!res.ok) {
-                    const err = await res.json().catch(() => ({ detail: res.statusText }));
-                    throw new Error(err.detail || '匯入失敗');
-                }
-                const data = await res.json();
-                const tc = testCases[currentTestCase] || {};
-                tc.ac = data.ac_text || '';
-                tc.steps = (data.steps_json || []).map(s => ({
-                    bdd: s.bdd || '', step_desc: s.step_desc || '', action: s.action || '',
-                    locator: s.locator || '', input: s.input || '', operator: s.operator || '', expected: s.expected || '',
-                }));
-                tc.ddt = data.ddt_json || { headers: [], rows: [] };
-                testCases[currentTestCase] = tc;
-                if (typeof renderEditor === 'function') renderEditor(); else { renderSteps?.(); renderDDT?.(); }
-                showToast(`Markdown 匯入成功（${tc.steps.length} 步驟）`, 'success');
-            } catch (err) {
-                showToast(`匯入失敗：${err.message}`, 'error');
-            }
-        }
-
+        // ── Markdown (RL_TMP 7-column DSL) 匯出 ────────────────
         async function exportMarkdown() {
             if (!currentTestCase) {
                 showToast('請先在左側選擇一個測試案例節點', 'error');
@@ -1007,7 +1100,9 @@
         }
 
         // ==================== 3. 測試報告儀表板與圖表 ====================
-        let chartsInitialized = false;
+        // 保留 Chart 實例以便每次切回 Dashboard 時 update() 而非重建
+        let statusChartInst = null;
+        let trendChartInst = null;
 
         function showReportView() {
             document.getElementById('editorWorkspace').classList.add('hidden');
@@ -1025,14 +1120,21 @@
             document.getElementById('viewTag').textContent = 'Dashboard';
             renderTree(activeTreeData, document.getElementById('treeContainer'));
 
-            if (!chartsInitialized) {
-                // 待後端串接：GET /api/dashboard/charts?projectId=...
-                new Chart(document.getElementById('statusChart').getContext('2d'), {
+            ensureDashboardCharts();
+            refreshDashboard();
+        }
+
+        // 首次顯示時才建立 Chart 實例（canvas 需要已掛載在 DOM）
+        function ensureDashboardCharts() {
+            if (!statusChartInst) {
+                statusChartInst = new Chart(document.getElementById('statusChart').getContext('2d'), {
                     type: 'doughnut',
                     data: { labels: ['Passed', 'Failed'], datasets: [{ data: [0, 0], backgroundColor: ['#22c55e', '#ef4444'], borderWidth: 0 }] },
                     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
                 });
-                new Chart(document.getElementById('trendChart').getContext('2d'), {
+            }
+            if (!trendChartInst) {
+                trendChartInst = new Chart(document.getElementById('trendChart').getContext('2d'), {
                     type: 'bar',
                     data: {
                         labels: [],
@@ -1043,8 +1145,80 @@
                     },
                     options: { responsive: true, maintainAspectRatio: false, scales: { x: { stacked: true }, y: { stacked: true } } }
                 });
-                chartsInitialized = true;
             }
+        }
+
+        // 從後端拉 metrics / charts / recent reports，全部塞進 Dashboard
+        async function refreshDashboard() {
+            if (!currentProjectId) return;
+            const pid = encodeURIComponent(currentProjectId);
+
+            // 三個請求並行送出；任何一個失敗不影響其他的更新
+            const [metricsRes, chartsRes, listRes] = await Promise.allSettled([
+                apiFetch(`/api/dashboard/metrics?project_id=${pid}`),
+                apiFetch(`/api/dashboard/charts?project_id=${pid}`),
+                apiFetch(`/api/reports?project_id=${pid}&page=1&limit=10`),
+            ]);
+
+            const metrics = metricsRes.status === 'fulfilled' ? metricsRes.value : null;
+            const charts = chartsRes.status === 'fulfilled' ? chartsRes.value : null;
+            const list = listRes.status === 'fulfilled' ? listRes.value : { items: [] };
+
+            // ── 4 張統計卡（失敗案例數取自 charts.status_summary，因為
+            //    metrics endpoint 目前不直接提供）──────────────────
+            if (metrics) {
+                document.getElementById('metricTotalCases').textContent = metrics.total_testcases ?? 0;
+                document.getElementById('metricPassRate').textContent = (metrics.pass_rate ?? 0).toFixed(1);
+                document.getElementById('metricAvgDuration').textContent = metrics.avg_duration_ms != null
+                    ? (metrics.avg_duration_ms / 1000).toFixed(2)
+                    : '0.00';
+            }
+            document.getElementById('metricFailedCases').textContent = charts?.status_summary?.failed ?? 0;
+
+            // ── 圓餅圖（測試結果分佈）──────────────────────────
+            if (statusChartInst && charts?.status_summary) {
+                statusChartInst.data.datasets[0].data = [
+                    charts.status_summary.passed || 0,
+                    charts.status_summary.failed || 0,
+                ];
+                statusChartInst.update();
+            }
+
+            // ── 長條圖（近 N 次執行趨勢）──────────────────────
+            if (trendChartInst && Array.isArray(charts?.trend)) {
+                trendChartInst.data.labels = charts.trend.map(t => t.label);
+                trendChartInst.data.datasets[0].data = charts.trend.map(t => t.passed);
+                trendChartInst.data.datasets[1].data = charts.trend.map(t => t.failed);
+                trendChartInst.update();
+            }
+
+            // ── 最近執行紀錄表 ──────────────────────────────────
+            renderRecentReports(list.items || []);
+        }
+
+        function renderRecentReports(items) {
+            const tbody = document.getElementById('recentReportsBody');
+            if (!tbody) return;
+            if (!items.length) {
+                tbody.innerHTML = '<tr><td colspan="5" class="p-6 text-center text-slate-400 text-sm">尚無執行紀錄</td></tr>';
+                return;
+            }
+            const projName = projectsData[currentProjectId]?.name || '';
+            tbody.innerHTML = items.map(r => {
+                const when = r.created_at ? new Date(r.created_at).toLocaleString('zh-TW', { hour12: false }) : '—';
+                const dur = r.duration_ms != null ? (r.duration_ms / 1000).toFixed(2) + 's' : '—';
+                const statusCls = r.status === 'PASSED'
+                    ? 'bg-green-100 text-green-700'
+                    : (r.status === 'FAILED' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700');
+                return `
+                    <tr class="hover:bg-slate-50 transition" onclick="viewReport('${r.id}')">
+                        <td class="p-3 text-slate-600 font-mono text-xs">${when}</td>
+                        <td class="p-3 text-slate-700">${projName || (r.project_id || '').slice(0, 8)}</td>
+                        <td class="p-3 text-slate-500">${r.trigger_type || 'Manual'}</td>
+                        <td class="p-3 text-center"><span class="${statusCls} px-2 py-0.5 rounded text-xs font-bold">${r.status}</span></td>
+                        <td class="p-3 text-right text-slate-600 font-mono text-xs">${dur}</td>
+                    </tr>`;
+            }).join('');
         }
 
         // ==================== 4. 詳細報告畫面 ====================
@@ -1149,38 +1323,77 @@
                 uiArea.classList.remove('hidden');
                 apiArea.classList.add('hidden');
 
-                const hlBox = document.getElementById('targetHighlightBox');
-                if (step.highlight) {
-                    hlBox.style.display = 'block';
-                    hlBox.style.top = step.highlight.top;
-                    hlBox.style.left = step.highlight.left;
-                    hlBox.style.width = step.highlight.width;
-                    hlBox.style.height = step.highlight.height;
-                } else {
-                    hlBox.style.display = 'none';
-                }
+                // ── 動作前截圖（如有真實 URL 就貼圖，否則顯示 mock 佔位 UI）──
+                renderPreScreenshot(step);
 
-                const postArea = document.getElementById('postScreenshotArea');
-                let postHtml = `<div class="w-1/2 bg-slate-50 border border-slate-200 p-3 rounded shadow-sm">
-                                    <div class="w-1/2 h-3 bg-slate-200 rounded mb-4 mx-auto"></div>`;
-
-                if (step.postState === 'empty') {
-                    postHtml += `<div class="w-full h-6 bg-white border border-slate-300 rounded mb-2"></div>
-                                 <div class="w-full h-6 bg-white border border-slate-300 rounded mb-3"></div>`;
-                } else if (step.postState === 'filled_user') {
-                    postHtml += `<div class="w-full h-6 bg-blue-50 border border-blue-300 rounded mb-2 flex items-center px-2"><span class="text-[10px] text-blue-800">user</span></div>
-                                 <div class="w-full h-6 bg-white border border-slate-300 rounded mb-3"></div>`;
-                } else if (step.postState === 'filled_all') {
-                    postHtml += `<div class="w-full h-6 bg-blue-50 border border-blue-300 rounded mb-2 flex items-center px-2"><span class="text-[10px] text-blue-800">user</span></div>
-                                 <div class="w-full h-6 bg-blue-50 border border-blue-300 rounded mb-3 flex items-center px-2"><span class="text-[10px] text-blue-800">•••••</span></div>`;
-                } else if (step.postState === 'error') {
-                    postHtml += `<div class="w-full bg-red-100 text-red-600 text-[10px] p-1 mb-2 rounded text-center border border-red-200 font-bold">帳號或密碼錯誤</div>
-                                 <div class="w-full h-6 bg-white border border-slate-300 rounded mb-2 flex items-center px-2"><span class="text-[10px]">user</span></div>
-                                 <div class="w-full h-6 bg-white border border-slate-300 rounded mb-3"></div>`;
-                }
-                postHtml += `<div class="w-full h-8 bg-blue-500 rounded"></div></div>`;
-                postArea.innerHTML = postHtml;
+                // ── 動作後截圖 ────────────────────────────────────────
+                renderPostScreenshot(step);
             }
+        }
+
+        // 動作前：若 preScreenshotUrl 存在就以 <img> 取代 mock；highlight 覆蓋其上。
+        function renderPreScreenshot(step) {
+            const preArea = document.getElementById('preScreenshotArea');
+            if (!preArea) return;
+
+            // 紅框位置（highlight 為 {top,left,width,height}，各為 CSS 百分比字串）
+            const highlightStyle = step.highlight
+                ? `display:block; top:${step.highlight.top}; left:${step.highlight.left}; width:${step.highlight.width}; height:${step.highlight.height};`
+                : 'display:none;';
+            const highlightDiv = `<div id="targetHighlightBox" class="absolute target-box border-2 border-red-500 z-10 transition-all duration-300" style="${highlightStyle}"></div>`;
+
+            if (step.preScreenshotUrl) {
+                preArea.innerHTML = `
+                    <img src="${step.preScreenshotUrl}" alt="Pre-action screenshot"
+                         class="max-w-full max-h-full object-contain"
+                         onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'text-xs text-slate-400',textContent:'（截圖載入失敗）'}))">
+                    ${highlightDiv}
+                `;
+            } else {
+                preArea.innerHTML = `
+                    <div class="w-1/2 bg-slate-50 border border-slate-200 p-3 rounded shadow-sm">
+                        <div class="w-1/2 h-3 bg-slate-200 rounded mb-4 mx-auto"></div>
+                        <div class="w-full h-6 bg-white border border-slate-300 rounded mb-2"></div>
+                        <div class="w-full h-6 bg-white border border-slate-300 rounded mb-3"></div>
+                        <div class="w-full h-8 bg-blue-500 rounded"></div>
+                    </div>
+                    ${highlightDiv}
+                `;
+            }
+        }
+
+        // 動作後：若 postScreenshotUrl 存在就貼圖，否則依 postState 顯示原有模擬。
+        function renderPostScreenshot(step) {
+            const postArea = document.getElementById('postScreenshotArea');
+            if (!postArea) return;
+
+            if (step.postScreenshotUrl) {
+                postArea.innerHTML = `
+                    <img src="${step.postScreenshotUrl}" alt="Post-action screenshot"
+                         class="max-w-full max-h-full object-contain"
+                         onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'text-xs text-slate-400',textContent:'（截圖載入失敗）'}))">
+                `;
+                return;
+            }
+
+            let postHtml = `<div class="w-1/2 bg-slate-50 border border-slate-200 p-3 rounded shadow-sm">
+                                <div class="w-1/2 h-3 bg-slate-200 rounded mb-4 mx-auto"></div>`;
+            if (step.postState === 'empty') {
+                postHtml += `<div class="w-full h-6 bg-white border border-slate-300 rounded mb-2"></div>
+                             <div class="w-full h-6 bg-white border border-slate-300 rounded mb-3"></div>`;
+            } else if (step.postState === 'filled_user') {
+                postHtml += `<div class="w-full h-6 bg-blue-50 border border-blue-300 rounded mb-2 flex items-center px-2"><span class="text-[10px] text-blue-800">user</span></div>
+                             <div class="w-full h-6 bg-white border border-slate-300 rounded mb-3"></div>`;
+            } else if (step.postState === 'filled_all') {
+                postHtml += `<div class="w-full h-6 bg-blue-50 border border-blue-300 rounded mb-2 flex items-center px-2"><span class="text-[10px] text-blue-800">user</span></div>
+                             <div class="w-full h-6 bg-blue-50 border border-blue-300 rounded mb-3 flex items-center px-2"><span class="text-[10px] text-blue-800">•••••</span></div>`;
+            } else if (step.postState === 'error') {
+                postHtml += `<div class="w-full bg-red-100 text-red-600 text-[10px] p-1 mb-2 rounded text-center border border-red-200 font-bold">動作失敗</div>
+                             <div class="w-full h-6 bg-white border border-slate-300 rounded mb-2 flex items-center px-2"><span class="text-[10px]">user</span></div>
+                             <div class="w-full h-6 bg-white border border-slate-300 rounded mb-3"></div>`;
+            }
+            postHtml += `<div class="w-full h-8 bg-blue-500 rounded"></div></div>`;
+            postArea.innerHTML = postHtml;
         }
 
         function backToDashboard() {
@@ -1189,17 +1402,22 @@
             document.getElementById('mainHeader').classList.remove('hidden');
         }
 
-        function goToTestCaseFromReport() {
-            if (currentReportContext.projectId && currentReportContext.testCaseId) {
-                if (currentProjectId !== currentReportContext.projectId) {
-                    const selector = document.getElementById('projectSelector');
-                    selector.value = currentReportContext.projectId;
-                    switchProject(currentReportContext.projectId);
-                }
-                loadTestCase(currentReportContext.testCaseId);
-                renderAllTree();
-            } else {
+        async function goToTestCaseFromReport() {
+            if (!(currentReportContext.projectId && currentReportContext.testCaseId)) {
                 showToast('無法找到關聯的測試案例', 'error');
+                return;
+            }
+            // 若報告屬於其他專案，先切過去並等樹載入完成再載入案例，避免 race
+            if (currentProjectId !== currentReportContext.projectId) {
+                const selector = document.getElementById('projectSelector');
+                if (selector) selector.value = currentReportContext.projectId;
+                try { await switchProject(currentReportContext.projectId); } catch (_) { /* 由 switchProject 自行吐 toast */ }
+            }
+            try {
+                await loadTestCase(currentReportContext.testCaseId);
+                renderAllTree();
+            } catch (e) {
+                showToast('載入測試案例失敗：' + e.message, 'error');
             }
         }
 
