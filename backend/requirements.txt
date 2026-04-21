@@ -1,0 +1,35 @@
+# AutoTest v1.0 Backend Dependencies
+# Python 3.11+ required
+
+# Web framework
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+
+# Database - async (FastAPI) + sync (Celery)
+sqlalchemy[asyncio]==2.0.35
+aiomysql==0.2.0
+pymysql==1.1.1
+cryptography==43.0.1   # MySQL 8 caching_sha2_password 認證需要
+
+# Schema validation
+pydantic==2.9.2
+pydantic-settings==2.5.2
+python-dotenv==1.0.1
+
+# File upload
+python-multipart==0.0.12
+aiofiles==24.1.0
+
+# 物件儲存（S3-compatible MinIO，可選；STORAGE_BACKEND=minio 時必要）
+boto3==1.35.36
+
+# Background task queue
+celery[redis]==5.4.0
+redis==5.1.1
+
+# ── 執行引擎：Robot Framework + 周邊 Library（Celery worker 用）──
+robotframework==7.1
+robotframework-browser==18.8.1          # Playwright-based, 需 Node + `rfbrowser init`
+robotframework-requests==0.9.7          # HTTP API 測試
+robotframework-databaselibrary==2.1.3   # SQL 測試（搭配 pymysql）
+robotframework-appiumlibrary==2.1.0     # 行動裝置自動化（需外接 Appium server）

@@ -1,0 +1,1545 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoTest v1.0 - 測試建構平台</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- 引入 Chart.js 以繪製測試報告圖表 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#2563eb',
+                        secondary: '#475569',
+                        bglight: '#f8fafc',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* 自定義捲軸樣式 */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        .terminal-text { text-shadow: 0 0 5px rgba(74, 222, 128, 0.3); }
+        .tree-actions { min-width: 60px; }
+        .ddt-input:focus { outline: none; background-color: #fffbeb; }
+        
+        /* 步驟時間軸樣式 */
+        .step-timeline::before {
+            content: '';
+            position: absolute;
+            left: 11px;
+            top: 24px;
+            bottom: -8px;
+            width: 2px;
+            background-color: #e2e8f0;
+            z-index: 0;
+        }
+        .step-item:last-child .step-timeline::before { display: none; }
+        
+        /* 截圖目標紅框動畫 */
+        @keyframes pulse-border {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+        .target-box {
+            animation: pulse-border 2s infinite;
+            background-color: rgba(239, 68, 68, 0.15);
+        }
+        
+        /* 測試步驟模式切換 */
+        .table-mode-bdd .col-kdt { display: none; }
+        .table-mode-kdt .col-bdd { display: none; }
+        .table-mode-bdd { min-width: 600px !important; }
+        .table-mode-kdt { min-width: 800px !important; }
+
+        /* 側邊欄初始尺寸（可由 JS 拖曳調整） */
+        #sidebar {
+            width: 300px;
+            min-width: 200px;
+            max-width: 600px;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col bg-slate-50 text-slate-800 font-sans overflow-hidden relative">
+
+    <!-- Toast 提示容器 -->
+    <div id="toastContainer" class="fixed top-5 right-5 z-[100] flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- 頂部導覽列 -->
+    <header class="bg-white border-b border-slate-200 h-14 flex items-center justify-between px-6 shrink-0 z-10 shadow-sm relative">
+        <div class="flex items-center gap-3">
+            <div class="bg-blue-600 text-white p-1.5 rounded-md shadow-inner">
+                <i class="fa-solid fa-vial-circle-check"></i>
+            </div>
+            <h1 class="font-bold text-lg text-slate-700 tracking-tight">AutoTest <span class="text-xs text-slate-400 font-normal ml-2 border border-slate-200 px-1.5 py-0.5 rounded">v1.0</span></h1>
+        </div>
+        <div class="flex items-center gap-6">
+            <!-- 測試報告按鈕 -->
+            <button onclick="showReportView()" id="navReportBtn" class="text-slate-500 hover:text-blue-600 font-medium transition flex items-center gap-2">
+                <i class="fa-solid fa-chart-pie"></i> 測試報告
+            </button>
+            <div class="h-6 w-px bg-slate-200"></div>
+            <div class="flex items-center gap-2 cursor-pointer hover:bg-slate-50 p-1 rounded transition">
+                <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold border border-indigo-200 shadow-sm">
+                    QA
+                </div>
+                <span class="text-sm font-semibold text-slate-600">管理員</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主要內容區 -->
+    <div class="flex-1 flex overflow-hidden">
+        
+        <!-- 左側面板：專案切換與動態樹狀圖 -->
+        <aside id="sidebar" class="bg-slate-50 border-r border-slate-200 flex flex-col shrink-0 relative shadow-[2px_0_5px_rgba(0,0,0,0.02)] z-10">
+            <div class="p-4 border-b border-slate-200 flex flex-col gap-3 bg-white z-10">
+                
+                <!-- 專案目錄 Header -->
+                <div class="flex justify-between items-center mb-1">
+                    <h2 class="font-semibold text-sm text-slate-600 uppercase tracking-wider">專案目錄</h2>
+                    <button onclick="openNodeModal(event, 'root_project', 'add')" class="text-slate-400 hover:text-blue-600 transition" title="新增專案">
+                        <i class="fa-solid fa-folder-plus text-base"></i>
+                    </button>
+                </div>
+                
+                <!-- 專案切換選單 + 新增功能按鈕 -->
+                <div class="relative flex gap-2">
+                    <div class="relative flex-1 shadow-sm">
+                        <div class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+                            <i class="fa-solid fa-box-archive text-slate-400 text-sm"></i>
+                        </div>
+                        <select id="projectSelector" onchange="switchProject(this.value)" aria-label="選擇專案" class="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-md text-sm font-bold text-slate-700 bg-slate-50 focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition cursor-pointer appearance-none hover:bg-white">
+                            <!-- 選項由 JS 產生 -->
+                        </select>
+                        <div class="absolute inset-y-0 right-0 pr-2.5 flex items-center pointer-events-none">
+                            <i class="fa-solid fa-angle-down text-slate-400 text-sm"></i>
+                        </div>
+                    </div>
+                    <button onclick="openNodeModal(event, 'root_feature', 'add')" class="w-[38px] shrink-0 flex items-center justify-center bg-indigo-50 text-indigo-600 border border-indigo-200 rounded-md hover:bg-indigo-100 transition shadow-sm" title="新增功能至此專案">
+                        <i class="fa-solid fa-plus"></i>
+                    </button>
+                </div>
+
+                <!-- 搜尋欄 -->
+                <div class="relative shadow-sm">
+                    <div class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+                        <i class="fa-solid fa-magnifying-glass text-slate-400 text-xs"></i>
+                    </div>
+                    <input id="treeSearchInput" type="text" oninput="onTreeSearch(this.value)" placeholder="搜尋節點名稱…" aria-label="搜尋樹狀節點" class="w-full pl-8 pr-8 py-1.5 border border-slate-300 rounded-md text-xs text-slate-700 bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition">
+                    <button id="treeSearchClear" onclick="clearTreeSearch()" class="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-600 hidden" title="清除搜尋">
+                        <i class="fa-solid fa-xmark text-xs"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- 動態渲染的樹狀容器 -->
+            <div id="treeContainer" class="flex-1 overflow-y-auto p-3 pb-20 text-sm bg-slate-50">
+                <!-- 由 JavaScript 產生 -->
+            </div>
+        </aside>
+
+        <!-- 側邊欄拖曳調整寬度 -->
+        <div id="sidebarResizer" class="w-1 cursor-col-resize bg-slate-200 hover:bg-blue-400 active:bg-blue-500 transition shrink-0 z-20" title="拖曳調整側邊欄寬度"></div>
+
+        <!-- 右側主工作區 -->
+        <main class="flex-1 flex flex-col bg-white overflow-hidden relative">
+            
+            <!-- 工作區標題與操作列 (在測試報告視圖下會隱藏) -->
+            <div id="mainHeader" class="p-5 border-b border-slate-200 flex justify-between items-end shrink-0 bg-white z-10">
+                <div>
+                    <div class="text-xs text-slate-400 mb-1 flex items-center gap-2">
+                        <span id="viewTag" class="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-medium">系統</span>
+                        <i class="fa-solid fa-chevron-right text-[10px]"></i> <span id="viewFilename">請選擇專案與檔案</span>
+                    </div>
+                    <h2 id="viewTitle" class="text-2xl font-bold text-slate-800 flex items-center gap-3">
+                        <i class="fa-regular fa-file-lines text-slate-400"></i>
+                        歡迎使用 AutoTest
+                    </h2>
+                </div>
+                <div id="mainActions" class="flex gap-3">
+                    <input type="file" id="mdImportInput" accept=".md,.markdown,text/markdown" class="hidden" aria-label="匯入 Markdown 測試案例" onchange="handleMarkdownImport(event)">
+                    <button onclick="document.getElementById('mdImportInput').click()" class="px-4 py-2 border border-slate-300 rounded-md text-slate-600 hover:bg-slate-50 font-medium transition flex items-center gap-2 shadow-sm" title="從 Markdown (.md) 匯入測試案例">
+                        <i class="fa-solid fa-file-import"></i> 匯入 MD
+                    </button>
+                    <button onclick="exportMarkdown()" class="px-4 py-2 border border-slate-300 rounded-md text-slate-600 hover:bg-slate-50 font-medium transition flex items-center gap-2 shadow-sm" title="把目前測試案例匯出成 Markdown (.md)">
+                        <i class="fa-solid fa-file-export"></i> 匯出 MD
+                    </button>
+                    <button onclick="saveDraft()" class="px-4 py-2 border border-slate-300 rounded-md text-slate-600 hover:bg-slate-50 font-medium transition flex items-center gap-2 shadow-sm">
+                        <i class="fa-regular fa-floppy-disk"></i> 儲存草稿
+                    </button>
+                    <button onclick="runTest()" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium shadow-sm transition flex items-center gap-2">
+                        <i class="fa-solid fa-play"></i> 執行測試
+                    </button>
+                </div>
+            </div>
+
+            <!-- 視圖 1: 可滾動的編輯區 -->
+            <div id="editorWorkspace" class="flex-1 overflow-y-auto p-6 space-y-8 bg-slate-50/50 hidden">
+                <section class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="font-bold text-slate-700 flex items-center gap-2"><i class="fa-solid fa-check-double text-green-500"></i> 驗收準則 (Acceptance Criteria)</h3>
+                    </div>
+                    <textarea id="acTextarea" onchange="updateAC(this.value)" aria-label="驗收準則" placeholder="請輸入驗收準則..." class="w-full text-sm p-3 border border-slate-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none resize-none text-slate-600 leading-relaxed" rows="3"></textarea>
+                </section>
+
+                <section class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="font-bold text-slate-700 flex items-center gap-2"><i class="fa-solid fa-gear text-amber-500"></i> 前置動作 (Pre-Setup)</h3>
+                    </div>
+                    <textarea id="setupTextarea" onchange="updateSetup(this.value)" aria-label="前置動作" placeholder="例：建立測試資料庫 seed、預先取得 API token、啟動 mock server..." class="w-full text-sm p-3 border border-slate-200 rounded-md focus:ring-2 focus:ring-amber-100 focus:border-amber-400 outline-none resize-none text-slate-600 leading-relaxed" rows="3"></textarea>
+                </section>
+
+                <section class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-bold text-slate-700 flex items-center gap-2"><i class="fa-solid fa-list-ol text-blue-500"></i> 測試步驟設計 (BDD / KDT)</h3>
+                        <div class="flex gap-3">
+                            <!-- 模式切換按鈕 -->
+                            <div class="flex bg-slate-100 p-1 rounded-md shadow-inner">
+                                <button onclick="setStepMode('ALL')" id="btnModeALL" class="px-3 py-1 text-xs font-medium rounded bg-white shadow-sm text-blue-600 transition">完整模式</button>
+                                <button onclick="setStepMode('BDD')" id="btnModeBDD" class="px-3 py-1 text-xs font-medium rounded text-slate-500 hover:text-slate-700 transition">BDD 模式</button>
+                                <button onclick="setStepMode('KDT')" id="btnModeKDT" class="px-3 py-1 text-xs font-medium rounded text-slate-500 hover:text-slate-700 transition">KDT 模式</button>
+                            </div>
+                            <button onclick="addEmptyStep()" class="text-sm px-3 py-1.5 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded flex items-center gap-1 transition shadow-sm">
+                                <i class="fa-solid fa-plus"></i> 新增步驟
+                            </button>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto pb-4">
+                        <table class="w-full text-left border-collapse min-w-[900px] table-mode-all transition-all duration-300" id="stepsTable">
+                            <thead>
+                                <tr class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-y border-slate-200">
+                                    <th class="p-3 font-medium w-[100px]">測試編號</th>
+                                    <th class="p-3 font-medium w-[100px] col-bdd">BDD 關鍵字</th>
+                                    <th class="p-3 font-medium w-[200px]">步驟描述</th>
+                                    <th class="p-3 font-medium w-[140px] col-kdt">動作 (Action)</th>
+                                    <th class="p-3 font-medium w-[160px] col-kdt">定位器 (Locator)</th>
+                                    <th class="p-3 font-medium w-[140px]">輸入值 (Input)</th>
+                                    <th class="p-3 font-medium w-[120px] col-kdt">比對條件</th>
+                                    <th class="p-3 font-medium w-[140px]">預期結果</th>
+                                    <th class="p-3 font-medium w-[50px] text-center"><i class="fa-solid fa-gear"></i></th>
+                                </tr>
+                            </thead>
+                            <tbody id="stepsBody" class="text-sm divide-y divide-slate-100"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm mb-10">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-bold text-slate-700 flex items-center gap-2"><i class="fa-solid fa-database text-amber-500"></i> 測試資料集 (DDT)</h3>
+                        <div class="flex gap-2">
+                            <input type="file" id="jsonUploadInput" accept=".json" aria-label="匯入 JSON 測試資料" class="hidden" onchange="handleJsonImport(event)">
+                            <button onclick="document.getElementById('jsonUploadInput').click()" class="text-sm px-3 py-1.5 text-slate-600 border border-slate-200 hover:bg-slate-50 rounded flex items-center gap-1 transition shadow-sm"><i class="fa-solid fa-file-import"></i> 匯入 JSON</button>
+                            <button onclick="openAddColumnModal()" class="text-sm px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 rounded flex items-center gap-1 transition shadow-sm"><i class="fa-solid fa-columns"></i> 新增欄位</button>
+                            <button onclick="addDdtRow()" class="text-sm px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 rounded flex items-center gap-1 transition shadow-sm"><i class="fa-solid fa-plus"></i> 新增資料列</button>
+                        </div>
+                    </div>
+                    <div class="border border-slate-200 rounded-md overflow-hidden overflow-x-auto">
+                        <table class="w-full text-sm text-left">
+                            <thead class="bg-slate-100 text-slate-600"><tr id="ddtHeaders"></tr></thead>
+                            <tbody id="ddtBody" class="divide-y divide-slate-100"></tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+
+            <!-- 視圖 2: 測試報告儀表板 (Dashboard) -->
+            <div id="reportWorkspace" class="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/50 hidden">
+                <div class="grid grid-cols-4 gap-4">
+                    <div class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm flex items-center gap-4">
+                        <div class="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center text-blue-500 text-xl"><i class="fa-solid fa-list-check"></i></div>
+                        <div><p class="text-sm text-slate-500 font-medium">總執行案例</p><h4 class="text-2xl font-bold text-slate-800">—</h4></div>
+                    </div>
+                    <div class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm flex items-center gap-4">
+                        <div class="w-12 h-12 rounded-full bg-green-50 flex items-center justify-center text-green-500 text-xl"><i class="fa-solid fa-check-circle"></i></div>
+                        <div><p class="text-sm text-slate-500 font-medium">整體通過率</p><h4 class="text-2xl font-bold text-slate-800">—<span class="text-lg text-slate-500">%</span></h4></div>
+                    </div>
+                    <div class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm flex items-center gap-4">
+                        <div class="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center text-red-500 text-xl"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                        <div><p class="text-sm text-slate-500 font-medium">失敗案例</p><h4 class="text-2xl font-bold text-slate-800">—</h4></div>
+                    </div>
+                    <div class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm flex items-center gap-4">
+                        <div class="w-12 h-12 rounded-full bg-purple-50 flex items-center justify-center text-purple-500 text-xl"><i class="fa-solid fa-stopwatch"></i></div>
+                        <div><p class="text-sm text-slate-500 font-medium">平均執行時間</p><h4 class="text-2xl font-bold text-slate-800">—<span class="text-lg text-slate-500">s</span></h4></div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-6">
+                    <div class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm col-span-1">
+                        <h3 class="font-bold text-slate-700 mb-4 flex items-center gap-2"><i class="fa-solid fa-chart-pie text-blue-500"></i> 測試結果分佈</h3>
+                        <div class="relative h-48 w-full flex justify-center"><canvas id="statusChart"></canvas></div>
+                    </div>
+                    <div class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm col-span-2">
+                        <h3 class="font-bold text-slate-700 mb-4 flex items-center gap-2"><i class="fa-solid fa-chart-column text-indigo-500"></i> 近五次執行趨勢</h3>
+                        <div class="relative h-48 w-full"><canvas id="trendChart"></canvas></div>
+                    </div>
+                </div>
+
+                <!-- 歷史執行紀錄表 (加上 onClick 事件) -->
+                <div class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm mb-10">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-bold text-slate-700 flex items-center gap-2"><i class="fa-solid fa-clock-rotate-left text-slate-500"></i> 最近執行紀錄 <span class="text-xs font-normal text-slate-400 ml-2">(點擊任一列查看詳細報告與截圖)</span></h3>
+                        <button class="text-sm px-3 py-1.5 text-blue-600 hover:bg-blue-50 rounded transition font-medium">查看全部</button>
+                    </div>
+                    <div class="border border-slate-200 rounded-md overflow-hidden">
+                        <table class="w-full text-sm text-left">
+                            <thead class="bg-slate-50 text-slate-600 border-b border-slate-200">
+                                <tr>
+                                    <th class="p-3 font-medium">執行時間</th>
+                                    <th class="p-3 font-medium">專案名稱</th>
+                                    <th class="p-3 font-medium">觸發者</th>
+                                    <th class="p-3 font-medium text-center">結果狀態</th>
+                                    <th class="p-3 font-medium text-right">執行耗時</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recentReportsBody" class="divide-y divide-slate-100 cursor-pointer">
+                                <tr><td colspan="5" class="p-6 text-center text-slate-400 text-sm">尚無執行紀錄</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 視圖 2.5: 詳細報告畫面與截圖追溯 (Detail Report Workspace) -->
+            <div id="detailReportWorkspace" class="flex-1 flex flex-col bg-slate-50 hidden z-20 absolute inset-0">
+                <!-- 詳細報告 Header -->
+                <div class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 shrink-0 shadow-sm z-10">
+                    <div class="flex items-center gap-4">
+                        <button onclick="backToDashboard()" aria-label="返回測試報告儀表板" class="text-slate-500 hover:text-blue-600 bg-slate-100 hover:bg-blue-50 w-8 h-8 rounded-full flex items-center justify-center transition">
+                            <i class="fa-solid fa-arrow-left"></i>
+                        </button>
+                        <div class="h-6 w-px bg-slate-200"></div>
+                        <div>
+                            <h2 class="text-lg font-bold text-slate-800" id="detailReportTitle">執行報告詳細記錄</h2>
+                            <p class="text-xs text-slate-500" id="detailReportMeta">2026-04-20 14:30:12 | 觸發者: 自動化排程</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <div class="text-right">
+                            <p class="text-xs text-slate-400">總耗時</p>
+                            <p class="text-sm font-mono font-medium text-slate-700" id="detailReportDuration">00:01:12</p>
+                        </div>
+                        <span id="detailReportStatusBadge" class="bg-red-100 text-red-700 border border-red-200 px-3 py-1 rounded text-sm font-bold shadow-sm">Failed</span>
+                        <!-- 新增：返回編輯案例按鈕 -->
+                        <button onclick="goToTestCaseFromReport()" class="ml-2 text-sm px-3 py-1.5 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded transition font-medium flex items-center gap-2 shadow-sm">
+                            <i class="fa-solid fa-pen-to-square"></i> 編輯此案例
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 詳細報告內容 (左右分割) -->
+                <div class="flex-1 flex overflow-hidden">
+                    <!-- 左側：步驟時間軸 -->
+                    <div class="w-1/3 max-w-[400px] bg-white border-r border-slate-200 flex flex-col shadow-[2px_0_5px_rgba(0,0,0,0.02)] z-10">
+                        <div class="p-4 border-b border-slate-100 bg-slate-50 font-bold text-slate-700 text-sm flex justify-between items-center">
+                            <span>測試案例與步驟</span>
+                            <span class="text-xs font-normal bg-white border px-2 py-0.5 rounded text-slate-500">3 步驟</span>
+                        </div>
+                        <div class="flex-1 overflow-y-auto p-4" id="detailStepsTimeline">
+                            <!-- 由 JS 渲染時間軸 -->
+                        </div>
+                    </div>
+
+                    <!-- 右側：動作截圖與詳細數據面板 -->
+                    <div class="flex-1 overflow-y-auto p-6 bg-slate-100">
+                        <div id="stepDetailContent" class="max-w-4xl mx-auto space-y-6">
+                            <!-- 步驟詳細資訊卡片 -->
+                            <div class="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+                                <div class="bg-slate-50 px-5 py-3 border-b border-slate-200 flex justify-between items-center">
+                                    <h3 class="font-bold text-slate-800 text-lg flex items-center gap-2">
+                                        <i class="fa-solid fa-code text-blue-500"></i> <span id="dtlStepName">輸入帳號密碼</span>
+                                    </h3>
+                                    <span id="dtlStepStatus" class="bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-bold">Passed</span>
+                                </div>
+                                <div class="p-5 grid grid-cols-2 gap-6 text-sm">
+                                    <div class="space-y-3">
+                                        <div><span class="text-slate-400 block text-xs mb-1">執行動作 (Action)</span><span id="dtlAction" class="font-mono bg-slate-100 px-2 py-1 rounded text-blue-700">Fill</span></div>
+                                        <div><span class="text-slate-400 block text-xs mb-1">定位器 (Locator)</span><span id="dtlLocator" class="font-mono text-slate-700 border-b border-dashed border-slate-300 pb-0.5">#username</span></div>
+                                    </div>
+                                    <div class="space-y-3">
+                                        <div><span class="text-slate-400 block text-xs mb-1">輸入值 (Input Data)</span><span id="dtlInput" class="font-mono text-slate-700">admin</span></div>
+                                        <div><span class="text-slate-400 block text-xs mb-1">執行耗時</span><span id="dtlDuration" class="font-mono text-slate-700">0.8s</span></div>
+                                    </div>
+                                    
+                                    <!-- 錯誤訊息區塊 (預設隱藏) -->
+                                    <div id="dtlErrorBox" class="col-span-2 bg-red-50 border-l-4 border-red-500 p-3 rounded hidden">
+                                        <p class="font-bold text-red-700 text-xs mb-1">Error Message:</p>
+                                        <p class="font-mono text-red-600 text-xs break-all" id="dtlErrorText">TimeoutError: element handle.fill: Timeout 30000ms exceeded.</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- UI 截圖比對區塊 (預設顯示) -->
+                            <div id="uiScreenshotArea" class="grid grid-cols-2 gap-6">
+                                <!-- 動作前截圖 -->
+                                <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm flex flex-col">
+                                    <div class="flex items-center gap-2 mb-3">
+                                        <i class="fa-regular fa-image text-amber-500"></i>
+                                        <h4 class="font-bold text-slate-700 text-sm">動作前狀態 <span class="text-xs font-normal text-slate-400">(Pre-Action)</span></h4>
+                                    </div>
+                                    <!-- 模擬網頁畫面的容器 -->
+                                    <div class="relative bg-slate-200 rounded overflow-hidden border border-slate-300 aspect-video flex-1 flex flex-col">
+                                        <!-- 模擬瀏覽器頂部 -->
+                                        <div class="h-4 bg-slate-300 w-full flex items-center px-1 gap-1 shrink-0"><div class="w-1.5 h-1.5 rounded-full bg-red-400"></div><div class="w-1.5 h-1.5 rounded-full bg-amber-400"></div><div class="w-1.5 h-1.5 rounded-full bg-green-400"></div></div>
+                                        <!-- 模擬畫面底圖 -->
+                                        <div class="flex-1 bg-white relative p-4 flex flex-col justify-center items-center">
+                                            <!-- 模擬登入表單 UI -->
+                                            <div class="w-1/2 bg-slate-50 border border-slate-200 p-3 rounded shadow-sm">
+                                                <div class="w-1/2 h-3 bg-slate-200 rounded mb-4 mx-auto"></div>
+                                                <div id="mockInput1" class="w-full h-6 bg-white border border-slate-300 rounded mb-2"></div>
+                                                <div id="mockInput2" class="w-full h-6 bg-white border border-slate-300 rounded mb-3"></div>
+                                                <div id="mockBtn" class="w-full h-8 bg-blue-500 rounded"></div>
+                                            </div>
+                                            <!-- 目標高亮紅框 (動態定位) -->
+                                            <div id="targetHighlightBox" class="absolute target-box border-2 border-red-500 z-10 transition-all duration-300"></div>
+                                        </div>
+                                    </div>
+                                    <p class="text-xs text-slate-500 mt-2 text-center"><i class="fa-solid fa-crosshairs text-red-500 mr-1"></i> 紅框標示為自動化程式鎖定之目標元素</p>
+                                </div>
+
+                                <!-- 動作後截圖 -->
+                                <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm flex flex-col">
+                                    <div class="flex items-center gap-2 mb-3">
+                                        <i class="fa-regular fa-image text-green-500"></i>
+                                        <h4 class="font-bold text-slate-700 text-sm">動作後結果 <span class="text-xs font-normal text-slate-400">(Post-Action)</span></h4>
+                                    </div>
+                                    <div class="relative bg-slate-200 rounded overflow-hidden border border-slate-300 aspect-video flex-1 flex flex-col">
+                                        <div class="h-4 bg-slate-300 w-full flex items-center px-1 gap-1 shrink-0"><div class="w-1.5 h-1.5 rounded-full bg-red-400"></div><div class="w-1.5 h-1.5 rounded-full bg-amber-400"></div><div class="w-1.5 h-1.5 rounded-full bg-green-400"></div></div>
+                                        <!-- 模擬動作後畫面 -->
+                                        <div class="flex-1 bg-white relative p-4 flex flex-col justify-center items-center" id="postScreenshotArea">
+                                            <!-- 內容由 JS 動態抽換 -->
+                                        </div>
+                                    </div>
+                                    <p class="text-xs text-slate-500 mt-2 text-center">操作完成後截取的系統最終狀態</p>
+                                </div>
+                            </div>
+
+                            <!-- API JSON 檢視區塊 (預設隱藏) -->
+                            <div id="apiJsonArea" class="grid grid-cols-2 gap-6 hidden">
+                                <!-- Request JSON -->
+                                <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm flex flex-col">
+                                    <div class="flex items-center gap-2 mb-3">
+                                        <i class="fa-solid fa-arrow-right-to-bracket text-blue-500"></i>
+                                        <h4 class="font-bold text-slate-700 text-sm">Request (請求負載)</h4>
+                                    </div>
+                                    <pre class="bg-slate-900 text-green-400 p-4 rounded text-xs overflow-auto h-64 font-mono shadow-inner" id="dtlReqJson"></pre>
+                                </div>
+                                <!-- Response JSON -->
+                                <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm flex flex-col">
+                                    <div class="flex items-center gap-2 mb-3">
+                                        <i class="fa-solid fa-arrow-right-from-bracket text-purple-500"></i>
+                                        <h4 class="font-bold text-slate-700 text-sm">Response (系統回應)</h4>
+                                    </div>
+                                    <pre class="bg-slate-900 text-blue-300 p-4 rounded text-xs overflow-auto h-64 font-mono shadow-inner" id="dtlResJson"></pre>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 視圖 3: 空白歡迎畫面 (預設) -->
+            <div id="emptyWorkspace" class="flex-1 flex flex-col items-center justify-center text-slate-400">
+                <i class="fa-regular fa-folder-open text-6xl mb-4 text-slate-200"></i>
+                <p class="text-lg">請從左側目錄選擇一個測試案例 (.md) 以開始編輯</p>
+            </div>
+
+            <!-- 執行終端機面板 -->
+            <div id="terminalPanel" class="absolute bottom-0 left-0 right-0 h-64 bg-slate-900 border-t-4 border-green-500 transform translate-y-full transition-transform duration-300 ease-in-out flex flex-col z-20 shadow-2xl">
+                <div class="flex items-center justify-between px-4 py-2 bg-slate-800 border-b border-slate-700 shrink-0">
+                    <span class="text-xs font-mono text-slate-300"><i class="fa-solid fa-terminal mr-2"></i>Test Execution Console</span>
+                    <div class="flex gap-3">
+                        <button onclick="clearTerminal()" class="text-slate-400 hover:text-white text-xs"><i class="fa-solid fa-eraser"></i> 清除</button>
+                        <button onclick="closeTerminal()" aria-label="關閉終端機面板" class="text-slate-400 hover:text-red-400"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                </div>
+                <div id="terminalOutput" class="p-4 font-mono text-sm text-slate-300 overflow-y-auto flex-1 space-y-1 bg-[#0f172a]">
+                    <!-- 日誌將在這裡動態生成 -->
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- ==================== 彈出視窗 (Modals) ==================== -->
+    <div id="nodeModal" class="fixed inset-0 bg-slate-900/50 hidden z-50 flex items-center justify-center opacity-0 transition-opacity">
+        <div class="bg-white rounded-lg shadow-xl w-[400px] transform scale-95 transition-transform" id="nodeModalContent">
+            <div class="p-4 border-b border-slate-200"><h3 id="nodeModalTitle" class="text-lg font-bold text-slate-800 flex items-center gap-2">新增節點</h3></div>
+            <div class="p-5">
+                <div id="modalTextGroup" class="hidden"><label id="modalTextLabel" for="nodeNameInput" class="block text-sm font-medium text-slate-700 mb-2">名稱</label><input type="text" id="nodeNameInput" aria-label="節點名稱" placeholder="請輸入名稱" class="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"></div>
+                <div id="modalSelectGroup" class="hidden"><label id="modalSelectLabel" for="nodeSelectInput" class="block text-sm font-medium text-slate-700 mb-2">請選擇選項</label><select id="nodeSelectInput" aria-label="選擇節點選項" class="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"></select></div>
+            </div>
+            <div class="p-4 border-t border-slate-200 flex justify-end gap-2 bg-slate-50 rounded-b-lg"><button onclick="closeModals()" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 rounded transition">取消</button><button onclick="saveNode()" class="px-4 py-2 text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 rounded shadow-sm transition">確認儲存</button></div>
+        </div>
+    </div>
+
+    <!-- 刪除確認 Modal -->
+    <div id="deleteModal" class="fixed inset-0 bg-slate-900/50 hidden z-50 flex items-center justify-center opacity-0 transition-opacity">
+        <div class="bg-white rounded-lg shadow-xl w-[400px] transform scale-95 transition-transform" id="deleteModalContent">
+            <div class="p-4 border-b border-slate-200"><h3 class="text-lg font-bold text-slate-800 flex items-center gap-2"><i class="fa-solid fa-trash text-red-500"></i> 確認刪除</h3></div>
+            <div class="p-5">
+                <p class="text-slate-600 text-sm">確定要刪除節點 <strong id="deleteNodeName" class="text-slate-800"></strong> 嗎？此操作無法復原。</p>
+            </div>
+            <div class="p-4 border-t border-slate-200 flex justify-end gap-2 bg-slate-50 rounded-b-lg">
+                <button onclick="closeModals()" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 rounded transition">取消</button>
+                <button onclick="executeDelete()" class="px-4 py-2 text-sm font-medium bg-red-600 text-white hover:bg-red-700 rounded shadow-sm transition">確認刪除</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 新增欄位 Modal -->
+    <div id="addColumnModal" class="fixed inset-0 bg-slate-900/50 hidden z-50 flex items-center justify-center opacity-0 transition-opacity">
+        <div class="bg-white rounded-lg shadow-xl w-[400px] transform scale-95 transition-transform" id="addColumnModalContent">
+            <div class="p-4 border-b border-slate-200"><h3 class="text-lg font-bold text-slate-800 flex items-center gap-2"><i class="fa-solid fa-columns text-blue-500"></i> 新增 DDT 欄位</h3></div>
+            <div class="p-5">
+                <label class="block text-sm font-medium text-slate-700 mb-2">欄位名稱</label>
+                <input type="text" id="newColumnName" class="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="例如：${Username}">
+            </div>
+            <div class="p-4 border-t border-slate-200 flex justify-end gap-2 bg-slate-50 rounded-b-lg">
+                <button onclick="closeModals()" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 rounded transition">取消</button>
+                <button onclick="saveColumn()" class="px-4 py-2 text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 rounded shadow-sm transition">確認新增</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // ==================== 全域狀態變數 ====================
+        let currentModalAction = null;
+        let targetNodeId = null;
+
+        // ==================== 0. Toast 提示系統 ====================
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `px-4 py-3 rounded shadow-lg text-white text-sm transition-all duration-300 transform translate-x-full flex items-center gap-2 pointer-events-auto z-[999]`;
+            let icon = 'fa-circle-info';
+            if (type === 'error') { toast.classList.add('bg-red-500'); icon = 'fa-circle-xmark'; }
+            else if (type === 'success') { toast.classList.add('bg-green-500'); icon = 'fa-circle-check'; }
+            else { toast.classList.add('bg-slate-800'); }
+            toast.innerHTML = `<i class="fa-solid ${icon}"></i> <span>${message}</span>`;
+            container.appendChild(toast);
+            requestAnimationFrame(() => toast.classList.remove('translate-x-full'));
+            setTimeout(() => { toast.classList.add('translate-x-full', 'opacity-0'); setTimeout(() => toast.remove(), 300); }, 3000);
+        }
+
+        // ==================== App Data (待後端 API 串接) ====================
+        const projectsData = {};   // { [projectId]: { name, treeData } }
+        let testCases = {};        // { [nodeId]: { tag, tagColor, filename, title, ac, steps, ddt } }
+
+        let currentProjectId = null;
+        let currentTestCase = null;
+        let activeTreeData = [];
+
+        // ==================== 1. 終端機功能 ====================
+        function runTest() {
+            const panel = document.getElementById('terminalPanel');
+            panel.classList.remove('translate-y-full');
+            const output = document.getElementById('terminalOutput');
+            output.innerHTML = '';
+
+            // 待後端串接：透過 WebSocket /ws/executions/{taskId}/logs 接收即時日誌
+            const line = document.createElement('div');
+            line.className = 'font-mono text-xs text-slate-400 terminal-text';
+            line.textContent = '> 等待後端 WebSocket 連線推送執行日誌...';
+            output.appendChild(line);
+        }
+
+        function closeTerminal() {
+            document.getElementById('terminalPanel').classList.add('translate-y-full');
+        }
+
+        function clearTerminal() {
+            document.getElementById('terminalOutput').innerHTML = '';
+        }
+
+        // ==================== 2. 編輯器功能 ====================
+        function updateAC(value) {
+            if (currentTestCase && testCases[currentTestCase]) {
+                testCases[currentTestCase].ac = value;
+            }
+        }
+
+        function updateSetup(value) {
+            if (currentTestCase && testCases[currentTestCase]) {
+                testCases[currentTestCase].setup = value;
+            }
+        }
+
+        function renderEditor() {
+            if (!currentTestCase || !testCases[currentTestCase]) return;
+            const tc = testCases[currentTestCase];
+
+            document.getElementById('viewTag').textContent = tc.tag;
+            document.getElementById('viewTag').className = `${tc.tagColor} px-1.5 py-0.5 rounded font-medium`;
+            document.getElementById('viewFilename').textContent = tc.filename;
+            document.getElementById('viewTitle').innerHTML = `<i class="fa-brands fa-markdown text-blue-400"></i> ${tc.title}`;
+            document.getElementById('acTextarea').value = tc.ac;
+            document.getElementById('setupTextarea').value = tc.setup ?? '';
+
+            renderSteps();
+            renderDDT();
+        }
+
+        // 測試步驟模式切換邏輯
+        let currentStepMode = 'ALL';
+        function setStepMode(mode) {
+            currentStepMode = mode;
+            const btns = {
+                ALL: document.getElementById('btnModeALL'),
+                BDD: document.getElementById('btnModeBDD'),
+                KDT: document.getElementById('btnModeKDT')
+            };
+            for (let k in btns) {
+                if (k === mode) {
+                    btns[k].className = 'px-3 py-1 text-xs font-medium rounded bg-white shadow-sm text-blue-600 transition';
+                } else {
+                    btns[k].className = 'px-3 py-1 text-xs font-medium rounded text-slate-500 hover:text-slate-700 transition';
+                }
+            }
+            const table = document.getElementById('stepsTable');
+            table.className = `w-full text-left border-collapse min-w-[900px] transition-all duration-300 table-mode-${mode.toLowerCase()}`;
+        }
+
+        function renderSteps() {
+            const tc = testCases[currentTestCase];
+            const tbody = document.getElementById('stepsBody');
+            tbody.innerHTML = '';
+
+            const bddOptions = ['Given', 'When', 'And', 'Then', 'But'];
+            const actionOptions = ['Navigate', 'Fill', 'Click', 'Select', 'Assert', 'Wait', 'Screenshot', 'Call_API', 'Set_Header'];
+            const compareOptions = ['Equals', 'Contains', 'StartsWith', 'EndsWith', 'Regex', 'GreaterThan', 'LessThan'];
+
+            tc.steps.forEach((step, idx) => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-50 transition';
+                tr.innerHTML = `
+                    <td class="p-2"><input type="text" value="${step.tcid || ''}" placeholder="TC-${String(idx + 1).padStart(2, '0')}" onchange="updateStep(${idx}, 'tcid', this.value)" class="w-full border border-slate-200 rounded p-1 text-xs font-mono focus:ring-1 focus:ring-blue-400 outline-none"></td>
+                    <td class="p-2 col-bdd">
+                        <select onchange="updateStep(${idx}, 'bdd', this.value)" class="w-full border border-slate-200 rounded p-1 text-xs bg-white focus:ring-1 focus:ring-blue-400 outline-none">
+                            ${bddOptions.map(o => `<option ${step.bdd === o ? 'selected' : ''}>${o}</option>`).join('')}
+                        </select>
+                    </td>
+                    <td class="p-2"><input type="text" value="${step.desc}" onchange="updateStep(${idx}, 'desc', this.value)" class="w-full border border-slate-200 rounded p-1 text-xs focus:ring-1 focus:ring-blue-400 outline-none"></td>
+                    <td class="p-2 col-kdt">
+                        <select onchange="updateStep(${idx}, 'action', this.value)" class="w-full border border-slate-200 rounded p-1 text-xs bg-white focus:ring-1 focus:ring-blue-400 outline-none">
+                            ${actionOptions.map(o => `<option ${step.action === o ? 'selected' : ''}>${o}</option>`).join('')}
+                        </select>
+                    </td>
+                    <td class="p-2 col-kdt"><input type="text" value="${step.loc}" onchange="updateStep(${idx}, 'loc', this.value)" class="w-full border border-slate-200 rounded p-1 text-xs font-mono focus:ring-1 focus:ring-blue-400 outline-none"></td>
+                    <td class="p-2"><input type="text" value="${step.input}" onchange="updateStep(${idx}, 'input', this.value)" class="w-full border border-slate-200 rounded p-1 text-xs font-mono focus:ring-1 focus:ring-blue-400 outline-none"></td>
+                    <td class="p-2 col-kdt">
+                        <select onchange="updateStep(${idx}, 'compare', this.value)" class="w-full border border-slate-200 rounded p-1 text-xs bg-white focus:ring-1 focus:ring-blue-400 outline-none">
+                            ${compareOptions.map(o => `<option ${step.compare === o ? 'selected' : ''}>${o}</option>`).join('')}
+                        </select>
+                    </td>
+                    <td class="p-2"><input type="text" value="${step.expected}" onchange="updateStep(${idx}, 'expected', this.value)" class="w-full border border-slate-200 rounded p-1 text-xs focus:ring-1 focus:ring-blue-400 outline-none"></td>
+                    <td class="p-2 text-center">
+                        <button onclick="deleteStep(${idx})" class="text-slate-300 hover:text-red-500 transition"><i class="fa-solid fa-xmark"></i></button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function updateStep(idx, field, value) {
+            if (currentTestCase && testCases[currentTestCase]) {
+                testCases[currentTestCase].steps[idx][field] = value;
+            }
+        }
+
+        function addEmptyStep() {
+            if (!currentTestCase) return showToast('請先選擇測試案例', 'error');
+            const tc = testCases[currentTestCase];
+            const nextNo = `TC-${String(tc.steps.length + 1).padStart(2, '0')}`;
+            tc.steps.push({ bdd: 'And', tcid: nextNo, desc: '', action: 'Click', loc: '', input: '', compare: 'Equals', expected: '' });
+            renderSteps();
+        }
+
+        function deleteStep(idx) {
+            testCases[currentTestCase].steps.splice(idx, 1);
+            renderSteps();
+        }
+
+        function renderDDT() {
+            const tc = testCases[currentTestCase];
+            const ddt = tc.ddt;
+
+            const headerRow = document.getElementById('ddtHeaders');
+            headerRow.innerHTML = ddt.headers.map((h, i) => `
+                <th class="p-2 font-medium text-xs">
+                    <div class="flex items-center gap-1">
+                        <span>${h}</span>
+                        <button onclick="deleteColumn(${i})" class="text-slate-300 hover:text-red-500 ml-1"><i class="fa-solid fa-xmark text-[10px]"></i></button>
+                    </div>
+                </th>
+            `).join('') + '<th class="p-2 w-10"></th>';
+
+            const tbody = document.getElementById('ddtBody');
+            tbody.innerHTML = '';
+            ddt.rows.forEach((row, ri) => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-amber-50/50 transition';
+                tr.innerHTML = row.map((cell, ci) => `
+                    <td class="p-1"><input type="text" value="${cell}" onchange="updateDdtCell(${ri}, ${ci}, this.value)" class="ddt-input w-full p-1.5 text-xs border border-transparent rounded hover:border-slate-200 focus:border-amber-300 transition"></td>
+                `).join('') + `<td class="p-1 text-center"><button onclick="deleteDdtRow(${ri})" class="text-slate-300 hover:text-red-500"><i class="fa-solid fa-xmark text-xs"></i></button></td>`;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function updateDdtCell(ri, ci, value) {
+            testCases[currentTestCase].ddt.rows[ri][ci] = value;
+        }
+
+        function addDdtRow() {
+            if (!currentTestCase) return showToast('請先選擇測試案例', 'error');
+            const tc = testCases[currentTestCase];
+            const newRow = new Array(tc.ddt.headers.length).fill('');
+            // 若第一欄是 No，自動帶入下一個流水號
+            if (tc.ddt.headers[0] && tc.ddt.headers[0].toLowerCase() === 'no') {
+                newRow[0] = String(tc.ddt.rows.length + 1);
+            }
+            tc.ddt.rows.push(newRow);
+            renderDDT();
+        }
+
+        function deleteDdtRow(ri) {
+            testCases[currentTestCase].ddt.rows.splice(ri, 1);
+            renderDDT();
+        }
+
+        function deleteColumn(ci) {
+            const tc = testCases[currentTestCase];
+            tc.ddt.headers.splice(ci, 1);
+            tc.ddt.rows.forEach(row => row.splice(ci, 1));
+            renderDDT();
+        }
+
+        function openAddColumnModal() {
+            if (!currentTestCase) return showToast('請先選擇測試案例', 'error');
+            document.getElementById('newColumnName').value = '';
+            const modal = document.getElementById('addColumnModal');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                document.getElementById('addColumnModalContent').classList.remove('scale-95');
+                document.getElementById('newColumnName').focus();
+            }, 10);
+        }
+
+        function saveColumn() {
+            const name = document.getElementById('newColumnName').value.trim();
+            if (!name) return showToast('請輸入欄位名稱', 'error');
+            const tc = testCases[currentTestCase];
+            tc.ddt.headers.push(name);
+            tc.ddt.rows.forEach(row => row.push(''));
+            renderDDT();
+            showToast('欄位新增成功', 'success');
+            closeModals();
+        }
+
+        function handleJsonImport(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    if (Array.isArray(data) && data.length > 0) {
+                        const headers = Object.keys(data[0]).map(k => `\${${k}}`);
+                        const rows = data.map(row => Object.values(row).map(String));
+                        testCases[currentTestCase].ddt = { headers, rows };
+                        renderDDT();
+                        showToast(`成功匯入 ${rows.length} 筆資料`, 'success');
+                    }
+                } catch {
+                    showToast('JSON 格式錯誤，請確認檔案內容', 'error');
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        // ── Markdown (RL_TMP 7-column DSL) 匯入 / 匯出 ────────────────
+        async function handleMarkdownImport(event) {
+            const file = event.target.files[0];
+            event.target.value = '';
+            if (!file) return;
+            if (!currentTestCase) {
+                showToast('請先在左側選擇一個測試案例節點', 'error');
+                return;
+            }
+            try {
+                const md = await file.text();
+                const res = await fetch(`/api/testcases/${currentTestCase}/import-md`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ markdown: md }),
+                });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({ detail: res.statusText }));
+                    throw new Error(err.detail || '匯入失敗');
+                }
+                const data = await res.json();
+                const tc = testCases[currentTestCase] || {};
+                tc.ac = data.ac_text || '';
+                tc.steps = (data.steps_json || []).map(s => ({
+                    bdd: s.bdd || '', step_desc: s.step_desc || '', action: s.action || '',
+                    locator: s.locator || '', input: s.input || '', operator: s.operator || '', expected: s.expected || '',
+                }));
+                tc.ddt = data.ddt_json || { headers: [], rows: [] };
+                testCases[currentTestCase] = tc;
+                if (typeof renderEditor === 'function') renderEditor(); else { renderSteps?.(); renderDDT?.(); }
+                showToast(`Markdown 匯入成功（${tc.steps.length} 步驟）`, 'success');
+            } catch (err) {
+                showToast(`匯入失敗：${err.message}`, 'error');
+            }
+        }
+
+        async function exportMarkdown() {
+            if (!currentTestCase) {
+                showToast('請先在左側選擇一個測試案例節點', 'error');
+                return;
+            }
+            try {
+                const res = await fetch(`/api/testcases/${currentTestCase}/export-md`);
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({ detail: res.statusText }));
+                    throw new Error(err.detail || '匯出失敗');
+                }
+                const md = await res.text();
+                const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${(testCases[currentTestCase]?.title || 'testcase')}.md`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+                showToast('Markdown 已下載', 'success');
+            } catch (err) {
+                showToast(`匯出失敗：${err.message}`, 'error');
+            }
+        }
+
+        // ==================== 3. 測試報告儀表板與圖表 ====================
+        let chartsInitialized = false;
+
+        function showReportView() {
+            document.getElementById('editorWorkspace').classList.add('hidden');
+            document.getElementById('emptyWorkspace').classList.add('hidden');
+            document.getElementById('detailReportWorkspace').classList.add('hidden');
+            document.getElementById('reportWorkspace').classList.remove('hidden');
+            document.getElementById('mainActions').classList.add('hidden');
+            document.getElementById('mainHeader').classList.remove('hidden');
+
+            currentTestCase = null;
+            document.getElementById('viewFilename').textContent = '測試報告總覽';
+            document.getElementById('viewTitle').innerHTML = '<i class="fa-solid fa-chart-line text-blue-500"></i> 自動化測試執行報告';
+            document.getElementById('viewTag').className = 'bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded font-medium';
+            document.getElementById('viewTag').textContent = 'Dashboard';
+            renderTree(activeTreeData, document.getElementById('treeContainer'));
+
+            if (!chartsInitialized) {
+                // 待後端串接：GET /api/dashboard/charts?projectId=...
+                new Chart(document.getElementById('statusChart').getContext('2d'), {
+                    type: 'doughnut',
+                    data: { labels: ['Passed', 'Failed'], datasets: [{ data: [0, 0], backgroundColor: ['#22c55e', '#ef4444'], borderWidth: 0 }] },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
+                });
+                new Chart(document.getElementById('trendChart').getContext('2d'), {
+                    type: 'bar',
+                    data: {
+                        labels: [],
+                        datasets: [
+                            { label: 'Passed', data: [], backgroundColor: '#22c55e' },
+                            { label: 'Failed', data: [], backgroundColor: '#ef4444' }
+                        ]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false, scales: { x: { stacked: true }, y: { stacked: true } } }
+                });
+                chartsInitialized = true;
+            }
+        }
+
+        // ==================== 4. 詳細報告畫面 ====================
+        // 待後端串接：GET /api/reports/{reportId}/details 取得明細
+        const mockReportData = {};
+
+        let currentReportContext = { projectId: null, testCaseId: null };
+
+        function showDetailReport(reportId) {
+            const report = mockReportData[reportId];
+            if (!report) { showToast('尚未串接後端 /api/reports/{reportId}/details', 'error'); return; }
+
+            currentReportContext.projectId = report.projectId;
+            currentReportContext.testCaseId = report.testCaseId;
+
+            document.getElementById('reportWorkspace').classList.add('hidden');
+            document.getElementById('mainHeader').classList.add('hidden');
+            document.getElementById('detailReportWorkspace').classList.remove('hidden');
+
+            document.getElementById('detailReportTitle').innerText = report.title;
+            document.getElementById('detailReportMeta').innerText = `${report.time} | 觸發者: 自動化排程`;
+            document.getElementById('detailReportDuration').innerText = report.duration;
+
+            const badge = document.getElementById('detailReportStatusBadge');
+            badge.className = report.status === 'Passed'
+                ? 'bg-green-100 text-green-700 border border-green-200 px-3 py-1 rounded text-sm font-bold shadow-sm'
+                : 'bg-red-100 text-red-700 border border-red-200 px-3 py-1 rounded text-sm font-bold shadow-sm';
+            badge.innerText = report.status;
+
+            const timelineContainer = document.getElementById('detailStepsTimeline');
+            timelineContainer.innerHTML = '';
+
+            report.cases.forEach(c => {
+                const caseHeader = document.createElement('div');
+                caseHeader.className = 'font-bold text-slate-800 text-sm mb-3 flex items-center gap-2 bg-slate-100 p-2 rounded';
+                caseHeader.innerHTML = `<i class="fa-regular fa-file-lines text-blue-500"></i> ${c.name}`;
+                timelineContainer.appendChild(caseHeader);
+
+                c.steps.forEach((step, index) => {
+                    const statusIcon = step.status === 'Passed'
+                        ? '<i class="fa-solid fa-circle-check text-green-500 bg-white z-10"></i>'
+                        : '<i class="fa-solid fa-circle-xmark text-red-500 bg-white z-10"></i>';
+                    const item = document.createElement('div');
+                    item.className = 'step-item relative pl-8 py-2 cursor-pointer group';
+                    item.id = `timeline_step_${step.id}`;
+                    item.onclick = () => selectReportStep(reportId, 0, index);
+                    item.innerHTML = `
+                        <div class="step-timeline"></div>
+                        <div class="absolute left-1 top-3.5 text-[14px]">${statusIcon}</div>
+                        <div class="bg-white border border-slate-200 rounded p-2.5 group-hover:border-blue-400 group-hover:shadow-sm transition">
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">${step.bdd}</span>
+                                <span class="font-bold text-slate-700 text-sm truncate">${step.desc}</span>
+                            </div>
+                            <div class="text-xs text-slate-400 font-mono">${step.action} | ${step.duration}</div>
+                        </div>
+                    `;
+                    timelineContainer.appendChild(item);
+                });
+            });
+
+            const failIndex = report.cases[0].steps.findIndex(s => s.status === 'Failed');
+            selectReportStep(reportId, 0, failIndex > -1 ? failIndex : 0);
+        }
+
+        function selectReportStep(reportId, caseIdx, stepIdx) {
+            const step = mockReportData[reportId]?.cases?.[caseIdx]?.steps?.[stepIdx];
+            if (!step) return;
+
+            document.querySelectorAll('.step-item > div.bg-white').forEach(el => el.classList.remove('ring-2', 'ring-blue-500', 'border-transparent'));
+            document.querySelector(`#timeline_step_${step.id} > div.bg-white`).classList.add('ring-2', 'ring-blue-500', 'border-transparent');
+
+            document.getElementById('dtlStepName').innerText = step.desc;
+            document.getElementById('dtlAction').innerText = step.action;
+            document.getElementById('dtlLocator').innerText = step.loc || '(Empty)';
+            document.getElementById('dtlInput').innerText = step.input || '(Empty)';
+            document.getElementById('dtlDuration').innerText = step.duration;
+
+            const statusBadge = document.getElementById('dtlStepStatus');
+            statusBadge.className = step.status === 'Passed'
+                ? 'bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-bold'
+                : 'bg-red-100 text-red-700 px-2 py-0.5 rounded text-xs font-bold';
+            statusBadge.innerText = step.status;
+
+            const errorBox = document.getElementById('dtlErrorBox');
+            if (step.status === 'Failed' && step.errorMsg) {
+                errorBox.classList.remove('hidden');
+                document.getElementById('dtlErrorText').innerText = step.errorMsg;
+            } else {
+                errorBox.classList.add('hidden');
+            }
+
+            const uiArea = document.getElementById('uiScreenshotArea');
+            const apiArea = document.getElementById('apiJsonArea');
+
+            if (step.isAPI) {
+                uiArea.classList.add('hidden');
+                apiArea.classList.remove('hidden');
+                document.getElementById('dtlReqJson').textContent = step.reqJson ? JSON.stringify(step.reqJson, null, 2) : 'No Request Data';
+                document.getElementById('dtlResJson').textContent = step.resJson ? JSON.stringify(step.resJson, null, 2) : 'No Response Data';
+            } else {
+                uiArea.classList.remove('hidden');
+                apiArea.classList.add('hidden');
+
+                const hlBox = document.getElementById('targetHighlightBox');
+                if (step.highlight) {
+                    hlBox.style.display = 'block';
+                    hlBox.style.top = step.highlight.top;
+                    hlBox.style.left = step.highlight.left;
+                    hlBox.style.width = step.highlight.width;
+                    hlBox.style.height = step.highlight.height;
+                } else {
+                    hlBox.style.display = 'none';
+                }
+
+                const postArea = document.getElementById('postScreenshotArea');
+                let postHtml = `<div class="w-1/2 bg-slate-50 border border-slate-200 p-3 rounded shadow-sm">
+                                    <div class="w-1/2 h-3 bg-slate-200 rounded mb-4 mx-auto"></div>`;
+
+                if (step.postState === 'empty') {
+                    postHtml += `<div class="w-full h-6 bg-white border border-slate-300 rounded mb-2"></div>
+                                 <div class="w-full h-6 bg-white border border-slate-300 rounded mb-3"></div>`;
+                } else if (step.postState === 'filled_user') {
+                    postHtml += `<div class="w-full h-6 bg-blue-50 border border-blue-300 rounded mb-2 flex items-center px-2"><span class="text-[10px] text-blue-800">user</span></div>
+                                 <div class="w-full h-6 bg-white border border-slate-300 rounded mb-3"></div>`;
+                } else if (step.postState === 'filled_all') {
+                    postHtml += `<div class="w-full h-6 bg-blue-50 border border-blue-300 rounded mb-2 flex items-center px-2"><span class="text-[10px] text-blue-800">user</span></div>
+                                 <div class="w-full h-6 bg-blue-50 border border-blue-300 rounded mb-3 flex items-center px-2"><span class="text-[10px] text-blue-800">•••••</span></div>`;
+                } else if (step.postState === 'error') {
+                    postHtml += `<div class="w-full bg-red-100 text-red-600 text-[10px] p-1 mb-2 rounded text-center border border-red-200 font-bold">帳號或密碼錯誤</div>
+                                 <div class="w-full h-6 bg-white border border-slate-300 rounded mb-2 flex items-center px-2"><span class="text-[10px]">user</span></div>
+                                 <div class="w-full h-6 bg-white border border-slate-300 rounded mb-3"></div>`;
+                }
+                postHtml += `<div class="w-full h-8 bg-blue-500 rounded"></div></div>`;
+                postArea.innerHTML = postHtml;
+            }
+        }
+
+        function backToDashboard() {
+            document.getElementById('detailReportWorkspace').classList.add('hidden');
+            document.getElementById('reportWorkspace').classList.remove('hidden');
+            document.getElementById('mainHeader').classList.remove('hidden');
+        }
+
+        function goToTestCaseFromReport() {
+            if (currentReportContext.projectId && currentReportContext.testCaseId) {
+                if (currentProjectId !== currentReportContext.projectId) {
+                    const selector = document.getElementById('projectSelector');
+                    selector.value = currentReportContext.projectId;
+                    switchProject(currentReportContext.projectId);
+                }
+                loadTestCase(currentReportContext.testCaseId);
+                renderAllTree();
+            } else {
+                showToast('無法找到關聯的測試案例', 'error');
+            }
+        }
+
+        // ==================== 5. 樹狀目錄功能（全部串接後端）====================
+
+        // ---- 後端節點 level_type -> 前端 title/icon/isFile ----
+        function decorateNode(serverNode) {
+            const lt = serverNode.level_type;
+            const out = {
+                id: serverNode.id,
+                name: serverNode.name,
+                level_type: lt,
+                expanded: true,
+                isFile: false,
+                children: (serverNode.children || []).map(decorateNode),
+            };
+            if (lt === 'FEATURE') {
+                out.title = '功能：' + serverNode.name;
+                out.icon = 'fa-solid fa-layer-group text-indigo-500';
+            } else if (lt === 'PLATFORM') {
+                out.title = serverNode.name;
+                out.icon = serverNode.name === 'WEB' ? 'fa-solid fa-globe text-teal-500'
+                        : serverNode.name === 'API' ? 'fa-solid fa-server text-purple-500'
+                        : 'fa-solid fa-mobile-screen text-pink-500';
+            } else if (lt === 'PAGE') {
+                out.title = '頁面：' + serverNode.name;
+                out.icon = 'fa-regular fa-window-maximize text-slate-400';
+            } else if (lt === 'SCENARIO') {
+                out.title = serverNode.name;
+                out.icon = serverNode.name === '正向' ? 'fa-solid fa-circle-plus text-green-500'
+                        : serverNode.name === '反向' ? 'fa-solid fa-circle-minus text-red-400'
+                        : 'fa-solid fa-circle-exclamation text-amber-500';
+            } else if (lt === 'TESTCASE') {
+                out.title = serverNode.name.endsWith('.md') ? serverNode.name : serverNode.name + '.md';
+                out.icon = 'fa-brands fa-markdown text-blue-500';
+                out.isFile = true;
+                delete out.children;
+            }
+            return out;
+        }
+
+        async function apiFetch(url, opts = {}) {
+            const res = await fetch(url, opts);
+            if (!res.ok) {
+                let msg = res.statusText;
+                try { const j = await res.json(); msg = j.detail || msg; } catch {}
+                throw new Error(`HTTP ${res.status} ${msg}`);
+            }
+            if (res.status === 204) return null;
+            return res.json();
+        }
+
+        async function initProjects() {
+            const sel = document.getElementById('projectSelector');
+            sel.innerHTML = '';
+            try {
+                const list = await apiFetch('/api/projects');
+                Object.keys(projectsData).forEach(k => delete projectsData[k]);
+                if (!list.length) {
+                    sel.innerHTML = '<option value="">（尚無專案，請先建立）</option>';
+                    activeTreeData = [];
+                    currentProjectId = null;
+                    renderAllTree();
+                    return;
+                }
+                for (const p of list) {
+                    projectsData[p.id] = { name: p.name, treeData: [] };
+                    sel.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+                }
+                const keep = currentProjectId && projectsData[currentProjectId] ? currentProjectId : list[0].id;
+                sel.value = keep;
+                await switchProject(keep);
+            } catch (e) {
+                showToast(`載入專案列表失敗：${e.message}`, 'error');
+            }
+        }
+
+        async function switchProject(pid) {
+            currentProjectId = pid;
+            currentTestCase = null;
+            document.getElementById('editorWorkspace').classList.add('hidden');
+            document.getElementById('reportWorkspace').classList.add('hidden');
+            document.getElementById('detailReportWorkspace').classList.add('hidden');
+            document.getElementById('emptyWorkspace').classList.remove('hidden');
+            document.getElementById('mainHeader').classList.remove('hidden');
+            document.getElementById('mainActions').classList.add('hidden');
+            document.getElementById('viewFilename').textContent = '請選擇專案與檔案';
+            document.getElementById('viewTitle').innerHTML = '<i class="fa-regular fa-file-lines text-slate-400"></i> 歡迎使用 AutoTest';
+            document.getElementById('viewTag').className = 'bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-medium';
+            document.getElementById('viewTag').textContent = '系統';
+            if (!pid) { activeTreeData = []; renderAllTree(); return; }
+            try {
+                const tree = await apiFetch(`/api/projects/${pid}/tree`);
+                activeTreeData = tree.map(decorateNode);
+                if (projectsData[pid]) projectsData[pid].treeData = activeTreeData;
+                renderAllTree();
+            } catch (e) {
+                showToast(`載入樹狀圖失敗：${e.message}`, 'error');
+                activeTreeData = [];
+                renderAllTree();
+            }
+        }
+
+        function renderAllTree() {
+            const data = filterTree(activeTreeData, treeSearchKeyword);
+            renderTree(data, document.getElementById('treeContainer'));
+            const clearBtn = document.getElementById('treeSearchClear');
+            if (clearBtn) clearBtn.classList.toggle('hidden', !treeSearchKeyword);
+        }
+
+        // ---- 搜尋過濾 ----
+        let treeSearchKeyword = '';
+        function onTreeSearch(v) {
+            treeSearchKeyword = (v || '').trim().toLowerCase();
+            renderAllTree();
+        }
+        function clearTreeSearch() {
+            const inp = document.getElementById('treeSearchInput');
+            if (inp) inp.value = '';
+            treeSearchKeyword = '';
+            renderAllTree();
+        }
+        function filterTree(nodes, kw) {
+            if (!kw) return nodes;
+            const out = [];
+            for (const n of nodes) {
+                const matchSelf = (n.title || n.name || '').toLowerCase().includes(kw);
+                const childMatched = (n.children && !n.isFile) ? filterTree(n.children, kw) : [];
+                if (matchSelf || childMatched.length) {
+                    const copy = { ...n };
+                    if (!n.isFile) {
+                        copy.children = matchSelf ? n.children : childMatched;
+                        copy.expanded = true;
+                    }
+                    out.push(copy);
+                }
+            }
+            return out;
+        }
+
+        function findNodeInfo(nodes, id, parent = null, index = -1, currentLevel = 1) {
+            for (let i = 0; i < nodes.length; i++) {
+                if (nodes[i].id === id) return { node: nodes[i], parent: parent, index: i, siblings: nodes, level: currentLevel };
+                if (nodes[i].children) {
+                    const found = findNodeInfo(nodes[i].children, id, nodes[i], i, currentLevel + 1);
+                    if (found) return found;
+                }
+            }
+            return null;
+        }
+
+        function renderTree(nodes, container) {
+            container.innerHTML = '';
+            nodes.forEach((n, idx) => {
+                const div = document.createElement('div');
+                div.className = 'mb-1';
+                div.draggable = true;
+                div.dataset.nodeId = n.id;
+                // 拖曳排序事件
+                div.addEventListener('dragstart', (e) => {
+                    e.stopPropagation();
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', n.id);
+                    div.classList.add('opacity-50');
+                });
+                div.addEventListener('dragend', () => div.classList.remove('opacity-50'));
+                div.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.dataTransfer.dropEffect = 'move';
+                    div.classList.add('ring-2', 'ring-blue-300');
+                });
+                div.addEventListener('dragleave', () => div.classList.remove('ring-2', 'ring-blue-300'));
+                div.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    div.classList.remove('ring-2', 'ring-blue-300');
+                    const fromId = e.dataTransfer.getData('text/plain');
+                    if (fromId && fromId !== n.id) reorderNode(fromId, n.id);
+                });
+
+                const bg = n.isFile
+                    ? (currentTestCase === n.id ? 'bg-blue-50 text-blue-700 font-bold border-blue-200' : 'text-slate-600 border-transparent hover:bg-slate-100')
+                    : 'text-slate-700 font-semibold hover:bg-slate-100 border-transparent';
+                const row = document.createElement('div');
+                row.className = `flex items-center gap-2 p-1.5 rounded cursor-pointer group transition text-xs border ${bg}`;
+
+                row.onclick = () => {
+                    if (n.isFile) loadTestCase(n.id);
+                    else { n.expanded = !n.expanded; renderAllTree(); }
+                };
+
+                let html = `<i class="fa-solid fa-grip-vertical text-slate-300 text-[10px] cursor-grab" title="拖曳調整順序"></i>`;
+                html += !n.isFile
+                    ? `<i class="fa-solid ${n.expanded ? 'fa-caret-down' : 'fa-caret-right'} text-slate-400 w-3 text-center"></i>`
+                    : `<div class="w-3"></div>`;
+                html += `<i class="${n.icon}"></i> <span class="flex-1 truncate">${highlightKeyword(n.title)}</span>`;
+
+                html += `<div class="opacity-0 group-hover:opacity-100 flex items-center gap-1.5 transition-opacity tree-actions pl-2" onclick="event.stopPropagation()">`;
+                if (!n.isFile) html += `<button onclick="openNodeModal(event, '${n.id}', 'add')" class="text-slate-400 hover:text-blue-500 transform hover:scale-110" title="新增子節點"><i class="fa-solid fa-plus text-[11px]"></i></button>`;
+                html += `<button onclick="openNodeModal(event, '${n.id}', 'edit')" class="text-slate-400 hover:text-green-500 transform hover:scale-110" title="修改名稱"><i class="fa-solid fa-pen text-[11px]"></i></button>
+                         <button onclick="openDeleteModal(event, '${n.id}')" class="text-slate-400 hover:text-red-500 transform hover:scale-110" title="刪除"><i class="fa-solid fa-trash text-[11px]"></i></button>
+                         </div>`;
+
+                row.innerHTML = html;
+                div.appendChild(row);
+
+                if (!n.isFile && n.expanded && n.children) {
+                    const childDiv = document.createElement('div');
+                    childDiv.className = 'pl-4 border-l border-slate-200 ml-3 mt-1 space-y-1';
+                    renderTree(n.children, childDiv);
+                    div.appendChild(childDiv);
+                }
+                container.appendChild(div);
+            });
+        }
+
+        function highlightKeyword(text) {
+            if (!treeSearchKeyword) return text;
+            const idx = text.toLowerCase().indexOf(treeSearchKeyword);
+            if (idx < 0) return text;
+            const end = idx + treeSearchKeyword.length;
+            return text.slice(0, idx) + '<mark class="bg-yellow-200 text-slate-900 rounded px-0.5">' + text.slice(idx, end) + '</mark>' + text.slice(end);
+        }
+
+        // ---- 拖曳排序：在「同一父節點」內重新排序 ----
+        async function reorderNode(fromId, targetId) {
+            const from = findNodeInfo(activeTreeData, fromId);
+            const to = findNodeInfo(activeTreeData, targetId);
+            if (!from || !to) return showToast('找不到節點', 'error');
+            // 仅允許同父節點間拖曳（防止跨層崩潰）
+            if (from.siblings !== to.siblings) {
+                return showToast('僅可在同一層級中調整順序', 'error');
+            }
+            const arr = from.siblings;
+            const [moved] = arr.splice(from.index, 1);
+            const newIdx = arr.indexOf(to.node);
+            arr.splice(newIdx, 0, moved);
+            renderAllTree();
+            // 寫回後端 sort_order（以 10 為間距便利未來插入）
+            try {
+                await Promise.all(arr.map((n, i) => apiFetch(`/api/nodes/${encodeURIComponent(n.id)}`, {
+                    method: 'PATCH', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ sort_order: (i + 1) * 10 })
+                })));
+                showToast('順序已更新', 'success');
+            } catch (e) {
+                showToast(`寫回順序失敗：${e.message}`, 'error');
+                await switchProject(currentProjectId);
+            }
+        }
+
+        async function loadTestCase(id) {
+            try {
+                const tc = await apiFetch(`/api/testcases/${encodeURIComponent(id)}`);
+                const info = findNodeInfo(activeTreeData, id);
+                const filename = info ? info.node.title : id;
+                testCases[id] = {
+                    tag: 'Saved', tagColor: 'bg-blue-50 text-blue-700',
+                    filename: filename,
+                    title: '[ATDD] ' + filename.replace(/\.md$/, ''),
+                    ac: tc.ac_text || '',
+                    steps: Array.isArray(tc.steps_json) ? tc.steps_json : [],
+                    ddt: (tc.ddt_json && tc.ddt_json.headers && tc.ddt_json.headers.length) ? tc.ddt_json : { headers: ['No', 'Key', 'Value'], rows: [['1', '', '']] }
+                };
+                currentTestCase = id;
+                document.getElementById('emptyWorkspace').classList.add('hidden');
+                document.getElementById('reportWorkspace').classList.add('hidden');
+                document.getElementById('detailReportWorkspace').classList.add('hidden');
+                document.getElementById('editorWorkspace').classList.remove('hidden');
+                document.getElementById('mainActions').classList.remove('hidden');
+                renderEditor();
+                renderAllTree();
+            } catch (e) {
+                showToast(`載入測試案例失敗：${e.message}`, 'error');
+            }
+        }
+
+        // ==================== 6. CRUD Modal 邏輯 ====================
+        function openNodeModal(event, id, action) {
+            event.stopPropagation();
+            currentModalAction = action;
+            targetNodeId = id;
+
+            const modal = document.getElementById('nodeModal');
+            const titleEl = document.getElementById('nodeModalTitle');
+            const textGroup = document.getElementById('modalTextGroup');
+            const selectGroup = document.getElementById('modalSelectGroup');
+            const nameInput = document.getElementById('nodeNameInput');
+            const selectInput = document.getElementById('nodeSelectInput');
+
+            textGroup.style.display = 'none';
+            selectGroup.style.display = 'none';
+
+            if (action === 'add') {
+                if (id === 'root_project') {
+                    titleEl.innerHTML = '<i class="fa-solid fa-folder-plus text-blue-500"></i> 新增專案';
+                    textGroup.style.display = 'block';
+                    document.getElementById('modalTextLabel').innerText = '專案名稱';
+                    nameInput.value = '';
+                } else if (id === 'root_feature') {
+                    titleEl.innerHTML = '<i class="fa-solid fa-layer-group text-indigo-500"></i> 新增功能';
+                    textGroup.style.display = 'block';
+                    document.getElementById('modalTextLabel').innerText = '功能名稱';
+                    nameInput.value = '';
+                } else {
+                    const info = findNodeInfo(activeTreeData, id);
+                    if (!info) return;
+
+                    if (info.level === 1) {
+                        titleEl.innerHTML = '<i class="fa-solid fa-server text-teal-500"></i> 新增平台';
+                        selectGroup.style.display = 'block';
+                        document.getElementById('modalSelectLabel').innerText = '選擇平台';
+                        selectInput.innerHTML = '<option value="WEB">WEB</option><option value="API">API</option><option value="APP">APP</option>';
+                    } else if (info.level === 2) {
+                        titleEl.innerHTML = '<i class="fa-regular fa-window-maximize text-slate-400"></i> 新增頁面';
+                        textGroup.style.display = 'block';
+                        document.getElementById('modalTextLabel').innerText = '頁面名稱';
+                        nameInput.value = '';
+                    } else if (info.level === 3) {
+                        titleEl.innerHTML = '<i class="fa-solid fa-share-nodes text-green-500"></i> 新增情境';
+                        selectGroup.style.display = 'block';
+                        document.getElementById('modalSelectLabel').innerText = '選擇測試情境';
+                        selectInput.innerHTML = '<option value="正向">正向</option><option value="反向">反向</option><option value="邊界">邊界</option>';
+                    } else if (info.level === 4) {
+                        titleEl.innerHTML = '<i class="fa-brands fa-markdown text-blue-500"></i> 新增測試案例';
+                        textGroup.style.display = 'block';
+                        document.getElementById('modalTextLabel').innerText = '檔案名稱 (.md)';
+                        nameInput.value = '';
+                    }
+                }
+            } else if (action === 'edit') {
+                const info = findNodeInfo(activeTreeData, id);
+                if (info && (info.level === 2 || info.level === 4)) {
+                    return showToast('此層級屬於系統列舉值，禁止修改名稱', 'error');
+                }
+
+                titleEl.innerHTML = '<i class="fa-solid fa-pen text-green-500"></i> 修改名稱';
+                textGroup.style.display = 'block';
+                document.getElementById('modalTextLabel').innerText = '新名稱';
+                nameInput.value = info ? info.node.title.replace(/^(功能：|頁面：)/, '') : '';
+            }
+
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                document.getElementById('nodeModalContent').classList.remove('scale-95');
+                if (textGroup.style.display === 'block') nameInput.focus();
+            }, 10);
+        }
+
+        async function saveNode() {
+            const nameInput = document.getElementById('nodeNameInput').value.trim();
+            const selectValue = document.getElementById('nodeSelectInput').value;
+
+            if (currentModalAction === 'add') {
+                try {
+                    if (targetNodeId === 'root_project') {
+                        if (!nameInput) return showToast('請輸入專案名稱', 'error');
+                        const proj = await apiFetch('/api/projects', {
+                            method: 'POST', headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({ name: nameInput })
+                        });
+                        showToast('專案新增成功', 'success');
+                        currentProjectId = proj.id;
+                        closeModals();
+                        await initProjects();
+                        return;
+                    }
+
+                    if (targetNodeId === 'root_feature') {
+                        if (!currentProjectId) return showToast('請先選擇專案', 'error');
+                        if (!nameInput) return showToast('請輸入功能名稱', 'error');
+                        await apiFetch('/api/nodes', {
+                            method: 'POST', headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({ project_id: currentProjectId, parent_id: null, name: nameInput })
+                        });
+                        showToast('功能新增成功', 'success');
+                    } else {
+                        const info = findNodeInfo(activeTreeData, targetNodeId);
+                        if (!info) return;
+                        let name = nameInput;
+                        if (info.level === 1 || info.level === 3) name = selectValue;
+                        if (!name) return showToast('請輸入名稱', 'error');
+                        await apiFetch('/api/nodes', {
+                            method: 'POST', headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({ project_id: currentProjectId, parent_id: targetNodeId, name: name })
+                        });
+                        showToast('節點新增成功', 'success');
+                    }
+                    closeModals();
+                    await switchProject(currentProjectId);
+                    return;
+                } catch (e) {
+                    showToast(`新增失敗：${e.message}`, 'error');
+                    return;
+                }
+            } else if (currentModalAction === 'edit') {
+                if (!nameInput) return showToast('請輸入名稱', 'error');
+                try {
+                    await apiFetch(`/api/nodes/${encodeURIComponent(targetNodeId)}`, {
+                        method: 'PATCH', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ name: nameInput })
+                    });
+                    showToast('名稱修改成功', 'success');
+                    closeModals();
+                    await switchProject(currentProjectId);
+                    return;
+                } catch (e) {
+                    showToast(`修改失敗：${e.message}`, 'error');
+                    return;
+                }
+            }
+
+            closeModals();
+            renderAllTree();
+        }
+
+        function openDeleteModal(event, id) {
+            event.stopPropagation();
+            targetNodeId = id;
+            const info = findNodeInfo(activeTreeData, id);
+            if (!info) return;
+            document.getElementById('deleteNodeName').innerText = info.node.title;
+            const modal = document.getElementById('deleteModal');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                document.getElementById('deleteModalContent').classList.remove('scale-95');
+            }, 10);
+        }
+
+        async function executeDelete() {
+            try {
+                await apiFetch(`/api/nodes/${encodeURIComponent(targetNodeId)}`, { method: 'DELETE' });
+                if (currentTestCase === targetNodeId) currentTestCase = null;
+                showToast('節點已刪除', 'success');
+                closeModals();
+                await switchProject(currentProjectId);
+            } catch (e) {
+                showToast(`刪除失敗：${e.message}`, 'error');
+                closeModals();
+            }
+        }
+
+        function closeModals() {
+            ['nodeModal', 'deleteModal', 'addColumnModal'].forEach(id => {
+                const modal = document.getElementById(id);
+                modal.classList.add('opacity-0');
+                const content = modal.querySelector('[id$="Content"], [id$="ModalContent"]');
+                if (content) content.classList.add('scale-95');
+                setTimeout(() => modal.classList.add('hidden'), 200);
+            });
+        }
+
+        // ==================== 初始化 ====================
+        // ==================== \u5132\u5b58\u8349\u7a3f ====================
+        async function saveDraft() {
+            if (!currentTestCase) return showToast('\u8acb\u5148\u9078\u64c7\u6e2c\u8a66\u6848\u4f8b', 'error');
+            const tc = testCases[currentTestCase];
+            const payload = {
+                ac_text: tc.ac || '',
+                steps_json: tc.steps || [],
+                ddt_json: tc.ddt || { headers: [], rows: [] }
+            };
+            try {
+                await apiFetch(`/api/testcases/${encodeURIComponent(currentTestCase)}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                showToast('\u5132\u5b58\u6210\u529f', 'success');
+            } catch (err) {
+                console.error(err);
+                // \u5f8c\u7aef\u5c1a\u672a\u4e32\u63a5\u6642\uff0c\u8a18\u9304\u672c\u5730\u4f7f\u7528\u8005\u53ef\u770b\u898b\u662f\u4f55\u539f\u56e0
+                showToast(`\u5132\u5b58\u5931\u6557\uff1a${err.message}`, 'error');
+            }
+        }
+
+        // ==================== \u5074\u908a\u6b04\u62d6\u66f3\u8abf\u6574\u5bec\u5ea6 ====================
+        (function initSidebarResizer() {
+            const sidebar = document.getElementById('sidebar');
+            const resizer = document.getElementById('sidebarResizer');
+            if (!sidebar || !resizer) return;
+            const MIN = 200, MAX = 600;
+            // \u5fa9\u539f\u4e4b\u524d\u7684\u5bec\u5ea6
+            const saved = parseInt(localStorage.getItem('autotest_sidebar_width') || '', 10);
+            if (saved && saved >= MIN && saved <= MAX) sidebar.style.width = saved + 'px';
+
+            let dragging = false;
+            resizer.addEventListener('mousedown', (e) => {
+                dragging = true;
+                document.body.style.cursor = 'col-resize';
+                document.body.style.userSelect = 'none';
+                e.preventDefault();
+            });
+            document.addEventListener('mousemove', (e) => {
+                if (!dragging) return;
+                const rect = sidebar.getBoundingClientRect();
+                let w = e.clientX - rect.left;
+                if (w < MIN) w = MIN;
+                if (w > MAX) w = MAX;
+                sidebar.style.width = w + 'px';
+            });
+            document.addEventListener('mouseup', () => {
+                if (!dragging) return;
+                dragging = false;
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+                localStorage.setItem('autotest_sidebar_width', parseInt(sidebar.style.width, 10));
+            });
+        })();
+
+        window.onload = () => { initProjects(); };
+    </script>
+</body>
+</html>

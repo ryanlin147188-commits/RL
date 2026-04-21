@@ -1,0 +1,74 @@
+from typing import Any, Optional
+
+from fastapi import HTTPException
+from sqlalchemy import delete as sql_delete
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.tree_node import LEVEL_HIERARCHY, LevelType, TreeNode
+
+
+def build_tree(nodes: list[Any], parent_id: Optional[str] = None) -> list[dict]:
+    """
+    將資料庫回傳的扁平節點清單，在 Python 端遞迴組裝成樹狀 JSON。
+    一次查詢全部節點、Python 端組樹，避免 N+1 問題。
+    """
+    result: list[dict] = []
+    for node in sorted(nodes, key=lambda n: n.sort_order):
+        if node.parent_id == parent_id:
+            result.append(
+                {
+                    "id": node.id,
+                    "project_id": node.project_id,
+                    "parent_id": node.parent_id,
+                    "level_type": node.level_type,
+                    "name": node.name,
+                    "sort_order": node.sort_order,
+                    "children": build_tree(nodes, node.id),
+                }
+            )
+    return result
+
+
+async def get_expected_level(
+    db: AsyncSession,
+    project_id: str,
+    parent_id: Optional[str],
+) -> LevelType:
+    """
+    根據父節點層級，計算新節點應有的 level_type。
+    同時做「防呆驗證」：不允許跨層插入節點。
+    """
+    if parent_id is None:
+        return LevelType.FEATURE
+
+    result = await db.execute(
+        select(TreeNode).where(
+            TreeNode.id == parent_id,
+            TreeNode.project_id == project_id,
+        )
+    )
+    parent = result.scalar_one_or_none()
+    if parent is None:
+        raise HTTPException(status_code=404, detail="Parent node not found in this project")
+
+    expected = LEVEL_HIERARCHY.get(parent.level_type)
+    if expected is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot add children under a {parent.level_type.value} node (leaf)",
+        )
+    return expected
+
+
+async def recursive_delete(db: AsyncSession, node_id: str) -> None:
+    """
+    刪除節點及其所有子孫節點。
+    依靠資料庫 FK ON DELETE CASCADE 處理巢狀刪除，
+    execution_steps_log.testcase_node_id 設為 ON DELETE SET NULL（保留歷史）。
+    """
+    await db.execute(
+        sql_delete(TreeNode)
+        .where(TreeNode.id == node_id)
+        .execution_options(synchronize_session=False)
+    )

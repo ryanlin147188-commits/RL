@@ -1,0 +1,54 @@
+# ── 機敏設定 ──
+.env
+*.env.local
+backend/.env
+
+# ── Python ──
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ── Node / Frontend ──
+node_modules/
+frontend/dist/
+frontend/.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ── 測試產物 ──
+backend/PIC/
+output.xml
+log.html
+report.html
+selenium-screenshot-*.png
+geckodriver*.log
+chromedriver*.log
+results/
+allure-results/
+
+# ── IDE / OS ──
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+
+# ── Docker / 本機資料 ──
+*.sqlite
+*.sqlite3
+*.db
+mysql-data/
+minio-data/
+
+# ── 其他 ──
+*.log
+*.bak
+*.tmp
