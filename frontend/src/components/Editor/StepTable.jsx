@@ -59,7 +59,7 @@ function BlurInput({ value, placeholder, onCommit }) {
     setLocal(value ?? '')
   }, [value])
 
-  return (
+  const input = (
     <Input
       value={local}
       size="small"
@@ -70,6 +70,19 @@ function BlurInput({ value, placeholder, onCommit }) {
       }}
       style={{ fontSize: 12 }}
     />
+  )
+  // 滑鼠移上去時顯示完整內容（避免欄位過窄時看起來被截斷，例如
+  // role=heading[name="..."] 這類較長的 Locator）
+  return local ? (
+    <Tooltip
+      title={<span style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{local}</span>}
+      placement="topLeft"
+      mouseEnterDelay={0.4}
+    >
+      {input}
+    </Tooltip>
+  ) : (
+    input
   )
 }
 
@@ -104,6 +117,7 @@ export default function StepTable() {
     {
       title: '步驟描述',
       dataIndex: 'description',
+      width: 220,
       render: (val, _, idx) => (
         <BlurInput
           value={val}
@@ -129,10 +143,11 @@ export default function StepTable() {
     {
       title: 'Locator',
       dataIndex: 'locator',
+      width: 280,
       render: (val, _, idx) => (
         <BlurInput
           value={val}
-          placeholder="#id / .class / /api/path"
+          placeholder="#id / .class / role=... / /api/path"
           onCommit={(v) => updateStep(idx, 'locator', v)}
         />
       ),
@@ -140,6 +155,7 @@ export default function StepTable() {
     {
       title: 'Input',
       dataIndex: 'input',
+      width: 180,
       render: (val, _, idx) => (
         <BlurInput
           value={val}
@@ -165,6 +181,7 @@ export default function StepTable() {
     {
       title: 'Expected',
       dataIndex: 'expected',
+      width: 200,
       render: (val, _, idx) => (
         <BlurInput
           value={val}
@@ -241,7 +258,7 @@ export default function StepTable() {
         rowKey="id"
         pagination={false}
         size="small"
-        scroll={{ x: 960 }}
+        scroll={{ x: 1380 }}
         locale={{ emptyText: '尚無步驟，點擊「新增步驟」開始建立' }}
         style={{ fontSize: 12 }}
       />

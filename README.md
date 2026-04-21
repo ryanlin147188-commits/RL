@@ -7,8 +7,9 @@
 - 5 層級樹狀目錄管理測試案例（Feature → Platform → Page → Scenario → TestCase）
 - 視覺化 ATDD / BDD 步驟編輯與 Data-Driven Testing（DDT）
 - 測試案例記錄「驗收準則 (AC) + 前置動作 (Pre-Setup) + BDD 步驟 + DDT 資料」四區塊
+- **Playwright codegen 瀏覽器錄製**：一鍵產生 BDD 步驟（含 trace.zip 供 Trace Viewer 分析）
 - **Robot Framework** + Browser Library / RequestsLibrary / DatabaseLibrary / AppiumLibrary 統一執行引擎
-  - Web UI ：Browser Library（Playwright 為底層，含别步 pre/post 截圖）
+  - Web UI ：Browser Library（Playwright 為底層，含步驟前後截圖）
   - HTTP API ：RequestsLibrary
   - SQL ：DatabaseLibrary
   - Mobile ：AppiumLibrary（需外接 Appium server）
@@ -169,8 +170,28 @@ frontend/
 docker-compose.yml
 ```
 
+## 錄製功能（Playwright codegen）
+
+於 TopNav 點選「🎬 錄製」頁（`/recorder`）：
+
+1. 輸入目標 URL → 點「建立錄製階段」。
+2. 複製任一指令到本機終端機執行（四種方式擇一）：
+   - **A) Node.js npx**（免安裝）：`npx -y playwright codegen --save-trace=... -o ...`
+   - **B) Python pip**（已裝 playwright）：`python -m playwright codegen --save-trace=...`
+   - **C) rfbrowser codegen**（robotframework-browser）
+   - **D) PowerShell 一鍵**：codegen + 自動 curl 上傳（建議）
+3. 操作真實瀏覽器視窗；關閉後本機產生 `recorded_xxxx.py` 與 `trace_xxxx.zip`。
+4. **想讓步驟自動帶出「比對條件 / 預期結果」**：在 Playwright Inspector 工具列點選
+   `Assert visibility`、`Assert text` 或 `Assert value`，再點頁面元素。
+   後端解析後自動填入 Condition / Expected 兩欄。
+5. 把兩個檔案拖到 ③ 上傳區 → 點「套用至當前案例」，步驟即合併至右側編輯器。
+6. `trace.zip` 可從頁面「下載 trace.zip」按鈕取得，於 <https://trace.playwright.dev> 開啟分析。
+
+---
+
 ## 關鍵端點
 
-- REST：`http://localhost:8000/docs`（Swagger 全清單）
-- WebSocket 即時日誌：`ws://localhost/ws/v1/executions/{task_id}/logs`
+- REST：`http://localhost:8000/docs`（Swagger 全清單；所有路由掛在 `/api/...`）
+- WebSocket 即時日誌：`ws://localhost/ws/executions/{task_id}/logs`
 - 截圖靜態檔：`http://localhost/pics/{report_id}/{tag}.png`
+- Playwright Trace Viewer：<https://trace.playwright.dev>（上傳 trace.zip 後離線分析）

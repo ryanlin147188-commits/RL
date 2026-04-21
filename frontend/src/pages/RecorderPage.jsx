@@ -244,6 +244,27 @@ export default function RecorderPage() {
                 </ul>
               }
             />
+            <Alert
+              type="success"
+              showIcon
+              style={{ marginTop: 8 }}
+              message="想讓步驟自動帶出「比對條件 / 預期結果」？"
+              description={
+                <ul style={{ margin: 0, paddingLeft: 20 }}>
+                  <li>
+                    在 codegen 視窗 (Playwright Inspector) 工具列點選{' '}
+                    <Text code>Assert visibility</Text>、<Text code>Assert text</Text> 或{' '}
+                    <Text code>Assert value</Text>，再點頁面上的元素。
+                  </li>
+                  <li>
+                    工具會在腳本中產生 <Text code>expect(page.locator(...)).to_*(...)</Text>，
+                    後端解析後會自動填入 <b>Action=AssertText/AssertVisible</b>、
+                    <b>Condition=Equals/Contains/IsVisible</b>、<b>Expected=預期文字</b> 三欄。
+                  </li>
+                  <li>非斷言性步驟（Click/Fill/Goto）本來就不需要比對條件，欄位保留空白即可。</li>
+                </ul>
+              }
+            />
 
             <Tabs
               style={{ marginTop: 12 }}

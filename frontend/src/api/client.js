@@ -6,7 +6,9 @@ import axios from 'axios'
  * 正式部署需在 .env 設定 VITE_API_BASE_URL。
  */
 const http = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL ?? '/api/v1',
+  // 後端 routers 全部掛在 /api（見 backend/app/main.py）；
+  // 若部署環境有版本前綴，請覆寫 VITE_API_BASE_URL=/api/v1
+  baseURL: import.meta.env.VITE_API_BASE_URL ?? '/api',
   timeout: 30_000,
   headers: { 'Content-Type': 'application/json' },
 })
@@ -70,7 +72,8 @@ export const buildExecutionLogsWsUrl = (taskId) => {
   const override = import.meta.env.VITE_WS_BASE_URL
   if (override) return `${override.replace(/\/$/, '')}/executions/${taskId}/logs`
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  return `${proto}//${window.location.host}/ws/v1/executions/${taskId}/logs`
+  // 後端 ws_router 掛在 /ws（見 backend/app/main.py）
+  return `${proto}//${window.location.host}/ws/executions/${taskId}/logs`
 }
 
 // ══════════════════════════════════════════════════════

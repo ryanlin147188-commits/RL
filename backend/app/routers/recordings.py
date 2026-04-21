@@ -80,46 +80,39 @@ def _build_commands(session_id: str, target_url: str) -> RecorderCommandResponse
     py = f"recorded_{session_id[:8]}.py"
     tz = f"trace_{session_id[:8]}.zip"
 
-    # ⚠ playwright codegen 不支援 --save-trace，僅產生 script。
-    # 若需 trace，請使用下方 powershell_oneliner（codegen → 注入 tracing → 重跑 → 上傳）。
-    npx_cmd = f'npx -y playwright codegen --target python -o {py} "{target_url}"'
-    pip_cmd = f'python -m playwright codegen --target python -o {py} "{target_url}"'
+    # ✅ Playwright codegen 內建 --save-trace 旗標，會在使用者操作的同一個瀏覽器
+    #   session 上開啟 tracing；視窗關閉時自動寫出 trace.zip。
+    #   可在 Playwright Trace Viewer (https://trace.playwright.dev) 開啟檢視。
+    npx_cmd = (
+        f'npx -y playwright codegen --target python '
+        f'--save-trace="{tz}" -o "{py}" "{target_url}"'
+    )
+    pip_cmd = (
+        f'python -m playwright codegen --target python '
+        f'--save-trace="{tz}" -o "{py}" "{target_url}"'
+    )
     rf_cmd = f'rfbrowser codegen "{target_url}" -o {py}'
 
-    # 完整流程 (PowerShell)：
-    # 1) codegen 產生 recorded.py (錄製過程不存 trace)
-    # 2) 用 regex 注入 tracing.start/stop (在 new_context 之後與 browser.close 之前)
-    # 3) 用 python 重跑修改後的 script → 產生 trace.zip
-    # 4) curl 同時上傳 script + trace
-    # 註：第 2 步若 codegen 用 'context = browser.new_context()' 命名才會成功。
+    # 完整一鍵流程 (PowerShell)：
+    # 1) 切到 <project_root>\record\<sid>\ 工作目錄（避免在系統目錄執行）
+    # 2) 執行 codegen，同時產生 recorded.py 與 trace.zip
+    # 3) curl 同時上傳兩個檔案
     ps_script = (
-        # 若專案根目錄存在，先切過去；確保「在任何位置貼指令」最後都落在 <root>\record\<sid>\
-        # （避免在 C:\Windows\System32 等系統目錄執行時權限不足）
         f'if (Test-Path "{settings.RECORDER_HOST_ROOT}") {{ Set-Location "{settings.RECORDER_HOST_ROOT}" }}; '
         f'$wd = "record\\{session_id[:8]}"; '
         f'New-Item -ItemType Directory -Force -Path $wd | Out-Null; '
         f'Set-Location $wd; '
-        # 強制以 UTF-8 工作，避免 PS 5.1 預設 ANSI(cp950) 讀寫時把中文/全形符號變成「?」亂碼
+        # 強制 UTF-8 工作環境，避免 PS 5.1 預設 ANSI(cp950) 把中文/全形符號變成「?」
         f'$OutputEncoding = [System.Text.Encoding]::UTF8; '
         f'[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; '
         f'$env:PYTHONIOENCODING = "utf-8"; '
         f'$env:PYTHONUTF8 = "1"; '
+        # ① codegen → 同時生成 .py + trace.zip
         f'{pip_cmd}; '
-        # ★ 以 UTF-8 讀進 codegen 產出的 .py，避免被當成 ANSI 解碼
-        f'$src = Get-Content {py} -Raw -Encoding UTF8; '
-        f'$src = $src '
-        f'-replace \'(context\\s*=\\s*browser\\.new_context\\([^)]*\\))\', '
-        f'"$1`n    context.tracing.start(screenshots=$true, snapshots=$true, sources=$true)" '
-        f'-replace \'(\\s*)(browser\\.close\\(\\))\', '
-        f'"`$1context.tracing.stop(path=\'\'{tz}\'\')`n`$1`$2"; '
-        # ★ 以 UTF-8 (無 BOM) 寫回，確保 python 執行時也能正確讀取中文字串
-        f'[System.IO.File]::WriteAllText((Resolve-Path {py}), $src, '
-        f'(New-Object System.Text.UTF8Encoding $false)); '
-        f'python {py}; '
+        # ② curl 同時上傳 script + trace
         f'curl.exe -F "script=@{py}" -F "trace=@{tz}" {upload_url}'
     )
-    # 包成 -EncodedCommand：在 CMD / PowerShell / Windows Terminal 貼上都能執行，
-    # 完全免處理引號跳脫，避免使用者誤把 PS 語法貼進 CMD。
+    # 包成 -EncodedCommand：CMD / PowerShell / Windows Terminal 都能直接貼上執行
     import base64 as _b64
     _b = _b64.b64encode(ps_script.encode("utf-16-le")).decode("ascii")
     one_liner = f'powershell -NoProfile -ExecutionPolicy Bypass -EncodedCommand {_b}'
@@ -335,9 +328,13 @@ _PATTERNS = [
         "press",
     ),
     # get_by_role("button", name="送出").click()
+    #   兼容 codegen 常見產物：
+    #     - 多餘參數（exact=True / level=2 ...）
+    #     - 鏈式呼叫（.first / .nth(0) / .last）
     (
         re.compile(
-            r'page\.get_by_role\(\s*["\']([^"\']+)["\']\s*,\s*name\s*=\s*["\']([^"\']+)["\']\s*\)\.click\(\s*\)'
+            r'page\.get_by_role\(\s*["\']([^"\']+)["\']\s*,\s*name\s*=\s*["\']([^"\']+)["\'][^)]*\)'
+            r'(?:\.(?:first|last|nth\(\s*\d+\s*\)))?\.click\(\s*\)'
         ),
         "role_click",
     ),
@@ -358,7 +355,58 @@ _PATTERNS = [
         re.compile(
             r'expect\(\s*page\.locator\(\s*["\']([^"\']+)["\']\s*\)\s*\)\.to_contain_text\(\s*["\']([^"\']+)["\']\s*\)'
         ),
-        "assert_text",
+        "assert_contain_text",
+    ),
+    # expect(...).to_have_text("X")
+    (
+        re.compile(
+            r'expect\(\s*page\.locator\(\s*["\']([^"\']+)["\']\s*\)\s*\)\.to_have_text\(\s*["\']([^"\']+)["\']\s*\)'
+        ),
+        "assert_have_text",
+    ),
+    # expect(...).to_have_value("X")
+    (
+        re.compile(
+            r'expect\(\s*page\.locator\(\s*["\']([^"\']+)["\']\s*\)\s*\)\.to_have_value\(\s*["\']([^"\']+)["\']\s*\)'
+        ),
+        "assert_have_value",
+    ),
+    # expect(...).to_be_visible()
+    (
+        re.compile(
+            r'expect\(\s*page\.locator\(\s*["\']([^"\']+)["\']\s*\)\s*\)\.to_be_visible\(\s*\)'
+        ),
+        "assert_visible",
+    ),
+    # expect(...).to_be_checked()
+    (
+        re.compile(
+            r'expect\(\s*page\.locator\(\s*["\']([^"\']+)["\']\s*\)\s*\)\.to_be_checked\(\s*\)'
+        ),
+        "assert_checked",
+    ),
+    # expect(page.get_by_role("...", name="...")).to_be_visible()  ─ codegen 在 Record assertion 後常見
+    (
+        re.compile(
+            r'expect\(\s*page\.get_by_role\(\s*["\']([^"\']+)["\']\s*,\s*name\s*=\s*["\']([^"\']+)["\'][^)]*\)\s*\)\.to_be_visible\(\s*\)'
+        ),
+        "assert_role_visible",
+    ),
+    # expect(page.get_by_role("...", name="...")).to_have_text("X")
+    (
+        re.compile(
+            r'expect\(\s*page\.get_by_role\(\s*["\']([^"\']+)["\']\s*,\s*name\s*=\s*["\']([^"\']+)["\'][^)]*\)\s*\)'
+            r'\.to_have_text\(\s*["\']([^"\']+)["\']\s*\)'
+        ),
+        "assert_role_have_text",
+    ),
+    # expect(page.get_by_role("...", name="...")).to_contain_text("X")
+    (
+        re.compile(
+            r'expect\(\s*page\.get_by_role\(\s*["\']([^"\']+)["\']\s*,\s*name\s*=\s*["\']([^"\']+)["\'][^)]*\)\s*\)'
+            r'\.to_contain_text\(\s*["\']([^"\']+)["\']\s*\)'
+        ),
+        "assert_role_contain_text",
     ),
 ]
 
@@ -463,15 +511,110 @@ def _parse_script(script: str) -> list[GeneratedStep]:
                         locator=f'text={txt}',
                     )
                 )
-            elif kind == "assert_text":
+            elif kind == "assert_contain_text":
                 sel, exp = m.group(1), m.group(2)
                 steps.append(
                     GeneratedStep(
                         id=_new_id(),
                         keyword="Then",
-                        description=f"{sel} 應顯示「{exp}」",
+                        description=f"{sel} 應包含文字「{exp}」",
                         action="AssertText",
                         locator=sel,
+                        condition="Contains",
+                        expected=exp,
+                    )
+                )
+            elif kind == "assert_have_text":
+                sel, exp = m.group(1), m.group(2)
+                steps.append(
+                    GeneratedStep(
+                        id=_new_id(),
+                        keyword="Then",
+                        description=f"{sel} 文字應等於「{exp}」",
+                        action="AssertText",
+                        locator=sel,
+                        condition="Equals",
+                        expected=exp,
+                    )
+                )
+            elif kind == "assert_have_value":
+                sel, exp = m.group(1), m.group(2)
+                steps.append(
+                    GeneratedStep(
+                        id=_new_id(),
+                        keyword="Then",
+                        description=f"{sel} 值應等於「{exp}」",
+                        action="AssertValue",
+                        locator=sel,
+                        condition="Equals",
+                        expected=exp,
+                    )
+                )
+            elif kind == "assert_visible":
+                sel = m.group(1)
+                steps.append(
+                    GeneratedStep(
+                        id=_new_id(),
+                        keyword="Then",
+                        description=f"{sel} 應顯示於畫面",
+                        action="AssertVisible",
+                        locator=sel,
+                        condition="IsVisible",
+                        expected="true",
+                    )
+                )
+            elif kind == "assert_checked":
+                sel = m.group(1)
+                steps.append(
+                    GeneratedStep(
+                        id=_new_id(),
+                        keyword="Then",
+                        description=f"{sel} 應為勾選狀態",
+                        action="AssertChecked",
+                        locator=sel,
+                        condition="IsChecked",
+                        expected="true",
+                    )
+                )
+            elif kind == "assert_role_visible":
+                role, name = m.group(1), m.group(2)
+                loc = f'role={role}[name="{name}"]'
+                steps.append(
+                    GeneratedStep(
+                        id=_new_id(),
+                        keyword="Then",
+                        description=f"{role}「{name}」應顯示於畫面",
+                        action="AssertVisible",
+                        locator=loc,
+                        condition="IsVisible",
+                        expected="true",
+                    )
+                )
+            elif kind == "assert_role_have_text":
+                role, name, exp = m.group(1), m.group(2), m.group(3)
+                loc = f'role={role}[name="{name}"]'
+                steps.append(
+                    GeneratedStep(
+                        id=_new_id(),
+                        keyword="Then",
+                        description=f"{role}「{name}」文字應等於「{exp}」",
+                        action="AssertText",
+                        locator=loc,
+                        condition="Equals",
+                        expected=exp,
+                    )
+                )
+            elif kind == "assert_role_contain_text":
+                role, name, exp = m.group(1), m.group(2), m.group(3)
+                loc = f'role={role}[name="{name}"]'
+                steps.append(
+                    GeneratedStep(
+                        id=_new_id(),
+                        keyword="Then",
+                        description=f"{role}「{name}」應包含文字「{exp}」",
+                        action="AssertText",
+                        locator=loc,
+                        condition="Contains",
                         expected=exp,
                     )
                 )

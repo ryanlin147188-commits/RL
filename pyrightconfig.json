@@ -1,0 +1,8 @@
+{
+  "include": ["backend", "tasks"],
+  "exclude": ["**/node_modules", "**/__pycache__", "**/.*", "**/dist", "**/build"],
+  "reportMissingImports": "none",
+  "reportMissingModuleSource": "none",
+  "pythonVersion": "3.11",
+  "typeCheckingMode": "basic"
+}
