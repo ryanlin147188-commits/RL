@@ -665,17 +665,60 @@
         let activeTreeData = [];
 
         // ==================== 1. 終端機功能 ====================
-        function runTest() {
+        async function runTest() {
             const panel = document.getElementById('terminalPanel');
             panel.classList.remove('translate-y-full');
             const output = document.getElementById('terminalOutput');
             output.innerHTML = '';
 
-            // 待後端串接：透過 WebSocket /ws/executions/{taskId}/logs 接收即時日誌
-            const line = document.createElement('div');
-            line.className = 'font-mono text-xs text-slate-400 terminal-text';
-            line.textContent = '> 等待後端 WebSocket 連線推送執行日誌...';
-            output.appendChild(line);
+            const append = (text, cls = 'text-slate-300') => {
+                const line = document.createElement('div');
+                line.className = `font-mono text-xs terminal-text ${cls}`;
+                line.textContent = text;
+                output.appendChild(line);
+                output.scrollTop = output.scrollHeight;
+            };
+
+            if (!currentTestCase) {
+                append('> 尚未選擇任何測試節點，請於左側點選一個測試案例或資料夾後再試。', 'text-amber-400');
+                return;
+            }
+            append(`> 正在送出執行請求 (node_id=${currentTestCase}) ...`, 'text-slate-400');
+
+            let task_id = null;
+            try {
+                const resp = await apiFetch('/api/executions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ node_id: currentTestCase, trigger_type: 'Manual' })
+                });
+                task_id = resp.task_id;
+                append(`> 執行已啟動 task_id=${task_id} report_id=${resp.report_id}`, 'text-green-400');
+                append('> 連線 WebSocket 即時日誌 ...', 'text-slate-400');
+            } catch (e) {
+                append(`> ✗ 執行失敗：${e.message}`, 'text-red-400');
+                return;
+            }
+
+            // 連線 WS 取得即時日誌
+            try {
+                const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const ws = new WebSocket(`${proto}//${location.host}/ws/executions/${task_id}/logs`);
+                ws.onopen = () => append('> ✓ WebSocket 已連線', 'text-green-400');
+                ws.onmessage = (ev) => {
+                    let msg = ev.data;
+                    try {
+                        const j = JSON.parse(ev.data);
+                        if (j.type === 'log' && j.message) msg = j.message;
+                        else if (j.type === 'done') msg = `> ✓ 執行完成：${j.status || ''}`;
+                    } catch (_) { /* 純字串訊息 */ }
+                    append(String(msg));
+                };
+                ws.onerror = () => append('> ✗ WebSocket 錯誤', 'text-red-400');
+                ws.onclose = () => append('> WebSocket 連線關閉', 'text-slate-500');
+            } catch (e) {
+                append(`> ✗ WebSocket 連線失敗：${e.message}`, 'text-red-400');
+            }
         }
 
         function closeTerminal() {
@@ -742,31 +785,38 @@
             const bddOptions = ['Given', 'When', 'And', 'Then', 'But'];
             const actionOptions = ['Navigate', 'Fill', 'Click', 'Select', 'Assert', 'Wait', 'Screenshot', 'Call_API', 'Set_Header'];
             const compareOptions = ['Equals', 'Contains', 'StartsWith', 'EndsWith', 'Regex', 'GreaterThan', 'LessThan'];
+            // ★ HTML 屬性跳脫：避免 locator 內含 " 把 value="..." 截斷
+            const esc = (v) => (v === null || v === undefined ? '' : String(v)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;'));
 
             tc.steps.forEach((step, idx) => {
                 const tr = document.createElement('tr');
                 tr.className = 'hover:bg-slate-50 transition';
                 tr.innerHTML = `
-                    <td class="p-2"><input type="text" value="${step.tcid || ''}" placeholder="TC-${String(idx + 1).padStart(2, '0')}" onchange="updateStep(${idx}, 'tcid', this.value)" class="w-full border border-slate-200 rounded p-1 text-xs font-mono focus:ring-1 focus:ring-blue-400 outline-none"></td>
+                    <td class="p-2"><input type="text" value="${esc(step.tcid)}" placeholder="TC-${String(idx + 1).padStart(2, '0')}" onchange="updateStep(${idx}, 'tcid', this.value)" class="w-full border border-slate-200 rounded p-1 text-xs font-mono focus:ring-1 focus:ring-blue-400 outline-none"></td>
                     <td class="p-2 col-bdd">
                         <select onchange="updateStep(${idx}, 'bdd', this.value)" class="w-full border border-slate-200 rounded p-1 text-xs bg-white focus:ring-1 focus:ring-blue-400 outline-none">
                             ${bddOptions.map(o => `<option ${step.bdd === o ? 'selected' : ''}>${o}</option>`).join('')}
                         </select>
                     </td>
-                    <td class="p-2"><input type="text" value="${step.desc}" onchange="updateStep(${idx}, 'desc', this.value)" class="w-full border border-slate-200 rounded p-1 text-xs focus:ring-1 focus:ring-blue-400 outline-none"></td>
+                    <td class="p-2"><input type="text" value="${esc(step.desc)}" onchange="updateStep(${idx}, 'desc', this.value)" class="w-full border border-slate-200 rounded p-1 text-xs focus:ring-1 focus:ring-blue-400 outline-none"></td>
                     <td class="p-2 col-kdt">
                         <select onchange="updateStep(${idx}, 'action', this.value)" class="w-full border border-slate-200 rounded p-1 text-xs bg-white focus:ring-1 focus:ring-blue-400 outline-none">
                             ${actionOptions.map(o => `<option ${step.action === o ? 'selected' : ''}>${o}</option>`).join('')}
                         </select>
                     </td>
-                    <td class="p-2 col-kdt"><input type="text" value="${step.loc}" onchange="updateStep(${idx}, 'loc', this.value)" class="w-full border border-slate-200 rounded p-1 text-xs font-mono focus:ring-1 focus:ring-blue-400 outline-none"></td>
-                    <td class="p-2"><input type="text" value="${step.input}" onchange="updateStep(${idx}, 'input', this.value)" class="w-full border border-slate-200 rounded p-1 text-xs font-mono focus:ring-1 focus:ring-blue-400 outline-none"></td>
+                    <td class="p-2 col-kdt"><input type="text" value="${esc(step.loc)}" onchange="updateStep(${idx}, 'loc', this.value)" class="w-full border border-slate-200 rounded p-1 text-xs font-mono focus:ring-1 focus:ring-blue-400 outline-none"></td>
+                    <td class="p-2"><input type="text" value="${esc(step.input)}" onchange="updateStep(${idx}, 'input', this.value)" class="w-full border border-slate-200 rounded p-1 text-xs font-mono focus:ring-1 focus:ring-blue-400 outline-none"></td>
                     <td class="p-2 col-kdt">
                         <select onchange="updateStep(${idx}, 'compare', this.value)" class="w-full border border-slate-200 rounded p-1 text-xs bg-white focus:ring-1 focus:ring-blue-400 outline-none">
                             ${compareOptions.map(o => `<option ${step.compare === o ? 'selected' : ''}>${o}</option>`).join('')}
                         </select>
                     </td>
-                    <td class="p-2"><input type="text" value="${step.expected}" onchange="updateStep(${idx}, 'expected', this.value)" class="w-full border border-slate-200 rounded p-1 text-xs focus:ring-1 focus:ring-blue-400 outline-none"></td>
+                    <td class="p-2"><input type="text" value="${esc(step.expected)}" onchange="updateStep(${idx}, 'expected', this.value)" class="w-full border border-slate-200 rounded p-1 text-xs focus:ring-1 focus:ring-blue-400 outline-none"></td>
                     <td class="p-2 text-center">
                         <button onclick="deleteStep(${idx})" class="text-slate-300 hover:text-red-500 transition"><i class="fa-solid fa-xmark"></i></button>
                     </td>
