@@ -88,6 +88,10 @@
             <button onclick="showReportView()" id="navReportBtn" class="text-slate-500 hover:text-blue-600 font-medium transition flex items-center gap-2">
                 <i class="fa-solid fa-chart-pie"></i> 測試報告
             </button>
+            <!-- 錄製按鈕 -->
+            <button onclick="showRecorderView()" id="navRecorderBtn" class="text-slate-500 hover:text-rose-600 font-medium transition flex items-center gap-2">
+                <i class="fa-solid fa-video"></i> 錄製
+            </button>
             <div class="h-6 w-px bg-slate-200"></div>
             <div class="flex items-center gap-2 cursor-pointer hover:bg-slate-50 p-1 rounded transition">
                 <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold border border-indigo-200 shadow-sm">
@@ -182,6 +186,79 @@
                         <i class="fa-solid fa-play"></i> 執行測試
                     </button>
                 </div>
+            </div>
+
+            <!-- 視圖 3: 錄製工作區 (Recorder) -->
+            <div id="recorderWorkspace" class="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/50 hidden">
+                <!-- ① 建立 Session -->
+                <section class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
+                    <h3 class="font-bold text-slate-700 flex items-center gap-2 mb-3"><i class="fa-solid fa-circle-1 text-rose-500"></i> 建立錄製 Session</h3>
+                    <div class="flex gap-3">
+                        <input id="recUrl" type="url" placeholder="目標 URL，例如 https://example.com/login" value="https://example.com/login" class="flex-1 text-sm p-2 border border-slate-300 rounded focus:ring-2 focus:ring-rose-100 focus:border-rose-400 outline-none" />
+                        <button onclick="recCreateSession()" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded font-medium text-sm flex items-center gap-2"><i class="fa-solid fa-bolt"></i> 建立 / 重新開始</button>
+                    </div>
+                    <p id="recSessionInfo" class="mt-3 text-xs text-slate-500">尚未建立 session</p>
+                </section>
+
+                <!-- ② 在本機執行 codegen -->
+                <section id="recCmdSection" class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm hidden">
+                    <h3 class="font-bold text-slate-700 flex items-center gap-2 mb-3"><i class="fa-solid fa-circle-2 text-rose-500"></i> 在你本機執行 codegen（任選一種）</h3>
+                    <div class="space-y-3">
+                        <div>
+                            <div class="flex items-center justify-between mb-1"><span class="text-xs font-mono text-slate-500">npx playwright codegen</span><button onclick="recCopy('cmdNpx')" class="text-xs text-blue-600 hover:underline"><i class="fa-solid fa-copy"></i> 複製</button></div>
+                            <textarea id="cmdNpx" aria-label="npx playwright codegen 指令" readonly rows="2" class="w-full text-xs font-mono p-2 bg-slate-50 border border-slate-200 rounded"></textarea>
+                        </div>
+                        <div>
+                            <div class="flex items-center justify-between mb-1"><span class="text-xs font-mono text-slate-500">python -m playwright codegen</span><button onclick="recCopy('cmdPip')" class="text-xs text-blue-600 hover:underline"><i class="fa-solid fa-copy"></i> 複製</button></div>
+                            <textarea id="cmdPip" aria-label="python -m playwright codegen 指令" readonly rows="2" class="w-full text-xs font-mono p-2 bg-slate-50 border border-slate-200 rounded"></textarea>
+                        </div>
+                        <div>
+                            <div class="flex items-center justify-between mb-1"><span class="text-xs font-mono text-slate-500">rfbrowser codegen (Robot Framework Browser)</span><button onclick="recCopy('cmdRfb')" class="text-xs text-blue-600 hover:underline"><i class="fa-solid fa-copy"></i> 複製</button></div>
+                            <textarea id="cmdRfb" aria-label="rfbrowser codegen 指令" readonly rows="2" class="w-full text-xs font-mono p-2 bg-slate-50 border border-slate-200 rounded"></textarea>
+                        </div>
+                        <div>
+                            <div class="flex items-center justify-between mb-1"><span class="text-xs font-mono text-slate-500">PowerShell 一鍵錄製＋上傳</span><button onclick="recCopy('cmdPs')" class="text-xs text-blue-600 hover:underline"><i class="fa-solid fa-copy"></i> 複製</button></div>
+                            <textarea id="cmdPs" aria-label="PowerShell 一鍵錄製加上傳指令" readonly rows="3" class="w-full text-xs font-mono p-2 bg-slate-50 border border-slate-200 rounded"></textarea>
+                        </div>
+                    </div>
+                    <p class="mt-3 text-xs text-slate-500"><i class="fa-solid fa-circle-info text-amber-500"></i> 錄製完成後會產生 <code>recorded_xxxx.py</code> 與 <code>trace_xxxx.zip</code>，請於下方上傳。</p>
+                </section>
+
+                <!-- ③ 上傳結果 -->
+                <section id="recUploadSection" class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm hidden">
+                    <h3 class="font-bold text-slate-700 flex items-center gap-2 mb-3"><i class="fa-solid fa-circle-3 text-rose-500"></i> 上傳錄製結果</h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <label class="border-2 border-dashed border-slate-300 hover:border-rose-400 rounded p-4 text-center cursor-pointer transition">
+                            <i class="fa-solid fa-file-code text-2xl text-slate-400 mb-2"></i>
+                            <p class="text-sm text-slate-600">codegen 腳本 (.py)</p>
+                            <p id="recScriptName" class="text-xs text-slate-400 mt-1">尚未選擇</p>
+                            <input id="recScriptInput" type="file" accept=".py,text/x-python" class="hidden" onchange="recPickFile(this,'recScriptName')" />
+                        </label>
+                        <label class="border-2 border-dashed border-slate-300 hover:border-rose-400 rounded p-4 text-center cursor-pointer transition">
+                            <i class="fa-solid fa-file-zipper text-2xl text-slate-400 mb-2"></i>
+                            <p class="text-sm text-slate-600">trace.zip</p>
+                            <p id="recTraceName" class="text-xs text-slate-400 mt-1">尚未選擇</p>
+                            <input id="recTraceInput" type="file" accept=".zip,application/zip" class="hidden" onchange="recPickFile(this,'recTraceName')" />
+                        </label>
+                    </div>
+                    <div class="mt-4 flex flex-wrap gap-2">
+                        <button onclick="recUpload()" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded text-sm font-medium flex items-center gap-2"><i class="fa-solid fa-cloud-arrow-up"></i> 上傳</button>
+                        <button onclick="recConvertAndApply()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium flex items-center gap-2"><i class="fa-solid fa-wand-magic-sparkles"></i> 解析並套用至當前案例</button>
+                        <button onclick="recDownloadTrace()" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-sm font-medium flex items-center gap-2"><i class="fa-solid fa-download"></i> 下載 trace.zip</button>
+                    </div>
+                    <p id="recStatus" class="mt-3 text-xs text-slate-500"></p>
+                </section>
+
+                <!-- ④ 解析結果預覽 -->
+                <section id="recPreviewSection" class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm hidden">
+                    <h3 class="font-bold text-slate-700 flex items-center gap-2 mb-3"><i class="fa-solid fa-circle-4 text-rose-500"></i> 解析後的 BDD 步驟</h3>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead class="bg-slate-100 text-slate-600"><tr><th class="p-2 text-left">關鍵字</th><th class="p-2 text-left">描述</th><th class="p-2 text-left">動作</th><th class="p-2 text-left">定位器</th><th class="p-2 text-left">輸入值</th><th class="p-2 text-left">預期</th></tr></thead>
+                            <tbody id="recStepsBody" class="divide-y divide-slate-100"></tbody>
+                        </table>
+                    </div>
+                </section>
             </div>
 
             <!-- 視圖 1: 可滾動的編輯區 -->
@@ -840,6 +917,7 @@
             document.getElementById('editorWorkspace').classList.add('hidden');
             document.getElementById('emptyWorkspace').classList.add('hidden');
             document.getElementById('detailReportWorkspace').classList.add('hidden');
+            document.getElementById('recorderWorkspace')?.classList.add('hidden');
             document.getElementById('reportWorkspace').classList.remove('hidden');
             document.getElementById('mainActions').classList.add('hidden');
             document.getElementById('mainHeader').classList.remove('hidden');
@@ -1109,6 +1187,7 @@
             document.getElementById('editorWorkspace').classList.add('hidden');
             document.getElementById('reportWorkspace').classList.add('hidden');
             document.getElementById('detailReportWorkspace').classList.add('hidden');
+            document.getElementById('recorderWorkspace')?.classList.add('hidden');
             document.getElementById('emptyWorkspace').classList.remove('hidden');
             document.getElementById('mainHeader').classList.remove('hidden');
             document.getElementById('mainActions').classList.add('hidden');
@@ -1540,6 +1619,131 @@
         })();
 
         window.onload = () => { initProjects(); };
+
+        // ==================== 9. 錄製功能 (Playwright codegen + trace.zip) ====================
+        let recCurrentSession = null;
+        let recScriptFile = null;
+        let recTraceFile = null;
+
+        function showRecorderView() {
+            document.getElementById('editorWorkspace').classList.add('hidden');
+            document.getElementById('emptyWorkspace').classList.add('hidden');
+            document.getElementById('detailReportWorkspace').classList.add('hidden');
+            document.getElementById('reportWorkspace').classList.add('hidden');
+            document.getElementById('recorderWorkspace').classList.remove('hidden');
+            document.getElementById('mainHeader').classList.remove('hidden');
+            document.getElementById('mainActions').classList.add('hidden');
+            document.getElementById('viewFilename').textContent = '🎬 錄製';
+            document.getElementById('viewTitle').innerHTML = '<i class="fa-solid fa-video text-rose-500"></i> 瀏覽器操作錄製器';
+            document.getElementById('viewTag').className = 'bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded font-medium';
+            document.getElementById('viewTag').textContent = 'Recorder';
+        }
+
+        async function recCreateSession() {
+            const url = document.getElementById('recUrl').value.trim();
+            if (!url) { showToast('請輸入目標 URL', 'error'); return; }
+            try {
+                const body = { target_url: url };
+                if (currentProjectId) body.project_id = currentProjectId;
+                const res = await fetch('/api/recordings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+                recCurrentSession = data.session;
+                document.getElementById('recSessionInfo').innerHTML =
+                    `<i class="fa-solid fa-check text-green-500"></i> Session: <code class="text-rose-600">${data.session.id}</code>`;
+                document.getElementById('cmdNpx').value = data.commands.npx_command || '';
+                document.getElementById('cmdPip').value = data.commands.pip_command || '';
+                document.getElementById('cmdRfb').value = data.commands.rfbrowser_command || '';
+                document.getElementById('cmdPs').value = data.commands.powershell_oneliner || '';
+                document.getElementById('recCmdSection').classList.remove('hidden');
+                document.getElementById('recUploadSection').classList.remove('hidden');
+                document.getElementById('recPreviewSection').classList.add('hidden');
+                document.getElementById('recStatus').textContent = '';
+                document.getElementById('recScriptName').textContent = '尚未選擇';
+                document.getElementById('recTraceName').textContent = '尚未選擇';
+                recScriptFile = null; recTraceFile = null;
+                showToast('Session 已建立', 'success');
+            } catch (e) {
+                showToast('建立失敗：' + e.message, 'error');
+            }
+        }
+
+        function recCopy(id) {
+            const el = document.getElementById(id);
+            el.select(); document.execCommand('copy');
+            showToast('已複製到剪貼簿', 'success');
+        }
+
+        function recPickFile(input, labelId) {
+            const f = input.files[0];
+            if (!f) return;
+            document.getElementById(labelId).textContent = f.name + ' (' + Math.round(f.size / 1024) + ' KB)';
+            if (labelId === 'recScriptName') recScriptFile = f;
+            else recTraceFile = f;
+        }
+
+        async function recUpload() {
+            if (!recCurrentSession) { showToast('請先建立 session', 'error'); return; }
+            if (!recScriptFile && !recTraceFile) { showToast('請至少選擇一個檔案', 'error'); return; }
+            const fd = new FormData();
+            if (recScriptFile) fd.append('script', recScriptFile);
+            if (recTraceFile) fd.append('trace', recTraceFile);
+            try {
+                const res = await fetch(`/api/recordings/${recCurrentSession.id}/upload`, { method: 'POST', body: fd });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+                recCurrentSession = data;
+                document.getElementById('recStatus').innerHTML =
+                    `<i class="fa-solid fa-check text-green-500"></i> 已上傳，狀態：<b>${data.status}</b>`;
+                showToast('上傳成功', 'success');
+            } catch (e) {
+                showToast('上傳失敗：' + e.message, 'error');
+            }
+        }
+
+        async function recConvertAndApply() {
+            if (!recCurrentSession) { showToast('請先建立並上傳 session', 'error'); return; }
+            try {
+                const res = await fetch(`/api/recordings/${recCurrentSession.id}/convert`, { method: 'POST' });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.detail || ('HTTP ' + res.status));
+                }
+                const data = await res.json();
+                const tbody = document.getElementById('recStepsBody');
+                tbody.innerHTML = '';
+                (data.steps || []).forEach((s) => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `<td class="p-2 font-mono text-blue-600">${s.keyword}</td>
+                        <td class="p-2">${s.description}</td>
+                        <td class="p-2 font-mono">${s.action}</td>
+                        <td class="p-2 font-mono text-slate-600">${s.locator || ''}</td>
+                        <td class="p-2 font-mono">${s.input || ''}</td>
+                        <td class="p-2 font-mono">${s.expected || ''}</td>`;
+                    tbody.appendChild(tr);
+                });
+                document.getElementById('recPreviewSection').classList.remove('hidden');
+                showToast(`已解析 ${data.steps.length} 個步驟`, 'success');
+                if (currentTestCase && data.steps.length > 0) {
+                    if (confirm(`是否將這 ${data.steps.length} 個步驟附加到目前的測試案例？`)) {
+                        const existing = currentTestCase.steps_json || [];
+                        currentTestCase.steps_json = existing.concat(data.steps);
+                        showToast('已附加，請至「案例編輯」儲存', 'success');
+                    }
+                }
+            } catch (e) {
+                showToast('解析失敗：' + e.message, 'error');
+            }
+        }
+
+        function recDownloadTrace() {
+            if (!recCurrentSession) { showToast('請先建立 session', 'error'); return; }
+            window.open(`/api/recordings/${recCurrentSession.id}/trace`, '_blank');
+        }
     </script>
 </body>
 </html>

@@ -30,6 +30,7 @@ async def init_db() -> None:
         execution_report,
         execution_step_log,
         project,
+        recording,
         testcase_content,
         tree_node,
     )

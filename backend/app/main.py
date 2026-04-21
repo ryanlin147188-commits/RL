@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.database import init_db
-from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export
+from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings
 
 
 @asynccontextmanager
@@ -46,6 +46,7 @@ app.include_router(executions.rest_router, prefix="/api", tags=["C · 執行引�
 app.include_router(executions.ws_router,   prefix="/ws",  tags=["C · 執行引擎 WebSocket"])
 app.include_router(reports.router,         prefix="/api", tags=["D · 報告與儀表板"])
 app.include_router(upload.router,          prefix="/api", tags=["D · 報告與儀表板"])
+app.include_router(recordings.router,      prefix="/api", tags=["E · 錄製"])
 
 
 @app.get("/", tags=["Health"])

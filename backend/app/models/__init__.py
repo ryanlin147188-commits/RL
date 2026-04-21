@@ -2,6 +2,7 @@ from .base import Base
 from .execution_report import ExecutionReport, ReportStatus
 from .execution_step_log import ExecutionStepLog, StepStatus
 from .project import Project
+from .recording import RecordingSession
 from .testcase_content import TestcaseContent
 from .tree_node import LevelType, TreeNode
 
@@ -15,4 +16,5 @@ __all__ = [
     "ReportStatus",
     "ExecutionStepLog",
     "StepStatus",
+    "RecordingSession",
 ]

@@ -6,6 +6,7 @@ import {
   BarChartOutlined,
   BugOutlined,
   PlusOutlined,
+  VideoCameraAddOutlined,
 } from '@ant-design/icons'
 import useStore from '../../store/useStore'
 import NewProjectModal from './NewProjectModal'
@@ -33,6 +34,7 @@ export default function TopNav() {
 
   const isEditor = location.pathname.startsWith('/editor')
   const isReport = location.pathname.startsWith('/reports')
+  const isRecorder = location.pathname.startsWith('/recorder')
 
   return (
     <Header
@@ -73,6 +75,14 @@ export default function TopNav() {
           style={{ color: isReport ? undefined : '#8b949e' }}
         >
           執行報告
+        </Button>
+        <Button
+          type={isRecorder ? 'primary' : 'text'}
+          icon={<VideoCameraAddOutlined />}
+          onClick={() => navigate('/recorder')}
+          style={{ color: isRecorder ? undefined : '#8b949e' }}
+        >
+          錄製
         </Button>
       </Space>
 

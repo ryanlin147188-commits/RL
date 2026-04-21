@@ -144,6 +144,26 @@ CREATE TABLE IF NOT EXISTS execution_steps_log (
 
 
 -- ────────────────────────────────────────────────────────────
+-- 6. 錄製功能 recording_sessions
+-- ────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS recording_sessions (
+    id          VARCHAR(36) NOT NULL,
+    project_id  VARCHAR(36)     NULL,
+    target_url  TEXT        NOT NULL,
+    status      VARCHAR(16) NOT NULL DEFAULT 'PENDING'
+                            COMMENT 'PENDING | UPLOADED',
+    script_text MEDIUMTEXT      NULL COMMENT 'codegen 產生的 .py 內容',
+    trace_path  VARCHAR(500)    NULL COMMENT '相對 PIC_FOLDER：recordings/<id>/trace.zip',
+    created_at  DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at  DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP
+                            ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    INDEX idx_rec_project (project_id),
+    INDEX idx_rec_status  (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- ────────────────────────────────────────────────────────────
 -- 驗證用種子資料（可選）
 -- ────────────────────────────────────────────────────────────
 INSERT IGNORE INTO projects (id, name) VALUES

@@ -227,6 +227,22 @@ const useStore = create(
           return { testcaseContent: { ...s.testcaseContent, steps_json: steps }, isDirty: true }
         }),
 
+      /** 合併錄製轉換出來的步驟到目前 testcase 結尾 */
+      mergeRecordedSteps: (newSteps) =>
+        set((s) => {
+          if (!s.testcaseContent) return {}
+          const exist = Array.isArray(s.testcaseContent.steps_json)
+            ? s.testcaseContent.steps_json
+            : []
+          return {
+            testcaseContent: {
+              ...s.testcaseContent,
+              steps_json: [...exist, ...newSteps],
+            },
+            isDirty: true,
+          }
+        }),
+
       // ── DDT 表格 ───────────────────────────────────
 
       addDdtColumn: (header) =>
