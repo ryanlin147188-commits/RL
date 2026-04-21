@@ -375,18 +375,22 @@
 
             <!-- 視圖 2: 測試報告儀表板 (Dashboard) -->
             <div id="reportWorkspace" class="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/50 hidden">
-                <div class="grid grid-cols-4 gap-4">
+                <div class="grid grid-cols-5 gap-4">
                     <div class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm flex items-center gap-4">
                         <div class="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center text-blue-500 text-xl"><i class="fa-solid fa-list-check"></i></div>
                         <div><p class="text-sm text-slate-500 font-medium">總執行案例</p><h4 id="metricTotalCases" class="text-2xl font-bold text-slate-800">—</h4></div>
                     </div>
                     <div class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm flex items-center gap-4">
-                        <div class="w-12 h-12 rounded-full bg-green-50 flex items-center justify-center text-green-500 text-xl"><i class="fa-solid fa-check-circle"></i></div>
-                        <div><p class="text-sm text-slate-500 font-medium">整體通過率</p><h4 class="text-2xl font-bold text-slate-800"><span id="metricPassRate">—</span><span class="text-lg text-slate-500">%</span></h4></div>
+                        <div class="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-500 text-xl"><i class="fa-solid fa-circle-check"></i></div>
+                        <div><p class="text-sm text-slate-500 font-medium">成功案例</p><h4 id="metricPassedCases" class="text-2xl font-bold text-slate-800">—</h4></div>
                     </div>
                     <div class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm flex items-center gap-4">
                         <div class="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center text-red-500 text-xl"><i class="fa-solid fa-triangle-exclamation"></i></div>
                         <div><p class="text-sm text-slate-500 font-medium">失敗案例</p><h4 id="metricFailedCases" class="text-2xl font-bold text-slate-800">—</h4></div>
+                    </div>
+                    <div class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm flex items-center gap-4">
+                        <div class="w-12 h-12 rounded-full bg-green-50 flex items-center justify-center text-green-500 text-xl"><i class="fa-solid fa-check-circle"></i></div>
+                        <div><p class="text-sm text-slate-500 font-medium">整體通過率</p><h4 class="text-2xl font-bold text-slate-800"><span id="metricPassRate">—</span><span class="text-lg text-slate-500">%</span></h4></div>
                     </div>
                     <div class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm flex items-center gap-4">
                         <div class="w-12 h-12 rounded-full bg-purple-50 flex items-center justify-center text-purple-500 text-xl"><i class="fa-solid fa-stopwatch"></i></div>
@@ -409,7 +413,7 @@
                 <div class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm mb-10">
                     <div class="flex items-center justify-between mb-4">
                         <h3 class="font-bold text-slate-700 flex items-center gap-2"><i class="fa-solid fa-clock-rotate-left text-slate-500"></i> 最近執行紀錄 <span class="text-xs font-normal text-slate-400 ml-2">(點擊任一列查看詳細報告與截圖)</span></h3>
-                        <button class="text-sm px-3 py-1.5 text-blue-600 hover:bg-blue-50 rounded transition font-medium">查看全部</button>
+                        <button id="recentReportsToggle" onclick="toggleAllReports()" class="text-sm px-3 py-1.5 text-blue-600 hover:bg-blue-50 rounded transition font-medium">查看全部</button>
                     </div>
                     <div class="border border-slate-200 rounded-md overflow-hidden">
                         <table class="w-full text-sm text-left">
@@ -840,7 +844,7 @@
 
             return {
                 title: `執行報告 ${String(summary.id || '').slice(0, 8)}`,
-                time: summary.created_at || '',
+                time: formatBackendTime(summary.created_at),
                 duration: summary.duration_ms != null ? `${(summary.duration_ms / 1000).toFixed(2)}s` : '—',
                 status: (summary.status === 'PASSED') ? 'Passed' : 'Failed',
                 projectId: summary.project_id || null,
@@ -1103,6 +1107,43 @@
         // 保留 Chart 實例以便每次切回 Dashboard 時 update() 而非重建
         let statusChartInst = null;
         let trendChartInst = null;
+        // 「最近執行紀錄」顯示模式：false=僅 10 筆，true=最近 100 筆
+        let recentReportsShowAll = false;
+
+        // 後端 created_at 由 datetime.utcnow() 產生，是不帶時區的 naive UTC
+        // 字串（例：'2026-04-21T08:46:18'）。直接丟給 new Date() 會被當成
+        // 本地時間，於 UTC+8 時區會顯示成錯誤的 8 小時前。這個 helper 會在
+        // 沒有時區尾綴時補 'Z'，確保一律以 UTC 解析後再轉換為使用者本地時區。
+        function parseBackendTime(s) {
+            if (!s) return null;
+            const hasTZ = /[zZ]$|[+-]\d{2}:?\d{2}$/.test(s);
+            return new Date(hasTZ ? s : s + 'Z');
+        }
+
+        function formatBackendTime(s) {
+            const d = parseBackendTime(s);
+            return d && !isNaN(d) ? d.toLocaleString('zh-TW', { hour12: false }) : '—';
+        }
+
+        // 「查看全部 / 顯示較少」按鈕
+        function toggleAllReports() {
+            recentReportsShowAll = !recentReportsShowAll;
+            const btn = document.getElementById('recentReportsToggle');
+            if (btn) btn.textContent = recentReportsShowAll ? '顯示較少' : '查看全部';
+            refreshRecentReports();
+        }
+
+        async function refreshRecentReports() {
+            if (!currentProjectId) return;
+            const pid = encodeURIComponent(currentProjectId);
+            const limit = recentReportsShowAll ? 100 : 10;
+            try {
+                const list = await apiFetch(`/api/reports?project_id=${pid}&page=1&limit=${limit}`);
+                renderRecentReports(list.items || []);
+            } catch (e) {
+                renderRecentReports([]);
+            }
+        }
 
         function showReportView() {
             document.getElementById('editorWorkspace').classList.add('hidden');
@@ -1154,26 +1195,35 @@
             const pid = encodeURIComponent(currentProjectId);
 
             // 三個請求並行送出；任何一個失敗不影響其他的更新
+            const reportsLimit = recentReportsShowAll ? 100 : 10;
             const [metricsRes, chartsRes, listRes] = await Promise.allSettled([
                 apiFetch(`/api/dashboard/metrics?project_id=${pid}`),
                 apiFetch(`/api/dashboard/charts?project_id=${pid}`),
-                apiFetch(`/api/reports?project_id=${pid}&page=1&limit=10`),
+                apiFetch(`/api/reports?project_id=${pid}&page=1&limit=${reportsLimit}`),
             ]);
 
             const metrics = metricsRes.status === 'fulfilled' ? metricsRes.value : null;
             const charts = chartsRes.status === 'fulfilled' ? chartsRes.value : null;
             const list = listRes.status === 'fulfilled' ? listRes.value : { items: [] };
 
-            // ── 4 張統計卡（失敗案例數取自 charts.status_summary，因為
-            //    metrics endpoint 目前不直接提供）──────────────────
-            if (metrics) {
-                document.getElementById('metricTotalCases').textContent = metrics.total_testcases ?? 0;
-                document.getElementById('metricPassRate').textContent = (metrics.pass_rate ?? 0).toFixed(1);
-                document.getElementById('metricAvgDuration').textContent = metrics.avg_duration_ms != null
-                    ? (metrics.avg_duration_ms / 1000).toFixed(2)
-                    : '0.00';
-            }
-            document.getElementById('metricFailedCases').textContent = charts?.status_summary?.failed ?? 0;
+            // ── 5 張統計卡 ─────────────────────────────────────
+            // 所有 case 計數都從 charts.status_summary 推導，確保自洽：
+            //   總 = 成功 + 失敗；通過率 = 成功 / 總
+            // （不使用 metrics.total_testcases，那是 distinct testcase 數，
+            //   與 failed/passed 的「case-run 累計」單位不同，混用會產生
+            //   像「總 1 / 失敗 5」這類看不懂的數字。）
+            const passed = charts?.status_summary?.passed ?? 0;
+            const failed = charts?.status_summary?.failed ?? 0;
+            const totalRuns = passed + failed;
+            const passRate = totalRuns > 0 ? (passed / totalRuns) * 100 : 0;
+
+            document.getElementById('metricTotalCases').textContent = totalRuns;
+            document.getElementById('metricPassedCases').textContent = passed;
+            document.getElementById('metricFailedCases').textContent = failed;
+            document.getElementById('metricPassRate').textContent = passRate.toFixed(1);
+            document.getElementById('metricAvgDuration').textContent = metrics?.avg_duration_ms != null
+                ? (metrics.avg_duration_ms / 1000).toFixed(2)
+                : '0.00';
 
             // ── 圓餅圖（測試結果分佈）──────────────────────────
             if (statusChartInst && charts?.status_summary) {
@@ -1185,8 +1235,18 @@
             }
 
             // ── 長條圖（近 N 次執行趨勢）──────────────────────
+            // 優先使用 created_at 組出「MM/DD HH:MM」本地時間標籤（人類可讀）；
+            // 後端未提供 created_at 時才 fallback 回原本的 #{id[:6]} label。
             if (trendChartInst && Array.isArray(charts?.trend)) {
-                trendChartInst.data.labels = charts.trend.map(t => t.label);
+                trendChartInst.data.labels = charts.trend.map(t => {
+                    const d = parseBackendTime(t.created_at);
+                    if (!d || isNaN(d)) return t.label;
+                    const mm = String(d.getMonth() + 1).padStart(2, '0');
+                    const dd = String(d.getDate()).padStart(2, '0');
+                    const hh = String(d.getHours()).padStart(2, '0');
+                    const mi = String(d.getMinutes()).padStart(2, '0');
+                    return `${mm}/${dd} ${hh}:${mi}`;
+                });
                 trendChartInst.data.datasets[0].data = charts.trend.map(t => t.passed);
                 trendChartInst.data.datasets[1].data = charts.trend.map(t => t.failed);
                 trendChartInst.update();
@@ -1205,7 +1265,7 @@
             }
             const projName = projectsData[currentProjectId]?.name || '';
             tbody.innerHTML = items.map(r => {
-                const when = r.created_at ? new Date(r.created_at).toLocaleString('zh-TW', { hour12: false }) : '—';
+                const when = formatBackendTime(r.created_at);
                 const dur = r.duration_ms != null ? (r.duration_ms / 1000).toFixed(2) + 's' : '—';
                 const statusCls = r.status === 'PASSED'
                     ? 'bg-green-100 text-green-700'

@@ -86,6 +86,7 @@ async def get_charts(
         )
     ) or 0
 
+    # 前端 dashboard 標題為「近五次執行趨勢」，這裡 limit 對齊為 5
     recent_result = await db.execute(
         select(ExecutionReport)
         .where(
@@ -93,15 +94,16 @@ async def get_charts(
             ExecutionReport.status != ReportStatus.RUNNING,
         )
         .order_by(desc(ExecutionReport.created_at))
-        .limit(10)
+        .limit(5)
     )
     recent = list(reversed(recent_result.scalars().all()))
 
     trend = [
         ChartDataPoint(
-            label=f"#{r.id[:6]}",
+            label=f"#{r.id[:6]}",          # fallback；前端優先使用 created_at 格式化
             passed=r.passed_cases,
             failed=r.failed_cases,
+            created_at=r.created_at,
         )
         for r in recent
     ]
