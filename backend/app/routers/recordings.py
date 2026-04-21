@@ -80,22 +80,49 @@ def _build_commands(session_id: str, target_url: str) -> RecorderCommandResponse
     py = f"recorded_{session_id[:8]}.py"
     tz = f"trace_{session_id[:8]}.zip"
 
-    npx_cmd = (
-        f'npx -y playwright codegen --target python '
-        f'--output {py} --save-trace {tz} "{target_url}"'
+    # ⚠ playwright codegen 不支援 --save-trace，僅產生 script。
+    # 若需 trace，請使用下方 powershell_oneliner（codegen → 注入 tracing → 重跑 → 上傳）。
+    npx_cmd = f'npx -y playwright codegen --target python -o {py} "{target_url}"'
+    pip_cmd = f'python -m playwright codegen --target python -o {py} "{target_url}"'
+    rf_cmd = f'rfbrowser codegen "{target_url}" -o {py}'
+
+    # 完整流程 (PowerShell)：
+    # 1) codegen 產生 recorded.py (錄製過程不存 trace)
+    # 2) 用 regex 注入 tracing.start/stop (在 new_context 之後與 browser.close 之前)
+    # 3) 用 python 重跑修改後的 script → 產生 trace.zip
+    # 4) curl 同時上傳 script + trace
+    # 註：第 2 步若 codegen 用 'context = browser.new_context()' 命名才會成功。
+    ps_script = (
+        # 若專案根目錄存在，先切過去；確保「在任何位置貼指令」最後都落在 <root>\record\<sid>\
+        # （避免在 C:\Windows\System32 等系統目錄執行時權限不足）
+        f'if (Test-Path "{settings.RECORDER_HOST_ROOT}") {{ Set-Location "{settings.RECORDER_HOST_ROOT}" }}; '
+        f'$wd = "record\\{session_id[:8]}"; '
+        f'New-Item -ItemType Directory -Force -Path $wd | Out-Null; '
+        f'Set-Location $wd; '
+        # 強制以 UTF-8 工作，避免 PS 5.1 預設 ANSI(cp950) 讀寫時把中文/全形符號變成「?」亂碼
+        f'$OutputEncoding = [System.Text.Encoding]::UTF8; '
+        f'[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; '
+        f'$env:PYTHONIOENCODING = "utf-8"; '
+        f'$env:PYTHONUTF8 = "1"; '
+        f'{pip_cmd}; '
+        # ★ 以 UTF-8 讀進 codegen 產出的 .py，避免被當成 ANSI 解碼
+        f'$src = Get-Content {py} -Raw -Encoding UTF8; '
+        f'$src = $src '
+        f'-replace \'(context\\s*=\\s*browser\\.new_context\\([^)]*\\))\', '
+        f'"$1`n    context.tracing.start(screenshots=$true, snapshots=$true, sources=$true)" '
+        f'-replace \'(\\s*)(browser\\.close\\(\\))\', '
+        f'"`$1context.tracing.stop(path=\'\'{tz}\'\')`n`$1`$2"; '
+        # ★ 以 UTF-8 (無 BOM) 寫回，確保 python 執行時也能正確讀取中文字串
+        f'[System.IO.File]::WriteAllText((Resolve-Path {py}), $src, '
+        f'(New-Object System.Text.UTF8Encoding $false)); '
+        f'python {py}; '
+        f'curl.exe -F "script=@{py}" -F "trace=@{tz}" {upload_url}'
     )
-    pip_cmd = (
-        f'python -m playwright codegen --target python '
-        f'--output {py} --save-trace {tz} "{target_url}"'
-    )
-    rf_cmd = (
-        f'rfbrowser codegen "{target_url}" '
-        f'--output {py} --save-trace {tz}'
-    )
-    one_liner = (
-        f'{npx_cmd}; '
-        f'curl -F "script=@{py}" -F "trace=@{tz}" {upload_url}'
-    )
+    # 包成 -EncodedCommand：在 CMD / PowerShell / Windows Terminal 貼上都能執行，
+    # 完全免處理引號跳脫，避免使用者誤把 PS 語法貼進 CMD。
+    import base64 as _b64
+    _b = _b64.b64encode(ps_script.encode("utf-16-le")).decode("ascii")
+    one_liner = f'powershell -NoProfile -ExecutionPolicy Bypass -EncodedCommand {_b}'
     return RecorderCommandResponse(
         session_id=session_id,
         upload_url=upload_url,
@@ -133,6 +160,23 @@ async def create_recording(
         "session": _to_response(session).model_dump(),
         "commands": _build_commands(sid, payload.target_url).model_dump(),
     }
+
+
+@router.get(
+    "/recordings",
+    response_model=list[RecordingSessionResponse],
+    tags=["E · 錄製"],
+)
+async def list_recordings(
+    project_id: Optional[int] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """列出所有錄製 session（最新在前）。可選 project_id 過濾。"""
+    stmt = select(RecordingSession).order_by(RecordingSession.created_at.desc())
+    if project_id is not None:
+        stmt = stmt.where(RecordingSession.project_id == project_id)
+    result = await db.execute(stmt)
+    return [_to_response(s) for s in result.scalars().all()]
 
 
 @router.get(

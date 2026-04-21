@@ -52,3 +52,5 @@ minio-data/
 *.log
 *.bak
 *.tmp
+
+record/

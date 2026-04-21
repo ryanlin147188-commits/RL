@@ -202,26 +202,23 @@
 
                 <!-- ② 在本機執行 codegen -->
                 <section id="recCmdSection" class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm hidden">
-                    <h3 class="font-bold text-slate-700 flex items-center gap-2 mb-3"><i class="fa-solid fa-circle-2 text-rose-500"></i> 在你本機執行 codegen（任選一種）</h3>
+                    <h3 class="font-bold text-slate-700 flex items-center gap-2 mb-3"><i class="fa-solid fa-circle-2 text-rose-500"></i> 一鍵啟動錄製器（已自動下載 .ps1）</h3>
                     <div class="space-y-3">
+                        <p class="text-xs text-slate-600 bg-amber-50 border border-amber-200 rounded p-3">
+                            <i class="fa-solid fa-bolt text-amber-500"></i>
+                            <b>使用方式：</b>建立 session 後會自動下載 <code>start_recording_xxxx.ps1</code> 至「下載」資料夾。
+                            <b>雙擊該檔即會自動開啟 Playwright 錄製器</b>，操作完成後關閉視窗即會自動產生 trace.zip 並上傳至本系統。
+                        </p>
                         <div>
-                            <div class="flex items-center justify-between mb-1"><span class="text-xs font-mono text-slate-500">npx playwright codegen</span><button onclick="recCopy('cmdNpx')" class="text-xs text-blue-600 hover:underline"><i class="fa-solid fa-copy"></i> 複製</button></div>
-                            <textarea id="cmdNpx" aria-label="npx playwright codegen 指令" readonly rows="2" class="w-full text-xs font-mono p-2 bg-slate-50 border border-slate-200 rounded"></textarea>
+                            <div class="flex items-center justify-between mb-1"><span class="text-xs font-mono text-slate-500">PowerShell 完整指令（如未自動下載，可手動複製貼到 PowerShell 執行）</span><button onclick="recCopy('cmdPs')" class="text-xs text-blue-600 hover:underline"><i class="fa-solid fa-copy"></i> 複製</button></div>
+                            <textarea id="cmdPs" aria-label="PowerShell 一鍵錄製加上傳指令" readonly rows="5" class="w-full text-xs font-mono p-2 bg-slate-50 border border-slate-200 rounded"></textarea>
                         </div>
-                        <div>
-                            <div class="flex items-center justify-between mb-1"><span class="text-xs font-mono text-slate-500">python -m playwright codegen</span><button onclick="recCopy('cmdPip')" class="text-xs text-blue-600 hover:underline"><i class="fa-solid fa-copy"></i> 複製</button></div>
-                            <textarea id="cmdPip" aria-label="python -m playwright codegen 指令" readonly rows="2" class="w-full text-xs font-mono p-2 bg-slate-50 border border-slate-200 rounded"></textarea>
-                        </div>
-                        <div>
-                            <div class="flex items-center justify-between mb-1"><span class="text-xs font-mono text-slate-500">rfbrowser codegen (Robot Framework Browser)</span><button onclick="recCopy('cmdRfb')" class="text-xs text-blue-600 hover:underline"><i class="fa-solid fa-copy"></i> 複製</button></div>
-                            <textarea id="cmdRfb" aria-label="rfbrowser codegen 指令" readonly rows="2" class="w-full text-xs font-mono p-2 bg-slate-50 border border-slate-200 rounded"></textarea>
-                        </div>
-                        <div>
-                            <div class="flex items-center justify-between mb-1"><span class="text-xs font-mono text-slate-500">PowerShell 一鍵錄製＋上傳</span><button onclick="recCopy('cmdPs')" class="text-xs text-blue-600 hover:underline"><i class="fa-solid fa-copy"></i> 複製</button></div>
-                            <textarea id="cmdPs" aria-label="PowerShell 一鍵錄製加上傳指令" readonly rows="3" class="w-full text-xs font-mono p-2 bg-slate-50 border border-slate-200 rounded"></textarea>
-                        </div>
+                        <!-- 隱藏欄位：保留以維持 recCreateSession 既有寫入邏輯 -->
+                        <textarea id="cmdNpx" class="hidden" aria-hidden="true"></textarea>
+                        <textarea id="cmdPip" class="hidden" aria-hidden="true"></textarea>
+                        <textarea id="cmdRfb" class="hidden" aria-hidden="true"></textarea>
                     </div>
-                    <p class="mt-3 text-xs text-slate-500"><i class="fa-solid fa-circle-info text-amber-500"></i> 錄製完成後會產生 <code>recorded_xxxx.py</code> 與 <code>trace_xxxx.zip</code>，請於下方上傳。</p>
+                    <p class="mt-3 text-xs text-slate-500"><i class="fa-solid fa-circle-info text-amber-500"></i> 雙擊 .ps1 後若出現「執行原則」警告：在開啟的 PowerShell 中執行 <code>Set-ExecutionPolicy -Scope CurrentUser RemoteSigned</code> 一次即可；或在 PowerShell 中以拖曳方式執行該檔。RF Browser 已內建 playwright，無需額外安裝。</p>
                 </section>
 
                 <!-- ③ 上傳結果 -->
@@ -236,7 +233,7 @@
                         </label>
                         <label class="border-2 border-dashed border-slate-300 hover:border-rose-400 rounded p-4 text-center cursor-pointer transition">
                             <i class="fa-solid fa-file-zipper text-2xl text-slate-400 mb-2"></i>
-                            <p class="text-sm text-slate-600">trace.zip</p>
+                            <p class="text-sm text-slate-600">trace.zip <span class="text-amber-600">(可選)</span></p>
                             <p id="recTraceName" class="text-xs text-slate-400 mt-1">尚未選擇</p>
                             <input id="recTraceInput" type="file" accept=".zip,application/zip" class="hidden" onchange="recPickFile(this,'recTraceName')" />
                         </label>
@@ -251,11 +248,60 @@
 
                 <!-- ④ 解析結果預覽 -->
                 <section id="recPreviewSection" class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm hidden">
-                    <h3 class="font-bold text-slate-700 flex items-center gap-2 mb-3"><i class="fa-solid fa-circle-4 text-rose-500"></i> 解析後的 BDD 步驟</h3>
+                    <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                        <h3 class="font-bold text-slate-700 flex items-center gap-2"><i class="fa-solid fa-circle-4 text-rose-500"></i> 解析後的 BDD 步驟</h3>
+                        <div class="flex items-center gap-2">
+                            <label class="text-xs text-slate-500">套用至：</label>
+                            <select id="recApplyTarget" title="選擇要套用的測試案例" aria-label="選擇要套用的測試案例" class="text-sm border border-slate-200 rounded p-1.5 bg-white focus:ring-1 focus:ring-blue-400 outline-none min-w-[200px]">
+                                <option value="">— 請選擇目標 .md 案例 —</option>
+                            </select>
+                            <button onclick="recApplySteps()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-medium flex items-center gap-1"><i class="fa-solid fa-circle-down"></i> 套用</button>
+                        </div>
+                    </div>
                     <div class="overflow-x-auto">
                         <table class="w-full text-sm">
-                            <thead class="bg-slate-100 text-slate-600"><tr><th class="p-2 text-left">關鍵字</th><th class="p-2 text-left">描述</th><th class="p-2 text-left">動作</th><th class="p-2 text-left">定位器</th><th class="p-2 text-left">輸入值</th><th class="p-2 text-left">預期</th></tr></thead>
+                            <thead class="bg-slate-100 text-slate-600">
+                                <tr>
+                                    <th class="p-2 text-left">測試編號</th>
+                                    <th class="p-2 text-left">BDD 關鍵字</th>
+                                    <th class="p-2 text-left">步驟描述</th>
+                                    <th class="p-2 text-left">動作 (Action)</th>
+                                    <th class="p-2 text-left">定位器 (Locator)</th>
+                                    <th class="p-2 text-left">輸入值</th>
+                                    <th class="p-2 text-left">比對條件</th>
+                                    <th class="p-2 text-left">預期結果</th>
+                                </tr>
+                            </thead>
                             <tbody id="recStepsBody" class="divide-y divide-slate-100"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- ⑤ 歷史錄製清單 -->
+                <section class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
+                    <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                        <h3 class="font-bold text-slate-700 flex items-center gap-2"><i class="fa-solid fa-circle-5 text-rose-500"></i> 歷史錄製清單</h3>
+                        <div class="flex items-center gap-2">
+                            <button onclick="recBulkDelete()" id="recBulkDeleteBtn" disabled class="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded text-xs font-medium flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"><i class="fa-solid fa-trash"></i> 刪除選取 (<span id="recBulkCount">0</span>)</button>
+                            <button onclick="recRefreshList()" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-xs font-medium flex items-center gap-1"><i class="fa-solid fa-rotate"></i> 重新整理</button>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead class="bg-slate-100 text-slate-600">
+                                <tr>
+                                    <th class="p-2 text-left w-8"><input type="checkbox" id="recSelectAll" onchange="recToggleAll(this.checked)" aria-label="全選"></th>
+                                    <th class="p-2 text-left">建立時間</th>
+                                    <th class="p-2 text-left">Session ID</th>
+                                    <th class="p-2 text-left">目標 URL</th>
+                                    <th class="p-2 text-left">狀態</th>
+                                    <th class="p-2 text-left">檔案</th>
+                                    <th class="p-2 text-left">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recListBody" class="divide-y divide-slate-100">
+                                <tr><td colspan="7" class="p-4 text-center text-slate-400">載入中...</td></tr>
+                            </tbody>
                         </table>
                     </div>
                 </section>
@@ -1374,6 +1420,7 @@
                 document.getElementById('emptyWorkspace').classList.add('hidden');
                 document.getElementById('reportWorkspace').classList.add('hidden');
                 document.getElementById('detailReportWorkspace').classList.add('hidden');
+                document.getElementById('recorderWorkspace')?.classList.add('hidden');
                 document.getElementById('editorWorkspace').classList.remove('hidden');
                 document.getElementById('mainActions').classList.remove('hidden');
                 renderEditor();
@@ -1633,10 +1680,12 @@
             document.getElementById('recorderWorkspace').classList.remove('hidden');
             document.getElementById('mainHeader').classList.remove('hidden');
             document.getElementById('mainActions').classList.add('hidden');
-            document.getElementById('viewFilename').textContent = '🎬 錄製';
+            document.getElementById('viewFilename').textContent = '錄製';
             document.getElementById('viewTitle').innerHTML = '<i class="fa-solid fa-video text-rose-500"></i> 瀏覽器操作錄製器';
             document.getElementById('viewTag').className = 'bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded font-medium';
             document.getElementById('viewTag').textContent = 'Recorder';
+            recRefreshList();
+            recPopulateApplyTarget();
         }
 
         async function recCreateSession() {
@@ -1666,16 +1715,73 @@
                 document.getElementById('recScriptName').textContent = '尚未選擇';
                 document.getElementById('recTraceName').textContent = '尚未選擇';
                 recScriptFile = null; recTraceFile = null;
-                showToast('Session 已建立', 'success');
+                showToast('Session 已建立，正在下載啟動腳本...', 'success');
+                recRefreshList();
+                // 自動下載 .ps1 並複製到剪貼簿，使用者雙擊即可開啟錄製器
+                recDownloadLauncher(data.commands.powershell_oneliner, data.session.id);
             } catch (e) {
                 showToast('建立失敗：' + e.message, 'error');
             }
         }
 
+        function recDownloadLauncher(psCommand, sid) {
+            if (!psCommand) return;
+            const short = (sid || '').slice(0, 8);
+            // 包成完整 .ps1：切換到此 .ps1 所在目錄；內嵌指令會自行於底下建立 record\{short}\ （相對路徑）
+            const ps1 = [
+                '# AutoTest 錄製啟動腳本 (Session ' + sid + ')',
+                '# 使用方式：右鍵此檔 → 用 PowerShell 執行；或在 PowerShell 視窗中拖曳此檔執行',
+                '# 工作檔案會落在「此 .ps1 所在目錄\\record\\' + short + '\\」(由內嵌指令自行建立)',
+                '$ErrorActionPreference = "Stop"',
+                'Set-Location -Path $PSScriptRoot',
+                'Write-Host ("工作目錄：" + (Join-Path $PSScriptRoot ("record\\" + "' + short + '"))) -ForegroundColor Cyan',
+                'Write-Host "即將開啟 Playwright 錄製器，請操作完成後關閉視窗以儲存..." -ForegroundColor Yellow',
+                psCommand,
+                'Write-Host "完成！" -ForegroundColor Green',
+                'Read-Host "按 Enter 關閉視窗"',
+            ].join("\r\n");
+            const blob = new Blob([ps1], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `start_recording_${short}.ps1`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 5000);
+            // 同時複製指令到剪貼簿，方便有些使用者直接貼到既有 PS 視窗
+            try {
+                navigator.clipboard.writeText(psCommand);
+            } catch (e) { /* ignore */ }
+            // 顯示提示
+            const info = document.getElementById('recSessionInfo');
+            if (info) {
+                info.innerHTML += '<br><span class="text-xs text-amber-600"><i class="fa-solid fa-circle-info"></i> 已下載 <code>start_recording_' + short + '.ps1</code>，請雙擊（或在 PowerShell 中執行）開始錄製。指令已複製到剪貼簿。</span>';
+            }
+        }
+
         function recCopy(id) {
             const el = document.getElementById(id);
-            el.select(); document.execCommand('copy');
-            showToast('已複製到剪貼簿', 'success');
+            if (!el) { showToast('找不到欄位', 'error'); return; }
+            const text = el.value || '';
+            if (!text) { showToast('內容為空', 'error'); return; }
+            const ok = (msg) => showToast(msg || '已複製到剪貼簿', 'success');
+            const fallback = () => {
+                try {
+                    el.removeAttribute('readonly');
+                    el.focus();
+                    el.select();
+                    el.setSelectionRange(0, text.length);
+                    const r = document.execCommand('copy');
+                    el.setAttribute('readonly', '');
+                    if (r) { ok(); } else { showToast('複製失敗，請手動選取', 'error'); }
+                } catch (e) { showToast('複製失敗：' + e.message, 'error'); }
+            };
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(() => ok()).catch(fallback);
+            } else {
+                fallback();
+            }
         }
 
         function recPickFile(input, labelId) {
@@ -1700,8 +1806,117 @@
                 document.getElementById('recStatus').innerHTML =
                     `<i class="fa-solid fa-check text-green-500"></i> 已上傳，狀態：<b>${data.status}</b>`;
                 showToast('上傳成功', 'success');
+                recRefreshList();
             } catch (e) {
                 showToast('上傳失敗：' + e.message, 'error');
+            }
+        }
+
+        // 把後端 GeneratedStep 對應為「測試案例編輯器」使用的欄位（tcid, bdd, desc, action, loc, input, compare, expected）
+        function recMapStep(s, idx) {
+            return {
+                tcid: 'TC-' + String(idx + 1).padStart(2, '0'),
+                bdd: s.keyword || 'When',
+                desc: s.description || '',
+                action: s.action || 'Click',
+                loc: s.locator || '',
+                input: s.input || '',
+                compare: s.condition || 'Equals',
+                expected: s.expected || ''
+            };
+        }
+
+        // 暫存最近一次解析結果，供「套用」按鈕使用
+        let recLastSteps = [];
+
+        // HTML 跳脫，避免 locator/expected 內含 < > " & 等字元造成版面破壞或亂碼
+        function recEscape(s) {
+            if (s === null || s === undefined) return '';
+            return String(s)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        // 走訪 activeTreeData，收集所有 .md 檔案節點（含資料夾路徑供顯示）
+        function recCollectMdNodes(nodes, prefix, out) {
+            if (!nodes) return;
+            for (const n of nodes) {
+                if (n.isFile) {
+                    out.push({ id: n.id, label: (prefix ? prefix + ' / ' : '') + (n.title || n.id) });
+                } else if (n.children && n.children.length) {
+                    recCollectMdNodes(n.children, (prefix ? prefix + ' / ' : '') + (n.title || ''), out);
+                }
+            }
+        }
+
+        // 填入 [套用至] 下拉：列出整個專案樹中的所有 .md 檔
+        function recPopulateApplyTarget() {
+            const sel = document.getElementById('recApplyTarget');
+            if (!sel) return;
+            const prev = sel.value;
+            sel.innerHTML = '<option value="">— 請選擇目標 .md 案例 —</option>';
+            const list = [];
+            recCollectMdNodes(activeTreeData || [], '', list);
+            if (!list.length) {
+                sel.innerHTML += '<option value="" disabled>（目前專案沒有 .md 檔，請先建立）</option>';
+                return;
+            }
+            list.forEach(({ id, label }) => {
+                const opt = document.createElement('option');
+                opt.value = id;
+                opt.textContent = label;
+                if (id === prev || (!prev && id === currentTestCase)) opt.selected = true;
+                sel.appendChild(opt);
+            });
+        }
+
+        async function recApplySteps() {
+            const sel = document.getElementById('recApplyTarget');
+            const targetId = sel ? sel.value : '';
+            if (!targetId) { showToast('請選擇要套用的 .md 案例', 'error'); return; }
+            if (!recLastSteps.length) { showToast('沒有可套用的步驟，請先解析', 'error'); return; }
+            try {
+                // 確保案例已載入到 testCases（若沒，會切到編輯器並從後端拉取）
+                if (!testCases[targetId]) {
+                    await loadTestCase(targetId);
+                }
+                if (!testCases[targetId]) { showToast('目標案例載入失敗', 'error'); return; }
+                const tc = testCases[targetId];
+                const baseLen = (tc.steps || []).length;
+                const mapped = recLastSteps.map((s, i) => recMapStep(s, baseLen + i));
+                tc.steps = (tc.steps || []).concat(mapped);
+
+                // 寫回後端持久化
+                try {
+                    await apiFetch(`/api/testcases/${encodeURIComponent(targetId)}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            ac_text: tc.ac || '',
+                            steps_json: tc.steps,
+                            ddt_json: tc.ddt || { headers: [], rows: [] }
+                        })
+                    });
+                } catch (e) {
+                    showToast('套用至記憶體成功，但寫回後端失敗：' + e.message, 'error');
+                }
+
+                // 切到編輯器視圖讓使用者馬上看到結果
+                currentTestCase = targetId;
+                document.getElementById('emptyWorkspace')?.classList.add('hidden');
+                document.getElementById('reportWorkspace')?.classList.add('hidden');
+                document.getElementById('detailReportWorkspace')?.classList.add('hidden');
+                document.getElementById('recorderWorkspace')?.classList.add('hidden');
+                document.getElementById('editorWorkspace')?.classList.remove('hidden');
+                document.getElementById('mainActions')?.classList.remove('hidden');
+                if (typeof renderEditor === 'function') renderEditor(); else renderSteps();
+                renderAllTree && renderAllTree();
+                showToast(`已套用 ${mapped.length} 個步驟並儲存`, 'success');
+            } catch (e) {
+                showToast('套用失敗：' + e.message, 'error');
             }
         }
 
@@ -1714,35 +1929,185 @@
                     throw new Error(err.detail || ('HTTP ' + res.status));
                 }
                 const data = await res.json();
+                recLastSteps = data.steps || [];
                 const tbody = document.getElementById('recStepsBody');
                 tbody.innerHTML = '';
-                (data.steps || []).forEach((s) => {
+                recLastSteps.forEach((s, i) => {
+                    const m = recMapStep(s, i);
                     const tr = document.createElement('tr');
-                    tr.innerHTML = `<td class="p-2 font-mono text-blue-600">${s.keyword}</td>
-                        <td class="p-2">${s.description}</td>
-                        <td class="p-2 font-mono">${s.action}</td>
-                        <td class="p-2 font-mono text-slate-600">${s.locator || ''}</td>
-                        <td class="p-2 font-mono">${s.input || ''}</td>
-                        <td class="p-2 font-mono">${s.expected || ''}</td>`;
+                    tr.innerHTML = `<td class="p-2 font-mono text-xs">${recEscape(m.tcid)}</td>
+                        <td class="p-2 font-mono text-blue-600">${recEscape(m.bdd)}</td>
+                        <td class="p-2">${recEscape(m.desc)}</td>
+                        <td class="p-2 font-mono">${recEscape(m.action)}</td>
+                        <td class="p-2 font-mono text-slate-600">${recEscape(m.loc)}</td>
+                        <td class="p-2 font-mono">${recEscape(m.input)}</td>
+                        <td class="p-2 font-mono">${recEscape(m.compare)}</td>
+                        <td class="p-2 font-mono">${recEscape(m.expected)}</td>`;
                     tbody.appendChild(tr);
                 });
                 document.getElementById('recPreviewSection').classList.remove('hidden');
-                showToast(`已解析 ${data.steps.length} 個步驟`, 'success');
-                if (currentTestCase && data.steps.length > 0) {
-                    if (confirm(`是否將這 ${data.steps.length} 個步驟附加到目前的測試案例？`)) {
-                        const existing = currentTestCase.steps_json || [];
-                        currentTestCase.steps_json = existing.concat(data.steps);
-                        showToast('已附加，請至「案例編輯」儲存', 'success');
-                    }
-                }
+                recPopulateApplyTarget();
+                showToast(`已解析 ${recLastSteps.length} 個步驟，請於下方選擇要套用的 .md 案例`, 'success');
             } catch (e) {
                 showToast('解析失敗：' + e.message, 'error');
             }
         }
 
         function recDownloadTrace() {
-            if (!recCurrentSession) { showToast('請先建立 session', 'error'); return; }
-            window.open(`/api/recordings/${recCurrentSession.id}/trace`, '_blank');
+            if (!recCurrentSession) { showToast('請先建立或載入 session', 'error'); return; }
+            if (!recCurrentSession.trace_path && !recCurrentSession.trace_url) {
+                showToast('此 session 尚無 trace.zip（需執行錄製腳本後才會產生）', 'error');
+                return;
+            }
+            // 用 <a download> 觸發瀏覽器下載；window.open 在某些瀏覽器會被擋
+            const a = document.createElement('a');
+            a.href = `/api/recordings/${recCurrentSession.id}/trace`;
+            a.download = `trace_${recCurrentSession.id.slice(0, 8)}.zip`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        // 全選 / 取消全選
+        function recToggleAll(checked) {
+            document.querySelectorAll('.recRowChk').forEach((cb) => { cb.checked = checked; });
+            recUpdateBulkBtn();
+        }
+
+        function recUpdateBulkBtn() {
+            const checked = document.querySelectorAll('.recRowChk:checked').length;
+            const total = document.querySelectorAll('.recRowChk').length;
+            const btn = document.getElementById('recBulkDeleteBtn');
+            const cnt = document.getElementById('recBulkCount');
+            const all = document.getElementById('recSelectAll');
+            if (cnt) cnt.textContent = checked;
+            if (btn) btn.disabled = checked === 0;
+            if (all) {
+                all.checked = total > 0 && checked === total;
+                all.indeterminate = checked > 0 && checked < total;
+            }
+        }
+
+        async function recBulkDelete() {
+            const ids = Array.from(document.querySelectorAll('.recRowChk:checked')).map(cb => cb.value);
+            if (!ids.length) return;
+            if (!confirm(`確定刪除選取的 ${ids.length} 筆錄製 session？檔案也會一併刪除。`)) return;
+            let ok = 0, fail = 0;
+            for (const sid of ids) {
+                try {
+                    const r = await fetch('/api/recordings/' + sid, { method: 'DELETE' });
+                    if (r.ok || r.status === 204) ok++; else fail++;
+                } catch (e) { fail++; }
+                if (recCurrentSession && recCurrentSession.id === sid) recCurrentSession = null;
+            }
+            showToast(`已刪除 ${ok} 筆${fail ? `，失敗 ${fail} 筆` : ''}`, fail ? 'error' : 'success');
+            recRefreshList();
+        }
+
+        async function recRefreshList() {
+            const tbody = document.getElementById('recListBody');
+            if (!tbody) return;
+            tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-slate-400">載入中...</td></tr>';
+            try {
+                const res = await fetch('/api/recordings');
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const list = await res.json();
+                if (!list.length) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-slate-400">尚無錄製紀錄</td></tr>';
+                    recUpdateBulkBtn();
+                    return;
+                }
+                tbody.innerHTML = '';
+                list.forEach((s) => {
+                    const tr = document.createElement('tr');
+                    const created = s.created_at ? new Date(s.created_at).toLocaleString('zh-TW', { hour12: false }) : '-';
+                    const sidShort = s.id ? s.id.slice(0, 8) : '-';
+                    const statusColor = s.status === 'UPLOADED'
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-slate-100 text-slate-600';
+                    const hasScript = !!s.script_text;
+                    const hasTrace = !!s.trace_path;
+                    const fileBadges =
+                        (hasScript ? '<span class="inline-block px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-xs mr-1">.py</span>' : '') +
+                        (hasTrace ? '<span class="inline-block px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded text-xs">trace.zip</span>' : '') +
+                        (!hasScript && !hasTrace ? '<span class="text-slate-400 text-xs">無</span>' : '');
+                    const traceBtn = hasTrace
+                        ? `<a href="/api/recordings/${s.id}/trace" target="_blank" class="text-blue-600 hover:underline text-xs"><i class="fa-solid fa-download"></i> trace</a>`
+                        : '';
+                    const scriptBtn = hasScript
+                        ? `<button onclick="recViewScript('${s.id}')" class="text-blue-600 hover:underline text-xs"><i class="fa-solid fa-eye"></i> .py</button>`
+                        : '';
+                    tr.innerHTML = `
+                        <td class="p-2"><input type="checkbox" class="recRowChk" value="${recEscape(s.id)}" onchange="recUpdateBulkBtn()" aria-label="選取 ${recEscape(sidShort)}"></td>
+                        <td class="p-2 text-xs text-slate-600">${recEscape(created)}</td>
+                        <td class="p-2 font-mono text-xs text-rose-600" title="${recEscape(s.id)}">${recEscape(sidShort)}</td>
+                        <td class="p-2 text-xs text-slate-600 max-w-xs truncate" title="${recEscape(s.target_url)}">${recEscape(s.target_url)}</td>
+                        <td class="p-2"><span class="inline-block px-2 py-0.5 rounded text-xs font-medium ${statusColor}">${recEscape(s.status)}</span></td>
+                        <td class="p-2">${fileBadges}</td>
+                        <td class="p-2 space-x-2">
+                            <button onclick="recLoadSession('${recEscape(s.id)}')" class="text-rose-600 hover:underline text-xs"><i class="fa-solid fa-pen-to-square"></i> 載入</button>
+                            ${scriptBtn}
+                            ${traceBtn}
+                            <button onclick="recDeleteSession('${recEscape(s.id)}')" class="text-red-600 hover:underline text-xs"><i class="fa-solid fa-trash"></i> 刪除</button>
+                        </td>`;
+                    tbody.appendChild(tr);
+                });
+                recUpdateBulkBtn();
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-red-500">載入失敗：${e.message}</td></tr>`;
+            }
+        }
+
+        async function recLoadSession(sid) {
+            try {
+                const res = await fetch('/api/recordings/' + sid);
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const s = await res.json();
+                recCurrentSession = s;
+                const cmdRes = await fetch('/api/recordings/' + sid + '/commands');
+                if (cmdRes.ok) {
+                    const c = await cmdRes.json();
+                    document.getElementById('cmdNpx').value = c.npx_command || '';
+                    document.getElementById('cmdPip').value = c.pip_command || '';
+                    document.getElementById('cmdRfb').value = c.rfbrowser_command || '';
+                    document.getElementById('cmdPs').value = c.powershell_oneliner || '';
+                }
+                document.getElementById('recUrl').value = s.target_url || '';
+                document.getElementById('recSessionInfo').innerHTML =
+                    `<i class="fa-solid fa-check text-green-500"></i> Session: <code class="text-rose-600">${s.id}</code> · 狀態：${s.status}`;
+                document.getElementById('recCmdSection').classList.remove('hidden');
+                document.getElementById('recUploadSection').classList.remove('hidden');
+                showToast('已載入 session', 'success');
+            } catch (e) {
+                showToast('載入失敗：' + e.message, 'error');
+            }
+        }
+
+        async function recViewScript(sid) {
+            try {
+                const res = await fetch('/api/recordings/' + sid);
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const s = await res.json();
+                if (!s.script_text) { showToast('此 session 無 script', 'error'); return; }
+                const w = window.open('', '_blank');
+                w.document.write(`<pre style="font-family:monospace;padding:1em;white-space:pre-wrap;">${s.script_text.replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]))}</pre>`);
+                w.document.title = 'recorded_' + sid.slice(0, 8) + '.py';
+            } catch (e) {
+                showToast('讀取失敗：' + e.message, 'error');
+            }
+        }
+
+        async function recDeleteSession(sid) {
+            if (!confirm('確定刪除此錄製 session？檔案也會一起刪除。')) return;
+            try {
+                const res = await fetch('/api/recordings/' + sid, { method: 'DELETE' });
+                if (!res.ok && res.status !== 204) throw new Error('HTTP ' + res.status);
+                showToast('已刪除', 'success');
+                if (recCurrentSession && recCurrentSession.id === sid) recCurrentSession = null;
+                recRefreshList();
+            } catch (e) {
+                showToast('刪除失敗：' + e.message, 'error');
+            }
         }
     </script>
 </body>
