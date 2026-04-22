@@ -1,6 +1,6 @@
 # AutoTest v1.0
 
-企業級自動化測試平台。前端 React + 後端 FastAPI + Celery Worker（**Robot Framework** 執行引擎）+ MySQL + Redis。
+企業級自動化測試平台。預設以 nginx 提供根目錄 `index.html` 單頁介面，後端採 FastAPI + Celery Worker（**Robot Framework** 執行引擎）+ MySQL + Redis；倉庫內同時保留 `frontend/` 的 React + Vite 專案供開發模式使用。
 
 ## 功能
 
@@ -22,7 +22,7 @@
 需要：Docker 24+ / Docker Compose v2
 
 ```powershell
-# 1. （可選）設定密碼
+# 1. 複製 compose 用環境變數（目前 .env.example 僅含最基本三項）
 Copy-Item .env.example .env
 
 # 2. 一鍵啟動所有服務
@@ -36,11 +36,13 @@ start http://localhost
 
 | 服務 | 對外 | 說明 |
 |---|---|---|
-| frontend (nginx) | 80 | SPA + 反代 /api、/ws、/pics |
+| frontend (nginx) | 80 | 單頁介面 + 反代 /api、/ws、/pics、/results |
 | backend (FastAPI) | 8000 | REST + WebSocket（`/docs` 為 Swagger）|
 | mysql | 3306 | 啟動時自動匯入 `backend/migrations/init_schema.sql` |
 | redis | 6379 | Celery broker + WS pub/sub |
 | celery worker | — | 內含 Robot Framework + Browser Library + Chromium |
+| minio | 9000 | `pic` / `results` bucket（切換 `STORAGE_BACKEND=minio` 時使用） |
+| minio console | 9001 | 物件儲存管理介面 |
 
 停止：`docker compose down`，連資料一起清：`docker compose down -v`
 
@@ -58,7 +60,21 @@ pip install -r requirements.txt
 # Robot Framework Browser Library 需要 Node.js 20+ 並初始化
 rfbrowser init                            # 會下載 Playwright JS + Chromium
 
-Copy-Item .env.example .env               # 編輯 DB_PASSWORD 等
+# 建立 backend/.env（此檔目前需自行建立，repo 未附 backend/.env.example）
+@"
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=password
+DB_NAME=autotest_db
+REDIS_URL=redis://localhost:6379/0
+PIC_FOLDER=./PIC
+BASE_URL=http://localhost:8000
+STORAGE_BACKEND=local
+APP_HOST=0.0.0.0
+APP_PORT=8000
+DEBUG=True
+"@ | Set-Content .env
 
 # 初始化資料庫（任一方式）
 mysql -uroot -p < migrations/init_schema.sql
@@ -67,12 +83,21 @@ mysql -uroot -p < migrations/init_schema.sql
 # 三個終端機分開啟動
 python run.py                                       # T1 後端
 celery -A tasks.celery_app worker -l info           # T2 worker
-cd ..\frontend ; npm install ; npm run dev          # T3 前端 (http://localhost:3000)
+
+# React/Vite 開發前端（選用）
+cd ..\frontend
+npm install
+npm run dev                                         # T3 前端 (http://localhost:3000)
 ```
+
+說明：
+
+- `http://localhost/` 是 Docker Compose 預設對外頁面，實際由 nginx 載入根目錄的 `index.html`。
+- `http://localhost:3000/` 是 React/Vite 開發站，會透過 Vite proxy 轉發 `/api` 與 `/ws` 到後端。
 
 ## 環境變數
 
-`backend/.env`（被 FastAPI 與 Celery 讀取）：
+`backend/.env`（被 FastAPI 與 Celery 讀取；需自行建立）：
 
 | 變數 | 預設 | 說明 |
 |---|---|---|
@@ -87,7 +112,7 @@ cd ..\frontend ; npm install ; npm run dev          # T3 前端 (http://localhos
 | DEBUG | True | uvicorn reload |
 | PLAYWRIGHT_HEADLESS | 1 | celery worker 環境變數，設 0 開有頭模式（僅本機） |
 
-`.env`（給 docker-compose）：
+`.env`（給 docker-compose；`.env.example` 目前只預放前三項，其餘可自行追加）：
 
 | 變數 | 預設 | 說明 |
 |---|---|---|
@@ -96,6 +121,7 @@ cd ..\frontend ; npm install ; npm run dev          # T3 前端 (http://localhos
 | BASE_URL | http://localhost | 截圖 URL 前綴（透過 nginx 反代 /pics） |
 | STORAGE_BACKEND | local | Docker Compose 預設走本機檔案儲存；MinIO 服務仍會一併啟動供切換使用 |
 | MINIO_ROOT_USER / MINIO_ROOT_PASSWORD | minioadmin / minioadmin | MinIO 管理帳密 |
+| PLAYWRIGHT_HEADLESS | 1 | Celery 容器內是否使用 headless Chromium |
 
 ## 測試案例資料模型
 
@@ -171,14 +197,29 @@ backend/
   migrations/     init_schema.sql
   Dockerfile / Dockerfile.celery
 frontend/
-  src/            React + Zustand + AntD + Chart.js
+  src/            React + Vite 開發版前端（http://localhost:3000）
   Dockerfile / nginx.conf
+index.html        Docker Compose 預設首頁（目前實際交付 UI）
+run_tests.py      Markdown -> Robot CLI runner
+tests/            Markdown / pytest / Robot 測試資產
 docker-compose.yml
+```
+
+## Markdown 匯出與 CLI 執行
+
+- 編輯頁右上角的「匯出 MD」按鈕會呼叫 `GET /api/testcases/{node_id}/export-md`，下載目前 TESTCASE 的 Markdown。
+- 後端另外提供 `POST /api/testcases/{node_id}/import-md` 可把 Markdown 解析回測試案例內容；目前預設 UI 尚未提供匯入按鈕。
+- `run_tests.py` 會把 `tests/` 下的 Markdown 測試轉成 `.robot` 後執行：
+
+```powershell
+python run_tests.py
+python run_tests.py -f tests/e2e/samples/integration_test.md
+python run_tests.py -t "登入測試案例"
 ```
 
 ## 錄製功能（Playwright codegen）
 
-於 TopNav 點選「🎬 錄製」頁（`/recorder`）：
+於首頁 TopNav 切換到「🎬 錄製」模式：
 
 1. 先到「案例編輯」選取一筆 TESTCASE，再切到「錄製」頁；套用步驟時會直接合併到目前選中的案例。
 2. 輸入目標 URL → 點「建立錄製階段」。
@@ -206,11 +247,11 @@ docker-compose.yml
 
 - REST：`http://localhost:8000/docs`（Swagger 全清單；所有路由掛在 `/api/...`）
 - WebSocket 即時日誌：`ws://localhost/ws/executions/{task_id}/logs`
-- 截圖靜態檔：`http://localhost/pics/{report_id}/{tag}.png`
+- 截圖靜態檔：`http://localhost/pics/{key}`（local 模式）
+- Robot HTML 報表與附件：`http://localhost/results/{key}`（`STORAGE_BACKEND=minio` 時）
 - Playwright Trace Viewer：<https://trace.playwright.dev>（上傳 trace.zip 後離線分析）
 
 常用頁面：
 
-- `http://localhost/editor`：案例編輯
-- `http://localhost/reports`：執行報告
-- `http://localhost/recorder`：瀏覽器錄製
+- `http://localhost/`：預設單頁介面；於頁面上方切換案例編輯 / 執行報告 / 錄製
+- `http://localhost:3000/`：React/Vite 開發前端（執行 `npm run dev` 時）
