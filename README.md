@@ -1,19 +1,22 @@
 # AutoTest v1.0
 
-企業級自動化測試平台。預設以 nginx 提供根目錄 `index.html` 單頁介面，後端採 FastAPI + Celery Worker（**Robot Framework** 執行引擎）+ MySQL + Redis；倉庫內同時保留 `frontend/` 的 React + Vite 專案供開發模式使用。
+企業級自動化測試平台。預設以 nginx 提供根目錄 `index.html` 單頁介面，後端採 FastAPI + Celery Worker（**Robot Framework** 執行引擎）+ 內建排程輪詢器 + MySQL + Redis；支援 Docker headless 執行與本機 `local_agent.py` headed 執行。倉庫內同時保留 `frontend/` 的 React + Vite 專案供開發模式使用。
 
 ## 功能
 
 - 5 層級樹狀目錄管理測試案例（Feature → Platform → Page → Scenario → TestCase）
 - 視覺化 ATDD / BDD 步驟編輯與 Data-Driven Testing（DDT）
 - 測試案例記錄「驗收準則 (AC) + 前置動作 (Pre-Setup) + BDD 步驟 + DDT 資料」四區塊
-- **Playwright codegen 瀏覽器錄製**：一鍵產生 BDD 步驟（含 trace.zip 供 Trace Viewer 分析）
-- TopNav 提供三種工作模式：案例編輯、執行報告、錄製
+- **多來源錄製 / 轉換**：WEB 可用 Playwright codegen；API 可貼 cURL；APP 可貼 Appium Python 腳本轉成步驟
+- TopNav 提供四種工作模式：案例編輯、執行報告、排程、錄製
+- 全站可切換兩種執行環境：Docker（容器內 headless）與本機 Agent（本機 headed Chromium）
+- **自動化排程**：支援單次、每天、每週、每月四種觸發規則，並可手動「立即執行一次」
 - **Robot Framework** + Browser Library / RequestsLibrary / DatabaseLibrary / AppiumLibrary 統一執行引擎
   - Web UI ：Browser Library（Playwright 為底層，含步驟前後截圖）
   - HTTP API ：RequestsLibrary
   - SQL ：DatabaseLibrary
   - Mobile ：AppiumLibrary（需外接 Appium server）
+- **本機 Agent**：下載 `local_agent.py` 後可由本機直接認領 local 模式任務，視覺化觀察瀏覽器執行過程
 - WebSocket 即時執行日誌（編輯頁底部抽屜）
 - 執行報告儀表板（通過率、趨勢圖）與步驟時間軸詳細頁
 
@@ -37,7 +40,7 @@ start http://localhost
 | 服務 | 對外 | 說明 |
 |---|---|---|
 | frontend (nginx) | 80 | 單頁介面 + 反代 /api、/ws、/pics、/results |
-| backend (FastAPI) | 8000 | REST + WebSocket（`/docs` 為 Swagger）|
+| backend (FastAPI) | 8000 | REST + WebSocket + 內建 scheduler loop（`/docs` 為 Swagger）|
 | mysql | 3306 | 啟動時自動匯入 `backend/migrations/init_schema.sql` |
 | redis | 6379 | Celery broker + WS pub/sub |
 | celery worker | — | 內含 Robot Framework + Browser Library + Chromium |
@@ -45,6 +48,12 @@ start http://localhost
 | minio console | 9001 | 物件儲存管理介面 |
 
 停止：`docker compose down`，連資料一起清：`docker compose down -v`
+
+補充：
+
+- backend 啟動時會自動 `create_all()`，並同時啟動排程背景輪詢；目前輪詢間隔是 30 秒。
+- `docker-compose.yml` 已將 backend 與 celery 的時區固定為 `Asia/Taipei`，排程時間與報表時間請以此為準。
+- 本機 headed 執行不包含在 Docker Compose 內；如需使用，請從 `/api/local-runner/agent` 下載 agent 腳本並在使用者電腦啟動。
 
 ## 本機開發（不用 Docker）
 
@@ -94,6 +103,7 @@ npm run dev                                         # T3 前端 (http://localhos
 
 - `http://localhost/` 是 Docker Compose 預設對外頁面，實際由 nginx 載入根目錄的 `index.html`。
 - `http://localhost:3000/` 是 React/Vite 開發站，會透過 Vite proxy 轉發 `/api` 與 `/ws` 到後端。
+- backend 啟動後會自動建立資料表並啟動排程輪詢，不需要另外再開 scheduler 行程。
 
 ## 環境變數
 
@@ -132,9 +142,11 @@ npm run dev                                         # T3 前端 (http://localhos
 | `ac_text` | TEXT | 驗收準則 (Acceptance Criteria) 純文字 |
 | `setup_text` | TEXT | **前置動作 (Pre-Setup)** 純文字：記錄 seed DB / 取得 token / 啟動 mock server 等執行前需要手動準備的事項 |
 | `steps_json` | JSON | BDD 步驟陣列（見下一節 action 表） |
-| `ddt_json`  | JSON | `{ headers: string[], rows: string[][] }` |
+| `ddt_json`  | JSON | 後端仍使用 `{ headers: string[], rows: string[][] }`；目前單頁 UI 預設維護 `No / 檔案名稱 / Key / Value` 四欄 |
 
 > 備註：`setup_text` 目前為「說明型」文字，供人工閱讀。若需自動執行前置動作，請將指令寫入 BDD 步驟。
+>
+> DDT 執行語意：前端「執行測試」目前固定送出 `ddt_expand=false`，因此不會依每列重跑整個 testcase。若要逐列展開，需直接呼叫 `/api/executions` 並把 `ddt_expand=true` 一併送出。
 
 ## 測試案例步驟（steps_json）支援的 action
 
@@ -185,14 +197,14 @@ npm run dev                                         # T3 前端 (http://localhos
 | Mobile.Input | 輸入文字 | locator, input |
 | Mobile.Tap | Tap | locator |
 
-**DDT 變數替換**：locator / input / expected 內可寫 `${headerName}` 或 `$headerName`，
-runner 會逐列代入 ddt_json 的 rows 並為每一列產生一個 Robot Test Case。
+**DDT 補充**：後端 runner 仍支援 `${headerName}` / `$headerName` 形式的變數替換；但目前單頁 UI 主要把 DDT 當資料來源表管理，若要啟用逐列展開執行，需改由 API 送出 `ddt_expand=true`。
 
 ## 專案結構
 
 ```
 backend/
   app/            FastAPI（routers / services / models / schemas / ws）
+    static/       local_agent.py 下載腳本
   tasks/          Celery 任務 + Robot Framework runner / listener
   migrations/     init_schema.sql
   Dockerfile / Dockerfile.celery
@@ -204,6 +216,43 @@ run_tests.py      Markdown -> Robot CLI runner
 tests/            Markdown / pytest / Robot 測試資產
 docker-compose.yml
 ```
+
+## 排程與本機執行
+
+### 執行環境
+
+- `Docker`：由 Celery 容器執行，預設 headless；適合持續整合與無頭環境。
+- `本機`：由使用者電腦上的 `local_agent.py` 認領任務並開啟有頭 Chromium；適合除錯與示範。
+- 單頁 UI 會把環境切換狀態存到瀏覽器 `localStorage`，手動執行與排程「立即」都會沿用這個預設。
+
+### 本機 Agent
+
+1. 從 `GET /api/local-runner/agent` 下載 `local_agent.py`。
+2. 安裝一次性依賴：
+
+```powershell
+pip install playwright requests
+playwright install chromium
+```
+
+3. 啟動 agent：
+
+```powershell
+python local_agent.py --server http://localhost
+```
+
+限制：
+
+- 本機 agent 目前只支援 Web UI 類 action；`Http.*` 與 `Mobile.*` 請改用 Docker 模式。
+- `Upload / Download` 的檔案路徑是以 agent 執行目錄為準。
+- `SwitchTab` 在本機 agent 上僅提供有限支援；複雜多分頁流程建議仍使用 Docker。
+
+### 排程
+
+- 後端提供 `ONCE / DAILY / WEEKLY / MONTHLY` 四種排程規則。
+- 排程背景輪詢每 30 秒掃描一次到期工作。
+- 單頁 UI 的排程清單支援啟用 / 停用、立即執行、編輯與刪除。
+- 目前 UI 的排程下拉選單列出 `.md` 測試案例；若要對更高層節點排程，需改由 API 建立。
 
 ## Markdown 匯出與 CLI 執行
 
@@ -217,9 +266,15 @@ python run_tests.py -f tests/e2e/samples/integration_test.md
 python run_tests.py -t "登入測試案例"
 ```
 
-## 錄製功能（Playwright codegen）
+## 錄製功能（WEB / API / APP）
 
-於首頁 TopNav 切換到「🎬 錄製」模式：
+於首頁 TopNav 切換到「🎬 錄製」模式，目前提供三種來源：
+
+- `WEB`：Playwright codegen / rfbrowser codegen，產生 `recorded.py` 與 `trace.zip`
+- `API`：貼上瀏覽器 DevTools 的 `Copy as cURL`，解析成 `Http.*` 步驟
+- `APP`：貼上 Appium Python 腳本，解析成 `Mobile.*` 步驟
+
+以下為 WEB 錄製流程：
 
 1. 先到「案例編輯」選取一筆 TESTCASE，再切到「錄製」頁；套用步驟時會直接合併到目前選中的案例。
 2. 輸入目標 URL → 點「建立錄製階段」。
@@ -247,11 +302,13 @@ python run_tests.py -t "登入測試案例"
 
 - REST：`http://localhost:8000/docs`（Swagger 全清單；所有路由掛在 `/api/...`）
 - WebSocket 即時日誌：`ws://localhost/ws/executions/{task_id}/logs`
+- 排程 API：`http://localhost/api/schedules`、`POST /api/schedules/{id}/trigger-now`
+- 本機 Agent：`GET /api/local-runner/agent`、`POST /api/local-runner/claim`、`POST /api/local-runner/tasks/{task_id}/complete`
 - 截圖靜態檔：`http://localhost/pics/{key}`（local 模式）
 - Robot HTML 報表與附件：`http://localhost/results/{key}`（`STORAGE_BACKEND=minio` 時）
 - Playwright Trace Viewer：<https://trace.playwright.dev>（上傳 trace.zip 後離線分析）
 
 常用頁面：
 
-- `http://localhost/`：預設單頁介面；於頁面上方切換案例編輯 / 執行報告 / 錄製
+- `http://localhost/`：預設單頁介面；於頁面上方切換案例編輯 / 執行報告 / 排程 / 錄製
 - `http://localhost:3000/`：React/Vite 開發前端（執行 `npm run dev` 時）
