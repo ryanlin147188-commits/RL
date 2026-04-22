@@ -8,15 +8,16 @@
 - 視覺化 ATDD / BDD 步驟編輯與 Data-Driven Testing（DDT）
 - 測試案例記錄「驗收準則 (AC) + 前置動作 (Pre-Setup) + BDD 步驟 + DDT 資料」四區塊
 - **多來源錄製 / 轉換**：WEB 可用 Playwright codegen；API 可貼 cURL；APP 可貼 Appium Python 腳本轉成步驟
-- TopNav 提供四種工作模式：案例編輯、執行報告、排程、錄製
+- TopNav 提供五種工作模式：案例編輯、測試回合、執行報告、排程、錄製
 - 全站可切換兩種執行環境：Docker（容器內 headless）與本機 Agent（本機 headed Chromium）
-- **自動化排程**：支援單次、每天、每週、每月四種觸發規則，並可手動「立即執行一次」
+- **自動化排程**：支援單次、每天、每週、每月四種觸發規則，UI 可多選多筆 `.md` 測試案例後一起排程
+- **測試回合**：可把多筆 `.md` 測試案例儲存成命名集合，一鍵彙總執行並產生單一報告
 - **Robot Framework** + Browser Library / RequestsLibrary / DatabaseLibrary / AppiumLibrary 統一執行引擎
   - Web UI ：Browser Library（Playwright 為底層，含步驟前後截圖）
   - HTTP API ：RequestsLibrary
   - SQL ：DatabaseLibrary
   - Mobile ：AppiumLibrary（需外接 Appium server）
-- **本機 Agent**：下載 `local_agent.py` 後可由本機直接認領 local 模式任務，視覺化觀察瀏覽器執行過程
+- **本機 Agent**：下載 `local_agent.py` 後可由本機直接認領 local 模式任務，視覺化觀察瀏覽器執行過程，並把每步 PRE / POST 截圖與耗時回寫到詳細報告
 - WebSocket 即時執行日誌（編輯頁底部抽屜）
 - 執行報告儀表板（通過率、趨勢圖）與步驟時間軸詳細頁
 
@@ -217,7 +218,7 @@ tests/            Markdown / pytest / Robot 測試資產
 docker-compose.yml
 ```
 
-## 排程與本機執行
+## 排程、測試回合與本機執行
 
 ### 執行環境
 
@@ -241,6 +242,11 @@ playwright install chromium
 python local_agent.py --server http://localhost
 ```
 
+補充：
+
+- agent 執行每一步前後都會嘗試截圖，並透過 backend 上傳後寫入詳細報告的時間軸。
+- local 模式的截圖 URL 會走 `/pics/{report_id}/{filename}`，因此 `BASE_URL` 應設定為使用者可實際連回平台的網址。
+
 限制：
 
 - 本機 agent 目前只支援 Web UI 類 action；`Http.*` 與 `Mobile.*` 請改用 Docker 模式。
@@ -252,7 +258,16 @@ python local_agent.py --server http://localhost
 - 後端提供 `ONCE / DAILY / WEEKLY / MONTHLY` 四種排程規則。
 - 排程背景輪詢每 30 秒掃描一次到期工作。
 - 單頁 UI 的排程清單支援啟用 / 停用、立即執行、編輯與刪除。
-- 目前 UI 的排程下拉選單列出 `.md` 測試案例；若要對更高層節點排程，需改由 API 建立。
+- 單頁 UI 的排程建立視窗目前列出 `.md` 測試案例，支援搜尋與多選；建立後會把所選案例彙總成一次排程執行。
+- 若要對更高層節點（Scenario / Page / Feature）排程，需改由 API 建立。
+
+### 測試回合
+
+- 單頁 UI 提供獨立的「測試回合」工作區，可建立具名稱、說明與預設執行環境的一組案例集合。
+- 建立回合時可搜尋並多選 `.md` 測試案例；執行時會把全部所選案例彙總成一份報告。
+- 回合列表會顯示案例數、預設執行環境與建立時間，並支援執行、編輯、刪除。
+- 從單頁 UI 按「執行」時，會以目前頂部環境切換為準；若未傳 `execution_mode`，API 才會退回使用回合本身的預設值。
+- 若回合同時包含多筆案例，現階段建議優先使用 Docker 模式；本機 Agent 較適合單案例或單節點回合。
 
 ## Markdown 匯出與 CLI 執行
 
@@ -303,12 +318,13 @@ python run_tests.py -t "登入測試案例"
 - REST：`http://localhost:8000/docs`（Swagger 全清單；所有路由掛在 `/api/...`）
 - WebSocket 即時日誌：`ws://localhost/ws/executions/{task_id}/logs`
 - 排程 API：`http://localhost/api/schedules`、`POST /api/schedules/{id}/trigger-now`
-- 本機 Agent：`GET /api/local-runner/agent`、`POST /api/local-runner/claim`、`POST /api/local-runner/tasks/{task_id}/complete`
+- 測試回合 API：`http://localhost/api/rounds`、`POST /api/rounds/{id}/execute`
+- 本機 Agent：`GET /api/local-runner/agent`、`POST /api/local-runner/claim`、`POST /api/local-runner/upload-screenshot`、`POST /api/local-runner/tasks/{task_id}/complete`
 - 截圖靜態檔：`http://localhost/pics/{key}`（local 模式）
 - Robot HTML 報表與附件：`http://localhost/results/{key}`（`STORAGE_BACKEND=minio` 時）
 - Playwright Trace Viewer：<https://trace.playwright.dev>（上傳 trace.zip 後離線分析）
 
 常用頁面：
 
-- `http://localhost/`：預設單頁介面；於頁面上方切換案例編輯 / 執行報告 / 排程 / 錄製
+- `http://localhost/`：預設單頁介面；於頁面上方切換案例編輯 / 測試回合 / 執行報告 / 排程 / 錄製
 - `http://localhost:3000/`：React/Vite 開發前端（執行 `npm run dev` 時）
