@@ -117,9 +117,32 @@ def _translate_step(step: dict, ctx: dict) -> list[str]:
     locator = _rf_escape(_substitute(raw_locator, ctx))
     value = _rf_escape(_substitute(step.get("input") or "", ctx))
     expected = _rf_escape(_substitute(step.get("expected") or "", ctx))
+    # 比對條件（compare）用於 Assert* 動作決定使用哪個 Should* keyword
+    compare = (step.get("compare") or "").strip()
 
     def line(*parts: str) -> str:
         return "    " + "    ".join(p for p in parts)
+
+    def compare_line(actual: str, cmp: str, exp: str, numeric: bool = False) -> str:
+        """依 compare 條件產生單行 Should* 斷言。numeric=True 時走數值比較。"""
+        cmp = (cmp or "Equals")
+        eq_kw = "Should Be Equal As Integers" if numeric else "Should Be Equal As Strings"
+        neq_kw = "Should Not Be Equal As Integers" if numeric else "Should Not Be Equal As Strings"
+        mapping = {
+            "Equals": (eq_kw, actual, exp),
+            "NotEquals": (neq_kw, actual, exp),
+            "Contains": ("Should Contain", actual, exp),
+            "NotContains": ("Should Not Contain", actual, exp),
+            "StartsWith": ("Should Start With", actual, exp),
+            "EndsWith": ("Should End With", actual, exp),
+            "Regex": ("Should Match Regexp", actual, exp),
+            "GreaterThan": ("Should Be True", f"{actual} > {exp}"),
+            "LessThan": ("Should Be True", f"{actual} < {exp}"),
+            # 狀態型比較只用在 state-based 斷言（AssertVisible/Hidden/Checked），
+            # 不應走到這裡；若誤用則退回 Equals。
+        }
+        parts = mapping.get(cmp) or mapping["Equals"]
+        return line(*parts)
 
     # ── 把 named-form 的 locator / value 預先存入變數，
     #    避免 RF 把 `text=...` / `css=...` 誤判為命名參數 ────
@@ -144,9 +167,18 @@ def _translate_step(step: dict, ctx: dict) -> list[str]:
         return result
 
     # ── Browser Library（預設）────────────────────────
+    # 導航
     if action in ("goto", "navigate", "open"):
         target = value or expected or locator
         return out(line("Go To", target))
+    if action == "reload":
+        return out(line("Reload"))
+    if action == "goback":
+        return out(line("Go Back"))
+    if action == "goforward":
+        return out(line("Go Forward"))
+
+    # 點擊 / 輸入
     if action == "click":
         return out(line("Click", locator))
     if action in ("doubleclick", "dblclick"):
@@ -157,65 +189,207 @@ def _translate_step(step: dict, ctx: dict) -> list[str]:
         return out(line("Fill Text", locator, value))
     if action == "type":
         return out(line("Type Text", locator, value))
+    if action == "clear":
+        return out(line("Clear Text", locator))
     if action == "press":
-        # Browser Library 用 Keyboard Key 或 Press Keys
         return out(line("Press Keys", locator, value or "Enter"))
     if action == "hover":
         return out(line("Hover", locator))
+    if action == "focus":
+        return out(line("Focus", locator))
     if action == "check":
         return out(line("Check Checkbox", locator))
     if action == "uncheck":
         return out(line("Uncheck Checkbox", locator))
     if action == "select":
         return out(line("Select Options By", locator, "value", value))
+    if action == "upload":
+        # value = 檔案路徑（容器內可讀）
+        return out(line("Upload File By Selector", locator, value))
+
+    # 捲動 / 拖曳
+    if action == "scroll":
+        # value 格式："x y"（像素）或單一數字（垂直捲動量）
+        # Browser Library 簽名：Scroll By  selector  vertical  horizontal  behavior=
+        parts = (value or "0 0").split()
+        if len(parts) == 1:
+            dx, dy = "0", parts[0]
+        else:
+            dx, dy = parts[0], parts[1]
+        return out(line("Scroll By", "${None}", f"vertical={dy}", f"horizontal={dx}"))
+    if action == "scrolltoelement":
+        return out(line("Scroll To Element", locator))
+    if action == "draganddrop":
+        # locator = 來源；value = 目標
+        return out(line("Drag And Drop", locator, value))
+
+    # 等待 / 截圖 / 分頁 / JS
     if action in ("wait", "sleep"):
         ms = value or expected or "1000"
-        # Browser 用 Sleep（BuiltIn）；單位 ms
         return out(line("Sleep", f"{int(float(ms)) / 1000.0}s"))
     if action in ("waitforselector", "waitfor"):
-        return out(line("Wait For Elements State", locator, "visible"))
+        return out(line("Wait For Elements State", locator, value or "visible"))
+    if action == "waitforloadstate":
+        return out(line("Wait For Load State", value or "load"))
+    if action == "screenshot":
+        # 系統已在每步前後自動截圖，這裡用於「使用者在步驟內手動再拍一張」
+        fname = value or "user_screenshot"
+        return out(line("Take Screenshot", f"filename={fname}"))
+    if action == "switchtab":
+        # value = 目標 index / id，預設 NEW
+        return out(line("Switch Page", value or "NEW"))
+    if action == "closetab":
+        return out(line("Close Page"))
+    if action == "executescript":
+        # value = JS 片段；locator 可作為 element 參數（可空）
+        if locator:
+            return out(line("${result}=", "Evaluate JavaScript", locator, value))
+        return out(line("${result}=", "Evaluate JavaScript", "${None}", value))
+
+    # 斷言
     if action in ("assertvisible", "shouldbevisible"):
         return out(line("Wait For Elements State", locator, "visible"))
     if action in ("asserthidden", "shouldbehidden"):
         return out(line("Wait For Elements State", locator, "hidden"))
+    if action == "assertchecked":
+        return out(
+            line("${state}=", "Get Checkbox State", locator),
+            line("Should Be True", "${state}"),
+        )
+    if action == "assertenabled":
+        return out(line("Wait For Elements State", locator, "enabled"))
+    if action == "assertdisabled":
+        return out(line("Wait For Elements State", locator, "disabled"))
     if action == "asserttext":
+        # 文字比對預設使用 Contains（比 Equals 實用）
         return out(
             line("${actual}=", "Get Text", locator),
-            line("Should Contain", "${actual}", expected),
+            compare_line("${actual}", compare or "Contains", expected),
         )
     if action == "assertvalue":
         return out(
             line("${actual}=", "Get Property", locator, "value"),
-            line("Should Be Equal As Strings", "${actual}", expected),
+            compare_line("${actual}", compare or "Equals", expected),
         )
     if action == "asserturl":
         return out(
             line("${url}=", "Get Url"),
-            line("Should Contain", "${url}", expected),
+            compare_line("${url}", compare or "Contains", expected),
+        )
+    if action == "asserttitle":
+        return out(
+            line("${title}=", "Get Title"),
+            compare_line("${title}", compare or "Contains", expected),
+        )
+    if action == "assertcount":
+        return out(
+            line("${cnt}=", "Get Element Count", locator),
+            compare_line("${cnt}", compare or "Equals", expected or "1", numeric=True),
+        )
+    if action == "assertattribute":
+        # value = 屬性名；expected = 期望值
+        return out(
+            line("${attr}=", "Get Attribute", locator, value or "value"),
+            compare_line("${attr}", compare or "Equals", expected),
         )
 
     # ── HTTP（RequestsLibrary）────────────────────────
     if raw_action.startswith("Http."):
-        method = raw_action.split(".", 1)[1].upper()
-        # locator = url；input = body(json) 或空；expected = 預期 status code
-        if method in ("GET", "DELETE"):
-            kw = "GET" if method == "GET" else "DELETE"
+        sub = raw_action.split(".", 1)[1]
+        sub_up = sub.upper()
+
+        # 設定 header / base url / auth（存於 suite 變數，供後續請求使用）
+        if sub == "SetHeader":
+            # locator = header 名稱；value = header 值
+            return out(line("Set To Dictionary", "${HTTP_HEADERS}", locator, value))
+        if sub == "SetBaseURL":
+            return out(line("Set Suite Variable", "${HTTP_BASE_URL}", value or locator))
+        if sub == "SetAuth":
+            # value = "user:pass"（Basic Auth）或單純 token
+            return out(line("Set Suite Variable", "${HTTP_AUTH}", value or locator))
+
+        # 發送請求（locator = path/URL；value = json body；expected = 預期 status code，選填）
+        # 請求結果固定存入 ${HTTP_RESP} 供後續 Assert* / ExtractJson / SaveToken 使用
+        http_methods = {"GET", "DELETE", "HEAD", "OPTIONS", "POST", "PUT", "PATCH"}
+        if sub_up in http_methods:
+            url_expr = "${HTTP_BASE_URL}" + (locator or "")
+            body_rows: list[str] = []
+            if sub_up in ("GET", "DELETE", "HEAD", "OPTIONS"):
+                body_rows.append(
+                    line("${HTTP_RESP}=", sub_up, url_expr, "headers=${HTTP_HEADERS}", "expected_status=any")
+                )
+            else:
+                body_rows.append(
+                    line(
+                        "${HTTP_RESP}=",
+                        sub_up,
+                        url_expr,
+                        f"json={value or '{}'}",
+                        "headers=${HTTP_HEADERS}",
+                        "expected_status=any",
+                    )
+                )
+            body_rows.append(line("Set Suite Variable", "${HTTP_RESP}"))
+            # 僅在使用者有填 expected 時才加上 status 斷言（於產生階段判斷，避免 .robot 內動態條件）
+            if expected:
+                body_rows.append(
+                    line("Should Be Equal As Strings", "${HTTP_RESP.status_code}", expected)
+                )
+            return out(body_rows)
+
+        # 從上一次回應抽出 JSON / 儲存 token
+        # ★ 透過 `Evaluate` 並用 `$HTTP_RESP`（無大括號形式）在 Python 表達式中引用 Robot 變數
+        if sub == "ExtractJson":
+            # locator = JSON key/點路徑；value = 儲存到的變數名（不含 $）；預設 EXTRACTED
+            var_name = value or "EXTRACTED"
             return out(
-                line(f"${{resp}}=", kw, locator, "expected_status=any"),
-                line(
-                    "Should Be Equal As Strings",
-                    "${resp.status_code}",
+                line(f"${{{var_name}}}=", "Evaluate", f"$HTTP_RESP.json().get('{locator}', '')"),
+                line("Set Suite Variable", f"${{{var_name}}}"),
+            )
+        if sub == "SaveToken":
+            # locator = JSON key（例 token / access_token）；存成 ${TOKEN}
+            key = locator or "token"
+            return out(
+                line("${TOKEN}=", "Evaluate", f"$HTTP_RESP.json().get('{key}', '')"),
+                line("Set Suite Variable", "${TOKEN}"),
+            )
+
+        # 斷言
+        if sub == "AssertStatus":
+            return out(
+                compare_line(
+                    "${HTTP_RESP.status_code}",
+                    compare or "Equals",
                     expected or "200",
+                    numeric=True,
                 ),
             )
-        if method in ("POST", "PUT", "PATCH"):
+        if sub == "AssertJsonValue":
+            # locator = JSON key/路徑（點記法）；expected = 預期值
             return out(
-                line(f"${{resp}}=", method, locator, f"json={value or '{}'}", "expected_status=any"),
+                line("${actual}=", "Evaluate", f"$HTTP_RESP.json().get('{locator}', '')"),
+                compare_line("${actual}", compare or "Equals", expected),
+            )
+        if sub == "AssertHeader":
+            # locator = header 名稱；expected = 預期值
+            return out(
+                line("${hv}=", "Evaluate", f"$HTTP_RESP.headers.get('{locator}', '')"),
+                compare_line("${hv}", compare or "Contains", expected),
+            )
+        if sub == "AssertBodyContains":
+            return out(
+                line("${body}=", "Evaluate", "$HTTP_RESP.text"),
+                compare_line("${body}", compare or "Contains", expected),
+            )
+        if sub == "AssertResponseTime":
+            # expected = 毫秒上限；預設比較語意為 LessThan
+            return out(
                 line(
-                    "Should Be Equal As Strings",
-                    "${resp.status_code}",
-                    expected or "200",
+                    "${elapsed_ms}=",
+                    "Evaluate",
+                    "$HTTP_RESP.elapsed.total_seconds() * 1000",
                 ),
+                compare_line("${elapsed_ms}", compare or "LessThan", expected or "2000", numeric=True),
             )
 
     # ── DB（DatabaseLibrary）──────────────────────────
@@ -247,20 +421,60 @@ def _translate_step(step: dict, ctx: dict) -> list[str]:
 
     # ── Mobile（AppiumLibrary）────────────────────────
     if raw_action == "Mobile.Open":
-        # value 為 capabilities JSON；locator 為 remote URL
-        return [
+        # value 為 platformName / capabilities；locator 為 remote URL
+        return out(
             line(
                 "Open Application",
                 locator or "http://appium:4723/wd/hub",
                 f"platformName={value or 'Android'}",
             )
-        ]
+        )
+    if raw_action == "Mobile.Close":
+        return out(line("Close Application"))
     if raw_action == "Mobile.Click":
-        return [line("Click Element", locator)]
-    if raw_action == "Mobile.Input":
-        return [line("Input Text", locator, value)]
+        return out(line("Click Element", locator))
     if raw_action == "Mobile.Tap":
-        return [line("Tap", locator)]
+        return out(line("Tap", locator))
+    if raw_action == "Mobile.DoubleTap":
+        return out(line("Tap", locator, "count=2"))
+    if raw_action == "Mobile.LongPress":
+        return out(line("Long Press", locator, f"duration={value or '1000'}"))
+    if raw_action == "Mobile.Input":
+        return out(line("Input Text", locator, value))
+    if raw_action == "Mobile.Clear":
+        return out(line("Clear Text", locator))
+    if raw_action == "Mobile.Swipe":
+        # value 格式：startX startY offsetX offsetY（AppiumLibrary 使用 offset）
+        parts = (value or "0 0 0 0").split()
+        sx, sy, ox, oy = (parts + ["0", "0", "0", "0"])[:4]
+        return out(line("Swipe", sx, sy, ox, oy))
+    if raw_action == "Mobile.SwipeUp":
+        return out(line("Swipe By Percent", "50", "80", "50", "20"))
+    if raw_action == "Mobile.SwipeDown":
+        return out(line("Swipe By Percent", "50", "20", "50", "80"))
+    if raw_action == "Mobile.SwipeLeft":
+        return out(line("Swipe By Percent", "80", "50", "20", "50"))
+    if raw_action == "Mobile.SwipeRight":
+        return out(line("Swipe By Percent", "20", "50", "80", "50"))
+    if raw_action == "Mobile.Press":
+        # value = keycode（整數）
+        return out(line("Press Keycode", value or "66"))
+    if raw_action == "Mobile.PressBack":
+        return out(line("Press Keycode", "4"))
+    if raw_action == "Mobile.PressHome":
+        return out(line("Press Keycode", "3"))
+    if raw_action == "Mobile.Wait":
+        return out(line("Wait Until Element Is Visible", locator, f"timeout={value or '10'}"))
+    if raw_action == "Mobile.Screenshot":
+        return out(line("Capture Page Screenshot"))
+    if raw_action == "Mobile.HideKeyboard":
+        return out(line("Hide Keyboard"))
+    if raw_action == "Mobile.AssertVisible":
+        return out(line("Element Should Be Visible", locator))
+    if raw_action == "Mobile.AssertText":
+        return out(line("Element Should Contain Text", locator, expected))
+    if raw_action == "Mobile.AssertEnabled":
+        return out(line("Element Should Be Enabled", locator))
 
     # 未識別
     return [line("Fail", f"Unknown action: {raw_action!r}")]
@@ -304,6 +518,14 @@ def _build_robot_file(
     # 保留 tag：讓所有 test 在 keyword 失敗後仍繼續執行剩餘步驟
     # （測試最終狀態仍會是 FAIL，但不會中斷後續 step）
     lines.append("Test Tags    robot:continue-on-failure")
+    lines.append("")
+    # Http.* 動作所使用的共用 suite 變數（SetHeader / SetBaseURL / SetAuth 寫入；
+    # GET/POST/... 使用；AssertStatus / ExtractJson / SaveToken 讀取 HTTP_RESP）
+    lines.append("*** Variables ***")
+    lines.append("&{HTTP_HEADERS}")
+    lines.append("${HTTP_BASE_URL}    ${EMPTY}")
+    lines.append("${HTTP_AUTH}    ${EMPTY}")
+    lines.append("${HTTP_RESP}    ${None}")
     lines.append("")
     lines.append("*** Keywords ***")
     lines.append("Setup Browser Session")

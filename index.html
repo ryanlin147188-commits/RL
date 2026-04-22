@@ -256,11 +256,8 @@
                     </h2>
                 </div>
                 <div id="mainActions" class="flex gap-3">
-                    <button onclick="exportMarkdown()" class="px-4 py-2 border border-slate-300 rounded-md text-slate-600 hover:bg-slate-50 font-medium transition flex items-center gap-2 shadow-sm" title="把目前測試案例匯出成 Markdown (.md)">
-                        <i class="fa-solid fa-file-export"></i> 匯出 MD
-                    </button>
-                    <button onclick="saveDraft()" class="px-4 py-2 border border-slate-300 rounded-md text-slate-600 hover:bg-slate-50 font-medium transition flex items-center gap-2 shadow-sm">
-                        <i class="fa-regular fa-floppy-disk"></i> 儲存草稿
+                    <button id="saveBtn" onclick="saveDraft()" class="px-4 py-2 border border-slate-300 rounded-md text-slate-600 hover:bg-slate-50 font-medium transition flex items-center gap-2 shadow-sm">
+                        <i class="fa-regular fa-floppy-disk"></i> <span id="saveBtnLabel">儲存</span>
                     </button>
                     <button onclick="runTest()" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium shadow-sm transition flex items-center gap-2">
                         <i class="fa-solid fa-play"></i> 執行測試
@@ -270,6 +267,19 @@
 
             <!-- 視圖 3: 錄製工作區 (Recorder) -->
             <div id="recorderWorkspace" class="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/50 hidden">
+                <!-- 平台切換（WEB / API / APP） -->
+                <section class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
+                    <h3 class="font-bold text-slate-700 flex items-center gap-2 mb-3"><i class="fa-solid fa-layer-group text-rose-500"></i> 錄製平台</h3>
+                    <div class="flex gap-2" role="tablist">
+                        <button id="recTabWeb" onclick="switchRecPlatform('WEB')" class="rec-tab px-4 py-2 rounded text-sm font-medium border transition flex items-center gap-2"><i class="fa-solid fa-globe"></i> WEB</button>
+                        <button id="recTabApi" onclick="switchRecPlatform('API')" class="rec-tab px-4 py-2 rounded text-sm font-medium border transition flex items-center gap-2"><i class="fa-solid fa-server"></i> API</button>
+                        <button id="recTabApp" onclick="switchRecPlatform('APP')" class="rec-tab px-4 py-2 rounded text-sm font-medium border transition flex items-center gap-2"><i class="fa-solid fa-mobile-screen"></i> APP</button>
+                    </div>
+                    <p class="mt-3 text-xs text-slate-500"><i class="fa-solid fa-circle-info text-amber-500"></i> WEB 使用 Playwright codegen 錄製；API 貼上 cURL 指令解析；APP 貼上 Appium Python 腳本解析。</p>
+                </section>
+
+                <!-- WEB 專屬區段 -->
+                <div id="recWebSections" class="space-y-6">
                 <!-- ① 建立 Session -->
                 <section class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
                     <h3 class="font-bold text-slate-700 flex items-center gap-2 mb-3"><i class="fa-solid fa-circle-1 text-rose-500"></i> 建立錄製 Session</h3>
@@ -325,6 +335,43 @@
                     </div>
                     <p id="recStatus" class="mt-3 text-xs text-slate-500"></p>
                 </section>
+                </div>
+
+                <!-- API 錄製區（貼上 cURL） -->
+                <section id="recApiSection" class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm hidden">
+                    <h3 class="font-bold text-slate-700 flex items-center gap-2 mb-3"><i class="fa-solid fa-server text-purple-500"></i> 貼上 cURL 指令</h3>
+                    <p class="text-xs text-slate-600 bg-purple-50 border border-purple-200 rounded p-3 mb-3">
+                        <i class="fa-solid fa-bolt text-purple-500"></i>
+                        <b>用法：</b>在 Chrome DevTools 的 Network 分頁對請求按右鍵 → Copy → Copy as cURL。可一次貼多個，以空行分隔。
+                        解析時會自動轉換為 <code>Http.SetHeader</code> / <code>Http.GET / POST / ...</code> 步驟。
+                    </p>
+                    <textarea id="recCurlText" rows="10" aria-label="cURL 指令"
+                        placeholder="curl 'https://api.example.com/users' -X POST -H 'Content-Type: application/json' --data-raw '{&quot;name&quot;:&quot;foo&quot;}'"
+                        class="w-full text-xs font-mono p-3 border border-slate-300 rounded focus:ring-2 focus:ring-purple-100 focus:border-purple-400 outline-none"></textarea>
+                    <div class="mt-3 flex gap-2">
+                        <button onclick="recParseCurl()" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-medium flex items-center gap-2"><i class="fa-solid fa-wand-magic-sparkles"></i> 解析為 Http.* 步驟</button>
+                        <button onclick="document.getElementById('recCurlText').value=''" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-sm"><i class="fa-solid fa-eraser"></i> 清空</button>
+                    </div>
+                </section>
+
+                <!-- APP 錄製區（貼上 Appium Python） -->
+                <section id="recAppSection" class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm hidden">
+                    <h3 class="font-bold text-slate-700 flex items-center gap-2 mb-3"><i class="fa-solid fa-mobile-screen text-pink-500"></i> 貼上 Appium Python 腳本</h3>
+                    <p class="text-xs text-slate-600 bg-pink-50 border border-pink-200 rounded p-3 mb-3">
+                        <i class="fa-solid fa-bolt text-pink-500"></i>
+                        <b>用法：</b>從 Appium Inspector 錄製後匯出 Python 腳本，或直接貼上手寫的 <code>driver.find_element(...)</code> 操作。
+                        解析時會自動轉換為 <code>Mobile.Click / Input / Tap / Swipe / PressBack</code> 等步驟。
+                    </p>
+                    <textarea id="recAppiumText" rows="10" aria-label="Appium 腳本"
+                        placeholder="driver.find_element(AppiumBy.ID, 'login_btn').click()
+driver.find_element(AppiumBy.XPATH, &quot;//input[@id='username']&quot;).send_keys('testuser')
+driver.swipe(100, 800, 100, 200, 500)"
+                        class="w-full text-xs font-mono p-3 border border-slate-300 rounded focus:ring-2 focus:ring-pink-100 focus:border-pink-400 outline-none"></textarea>
+                    <div class="mt-3 flex gap-2">
+                        <button onclick="recParseAppium()" class="px-4 py-2 bg-pink-600 hover:bg-pink-700 text-white rounded text-sm font-medium flex items-center gap-2"><i class="fa-solid fa-wand-magic-sparkles"></i> 解析為 Mobile.* 步驟</button>
+                        <button onclick="document.getElementById('recAppiumText').value=''" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-sm"><i class="fa-solid fa-eraser"></i> 清空</button>
+                    </div>
+                </section>
 
                 <!-- ④ 解析結果預覽 -->
                 <section id="recPreviewSection" class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm hidden">
@@ -357,8 +404,8 @@
                     </div>
                 </section>
 
-                <!-- ⑤ 歷史錄製清單 -->
-                <section class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
+                <!-- ⑤ 歷史錄製清單（僅 WEB） -->
+                <section id="recHistorySection" class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
                     <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
                         <h3 class="font-bold text-slate-700 flex items-center gap-2"><i class="fa-solid fa-circle-5 text-rose-500"></i> 歷史錄製清單</h3>
                         <div class="flex items-center gap-2">
@@ -444,7 +491,6 @@
                         <div class="flex gap-2">
                             <input type="file" id="jsonUploadInput" accept=".json" aria-label="匯入 JSON 測試資料" class="hidden" onchange="handleJsonImport(event)">
                             <button onclick="document.getElementById('jsonUploadInput').click()" class="text-sm px-3 py-1.5 text-slate-600 border border-slate-200 hover:bg-slate-50 rounded flex items-center gap-1 transition shadow-sm"><i class="fa-solid fa-file-import"></i> 匯入 JSON</button>
-                            <button onclick="openAddColumnModal()" class="text-sm px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 rounded flex items-center gap-1 transition shadow-sm"><i class="fa-solid fa-columns"></i> 新增欄位</button>
                             <button onclick="addDdtRow()" class="text-sm px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 rounded flex items-center gap-1 transition shadow-sm"><i class="fa-solid fa-plus"></i> 新增資料列</button>
                         </div>
                     </div>
@@ -505,7 +551,7 @@
                                 <span id="recentReportsSelCount" class="font-mono text-xs">(0)</span>
                             </button>
                             <span class="text-slate-500 ml-2">每頁</span>
-                            <select id="recentReportsPageSize" onchange="changeRecentPageSize(this.value)"
+                            <select id="recentReportsPageSize" onchange="changeRecentPageSize(this.value)" aria-label="每頁顯示筆數"
                                 class="border border-slate-200 rounded px-2 py-1 text-slate-700 focus:outline-none focus:border-blue-400">
                                 <option value="5">5</option>
                                 <option value="10" selected>10</option>
@@ -519,7 +565,7 @@
                             <thead class="bg-slate-50 text-slate-600 border-b border-slate-200">
                                 <tr>
                                     <th class="p-3 w-10 text-center">
-                                        <input type="checkbox" id="recentReportsSelectAll" onchange="toggleSelectAllReports(this.checked)"
+                                        <input type="checkbox" id="recentReportsSelectAll" onchange="toggleSelectAllReports(this.checked)" aria-label="全選報告"
                                             class="cursor-pointer accent-blue-600">
                                     </th>
                                     <th class="p-3 font-medium">執行時間</th>
@@ -539,12 +585,12 @@
                     <div class="flex items-center justify-between mt-3 text-sm text-slate-600">
                         <span id="recentReportsInfo" class="text-slate-500">—</span>
                         <div class="flex items-center gap-1">
-                            <button id="recentReportsPrev" onclick="changeRecentPage(-1)"
+                            <button id="recentReportsPrev" onclick="changeRecentPage(-1)" aria-label="上一頁"
                                 class="px-3 py-1 border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed">
                                 <i class="fa-solid fa-chevron-left"></i>
                             </button>
                             <span id="recentReportsPageLabel" class="px-3 py-1 text-slate-500">第 1 / 1 頁</span>
-                            <button id="recentReportsNext" onclick="changeRecentPage(1)"
+                            <button id="recentReportsNext" onclick="changeRecentPage(1)" aria-label="下一頁"
                                 class="px-3 py-1 border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed">
                                 <i class="fa-solid fa-chevron-right"></i>
                             </button>
@@ -573,11 +619,7 @@
                             <p class="text-sm font-mono font-medium text-slate-700" id="detailReportDuration">00:01:12</p>
                         </div>
                         <span id="detailReportStatusBadge" class="bg-red-100 text-red-700 border border-red-200 px-3 py-1 rounded text-sm font-bold shadow-sm">Failed</span>
-                        <!-- 匯出 PDF -->
-                        <button onclick="exportReportPdf()" class="ml-2 no-print text-sm px-3 py-1.5 bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 rounded transition font-medium flex items-center gap-2 shadow-sm">
-                            <i class="fa-solid fa-file-pdf"></i> 匯出 PDF
-                        </button>
-                        <!-- 新增：返回編輯案例按鈕 -->
+                        <!-- 返回編輯案例按鈕 -->
                         <button onclick="goToTestCaseFromReport()" class="ml-2 no-print text-sm px-3 py-1.5 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded transition font-medium flex items-center gap-2 shadow-sm">
                             <i class="fa-solid fa-pen-to-square"></i> 編輯此案例
                         </button>
@@ -743,21 +785,13 @@
         </div>
     </div>
 
-    <!-- 新增欄位 Modal -->
-    <div id="addColumnModal" class="fixed inset-0 bg-slate-900/50 hidden z-50 flex items-center justify-center opacity-0 transition-opacity">
-        <div class="bg-white rounded-lg shadow-xl w-[400px] transform scale-95 transition-transform" id="addColumnModalContent">
-            <div class="p-4 border-b border-slate-200"><h3 class="text-lg font-bold text-slate-800 flex items-center gap-2"><i class="fa-solid fa-columns text-blue-500"></i> 新增 DDT 欄位</h3></div>
-            <div class="p-5">
-                <label class="block text-sm font-medium text-slate-700 mb-2">欄位名稱</label>
-                <input type="text" id="newColumnName" class="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="例如：${Username}">
-            </div>
-            <div class="p-4 border-t border-slate-200 flex justify-end gap-2 bg-slate-50 rounded-b-lg">
-                <button onclick="closeModals()" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 rounded transition">取消</button>
-                <button onclick="saveColumn()" class="px-4 py-2 text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 rounded shadow-sm transition">確認新增</button>
-            </div>
-        </div>
+    <!-- 圖片燈箱（點擊報告截圖放大；點背景或按 Esc 關閉） -->
+    <div id="imgLightbox" class="fixed inset-0 bg-black/85 hidden z-[9999] items-center justify-center cursor-zoom-out" onclick="closeImageLightbox(event)">
+        <img id="imgLightboxImg" src="" alt="" class="max-w-[95vw] max-h-[95vh] object-contain shadow-2xl" />
+        <button type="button" onclick="closeImageLightbox(event)" aria-label="關閉圖片" class="absolute top-4 right-6 text-white/80 hover:text-white text-4xl leading-none font-light">&times;</button>
+        <div class="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/70 text-xs tracking-wide">點背景或按 Esc 關閉</div>
     </div>
-    
+
     <script>
         // ==================== 全域狀態變數 ====================
         let currentModalAction = null;
@@ -985,15 +1019,57 @@
         }
 
         // ==================== 2. 編輯器功能 ====================
+        // ── 未儲存變更追蹤（驗收準則 / 前置動作 / 測試步驟 / DDT 任一修改或新增/刪除都會標 dirty）──
+        // key = testcase id；value = true 代表該案例有未儲存變更
+        const dirtyTestCases = {};
+        function markDirty() {
+            if (!currentTestCase) return;
+            dirtyTestCases[currentTestCase] = true;
+            updateSaveIndicator();
+        }
+        function clearDirty(id) {
+            delete dirtyTestCases[id || currentTestCase];
+            updateSaveIndicator();
+        }
+        function isDirty(id) {
+            return !!dirtyTestCases[id || currentTestCase];
+        }
+        // 更新「儲存」按鈕樣式與檔名後的未存記號
+        function updateSaveIndicator() {
+            const btn = document.getElementById('saveBtn');
+            const label = document.getElementById('saveBtnLabel');
+            const filename = document.getElementById('viewFilename');
+            const dirty = isDirty();
+            if (btn) {
+                btn.classList.toggle('bg-amber-50', dirty);
+                btn.classList.toggle('border-amber-400', dirty);
+                btn.classList.toggle('text-amber-700', dirty);
+            }
+            if (label) label.textContent = dirty ? '儲存 *' : '儲存';
+            if (filename && currentTestCase && testCases[currentTestCase]) {
+                const base = testCases[currentTestCase].filename || '';
+                filename.textContent = dirty ? base + ' *' : base;
+            }
+        }
+        // 若有未儲存變更，提示使用者確認後才可繼續；回傳 true 代表使用者選擇放棄變更
+        function confirmDiscardIfDirty() {
+            if (!isDirty()) return true;
+            return confirm('目前案例有未儲存的變更（驗收準則 / 前置動作 / 測試步驟 / DDT）。\n\n離開將會遺失這些變更，確定要繼續嗎？');
+        }
+
         function updateAC(value) {
             if (currentTestCase && testCases[currentTestCase]) {
+                const prev = testCases[currentTestCase].ac || '';
                 testCases[currentTestCase].ac = value;
+                if (prev !== value) markDirty();
             }
         }
 
         function updateSetup(value) {
             if (currentTestCase && testCases[currentTestCase]) {
+                const prev = testCases[currentTestCase].setup || '';
                 testCases[currentTestCase].setup = value;
+                if (prev !== value) markDirty();
             }
         }
 
@@ -1010,6 +1086,7 @@
 
             renderSteps();
             renderDDT();
+            updateSaveIndicator();
         }
 
         // 測試步驟模式切換邏輯
@@ -1032,14 +1109,87 @@
             table.className = `w-full text-left border-collapse min-w-[900px] transition-all duration-300 table-mode-${mode.toLowerCase()}`;
         }
 
+        // Action / Compare 候選清單（依 PLATFORM 區分）
+        // ★ 列出的每個動作在 backend/tasks/robot_runner.py::_translate_step 都有對應的 keyword
+        // 若此處要新增動作，需同步擴充 runner 的對應邏輯，否則執行階段會 Fail
+        const ACTION_OPTIONS_BY_PLATFORM = {
+            WEB: [
+                // 導航
+                'Navigate', 'Reload', 'GoBack', 'GoForward',
+                // 點擊/輸入
+                'Click', 'DoubleClick', 'RightClick', 'Hover', 'Focus',
+                'Fill', 'Type', 'Clear', 'Press', 'Select', 'Check', 'Uncheck', 'Upload',
+                // 捲動/拖曳
+                'Scroll', 'ScrollToElement', 'DragAndDrop',
+                // 等待/截圖/分頁
+                'Wait', 'WaitForSelector', 'WaitForLoadState',
+                'Screenshot', 'SwitchTab', 'CloseTab', 'ExecuteScript',
+                // 斷言
+                'AssertText', 'AssertValue', 'AssertVisible', 'AssertHidden',
+                'AssertChecked', 'AssertEnabled', 'AssertDisabled',
+                'AssertURL', 'AssertTitle', 'AssertCount', 'AssertAttribute'
+            ],
+            API: [
+                'Http.GET', 'Http.POST', 'Http.PUT', 'Http.PATCH', 'Http.DELETE',
+                'Http.HEAD', 'Http.OPTIONS',
+                'Http.SetHeader', 'Http.SetBaseURL', 'Http.SetAuth',
+                'Http.ExtractJson', 'Http.SaveToken',
+                'Http.AssertStatus', 'Http.AssertJsonValue', 'Http.AssertHeader',
+                'Http.AssertBodyContains', 'Http.AssertResponseTime'
+            ],
+            APP: [
+                'Mobile.Open', 'Mobile.Close',
+                'Mobile.Click', 'Mobile.Tap', 'Mobile.DoubleTap', 'Mobile.LongPress',
+                'Mobile.Input', 'Mobile.Clear',
+                'Mobile.Swipe', 'Mobile.SwipeUp', 'Mobile.SwipeDown', 'Mobile.SwipeLeft', 'Mobile.SwipeRight',
+                'Mobile.Press', 'Mobile.PressBack', 'Mobile.PressHome',
+                'Mobile.Wait', 'Mobile.Screenshot', 'Mobile.HideKeyboard',
+                'Mobile.AssertVisible', 'Mobile.AssertText', 'Mobile.AssertEnabled'
+            ],
+        };
+        const COMPARE_OPTIONS = [
+            'Equals', 'NotEquals', 'Contains', 'NotContains',
+            'StartsWith', 'EndsWith', 'Regex',
+            'GreaterThan', 'LessThan',
+            'IsVisible', 'IsHidden', 'IsChecked'
+        ];
+
+        // 由樹狀結構找出某 TESTCASE 所屬的 PLATFORM（WEB / API / APP）
+        function getTestCasePlatform(tcId) {
+            function walk(nodes, path) {
+                if (!nodes) return null;
+                for (const n of nodes) {
+                    const next = path.concat([n]);
+                    if (n.id === tcId) return next;
+                    if (n.children) {
+                        const r = walk(n.children, next);
+                        if (r) return r;
+                    }
+                }
+                return null;
+            }
+            const chain = walk(activeTreeData || [], []);
+            if (!chain) return 'WEB';
+            const plat = chain.find(n => n.level_type === 'PLATFORM');
+            return plat && ACTION_OPTIONS_BY_PLATFORM[plat.name] ? plat.name : 'WEB';
+        }
+
+        // textarea 依內容自動長高（用於「步驟描述」等可能需要多行顯示的欄位）
+        function autosizeTextarea(el) {
+            if (!el) return;
+            el.style.height = 'auto';
+            el.style.height = (el.scrollHeight + 2) + 'px';
+        }
+
         function renderSteps() {
             const tc = testCases[currentTestCase];
             const tbody = document.getElementById('stepsBody');
             tbody.innerHTML = '';
 
             const bddOptions = ['Given', 'When', 'And', 'Then', 'But'];
-            const actionOptions = ['Navigate', 'Fill', 'Click', 'Select', 'Assert', 'Wait', 'Screenshot', 'Call_API', 'Set_Header'];
-            const compareOptions = ['Equals', 'Contains', 'StartsWith', 'EndsWith', 'Regex', 'GreaterThan', 'LessThan'];
+            const platform = getTestCasePlatform(currentTestCase);
+            const actionOptions = ACTION_OPTIONS_BY_PLATFORM[platform] || ACTION_OPTIONS_BY_PLATFORM.WEB;
+            const compareOptions = COMPARE_OPTIONS;
             // ★ HTML 屬性跳脫：避免 locator 內含 " 把 value="..." 截斷
             const esc = (v) => (v === null || v === undefined ? '' : String(v)
                 .replace(/&/g, '&amp;')
@@ -1048,41 +1198,70 @@
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#39;'));
 
+            // 若 step.action / step.compare 的值不在標準清單（如錄製器回傳的新動作），仍加進選單，避免顯示空白
+            const mergeOpts = (list, cur) => {
+                if (cur && !list.includes(cur)) return [cur, ...list];
+                return list;
+            };
+
             tc.steps.forEach((step, idx) => {
+                const actList = mergeOpts(actionOptions, step.action);
+                const cmpList = mergeOpts(compareOptions, step.compare);
                 const tr = document.createElement('tr');
-                tr.className = 'hover:bg-slate-50 transition';
+                tr.className = 'hover:bg-slate-50 transition align-top';
                 tr.innerHTML = `
                     <td class="p-2 text-center font-mono text-xs text-slate-600 select-none">TC-${String(idx + 1).padStart(2, '0')}</td>
                     <td class="p-2 col-bdd">
-                        <select onchange="updateStep(${idx}, 'bdd', this.value)" class="w-full border border-slate-200 rounded p-1 text-xs bg-white focus:ring-1 focus:ring-blue-400 outline-none">
+                        <select onchange="updateStep(${idx}, 'bdd', this.value)" aria-label="BDD keyword" class="w-full border border-slate-200 rounded p-1 text-xs bg-white focus:ring-1 focus:ring-blue-400 outline-none">
                             ${bddOptions.map(o => `<option ${step.bdd === o ? 'selected' : ''}>${o}</option>`).join('')}
                         </select>
                     </td>
-                    <td class="p-2"><input type="text" value="${esc(step.desc)}" onchange="updateStep(${idx}, 'desc', this.value)" class="w-full border border-slate-200 rounded p-1 text-xs focus:ring-1 focus:ring-blue-400 outline-none"></td>
+                    <td class="p-2">
+                        <textarea rows="1" onchange="updateStep(${idx}, 'desc', this.value)" oninput="autosizeTextarea(this)" aria-label="步驟描述"
+                            class="step-ta w-full border border-slate-200 rounded p-1 text-xs leading-snug focus:ring-1 focus:ring-blue-400 outline-none resize-y"
+                            style="min-height:28px; white-space:pre-wrap; overflow-wrap:anywhere; word-break:break-word;">${esc(step.desc)}</textarea>
+                    </td>
                     <td class="p-2 col-kdt">
-                        <select onchange="updateStep(${idx}, 'action', this.value)" class="w-full border border-slate-200 rounded p-1 text-xs bg-white focus:ring-1 focus:ring-blue-400 outline-none">
-                            ${actionOptions.map(o => `<option ${step.action === o ? 'selected' : ''}>${o}</option>`).join('')}
+                        <select onchange="updateStep(${idx}, 'action', this.value)" aria-label="Action" class="w-full border border-slate-200 rounded p-1 text-xs bg-white focus:ring-1 focus:ring-blue-400 outline-none">
+                            ${actList.map(o => `<option ${step.action === o ? 'selected' : ''}>${o}</option>`).join('')}
                         </select>
                     </td>
-                    <td class="p-2 col-kdt"><input type="text" value="${esc(step.loc)}" onchange="updateStep(${idx}, 'loc', this.value)" class="w-full border border-slate-200 rounded p-1 text-xs font-mono focus:ring-1 focus:ring-blue-400 outline-none"></td>
-                    <td class="p-2"><input type="text" value="${esc(step.input)}" onchange="updateStep(${idx}, 'input', this.value)" class="w-full border border-slate-200 rounded p-1 text-xs font-mono focus:ring-1 focus:ring-blue-400 outline-none"></td>
                     <td class="p-2 col-kdt">
-                        <select onchange="updateStep(${idx}, 'compare', this.value)" class="w-full border border-slate-200 rounded p-1 text-xs bg-white focus:ring-1 focus:ring-blue-400 outline-none">
-                            ${compareOptions.map(o => `<option ${step.compare === o ? 'selected' : ''}>${o}</option>`).join('')}
+                        <textarea rows="1" onchange="updateStep(${idx}, 'loc', this.value)" oninput="autosizeTextarea(this)" aria-label="Locator"
+                            class="step-ta w-full border border-slate-200 rounded p-1 text-xs font-mono focus:ring-1 focus:ring-blue-400 outline-none resize-y"
+                            style="min-height:28px; white-space:pre-wrap; overflow-wrap:anywhere; word-break:break-all;">${esc(step.loc)}</textarea>
+                    </td>
+                    <td class="p-2">
+                        <textarea rows="1" onchange="updateStep(${idx}, 'input', this.value)" oninput="autosizeTextarea(this)" aria-label="輸入"
+                            class="step-ta w-full border border-slate-200 rounded p-1 text-xs font-mono focus:ring-1 focus:ring-blue-400 outline-none resize-y"
+                            style="min-height:28px; white-space:pre-wrap; overflow-wrap:anywhere; word-break:break-all;">${esc(step.input)}</textarea>
+                    </td>
+                    <td class="p-2 col-kdt">
+                        <select onchange="updateStep(${idx}, 'compare', this.value)" aria-label="比對條件" class="w-full border border-slate-200 rounded p-1 text-xs bg-white focus:ring-1 focus:ring-blue-400 outline-none">
+                            ${cmpList.map(o => `<option ${step.compare === o ? 'selected' : ''}>${o}</option>`).join('')}
                         </select>
                     </td>
-                    <td class="p-2"><input type="text" value="${esc(step.expected)}" onchange="updateStep(${idx}, 'expected', this.value)" class="w-full border border-slate-200 rounded p-1 text-xs focus:ring-1 focus:ring-blue-400 outline-none"></td>
+                    <td class="p-2">
+                        <textarea rows="1" onchange="updateStep(${idx}, 'expected', this.value)" oninput="autosizeTextarea(this)" aria-label="預期結果"
+                            class="step-ta w-full border border-slate-200 rounded p-1 text-xs leading-snug focus:ring-1 focus:ring-blue-400 outline-none resize-y"
+                            style="min-height:28px; white-space:pre-wrap; overflow-wrap:anywhere; word-break:break-word;">${esc(step.expected)}</textarea>
+                    </td>
                     <td class="p-2 text-center">
-                        <button onclick="deleteStep(${idx})" class="text-slate-300 hover:text-red-500 transition"><i class="fa-solid fa-xmark"></i></button>
+                        <button onclick="deleteStep(${idx})" aria-label="刪除步驟" class="text-slate-300 hover:text-red-500 transition"><i class="fa-solid fa-xmark"></i></button>
                     </td>
                 `;
                 tbody.appendChild(tr);
             });
+            // 依內容初始化每個多行欄位（描述 / Locator / Input / 預期）的高度
+            tbody.querySelectorAll('textarea.step-ta').forEach(autosizeTextarea);
         }
 
         function updateStep(idx, field, value) {
             if (currentTestCase && testCases[currentTestCase]) {
+                const cur = testCases[currentTestCase].steps[idx][field];
+                if (cur === value) return;
                 testCases[currentTestCase].steps[idx][field] = value;
+                markDirty();
             }
         }
 
@@ -1090,26 +1269,33 @@
             if (!currentTestCase) return showToast('請先選擇測試案例', 'error');
             const tc = testCases[currentTestCase];
             const nextNo = `TC-${String(tc.steps.length + 1).padStart(2, '0')}`;
-            tc.steps.push({ bdd: 'And', tcid: nextNo, desc: '', action: 'Click', loc: '', input: '', compare: 'Equals', expected: '' });
+            // 依當前案例所屬平台挑選預設動作（避免 API/APP 案例出現 WEB 專屬的 Click）
+            const platform = getTestCasePlatform(currentTestCase);
+            const list = ACTION_OPTIONS_BY_PLATFORM[platform] || ACTION_OPTIONS_BY_PLATFORM.WEB;
+            const defaultAction = list[0] || 'Click';
+            tc.steps.push({ bdd: 'And', tcid: nextNo, desc: '', action: defaultAction, loc: '', input: '', compare: 'Equals', expected: '' });
+            markDirty();
             renderSteps();
         }
 
         function deleteStep(idx) {
+            if (!confirm(`確定要刪除第 ${idx + 1} 個步驟？`)) return;
             testCases[currentTestCase].steps.splice(idx, 1);
+            markDirty();
             renderSteps();
         }
+
+        // DDT 固定欄位（預設欄位不允許刪除；使用者只能新增/刪除資料列）
+        const DDT_FIXED_HEADERS = ['No', 'Key', 'Value'];
 
         function renderDDT() {
             const tc = testCases[currentTestCase];
             const ddt = tc.ddt;
 
             const headerRow = document.getElementById('ddtHeaders');
-            headerRow.innerHTML = ddt.headers.map((h, i) => `
+            headerRow.innerHTML = ddt.headers.map((h) => `
                 <th class="p-2 font-medium text-xs">
-                    <div class="flex items-center gap-1">
-                        <span>${h}</span>
-                        <button onclick="deleteColumn(${i})" class="text-slate-300 hover:text-red-500 ml-1"><i class="fa-solid fa-xmark text-[10px]"></i></button>
-                    </div>
+                    <span>${h}</span>
                 </th>
             `).join('') + '<th class="p-2 w-10"></th>';
 
@@ -1126,7 +1312,10 @@
         }
 
         function updateDdtCell(ri, ci, value) {
+            const cur = testCases[currentTestCase].ddt.rows[ri][ci];
+            if (cur === value) return;
             testCases[currentTestCase].ddt.rows[ri][ci] = value;
+            markDirty();
         }
 
         function addDdtRow() {
@@ -1138,42 +1327,15 @@
                 newRow[0] = String(tc.ddt.rows.length + 1);
             }
             tc.ddt.rows.push(newRow);
+            markDirty();
             renderDDT();
         }
 
         function deleteDdtRow(ri) {
+            if (!confirm(`確定要刪除第 ${ri + 1} 列資料？`)) return;
             testCases[currentTestCase].ddt.rows.splice(ri, 1);
+            markDirty();
             renderDDT();
-        }
-
-        function deleteColumn(ci) {
-            const tc = testCases[currentTestCase];
-            tc.ddt.headers.splice(ci, 1);
-            tc.ddt.rows.forEach(row => row.splice(ci, 1));
-            renderDDT();
-        }
-
-        function openAddColumnModal() {
-            if (!currentTestCase) return showToast('請先選擇測試案例', 'error');
-            document.getElementById('newColumnName').value = '';
-            const modal = document.getElementById('addColumnModal');
-            modal.classList.remove('hidden');
-            setTimeout(() => {
-                modal.classList.remove('opacity-0');
-                document.getElementById('addColumnModalContent').classList.remove('scale-95');
-                document.getElementById('newColumnName').focus();
-            }, 10);
-        }
-
-        function saveColumn() {
-            const name = document.getElementById('newColumnName').value.trim();
-            if (!name) return showToast('請輸入欄位名稱', 'error');
-            const tc = testCases[currentTestCase];
-            tc.ddt.headers.push(name);
-            tc.ddt.rows.forEach(row => row.push(''));
-            renderDDT();
-            showToast('欄位新增成功', 'success');
-            closeModals();
         }
 
         function handleJsonImport(event) {
@@ -1183,13 +1345,37 @@
             reader.onload = (e) => {
                 try {
                     const data = JSON.parse(e.target.result);
-                    if (Array.isArray(data) && data.length > 0) {
-                        const headers = Object.keys(data[0]).map(k => `\${${k}}`);
-                        const rows = data.map(row => Object.values(row).map(String));
-                        testCases[currentTestCase].ddt = { headers, rows };
-                        renderDDT();
-                        showToast(`成功匯入 ${rows.length} 筆資料`, 'success');
+                    // DDT 固定為 No / Key / Value 三欄，匯入須轉成這個結構：
+                    //   1. 物件  {Username:"u1", Password:"p1"}  → 兩列
+                    //   2. 陣列  [{Key:"a", Value:"1"}, ...]    → 直接對應
+                    //   3. 陣列  [{任意:"值"}, ...]             → 取每列第一組 key/value
+                    const rows = [];
+                    if (Array.isArray(data)) {
+                        data.forEach((item, i) => {
+                            if (item && typeof item === 'object') {
+                                if ('Key' in item || 'key' in item) {
+                                    rows.push([String(i + 1), String(item.Key ?? item.key ?? ''), String(item.Value ?? item.value ?? '')]);
+                                } else {
+                                    const keys = Object.keys(item);
+                                    if (keys.length) {
+                                        rows.push([String(i + 1), keys[0], String(item[keys[0]] ?? '')]);
+                                    }
+                                }
+                            }
+                        });
+                    } else if (data && typeof data === 'object') {
+                        Object.entries(data).forEach(([k, v], i) => {
+                            rows.push([String(i + 1), String(k), String(v ?? '')]);
+                        });
                     }
+                    if (!rows.length) {
+                        showToast('JSON 沒有可匯入的 key/value 資料', 'error');
+                        return;
+                    }
+                    testCases[currentTestCase].ddt = { headers: DDT_FIXED_HEADERS.slice(), rows };
+                    markDirty();
+                    renderDDT();
+                    showToast(`成功匯入 ${rows.length} 筆資料`, 'success');
                 } catch {
                     showToast('JSON 格式錯誤，請確認檔案內容', 'error');
                 }
@@ -1302,6 +1488,7 @@
         }
 
         function showReportView() {
+            if (!confirmDiscardIfDirty()) return;
             document.getElementById('editorWorkspace').classList.add('hidden');
             document.getElementById('emptyWorkspace').classList.add('hidden');
             document.getElementById('detailReportWorkspace').classList.add('hidden');
@@ -1645,6 +1832,36 @@
             }
         }
 
+        // ── 圖片燈箱（報告截圖點擊放大）────────────────────
+        function openImageLightbox(url) {
+            if (!url) return;
+            const el = document.getElementById('imgLightbox');
+            const img = document.getElementById('imgLightboxImg');
+            if (!el || !img) return;
+            img.src = url;
+            el.classList.remove('hidden');
+            el.classList.add('flex');
+            // 防止背景滾動
+            document.body.style.overflow = 'hidden';
+        }
+        function closeImageLightbox(event) {
+            // 點到圖片本身時，不動作（避免誤關）
+            if (event && event.target && event.target.id === 'imgLightboxImg') return;
+            const el = document.getElementById('imgLightbox');
+            const img = document.getElementById('imgLightboxImg');
+            if (!el) return;
+            el.classList.add('hidden');
+            el.classList.remove('flex');
+            if (img) img.src = '';
+            document.body.style.overflow = '';
+        }
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                const el = document.getElementById('imgLightbox');
+                if (el && !el.classList.contains('hidden')) closeImageLightbox();
+            }
+        });
+
         // 動作前：若 preScreenshotUrl 存在就以 <img> 取代 mock；highlight 覆蓋其上。
         function renderPreScreenshot(step) {
             const preArea = document.getElementById('preScreenshotArea');
@@ -1659,7 +1876,9 @@
             if (step.preScreenshotUrl) {
                 preArea.innerHTML = `
                     <img src="${step.preScreenshotUrl}" alt="Pre-action screenshot"
-                         class="max-w-full max-h-full object-contain"
+                         class="max-w-full max-h-full object-contain cursor-zoom-in"
+                         title="點擊放大"
+                         onclick="openImageLightbox(this.src)"
                          onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'text-xs text-slate-400',textContent:'（截圖載入失敗）'}))">
                     ${highlightDiv}
                 `;
@@ -1684,7 +1903,9 @@
             if (step.postScreenshotUrl) {
                 postArea.innerHTML = `
                     <img src="${step.postScreenshotUrl}" alt="Post-action screenshot"
-                         class="max-w-full max-h-full object-contain"
+                         class="max-w-full max-h-full object-contain cursor-zoom-in"
+                         title="點擊放大"
+                         onclick="openImageLightbox(this.src)"
                          onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'text-xs text-slate-400',textContent:'（截圖載入失敗）'}))">
                 `;
                 return;
@@ -1754,20 +1975,20 @@
                 await html2pdf()
                     .from(container)
                     .set({
-                        margin: [10, 10, 10, 10],
+                        margin: [10, 12, 10, 12],
                         filename,
                         image: { type: 'jpeg', quality: 0.92 },
                         html2canvas: {
-                            scale: 2,
+                            scale: 1.5,
                             useCORS: true,
                             backgroundColor: '#ffffff',
-                            windowWidth: 1040,
+                            windowWidth: 960,
                             // 用元素自身完整高度而非 viewport
                             height: container.scrollHeight,
                             windowHeight: container.scrollHeight,
                         },
                         jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
-                        pagebreak: { mode: ['css', 'legacy'], avoid: ['.pdf-step', '.pdf-case-header', 'img'] },
+                        pagebreak: { mode: ['css', 'legacy'], before: '.pdf-case-break', avoid: ['.pdf-step', '.pdf-case-header', 'img'] },
                     })
                     .save();
                 showToast('PDF 匯出完成', 'success');
@@ -1831,7 +2052,7 @@
             // 可見地擺在最頂層渲染（html2canvas 對 left:-99999px 的元素常常截不到 →
             // 結果會是空白 PDF）。為了不干擾使用者，外層再加一個 backdrop 遮住，
             // 等匯出完成再一起移除。
-            wrap.style.cssText = 'position:absolute; left:0; top:0; width:1040px; box-sizing:border-box; overflow:hidden; word-break:break-word; overflow-wrap:anywhere; background:#ffffff; padding:20px; font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif; color:#1e293b; z-index:99999; box-shadow:0 0 40px rgba(0,0,0,0.3);';
+            wrap.style.cssText = 'position:absolute; left:0; top:0; margin:0; width:960px; box-sizing:border-box; overflow:hidden; word-break:break-word; overflow-wrap:anywhere; background:#ffffff; padding:20px 32px; font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif; color:#1e293b; z-index:99999;';
 
             const statusColor = report.status === 'Passed' ? '#16a34a' : '#dc2626';
             const statusBg = report.status === 'Passed' ? '#dcfce7' : '#fee2e2';
@@ -1851,10 +2072,12 @@
                     </div>
                 </div>`;
 
-            const casesHtml = (report.cases || []).map(c => {
+            const casesHtml = (report.cases || []).map((c, idx) => {
                 const stepsHtml = (c.steps || []).map((s, i) => buildPdfStepHtml(s, i + 1)).join('');
+                const breakBefore = idx === 0 ? '' : 'page-break-before:always; break-before:page;';
+                const breakCls = idx === 0 ? '' : ' pdf-case-break';
                 return `
-                    <div class="pdf-case" style="margin-bottom:24px;">
+                    <div class="pdf-case${breakCls}" style="margin-bottom:24px; ${breakBefore}">
                         <div class="pdf-case-header" style="background:#f1f5f9; padding:10px 14px; border-left:4px solid #3b82f6; font-weight:700; font-size:14px; margin-bottom:12px;">
                             ${escapeHtml(c.name || '—')} <span style="font-weight:400; color:#64748b; font-size:12px;">（共 ${(c.steps || []).length} 步驟）</span>
                         </div>
@@ -1877,12 +2100,12 @@
                     ${step.preScreenshotUrl ? `
                         <div style="flex:1; border:1px solid #e2e8f0; border-radius:4px; padding:6px;">
                             <div style="font-size:10px; color:#64748b; margin-bottom:4px;">動作前 (Pre-Action)</div>
-                            <img src="${step.preScreenshotUrl}" style="max-width:100%; max-height:280px; display:block; margin:auto;" crossorigin="anonymous">
+                            <img src="${step.preScreenshotUrl}" style="max-width:100%; max-height:200px; display:block; margin:auto;" crossorigin="anonymous">
                         </div>` : ''}
                     ${step.postScreenshotUrl ? `
                         <div style="flex:1; border:1px solid #e2e8f0; border-radius:4px; padding:6px;">
                             <div style="font-size:10px; color:#64748b; margin-bottom:4px;">動作後 (Post-Action)</div>
-                            <img src="${step.postScreenshotUrl}" style="max-width:100%; max-height:280px; display:block; margin:auto;" crossorigin="anonymous">
+                            <img src="${step.postScreenshotUrl}" style="max-width:100%; max-height:200px; display:block; margin:auto;" crossorigin="anonymous">
                         </div>` : ''}
                 </div>` : '';
 
@@ -1890,11 +2113,11 @@
                 <div style="margin-top:8px; display:flex; gap:10px;">
                     <div style="flex:1;">
                         <div style="font-size:10px; color:#64748b; margin-bottom:2px;">Request</div>
-                        <pre style="background:#0f172a; color:#86efac; padding:8px; border-radius:4px; font-size:10px; max-height:220px; overflow:hidden; white-space:pre-wrap; word-break:break-all;">${escapeHtml(step.reqJson ? JSON.stringify(step.reqJson, null, 2) : '—')}</pre>
+                        <pre style="background:#0f172a; color:#86efac; padding:8px; border-radius:4px; font-size:10px; max-height:180px; overflow:hidden; white-space:pre-wrap; word-break:break-all;">${escapeHtml(step.reqJson ? JSON.stringify(step.reqJson, null, 2) : '—')}</pre>
                     </div>
                     <div style="flex:1;">
                         <div style="font-size:10px; color:#64748b; margin-bottom:2px;">Response</div>
-                        <pre style="background:#0f172a; color:#93c5fd; padding:8px; border-radius:4px; font-size:10px; max-height:220px; overflow:hidden; white-space:pre-wrap; word-break:break-all;">${escapeHtml(step.resJson ? JSON.stringify(step.resJson, null, 2) : '—')}</pre>
+                        <pre style="background:#0f172a; color:#93c5fd; padding:8px; border-radius:4px; font-size:10px; max-height:180px; overflow:hidden; white-space:pre-wrap; word-break:break-all;">${escapeHtml(step.resJson ? JSON.stringify(step.resJson, null, 2) : '—')}</pre>
                     </div>
                 </div>` : '';
 
@@ -1954,9 +2177,19 @@
         // ---- 後端節點 level_type -> 前端 title/icon/isFile ----
         // SCENARIO 子節點固定排序：正向 → 反向 → 邊界（其他名稱排在最後，依原順序）
         const SCENARIO_ORDER = { '正向': 0, '反向': 1, '邊界': 2 };
+        // PLATFORM 子節點固定排序：WEB → API → APP（其他名稱排在最後，依原順序）
+        const PLATFORM_ORDER = { 'WEB': 0, 'API': 1, 'APP': 2 };
         function decorateNode(serverNode) {
             const lt = serverNode.level_type;
             let children = (serverNode.children || []).map(decorateNode);
+            // 若本節點為 FEATURE，其下的 PLATFORM 子節點固定按 WEB/API/APP 排序
+            if (lt === 'FEATURE') {
+                children = children.slice().sort((a, b) => {
+                    const oa = PLATFORM_ORDER[a.name] ?? 99;
+                    const ob = PLATFORM_ORDER[b.name] ?? 99;
+                    return oa - ob;
+                });
+            }
             // 若本節點為 PAGE，其下的 SCENARIO 子節點固定按 正向/反向/邊界 排序
             if (lt === 'PAGE') {
                 children = children.slice().sort((a, b) => {
@@ -2262,6 +2495,8 @@
         }
 
         async function loadTestCase(id) {
+            // 切換案例前先檢查當前案例是否有未儲存變更
+            if (currentTestCase && currentTestCase !== id && !confirmDiscardIfDirty()) return;
             try {
                 const tc = await apiFetch(`/api/testcases/${encodeURIComponent(id)}`);
                 const info = findNodeInfo(activeTreeData, id);
@@ -2271,10 +2506,12 @@
                     filename: filename,
                     title: '[ATDD] ' + filename.replace(/\.md$/, ''),
                     ac: tc.ac_text || '',
+                    setup: tc.setup_text || '',
                     steps: Array.isArray(tc.steps_json) ? tc.steps_json : [],
                     ddt: (tc.ddt_json && tc.ddt_json.headers && tc.ddt_json.headers.length) ? tc.ddt_json : { headers: ['No', 'Key', 'Value'], rows: [['1', '', '']] }
                 };
                 currentTestCase = id;
+                clearDirty(id);
                 document.getElementById('emptyWorkspace').classList.add('hidden');
                 document.getElementById('reportWorkspace').classList.add('hidden');
                 document.getElementById('detailReportWorkspace').classList.add('hidden');
@@ -2456,7 +2693,7 @@
         }
 
         function closeModals() {
-            ['nodeModal', 'deleteModal', 'addColumnModal'].forEach(id => {
+            ['nodeModal', 'deleteModal'].forEach(id => {
                 const modal = document.getElementById(id);
                 modal.classList.add('opacity-0');
                 const content = modal.querySelector('[id$="Content"], [id$="ModalContent"]');
@@ -2466,12 +2703,13 @@
         }
 
         // ==================== 初始化 ====================
-        // ==================== \u5132\u5b58\u8349\u7a3f ====================
+        // ==================== 儲存 ====================
         async function saveDraft() {
-            if (!currentTestCase) return showToast('\u8acb\u5148\u9078\u64c7\u6e2c\u8a66\u6848\u4f8b', 'error');
+            if (!currentTestCase) return showToast('請先選擇測試案例', 'error');
             const tc = testCases[currentTestCase];
             const payload = {
                 ac_text: tc.ac || '',
+                setup_text: tc.setup || '',
                 steps_json: tc.steps || [],
                 ddt_json: tc.ddt || { headers: [], rows: [] }
             };
@@ -2481,11 +2719,11 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
-                showToast('\u5132\u5b58\u6210\u529f', 'success');
+                clearDirty();
+                showToast('儲存成功', 'success');
             } catch (err) {
                 console.error(err);
-                // \u5f8c\u7aef\u5c1a\u672a\u4e32\u63a5\u6642\uff0c\u8a18\u9304\u672c\u5730\u4f7f\u7528\u8005\u53ef\u770b\u898b\u662f\u4f55\u539f\u56e0
-                showToast(`\u5132\u5b58\u5931\u6557\uff1a${err.message}`, 'error');
+                showToast(`儲存失敗：${err.message}`, 'error');
             }
         }
 
@@ -2525,12 +2763,22 @@
 
         window.onload = () => { initProjects(); };
 
+        // 瀏覽器關閉 / 重新整理 / 切網址：有未儲存變更時跳原生確認框
+        window.addEventListener('beforeunload', (e) => {
+            if (isDirty()) {
+                e.preventDefault();
+                e.returnValue = '';
+                return '';
+            }
+        });
+
         // ==================== 9. 錄製功能 (Playwright codegen + trace.zip) ====================
         let recCurrentSession = null;
         let recScriptFile = null;
         let recTraceFile = null;
 
         function showRecorderView() {
+            if (!confirmDiscardIfDirty()) return;
             document.getElementById('editorWorkspace').classList.add('hidden');
             document.getElementById('emptyWorkspace').classList.add('hidden');
             document.getElementById('detailReportWorkspace').classList.add('hidden');
@@ -2544,6 +2792,8 @@
             document.getElementById('viewTag').textContent = 'Recorder';
             recRefreshList();
             recPopulateApplyTarget();
+            // 預設停留在上次平台（首次進入則為 WEB）
+            switchRecPlatform(recCurrentPlatform || 'WEB');
         }
 
         async function recCreateSession() {
@@ -2778,6 +3028,27 @@
             }
         }
 
+        // 共用：把 recLastSteps 渲染到預覽表並顯示套用區
+        function recRenderPreview() {
+            const tbody = document.getElementById('recStepsBody');
+            tbody.innerHTML = '';
+            recLastSteps.forEach((s, i) => {
+                const m = recMapStep(s, i);
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td class="p-2 font-mono text-xs">${recEscape(m.tcid)}</td>
+                    <td class="p-2 font-mono text-blue-600">${recEscape(m.bdd)}</td>
+                    <td class="p-2">${recEscape(m.desc)}</td>
+                    <td class="p-2 font-mono">${recEscape(m.action)}</td>
+                    <td class="p-2 font-mono text-slate-600">${recEscape(m.loc)}</td>
+                    <td class="p-2 font-mono">${recEscape(m.input)}</td>
+                    <td class="p-2 font-mono">${recEscape(m.compare)}</td>
+                    <td class="p-2 font-mono">${recEscape(m.expected)}</td>`;
+                tbody.appendChild(tr);
+            });
+            document.getElementById('recPreviewSection').classList.remove('hidden');
+            recPopulateApplyTarget();
+        }
+
         async function recConvertAndApply() {
             if (!recCurrentSession) { showToast('請先建立並上傳 session', 'error'); return; }
             try {
@@ -2788,27 +3059,248 @@
                 }
                 const data = await res.json();
                 recLastSteps = data.steps || [];
-                const tbody = document.getElementById('recStepsBody');
-                tbody.innerHTML = '';
-                recLastSteps.forEach((s, i) => {
-                    const m = recMapStep(s, i);
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = `<td class="p-2 font-mono text-xs">${recEscape(m.tcid)}</td>
-                        <td class="p-2 font-mono text-blue-600">${recEscape(m.bdd)}</td>
-                        <td class="p-2">${recEscape(m.desc)}</td>
-                        <td class="p-2 font-mono">${recEscape(m.action)}</td>
-                        <td class="p-2 font-mono text-slate-600">${recEscape(m.loc)}</td>
-                        <td class="p-2 font-mono">${recEscape(m.input)}</td>
-                        <td class="p-2 font-mono">${recEscape(m.compare)}</td>
-                        <td class="p-2 font-mono">${recEscape(m.expected)}</td>`;
-                    tbody.appendChild(tr);
-                });
-                document.getElementById('recPreviewSection').classList.remove('hidden');
-                recPopulateApplyTarget();
+                recRenderPreview();
                 showToast(`已解析 ${recLastSteps.length} 個步驟，請於下方選擇要套用的 .md 案例`, 'success');
             } catch (e) {
                 showToast('解析失敗：' + e.message, 'error');
             }
+        }
+
+        // ─── 錄製平台切換 (WEB / API / APP) ───────────────────
+        let recCurrentPlatform = 'WEB';
+        function switchRecPlatform(platform) {
+            recCurrentPlatform = platform;
+            const show = (id, on) => {
+                const el = document.getElementById(id);
+                if (el) el.classList.toggle('hidden', !on);
+            };
+            show('recWebSections', platform === 'WEB');
+            show('recApiSection', platform === 'API');
+            show('recAppSection', platform === 'APP');
+            show('recHistorySection', platform === 'WEB');
+            // 切換時清空上一次的解析結果，避免混淆
+            document.getElementById('recPreviewSection').classList.add('hidden');
+            recLastSteps = [];
+            // tab 樣式
+            ['Web', 'Api', 'App'].forEach((p) => {
+                const btn = document.getElementById('recTab' + p);
+                if (!btn) return;
+                const active = p.toUpperCase() === platform;
+                btn.classList.toggle('bg-rose-600', active);
+                btn.classList.toggle('text-white', active);
+                btn.classList.toggle('border-rose-600', active);
+                btn.classList.toggle('bg-white', !active);
+                btn.classList.toggle('text-slate-700', !active);
+                btn.classList.toggle('border-slate-200', !active);
+                btn.classList.toggle('hover:bg-slate-50', !active);
+            });
+        }
+
+        // ─── cURL → Http.* 步驟 ──────────────────────────────
+        // 支援多個 cURL，以空行分隔；每段單獨解析。
+        function recParseCurl() {
+            const text = (document.getElementById('recCurlText')?.value || '').trim();
+            if (!text) { showToast('請先貼上 cURL 指令', 'error'); return; }
+            // 把 shell 續行 `\<newline>` 合成單行，再以空行切分多段
+            const normalized = text.replace(/\\\r?\n/g, ' ');
+            const chunks = normalized.split(/\n\s*\n+/).map(s => s.trim()).filter(s => s.toLowerCase().startsWith('curl'));
+            if (!chunks.length) { showToast('找不到 curl 指令（每段需以 curl 開頭）', 'error'); return; }
+
+            const steps = [];
+            let idx = 0;
+            const nextId = () => 'curl-' + Math.random().toString(36).slice(2, 10);
+
+            chunks.forEach((raw) => {
+                const parsed = parseCurlCommand(raw);
+                if (!parsed) return;
+                const { method, url, headers, body } = parsed;
+
+                // 為每個 header 產生 Http.SetHeader
+                headers.forEach(([k, v]) => {
+                    steps.push({
+                        id: nextId(),
+                        keyword: 'Given',
+                        description: `設定 Header ${k}`,
+                        action: 'Http.SetHeader',
+                        locator: k,
+                        input: v,
+                        condition: 'Equals',
+                        expected: '',
+                    });
+                });
+
+                // 產生發送請求的步驟
+                const actionMap = { GET: 'Http.GET', POST: 'Http.POST', PUT: 'Http.PUT', PATCH: 'Http.PATCH', DELETE: 'Http.DELETE', HEAD: 'Http.HEAD', OPTIONS: 'Http.OPTIONS' };
+                const act = actionMap[method] || 'Http.GET';
+                steps.push({
+                    id: nextId(),
+                    keyword: 'When',
+                    description: `${method} ${url}`,
+                    action: act,
+                    locator: url,
+                    input: body || '',
+                    condition: 'Equals',
+                    expected: '',
+                });
+
+                // 自動附上基本 AssertStatus（200），使用者可再調整
+                steps.push({
+                    id: nextId(),
+                    keyword: 'Then',
+                    description: '回應狀態碼應為 200',
+                    action: 'Http.AssertStatus',
+                    locator: '',
+                    input: '',
+                    condition: 'Equals',
+                    expected: '200',
+                });
+            });
+
+            if (!steps.length) { showToast('無法從貼入的內容解析出任何 cURL 指令', 'error'); return; }
+            recLastSteps = steps;
+            recRenderPreview();
+            showToast(`已從 ${chunks.length} 段 cURL 解析出 ${steps.length} 個步驟`, 'success');
+        }
+
+        // 解析單一 cURL 字串：{ method, url, headers: [[k,v]...], body }
+        function parseCurlCommand(raw) {
+            // 取出所有以引號包住的段和未被包住的 token
+            const tokens = tokenizeShell(raw);
+            if (!tokens.length || tokens[0].toLowerCase() !== 'curl') return null;
+            let method = 'GET';
+            let url = '';
+            const headers = [];
+            let body = '';
+            for (let i = 1; i < tokens.length; i++) {
+                const t = tokens[i];
+                if (t === '-X' || t === '--request') {
+                    method = (tokens[++i] || 'GET').toUpperCase();
+                } else if (t === '-H' || t === '--header') {
+                    const h = tokens[++i] || '';
+                    const m = h.match(/^([^:]+):\s*(.*)$/);
+                    if (m) headers.push([m[1].trim(), m[2].trim()]);
+                } else if (t === '-d' || t === '--data' || t === '--data-raw' || t === '--data-binary' || t === '--data-urlencode') {
+                    body = tokens[++i] || '';
+                    if (method === 'GET') method = 'POST';   // 有 body 通常是 POST
+                } else if (t === '--url') {
+                    url = tokens[++i] || '';
+                } else if (t.startsWith('-')) {
+                    // 跳過其他選項（若有帶值則吃掉下一個 token）
+                    const valueBearing = ['-A', '--user-agent', '-b', '--cookie', '-e', '--referer', '-u', '--user', '--compressed', '-o', '--output', '--connect-timeout', '--max-time'];
+                    if (valueBearing.includes(t)) i++;
+                } else if (!url) {
+                    url = t;   // 第一個非選項參數視為 URL
+                }
+            }
+            if (!url) return null;
+            return { method, url, headers, body };
+        }
+
+        // 將一段 shell 字串以空白拆成 tokens，保留單/雙引號內的內容且去除引號
+        function tokenizeShell(s) {
+            const tokens = [];
+            const re = /"([^"\\]*(?:\\.[^"\\]*)*)"|'([^'\\]*(?:\\.[^'\\]*)*)'|(\S+)/g;
+            let m;
+            while ((m = re.exec(s)) !== null) {
+                const v = m[1] !== undefined ? m[1].replace(/\\"/g, '"')
+                        : m[2] !== undefined ? m[2]
+                        : m[3];
+                tokens.push(v);
+            }
+            return tokens;
+        }
+
+        // ─── Appium Python → Mobile.* 步驟 ───────────────────
+        function recParseAppium() {
+            const text = (document.getElementById('recAppiumText')?.value || '').trim();
+            if (!text) { showToast('請先貼上 Appium 腳本', 'error'); return; }
+            const steps = [];
+            const nextId = () => 'appium-' + Math.random().toString(36).slice(2, 10);
+
+            // 把 find_element(...) 之後連著 .click()/.send_keys(...)/.clear() 的鏈式呼叫當作「一個動作」
+            // 先抓 By.XXX, "locator" 形式
+            const patterns = [
+                // click / tap
+                {
+                    re: /driver\.find_element\(\s*(?:AppiumBy|By|MobileBy)\.(\w+)\s*,\s*["']([^"']+)["']\s*\)\.click\(\s*\)/g,
+                    build: (m) => ({ action: 'Mobile.Click', locator: toAppiumLocator(m[1], m[2]), input: '', desc: `點擊 ${m[2]}` }),
+                },
+                {
+                    re: /driver\.find_element\(\s*(?:AppiumBy|By|MobileBy)\.(\w+)\s*,\s*["']([^"']+)["']\s*\)\.send_keys\(\s*["']([^"']*)["']\s*\)/g,
+                    build: (m) => ({ action: 'Mobile.Input', locator: toAppiumLocator(m[1], m[2]), input: m[3], desc: `於 ${m[2]} 輸入「${m[3]}」` }),
+                },
+                {
+                    re: /driver\.find_element\(\s*(?:AppiumBy|By|MobileBy)\.(\w+)\s*,\s*["']([^"']+)["']\s*\)\.clear\(\s*\)/g,
+                    build: (m) => ({ action: 'Mobile.Clear', locator: toAppiumLocator(m[1], m[2]), input: '', desc: `清空 ${m[2]}` }),
+                },
+                {
+                    re: /driver\.tap\(\s*\[\s*\(\s*(\d+)\s*,\s*(\d+)\s*\)\s*\][^)]*\)/g,
+                    build: (m) => ({ action: 'Mobile.Tap', locator: `${m[1]},${m[2]}`, input: '', desc: `點擊座標 (${m[1]}, ${m[2]})` }),
+                },
+                {
+                    re: /driver\.swipe\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*(\d+))?\s*\)/g,
+                    build: (m) => ({ action: 'Mobile.Swipe', locator: '', input: `${m[1]} ${m[2]} ${m[3]} ${m[4]}`, desc: `滑動 (${m[1]},${m[2]}) → (${m[3]},${m[4]})` }),
+                },
+                {
+                    re: /driver\.long_press\(|driver\.long_press_keycode\(/g,
+                    build: () => ({ action: 'Mobile.LongPress', locator: '', input: '1000', desc: '長按' }),
+                },
+                {
+                    re: /driver\.back\(\s*\)/g,
+                    build: () => ({ action: 'Mobile.PressBack', locator: '', input: '', desc: '返回' }),
+                },
+                {
+                    re: /driver\.hide_keyboard\(\s*\)/g,
+                    build: () => ({ action: 'Mobile.HideKeyboard', locator: '', input: '', desc: '收起鍵盤' }),
+                },
+                {
+                    re: /driver\.get_screenshot_as_file\(|driver\.save_screenshot\(/g,
+                    build: () => ({ action: 'Mobile.Screenshot', locator: '', input: '', desc: '截圖' }),
+                },
+            ];
+
+            // 為了維持腳本順序：掃描原文，依出現位置排序所有匹配
+            const matches = [];
+            patterns.forEach(({ re, build }) => {
+                let m;
+                const rx = new RegExp(re.source, re.flags);
+                while ((m = rx.exec(text)) !== null) {
+                    matches.push({ pos: m.index, build: () => build(m) });
+                }
+            });
+            matches.sort((a, b) => a.pos - b.pos);
+
+            matches.forEach(({ build }) => {
+                const info = build();
+                steps.push({
+                    id: nextId(),
+                    keyword: info.action.includes('Assert') ? 'Then' : (steps.length === 0 ? 'Given' : 'When'),
+                    description: info.desc,
+                    action: info.action,
+                    locator: info.locator,
+                    input: info.input,
+                    condition: 'Equals',
+                    expected: '',
+                });
+            });
+
+            if (!steps.length) { showToast('無法從貼入的內容解析出任何 Appium 操作', 'error'); return; }
+            recLastSteps = steps;
+            recRenderPreview();
+            showToast(`已解析出 ${steps.length} 個 Mobile.* 步驟`, 'success');
+        }
+
+        // By.XXX + value → AppiumLibrary 慣用 locator（id=, xpath=, accessibility_id=, class=, name=）
+        function toAppiumLocator(by, value) {
+            const key = (by || '').toUpperCase();
+            if (key === 'ID') return `id=${value}`;
+            if (key === 'XPATH') return `xpath=${value}`;
+            if (key === 'ACCESSIBILITY_ID' || key === 'ACCESSIBILITYID') return `accessibility_id=${value}`;
+            if (key === 'CLASS_NAME' || key === 'CLASSNAME') return `class=${value}`;
+            if (key === 'NAME') return `name=${value}`;
+            if (key === 'ANDROID_UIAUTOMATOR') return `android=${value}`;
+            if (key === 'IOS_PREDICATE' || key === 'IOS_CLASS_CHAIN') return `ios=${value}`;
+            return `${by.toLowerCase()}=${value}`;
         }
 
         function recDownloadTrace() {
