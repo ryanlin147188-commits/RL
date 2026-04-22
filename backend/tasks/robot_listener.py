@@ -69,7 +69,10 @@ class RTListener:
         if idx not in self._buffer:
             self._buffer[idx] = {
                 "step_index": idx,
-                "status": "PASSED",
+                # 預設 SKIPPED；只有實際執行過 action keyword 才會升級為 PASSED/FAILED。
+                # 這樣前一步 FAIL 後 RF 仍會 fire start/end_keyword（status=NOT RUN）給 listener，
+                # 我們不會把那些步驟錯誤標成 PASSED。
+                "status": "SKIPPED",
                 "duration_ms": 0,
                 "error": None,
                 "pre": None,
@@ -84,9 +87,14 @@ class RTListener:
         self._publish("INFO", f"📁 Suite 開始: {data.name}")
 
     def start_test(self, data, result):
+        # 進入新 test：重置 step 游標，避免上一個 test 的尾段事件污染
+        self._current_idx = None
         self._publish("INFO", f"  ▶ Test: {data.name}")
 
     def end_test(self, data, result):
+        # test 結束後 [Teardown] 的 keyword 仍會 fire；要立刻關掉游標，
+        # 否則 teardown 內的 PASS 會被誤算到最後一個 step 上（升級 SKIPPED→PASSED）。
+        self._current_idx = None
         if result.passed:
             self._publish("INFO", f"  ✅ Test PASSED: {data.name}")
         else:
@@ -96,6 +104,13 @@ class RTListener:
         # 檢查是不是 step marker
         kw_name = (data.name or "").strip()
         args = list(data.args or [])
+
+        # 偵測 teardown 入口 → 立刻關掉 step 游標
+        # （否則 teardown 內 PASS 的 keyword 會被誤算到最後一個 step）
+        bare = kw_name.split(".")[-1].strip().lower()
+        if bare in {"teardown browser session", "close browser"}:
+            self._current_idx = None
+            return
 
         if kw_name == "Log" and args and isinstance(args[0], str) and args[0].startswith(_STEP_MARKER_PREFIX):
             try:
@@ -128,8 +143,21 @@ class RTListener:
                 pass
             return
 
-        # 真正的 action keyword（非 marker / 非截圖）
+        # ── 過濾掉非「真正 action」的 keyword ──────────────
+        # marker
         if kw_name == "Log":
+            return
+        # instrumentation（截圖/紅框）以及外層的 Run Keyword And Ignore Error
+        # （RKAIE 永遠 PASS，會誤升級 SKIPPED → PASSED）
+        bare_name = kw_name.split(".")[-1].strip().lower()
+        if bare_name in {
+            "highlight elements",
+            "take screenshot",
+            "run keyword and ignore error",
+            "run keyword and return status",
+            "run keyword and continue on failure",
+            "run keyword and expect error",
+        }:
             return
 
         # 累計動作 keyword 的耗時與狀態
@@ -142,9 +170,15 @@ class RTListener:
                 dur = 0
         buf["_action_dur"] += dur
 
-        if result.status == "FAIL":
+        status = (result.status or "").upper()
+        if status == "FAIL":
             buf["status"] = "FAILED"
             buf["error"] = result.message or kw_name
+        elif status == "PASS":
+            # 只有 FAILED 不會被覆蓋；SKIPPED 升級為 PASSED
+            if buf["status"] != "FAILED":
+                buf["status"] = "PASSED"
+        # status == "NOT RUN" / "SKIP" 等：保留現狀（預設 SKIPPED）
 
     def log_message(self, msg):
         # 把 INFO 以上層級的 log 推給前端

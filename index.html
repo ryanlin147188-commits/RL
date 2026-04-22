@@ -8,6 +8,10 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <!-- 引入 Chart.js 以繪製測試報告圖表 -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Chart.js 數值標籤外掛：在長條圖每段上顯示 pass/fail 數字 -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+    <!-- 匯出 PDF：直接把 DOM 轉成 PDF 檔下載（無需開列印對話框） -->
+    <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -68,6 +72,80 @@
             min-width: 200px;
             max-width: 600px;
         }
+
+        /* ─── 列印（匯出 PDF）樣式 ────────────────────────────────
+           只列印「執行報告詳細記錄」區塊；
+           其他畫面（側邊欄、Header、Toast、編輯按鈕…）一律隱藏。 */
+        @media print {
+            @page { size: A4; margin: 12mm; }
+            html, body {
+                background: #ffffff !important;
+                overflow: visible !important;
+                height: auto !important;
+            }
+            body * { visibility: hidden !important; }
+            body.printing-report #detailReportWorkspace,
+            body.printing-report #detailReportWorkspace * {
+                visibility: visible !important;
+            }
+            body.printing-report #detailReportWorkspace {
+                position: static !important;
+                inset: auto !important;
+                display: block !important;
+                width: 100% !important;
+                box-shadow: none !important;
+                border: none !important;
+            }
+            /* 詳細報告內部左右分割改為上下垂直堆疊，避免左欄被切掉 */
+            body.printing-report #detailReportWorkspace .flex,
+            body.printing-report #detailReportWorkspace .flex-1 {
+                display: block !important;
+                overflow: visible !important;
+                height: auto !important;
+                max-height: none !important;
+            }
+            body.printing-report #detailReportWorkspace .w-1\/3,
+            body.printing-report #detailReportWorkspace .max-w-\[400px\] {
+                width: 100% !important;
+                max-width: 100% !important;
+                border-right: none !important;
+                border-bottom: 1px solid #e2e8f0 !important;
+            }
+            /* 隱藏不該列印的控制按鈕 */
+            .no-print { display: none !important; }
+            /* 截圖避免被切半 */
+            img, .step-card, tr { break-inside: avoid; page-break-inside: avoid; }
+        }
+
+        /* ─── html2pdf 匯出版面 ────────────────────────────────
+           html2pdf 是用 html2canvas 在「現在的畫面」截圖，
+           所以詳細報告區的 absolute / overflow:hidden 會讓內容截不全；
+           匯出時暫時把它變回正常 block 並上下排列。 */
+        body.exporting-pdf #detailReportWorkspace {
+            position: static !important;
+            inset: auto !important;
+            display: block !important;
+            width: 100% !important;
+            height: auto !important;
+            background: #ffffff !important;
+        }
+        body.exporting-pdf #detailReportWorkspace .overflow-hidden,
+        body.exporting-pdf #detailReportWorkspace .overflow-y-auto {
+            overflow: visible !important;
+            max-height: none !important;
+            height: auto !important;
+        }
+        body.exporting-pdf #detailReportWorkspace .flex-1 {
+            height: auto !important;
+        }
+        body.exporting-pdf #detailReportWorkspace .w-1\/3,
+        body.exporting-pdf #detailReportWorkspace .max-w-\[400px\] {
+            width: 100% !important;
+            max-width: 100% !important;
+            border-right: none !important;
+            border-bottom: 1px solid #e2e8f0 !important;
+        }
+        body.exporting-pdf .no-print { display: none !important; }
     </style>
 </head>
 <body class="h-screen flex flex-col bg-slate-50 text-slate-800 font-sans overflow-hidden relative">
@@ -132,6 +210,12 @@
                     </div>
                     <button onclick="openNodeModal(event, 'root_feature', 'add')" class="w-[38px] shrink-0 flex items-center justify-center bg-indigo-50 text-indigo-600 border border-indigo-200 rounded-md hover:bg-indigo-100 transition shadow-sm" title="新增功能至此專案">
                         <i class="fa-solid fa-plus"></i>
+                    </button>
+                    <button onclick="renameCurrentProject()" class="w-[38px] shrink-0 flex items-center justify-center bg-amber-50 text-amber-600 border border-amber-200 rounded-md hover:bg-amber-100 transition shadow-sm" title="重新命名目前專案">
+                        <i class="fa-solid fa-pen-to-square"></i>
+                    </button>
+                    <button onclick="deleteCurrentProject()" class="w-[38px] shrink-0 flex items-center justify-center bg-rose-50 text-rose-600 border border-rose-200 rounded-md hover:bg-rose-100 transition shadow-sm" title="刪除目前專案">
+                        <i class="fa-solid fa-trash"></i>
                     </button>
                 </div>
 
@@ -413,23 +497,58 @@
                 <div class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm mb-10">
                     <div class="flex items-center justify-between mb-4">
                         <h3 class="font-bold text-slate-700 flex items-center gap-2"><i class="fa-solid fa-clock-rotate-left text-slate-500"></i> 最近執行紀錄 <span class="text-xs font-normal text-slate-400 ml-2">(點擊任一列查看詳細報告與截圖)</span></h3>
-                        <button id="recentReportsToggle" onclick="toggleAllReports()" class="text-sm px-3 py-1.5 text-blue-600 hover:bg-blue-50 rounded transition font-medium">查看全部</button>
+                        <div class="flex items-center gap-2 text-sm">
+                            <button id="recentReportsDeleteBtn" onclick="deleteSelectedReports()" disabled
+                                class="px-3 py-1 bg-rose-50 text-rose-600 border border-rose-200 rounded hover:bg-rose-100 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1">
+                                <i class="fa-solid fa-trash"></i>
+                                <span>刪除</span>
+                                <span id="recentReportsSelCount" class="font-mono text-xs">(0)</span>
+                            </button>
+                            <span class="text-slate-500 ml-2">每頁</span>
+                            <select id="recentReportsPageSize" onchange="changeRecentPageSize(this.value)"
+                                class="border border-slate-200 rounded px-2 py-1 text-slate-700 focus:outline-none focus:border-blue-400">
+                                <option value="5">5</option>
+                                <option value="10" selected>10</option>
+                                <option value="20">20</option>
+                                <option value="all">全部</option>
+                            </select>
+                        </div>
                     </div>
                     <div class="border border-slate-200 rounded-md overflow-hidden">
                         <table class="w-full text-sm text-left">
                             <thead class="bg-slate-50 text-slate-600 border-b border-slate-200">
                                 <tr>
+                                    <th class="p-3 w-10 text-center">
+                                        <input type="checkbox" id="recentReportsSelectAll" onchange="toggleSelectAllReports(this.checked)"
+                                            class="cursor-pointer accent-blue-600">
+                                    </th>
                                     <th class="p-3 font-medium">執行時間</th>
                                     <th class="p-3 font-medium">專案名稱</th>
                                     <th class="p-3 font-medium">觸發者</th>
-                                    <th class="p-3 font-medium text-center">結果狀態</th>
+                                    <th class="p-3 font-medium text-center">成功 / 失敗</th>
+                                    <th class="p-3 font-medium text-center">測試結果</th>
                                     <th class="p-3 font-medium text-right">執行耗時</th>
                                 </tr>
                             </thead>
-                            <tbody id="recentReportsBody" class="divide-y divide-slate-100 cursor-pointer">
-                                <tr><td colspan="5" class="p-6 text-center text-slate-400 text-sm">尚無執行紀錄</td></tr>
+                            <tbody id="recentReportsBody" class="divide-y divide-slate-100">
+                                <tr><td colspan="7" class="p-6 text-center text-slate-400 text-sm">尚無執行紀錄</td></tr>
                             </tbody>
                         </table>
+                    </div>
+                    <!-- 分頁控制 -->
+                    <div class="flex items-center justify-between mt-3 text-sm text-slate-600">
+                        <span id="recentReportsInfo" class="text-slate-500">—</span>
+                        <div class="flex items-center gap-1">
+                            <button id="recentReportsPrev" onclick="changeRecentPage(-1)"
+                                class="px-3 py-1 border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed">
+                                <i class="fa-solid fa-chevron-left"></i>
+                            </button>
+                            <span id="recentReportsPageLabel" class="px-3 py-1 text-slate-500">第 1 / 1 頁</span>
+                            <button id="recentReportsNext" onclick="changeRecentPage(1)"
+                                class="px-3 py-1 border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed">
+                                <i class="fa-solid fa-chevron-right"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -439,7 +558,7 @@
                 <!-- 詳細報告 Header -->
                 <div class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 shrink-0 shadow-sm z-10">
                     <div class="flex items-center gap-4">
-                        <button onclick="backToDashboard()" aria-label="返回測試報告儀表板" class="text-slate-500 hover:text-blue-600 bg-slate-100 hover:bg-blue-50 w-8 h-8 rounded-full flex items-center justify-center transition">
+                        <button onclick="backToDashboard()" aria-label="返回測試報告儀表板" class="no-print text-slate-500 hover:text-blue-600 bg-slate-100 hover:bg-blue-50 w-8 h-8 rounded-full flex items-center justify-center transition">
                             <i class="fa-solid fa-arrow-left"></i>
                         </button>
                         <div class="h-6 w-px bg-slate-200"></div>
@@ -454,8 +573,12 @@
                             <p class="text-sm font-mono font-medium text-slate-700" id="detailReportDuration">00:01:12</p>
                         </div>
                         <span id="detailReportStatusBadge" class="bg-red-100 text-red-700 border border-red-200 px-3 py-1 rounded text-sm font-bold shadow-sm">Failed</span>
+                        <!-- 匯出 PDF -->
+                        <button onclick="exportReportPdf()" class="ml-2 no-print text-sm px-3 py-1.5 bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 rounded transition font-medium flex items-center gap-2 shadow-sm">
+                            <i class="fa-solid fa-file-pdf"></i> 匯出 PDF
+                        </button>
                         <!-- 新增：返回編輯案例按鈕 -->
-                        <button onclick="goToTestCaseFromReport()" class="ml-2 text-sm px-3 py-1.5 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded transition font-medium flex items-center gap-2 shadow-sm">
+                        <button onclick="goToTestCaseFromReport()" class="ml-2 no-print text-sm px-3 py-1.5 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded transition font-medium flex items-center gap-2 shadow-sm">
                             <i class="fa-solid fa-pen-to-square"></i> 編輯此案例
                         </button>
                     </div>
@@ -1107,8 +1230,10 @@
         // 保留 Chart 實例以便每次切回 Dashboard 時 update() 而非重建
         let statusChartInst = null;
         let trendChartInst = null;
-        // 「最近執行紀錄」顯示模式：false=僅 10 筆，true=最近 100 筆
-        let recentReportsShowAll = false;
+        // 「最近執行紀錄」分頁狀態
+        let recentReportsPage = 1;          // 目前頁碼（從 1 開始）
+        let recentReportsPageSize = 10;     // 每頁筆數，'all' 視為一次全部
+        let recentReportsTotal = 0;         // 後端回傳總筆數
 
         // 後端 created_at 由 datetime.utcnow() 產生，是不帶時區的 naive UTC
         // 字串（例：'2026-04-21T08:46:18'）。直接丟給 new Date() 會被當成
@@ -1125,24 +1250,55 @@
             return d && !isNaN(d) ? d.toLocaleString('zh-TW', { hour12: false }) : '—';
         }
 
-        // 「查看全部 / 顯示較少」按鈕
-        function toggleAllReports() {
-            recentReportsShowAll = !recentReportsShowAll;
-            const btn = document.getElementById('recentReportsToggle');
-            if (btn) btn.textContent = recentReportsShowAll ? '顯示較少' : '查看全部';
+        // 「最近執行紀錄」分頁切換
+        function changeRecentPageSize(value) {
+            recentReportsPageSize = value === 'all' ? 'all' : parseInt(value, 10) || 10;
+            recentReportsPage = 1;
             refreshRecentReports();
+        }
+
+        function changeRecentPage(delta) {
+            const totalPages = computeRecentTotalPages();
+            const next = Math.min(Math.max(1, recentReportsPage + delta), totalPages);
+            if (next === recentReportsPage) return;
+            recentReportsPage = next;
+            refreshRecentReports();
+        }
+
+        function computeRecentTotalPages() {
+            if (recentReportsPageSize === 'all') return 1;
+            return Math.max(1, Math.ceil(recentReportsTotal / recentReportsPageSize));
         }
 
         async function refreshRecentReports() {
             if (!currentProjectId) return;
             const pid = encodeURIComponent(currentProjectId);
-            const limit = recentReportsShowAll ? 100 : 10;
+            // 「全部」模式以一次大 limit 取代分頁；後端 /api/reports limit 上限 100
+            const isAll = recentReportsPageSize === 'all';
+            const page = isAll ? 1 : recentReportsPage;
+            const limit = isAll ? 100 : recentReportsPageSize;
             try {
-                const list = await apiFetch(`/api/reports?project_id=${pid}&page=1&limit=${limit}`);
+                const list = await apiFetch(`/api/reports?project_id=${pid}&page=${page}&limit=${limit}`);
+                recentReportsTotal = list.total || (list.items || []).length;
                 renderRecentReports(list.items || []);
+                updateRecentPagination(list.items || []);
             } catch (e) {
+                recentReportsTotal = 0;
                 renderRecentReports([]);
+                updateRecentPagination([]);
             }
+        }
+
+        function updateRecentPagination(items) {
+            const info = document.getElementById('recentReportsInfo');
+            const label = document.getElementById('recentReportsPageLabel');
+            const prev = document.getElementById('recentReportsPrev');
+            const next = document.getElementById('recentReportsNext');
+            const totalPages = computeRecentTotalPages();
+            if (info) info.textContent = `共 ${recentReportsTotal} 筆，本頁顯示 ${items.length} 筆`;
+            if (label) label.textContent = `第 ${recentReportsPage} / ${totalPages} 頁`;
+            if (prev) prev.disabled = recentReportsPage <= 1 || recentReportsPageSize === 'all';
+            if (next) next.disabled = recentReportsPage >= totalPages || recentReportsPageSize === 'all';
         }
 
         function showReportView() {
@@ -1184,7 +1340,26 @@
                             { label: 'Failed', data: [], backgroundColor: '#ef4444' }
                         ]
                     },
-                    options: { responsive: true, maintainAspectRatio: false, scales: { x: { stacked: true }, y: { stacked: true } } }
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: { x: { stacked: true }, y: { stacked: true, ticks: { precision: 0 } } },
+                        plugins: {
+                            legend: { position: 'top' },
+                            tooltip: {
+                                callbacks: {
+                                    label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y}`,
+                                },
+                            },
+                            // 在每段長條上顯示對應的 pass / fail 數字
+                            datalabels: {
+                                color: '#ffffff',
+                                font: { weight: 'bold', size: 12 },
+                                formatter: (v) => (v > 0 ? v : ''),
+                            },
+                        },
+                    },
+                    plugins: window.ChartDataLabels ? [window.ChartDataLabels] : [],
                 });
             }
         }
@@ -1195,16 +1370,19 @@
             const pid = encodeURIComponent(currentProjectId);
 
             // 三個請求並行送出；任何一個失敗不影響其他的更新
-            const reportsLimit = recentReportsShowAll ? 100 : 10;
+            const isAll = recentReportsPageSize === 'all';
+            const page = isAll ? 1 : recentReportsPage;
+            const reportsLimit = isAll ? 100 : recentReportsPageSize;
             const [metricsRes, chartsRes, listRes] = await Promise.allSettled([
                 apiFetch(`/api/dashboard/metrics?project_id=${pid}`),
                 apiFetch(`/api/dashboard/charts?project_id=${pid}`),
-                apiFetch(`/api/reports?project_id=${pid}&page=1&limit=${reportsLimit}`),
+                apiFetch(`/api/reports?project_id=${pid}&page=${page}&limit=${reportsLimit}`),
             ]);
 
             const metrics = metricsRes.status === 'fulfilled' ? metricsRes.value : null;
             const charts = chartsRes.status === 'fulfilled' ? chartsRes.value : null;
-            const list = listRes.status === 'fulfilled' ? listRes.value : { items: [] };
+            const list = listRes.status === 'fulfilled' ? listRes.value : { items: [], total: 0 };
+            recentReportsTotal = list.total ?? (list.items || []).length;
 
             // ── 5 張統計卡 ─────────────────────────────────────
             // 所有 case 計數都從 charts.status_summary 推導，確保自洽：
@@ -1254,31 +1432,105 @@
 
             // ── 最近執行紀錄表 ──────────────────────────────────
             renderRecentReports(list.items || []);
+            updateRecentPagination(list.items || []);
         }
+
+        // 已勾選的報告 id 集合（跨分頁不保留：切換頁面或刷新時清空）
+        let selectedReportIds = new Set();
 
         function renderRecentReports(items) {
             const tbody = document.getElementById('recentReportsBody');
             if (!tbody) return;
+            // 重新渲染前同步勾選狀態：移除已不在當前頁的選擇
+            const currentIds = new Set(items.map(r => r.id));
+            selectedReportIds.forEach(id => { if (!currentIds.has(id)) selectedReportIds.delete(id); });
+
             if (!items.length) {
-                tbody.innerHTML = '<tr><td colspan="5" class="p-6 text-center text-slate-400 text-sm">尚無執行紀錄</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-slate-400 text-sm">尚無執行紀錄</td></tr>';
+                updateReportSelectionUI(items);
                 return;
             }
             const projName = projectsData[currentProjectId]?.name || '';
             tbody.innerHTML = items.map(r => {
                 const when = formatBackendTime(r.created_at);
                 const dur = r.duration_ms != null ? (r.duration_ms / 1000).toFixed(2) + 's' : '—';
-                const statusCls = r.status === 'PASSED'
-                    ? 'bg-green-100 text-green-700'
-                    : (r.status === 'FAILED' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700');
+                const passed = r.passed_steps ?? 0;
+                const failed = r.failed_steps ?? 0;
+                const checked = selectedReportIds.has(r.id) ? 'checked' : '';
+                const idEsc = escapeHtml(r.id);
                 return `
-                    <tr class="hover:bg-slate-50 transition" onclick="viewReport('${r.id}')">
-                        <td class="p-3 text-slate-600 font-mono text-xs">${when}</td>
-                        <td class="p-3 text-slate-700">${projName || (r.project_id || '').slice(0, 8)}</td>
-                        <td class="p-3 text-slate-500">${r.trigger_type || 'Manual'}</td>
-                        <td class="p-3 text-center"><span class="${statusCls} px-2 py-0.5 rounded text-xs font-bold">${r.status}</span></td>
-                        <td class="p-3 text-right text-slate-600 font-mono text-xs">${dur}</td>
+                    <tr class="hover:bg-slate-50 transition" data-report-id="${idEsc}">
+                        <td class="p-3 text-center" onclick="event.stopPropagation()">
+                            <input type="checkbox" class="report-row-check cursor-pointer accent-blue-600"
+                                value="${idEsc}" ${checked} onchange="toggleReportSelected('${idEsc}', this.checked)">
+                        </td>
+                        <td class="p-3 text-slate-600 font-mono text-xs cursor-pointer" onclick="viewReport('${idEsc}')">${when}</td>
+                        <td class="p-3 text-slate-700 cursor-pointer" onclick="viewReport('${idEsc}')">${escapeHtml(projName || (r.project_id || '').slice(0, 8))}</td>
+                        <td class="p-3 text-slate-500 cursor-pointer" onclick="viewReport('${idEsc}')">${escapeHtml(r.trigger_type || 'Manual')}</td>
+                        <td class="p-3 text-center cursor-pointer font-mono text-xs" onclick="viewReport('${idEsc}')">
+                            <span class="bg-green-100 text-green-700 px-2 py-0.5 rounded font-bold">${passed}</span>
+                            <span class="text-slate-300 mx-1">/</span>
+                            <span class="bg-red-100 text-red-700 px-2 py-0.5 rounded font-bold">${failed}</span>
+                        </td>
+                        <td class="p-3 text-center cursor-pointer" onclick="viewReport('${idEsc}')">
+                            ${(failed === 0 && passed > 0)
+                                ? '<span class="bg-green-100 text-green-700 border border-green-200 px-2 py-0.5 rounded text-xs font-bold">PASS</span>'
+                                : '<span class="bg-red-100 text-red-700 border border-red-200 px-2 py-0.5 rounded text-xs font-bold">FAIL</span>'}
+                        </td>
+                        <td class="p-3 text-right text-slate-600 font-mono text-xs cursor-pointer" onclick="viewReport('${idEsc}')">${dur}</td>
                     </tr>`;
             }).join('');
+            updateReportSelectionUI(items);
+        }
+
+        function toggleReportSelected(id, checked) {
+            if (checked) selectedReportIds.add(id); else selectedReportIds.delete(id);
+            updateReportSelectionUI();
+        }
+
+        function toggleSelectAllReports(checked) {
+            document.querySelectorAll('#recentReportsBody .report-row-check').forEach(cb => {
+                cb.checked = checked;
+                if (checked) selectedReportIds.add(cb.value); else selectedReportIds.delete(cb.value);
+            });
+            updateReportSelectionUI();
+        }
+
+        function updateReportSelectionUI(items) {
+            const rowsCount = document.querySelectorAll('#recentReportsBody .report-row-check').length;
+            const selectedInPage = document.querySelectorAll('#recentReportsBody .report-row-check:checked').length;
+            const selectAll = document.getElementById('recentReportsSelectAll');
+            if (selectAll) {
+                selectAll.checked = rowsCount > 0 && selectedInPage === rowsCount;
+                selectAll.indeterminate = selectedInPage > 0 && selectedInPage < rowsCount;
+            }
+            const btn = document.getElementById('recentReportsDeleteBtn');
+            const cnt = document.getElementById('recentReportsSelCount');
+            if (cnt) cnt.textContent = `(${selectedReportIds.size})`;
+            if (btn) btn.disabled = selectedReportIds.size === 0;
+        }
+
+        async function deleteSelectedReports() {
+            if (!selectedReportIds.size) return;
+            const ids = Array.from(selectedReportIds);
+            if (!confirm(`確定要刪除選取的 ${ids.length} 筆執行報告？\n此動作無法復原。`)) return;
+            try {
+                const res = await apiFetch('/api/reports/delete-batch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids }),
+                });
+                showToast(`已刪除 ${res.deleted} 筆執行報告`, 'success');
+                selectedReportIds.clear();
+                // 重新整理列表（並重抓 metrics/charts）
+                if (typeof refreshDashboard === 'function') {
+                    await refreshDashboard();
+                } else {
+                    await refreshRecentReports();
+                }
+            } catch (e) {
+                showToast('刪除失敗：' + (e?.message || e), 'error');
+            }
         }
 
         // ==================== 4. 詳細報告畫面 ====================
@@ -1286,11 +1538,13 @@
         const mockReportData = {};
 
         let currentReportContext = { projectId: null, testCaseId: null };
+        let currentReportId = null;
 
         function showDetailReport(reportId) {
             const report = mockReportData[reportId];
             if (!report) { showToast('尚未串接後端 /api/reports/{reportId}/details', 'error'); return; }
 
+            currentReportId = reportId;
             currentReportContext.projectId = report.projectId;
             currentReportContext.testCaseId = report.testCaseId;
 
@@ -1462,6 +1716,220 @@
             document.getElementById('mainHeader').classList.remove('hidden');
         }
 
+        // 匯出目前的「執行報告詳細記錄」為 PDF 檔（直接下載，不使用列印對話框）。
+        // 為了在 PDF 中顯示「完整頁面內容」並「展開全部案例與步驟」，
+        // 我們不直接截 #detailReportWorkspace（它是左右分割且只顯示當前選中的步驟），
+        // 改為依 mockReportData[currentReportId] 自行渲染一份「線性、全展開」的 DOM
+        // 放到一個離屏容器，再由 html2pdf 截圖輸出。
+        async function exportReportPdf() {
+            if (typeof html2pdf === 'undefined') {
+                showToast('PDF 匯出元件尚未載入，請稍候再試', 'error');
+                return;
+            }
+            const report = currentReportId ? mockReportData[currentReportId] : null;
+            if (!report) {
+                showToast('請先開啟一份執行報告再匯出', 'error');
+                return;
+            }
+
+            const safeName = (report.title || '執行報告').replace(/[\\/:*?"<>|]+/g, '_');
+            const filename = `${safeName}_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.pdf`;
+
+            // 半透明 backdrop + loading 提示（蓋在使用者畫面上，避免使用者誤點）
+            const backdrop = document.createElement('div');
+            backdrop.style.cssText = 'position:fixed; inset:0; background:rgba(15,23,42,0.55); z-index:99998; display:flex; align-items:center; justify-content:center; color:#fff; font-size:14px; font-weight:600;';
+            backdrop.innerHTML = '<div style="background:#1e293b; padding:16px 24px; border-radius:8px;">PDF 匯出中，請稍候…</div>';
+            document.body.appendChild(backdrop);
+
+            const container = buildPdfReportDom(report);
+            document.body.appendChild(container);
+            // 等圖片載入完，避免 html2canvas 截到空白
+            await waitForImages(container, 8000);
+            // 把所有 <img> 轉成 data:URL，避免 html2canvas 因跨網域圖片而 taint canvas → 整頁空白
+            await inlineImagesAsDataUrl(container);
+            // 等 layout 真的算好（否則 html2canvas 拿到的 height 可能是 0）
+            await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+            try {
+                await html2pdf()
+                    .from(container)
+                    .set({
+                        margin: [10, 10, 10, 10],
+                        filename,
+                        image: { type: 'jpeg', quality: 0.92 },
+                        html2canvas: {
+                            scale: 2,
+                            useCORS: true,
+                            backgroundColor: '#ffffff',
+                            windowWidth: 1040,
+                            // 用元素自身完整高度而非 viewport
+                            height: container.scrollHeight,
+                            windowHeight: container.scrollHeight,
+                        },
+                        jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
+                        pagebreak: { mode: ['css', 'legacy'], avoid: ['.pdf-step', '.pdf-case-header', 'img'] },
+                    })
+                    .save();
+                showToast('PDF 匯出完成', 'success');
+            } catch (e) {
+                showToast('PDF 匯出失敗：' + (e?.message || e), 'error');
+            } finally {
+                container.remove();
+                backdrop.remove();
+            }
+        }
+
+        // 等待容器內所有 <img> 載入完成（或失敗），上限 timeout 毫秒。
+        function waitForImages(root, timeout = 5000) {
+            const imgs = Array.from(root.querySelectorAll('img'));
+            if (!imgs.length) return Promise.resolve();
+            return new Promise((resolve) => {
+                let done = 0;
+                const tick = () => { done++; if (done >= imgs.length) resolve(); };
+                imgs.forEach(img => {
+                    if (img.complete) tick();
+                    else { img.addEventListener('load', tick); img.addEventListener('error', tick); }
+                });
+                setTimeout(resolve, timeout);
+            });
+        }
+
+        // 把容器內所有 <img> 的 src 透過 fetch 抓回 → 轉為 data:URL，
+        // 避免 html2canvas 因跨網域圖片導致 canvas 被 taint，整頁輸出空白。
+        async function inlineImagesAsDataUrl(root) {
+            const imgs = Array.from(root.querySelectorAll('img'));
+            await Promise.all(imgs.map(async (img) => {
+                const src = img.getAttribute('src');
+                if (!src || src.startsWith('data:')) return;
+                try {
+                    const resp = await fetch(src, { credentials: 'same-origin' });
+                    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                    const blob = await resp.blob();
+                    const dataUrl = await new Promise((resolve, reject) => {
+                        const fr = new FileReader();
+                        fr.onload = () => resolve(fr.result);
+                        fr.onerror = reject;
+                        fr.readAsDataURL(blob);
+                    });
+                    img.removeAttribute('crossorigin');
+                    img.src = dataUrl;
+                } catch (e) {
+                    // 載入失敗就移除 <img>，避免整頁渲染失敗
+                    img.replaceWith(Object.assign(document.createElement('div'), {
+                        className: 'pdf-img-fail',
+                        textContent: '（截圖載入失敗）',
+                        style: 'font-size:10px; color:#94a3b8; padding:8px; text-align:center;',
+                    }));
+                }
+            }));
+        }
+
+        // 依 report 物件渲染一份完整、線性、全展開的報告 DOM。
+        function buildPdfReportDom(report) {
+            const wrap = document.createElement('div');
+            wrap.id = 'pdfReportContainer';
+            // 可見地擺在最頂層渲染（html2canvas 對 left:-99999px 的元素常常截不到 →
+            // 結果會是空白 PDF）。為了不干擾使用者，外層再加一個 backdrop 遮住，
+            // 等匯出完成再一起移除。
+            wrap.style.cssText = 'position:absolute; left:0; top:0; width:1040px; box-sizing:border-box; overflow:hidden; word-break:break-word; overflow-wrap:anywhere; background:#ffffff; padding:20px; font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif; color:#1e293b; z-index:99999; box-shadow:0 0 40px rgba(0,0,0,0.3);';
+
+            const statusColor = report.status === 'Passed' ? '#16a34a' : '#dc2626';
+            const statusBg = report.status === 'Passed' ? '#dcfce7' : '#fee2e2';
+
+            const header = `
+                <div style="border-bottom:2px solid #e2e8f0; padding-bottom:12px; margin-bottom:20px;">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                        <div>
+                            <h1 style="font-size:22px; font-weight:700; margin:0 0 6px 0;">${escapeHtml(report.title || '執行報告')}</h1>
+                            <div style="font-size:12px; color:#64748b;">${escapeHtml(report.time || '')} ｜ 觸發者: 自動化排程</div>
+                        </div>
+                        <div style="text-align:right;">
+                            <div style="font-size:11px; color:#94a3b8;">總耗時</div>
+                            <div style="font-size:14px; font-family:monospace; margin-bottom:6px;">${escapeHtml(report.duration || '—')}</div>
+                            <span style="background:${statusBg}; color:${statusColor}; padding:4px 10px; border-radius:4px; font-weight:700; font-size:13px;">${escapeHtml(report.status || '')}</span>
+                        </div>
+                    </div>
+                </div>`;
+
+            const casesHtml = (report.cases || []).map(c => {
+                const stepsHtml = (c.steps || []).map((s, i) => buildPdfStepHtml(s, i + 1)).join('');
+                return `
+                    <div class="pdf-case" style="margin-bottom:24px;">
+                        <div class="pdf-case-header" style="background:#f1f5f9; padding:10px 14px; border-left:4px solid #3b82f6; font-weight:700; font-size:14px; margin-bottom:12px;">
+                            ${escapeHtml(c.name || '—')} <span style="font-weight:400; color:#64748b; font-size:12px;">（共 ${(c.steps || []).length} 步驟）</span>
+                        </div>
+                        ${stepsHtml || '<div style="color:#94a3b8; font-size:12px;">無步驟</div>'}
+                    </div>`;
+            }).join('');
+
+            wrap.innerHTML = header + casesHtml;
+            return wrap;
+        }
+
+        function buildPdfStepHtml(step, num) {
+            const isPass = step.status === 'Passed';
+            const sColor = isPass ? '#16a34a' : '#dc2626';
+            const sBg = isPass ? '#dcfce7' : '#fee2e2';
+            const sIcon = isPass ? '✓' : '✗';
+
+            const screenshots = (!step.isAPI && (step.preScreenshotUrl || step.postScreenshotUrl)) ? `
+                <div style="display:flex; gap:10px; margin-top:10px;">
+                    ${step.preScreenshotUrl ? `
+                        <div style="flex:1; border:1px solid #e2e8f0; border-radius:4px; padding:6px;">
+                            <div style="font-size:10px; color:#64748b; margin-bottom:4px;">動作前 (Pre-Action)</div>
+                            <img src="${step.preScreenshotUrl}" style="max-width:100%; max-height:280px; display:block; margin:auto;" crossorigin="anonymous">
+                        </div>` : ''}
+                    ${step.postScreenshotUrl ? `
+                        <div style="flex:1; border:1px solid #e2e8f0; border-radius:4px; padding:6px;">
+                            <div style="font-size:10px; color:#64748b; margin-bottom:4px;">動作後 (Post-Action)</div>
+                            <img src="${step.postScreenshotUrl}" style="max-width:100%; max-height:280px; display:block; margin:auto;" crossorigin="anonymous">
+                        </div>` : ''}
+                </div>` : '';
+
+            const apiBlock = step.isAPI ? `
+                <div style="margin-top:8px; display:flex; gap:10px;">
+                    <div style="flex:1;">
+                        <div style="font-size:10px; color:#64748b; margin-bottom:2px;">Request</div>
+                        <pre style="background:#0f172a; color:#86efac; padding:8px; border-radius:4px; font-size:10px; max-height:220px; overflow:hidden; white-space:pre-wrap; word-break:break-all;">${escapeHtml(step.reqJson ? JSON.stringify(step.reqJson, null, 2) : '—')}</pre>
+                    </div>
+                    <div style="flex:1;">
+                        <div style="font-size:10px; color:#64748b; margin-bottom:2px;">Response</div>
+                        <pre style="background:#0f172a; color:#93c5fd; padding:8px; border-radius:4px; font-size:10px; max-height:220px; overflow:hidden; white-space:pre-wrap; word-break:break-all;">${escapeHtml(step.resJson ? JSON.stringify(step.resJson, null, 2) : '—')}</pre>
+                    </div>
+                </div>` : '';
+
+            const errBlock = (!isPass && step.errorMsg) ? `
+                <div style="margin-top:8px; background:#fef2f2; border-left:3px solid #ef4444; padding:8px; border-radius:3px;">
+                    <div style="font-size:10px; color:#991b1b; font-weight:700; margin-bottom:2px;">Error Message</div>
+                    <div style="font-family:monospace; font-size:11px; color:#b91c1c; word-break:break-all;">${escapeHtml(step.errorMsg)}</div>
+                </div>` : '';
+
+            return `
+                <div class="pdf-step" style="border:1px solid #e2e8f0; border-radius:6px; padding:12px; margin-bottom:10px; background:#ffffff; page-break-inside:avoid; box-sizing:border-box; overflow:hidden;">
+                    <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px; min-width:0;">
+                        <span style="display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; flex-shrink:0; border-radius:50%; background:${sBg}; color:${sColor}; font-weight:700; font-size:12px;">${sIcon}</span>
+                        <span style="background:#f1f5f9; color:#475569; padding:1px 6px; border-radius:3px; font-size:10px; font-weight:700; flex-shrink:0;">${escapeHtml(step.bdd || '')}</span>
+                        <span style="font-weight:700; font-size:13px; flex:1; min-width:0; word-break:break-all; overflow-wrap:anywhere;">${num}. ${escapeHtml(step.desc || '')}</span>
+                        <span style="background:${sBg}; color:${sColor}; padding:2px 8px; border-radius:3px; font-size:11px; font-weight:700; flex-shrink:0;">${escapeHtml(step.status || '')}</span>
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 16px; font-size:11px; padding-left:28px;">
+                        <div><span style="color:#94a3b8;">Action：</span><span style="font-family:monospace; color:#1d4ed8;">${escapeHtml(step.action || '—')}</span></div>
+                        <div><span style="color:#94a3b8;">耗時：</span><span style="font-family:monospace;">${escapeHtml(step.duration || '—')}</span></div>
+                        <div style="grid-column:1 / -1;"><span style="color:#94a3b8;">Locator：</span><span style="font-family:monospace; word-break:break-all;">${escapeHtml(step.loc || '(Empty)')}</span></div>
+                        <div style="grid-column:1 / -1;"><span style="color:#94a3b8;">Input：</span><span style="font-family:monospace; word-break:break-all;">${escapeHtml(step.input || '(Empty)')}</span></div>
+                    </div>
+                    ${errBlock}
+                    ${apiBlock}
+                    ${screenshots}
+                </div>`;
+        }
+
+        function escapeHtml(v) {
+            return (v === null || v === undefined ? '' : String(v))
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+
         async function goToTestCaseFromReport() {
             if (!(currentReportContext.projectId && currentReportContext.testCaseId)) {
                 showToast('無法找到關聯的測試案例', 'error');
@@ -1484,15 +1952,26 @@
         // ==================== 5. 樹狀目錄功能（全部串接後端）====================
 
         // ---- 後端節點 level_type -> 前端 title/icon/isFile ----
+        // SCENARIO 子節點固定排序：正向 → 反向 → 邊界（其他名稱排在最後，依原順序）
+        const SCENARIO_ORDER = { '正向': 0, '反向': 1, '邊界': 2 };
         function decorateNode(serverNode) {
             const lt = serverNode.level_type;
+            let children = (serverNode.children || []).map(decorateNode);
+            // 若本節點為 PAGE，其下的 SCENARIO 子節點固定按 正向/反向/邊界 排序
+            if (lt === 'PAGE') {
+                children = children.slice().sort((a, b) => {
+                    const oa = SCENARIO_ORDER[a.name] ?? 99;
+                    const ob = SCENARIO_ORDER[b.name] ?? 99;
+                    return oa - ob;
+                });
+            }
             const out = {
                 id: serverNode.id,
                 name: serverNode.name,
                 level_type: lt,
                 expanded: true,
                 isFile: false,
-                children: (serverNode.children || []).map(decorateNode),
+                children,
             };
             if (lt === 'FEATURE') {
                 out.title = '功能：' + serverNode.name;
@@ -1528,6 +2007,57 @@
             }
             if (res.status === 204) return null;
             return res.json();
+        }
+
+        // 重新命名目前選取的專案
+        async function renameCurrentProject() {
+            if (!currentProjectId) {
+                showToast('請先選擇要修改的專案', 'error');
+                return;
+            }
+            const proj = projectsData[currentProjectId];
+            const oldName = proj?.name || '';
+            const next = prompt('請輸入新的專案名稱：', oldName);
+            if (next === null) return;
+            const name = next.trim();
+            if (!name) { showToast('專案名稱不可為空', 'error'); return; }
+            if (name === oldName) return;
+            try {
+                const updated = await apiFetch(`/api/projects/${currentProjectId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name }),
+                });
+                if (projectsData[currentProjectId]) projectsData[currentProjectId].name = updated.name;
+                const sel = document.getElementById('projectSelector');
+                if (sel) {
+                    const opt = sel.querySelector(`option[value="${currentProjectId}"]`);
+                    if (opt) opt.textContent = updated.name;
+                }
+                showToast(`專案已更名為：${updated.name}`, 'success');
+            } catch (e) {
+                showToast(`更名失敗：${e.message}`, 'error');
+            }
+        }
+
+        // 刪除目前選取的專案（連同所有功能、頁面、案例、執行報告）
+        async function deleteCurrentProject() {
+            if (!currentProjectId) {
+                showToast('請先選擇要刪除的專案', 'error');
+                return;
+            }
+            const proj = projectsData[currentProjectId];
+            const name = proj?.name || currentProjectId;
+            if (!confirm(`確定要刪除專案「${name}」？\n此動作會一併刪除其底下所有功能、測試案例與執行報告，且無法復原。`)) return;
+            try {
+                await apiFetch(`/api/projects/${currentProjectId}`, { method: 'DELETE' });
+                showToast(`已刪除專案：${name}`, 'success');
+                currentProjectId = null;
+                currentTestCase = null;
+                await initProjects();
+            } catch (e) {
+                showToast(`刪除專案失敗：${e.message}`, 'error');
+            }
         }
 
         async function initProjects() {

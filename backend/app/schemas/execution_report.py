@@ -71,6 +71,9 @@ class ReportListItem(BaseModel):
     total_cases: int
     passed_cases: int
     failed_cases: int
+    # step-level 統計（不存於 ExecutionReport，由清單端點動態聚合）
+    passed_steps: int = 0
+    failed_steps: int = 0
     created_at: datetime
 
 

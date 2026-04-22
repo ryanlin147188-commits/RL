@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -96,17 +97,45 @@ async def get_charts(
         .order_by(desc(ExecutionReport.created_at))
         .limit(5)
     )
-    recent = list(reversed(recent_result.scalars().all()))
+    # 由新到舊呈現（最新的執行在最右側／最前面）
+    recent = recent_result.scalars().all()
 
-    trend = [
-        ChartDataPoint(
-            label=f"#{r.id[:6]}",          # fallback；前端優先使用 created_at 格式化
-            passed=r.passed_cases,
-            failed=r.failed_cases,
-            created_at=r.created_at,
-        )
-        for r in recent
-    ]
+    # 趨勢圖以「步驟層級」聚合 PASSED / FAILED 數，
+    # 讓部分通過的案例也能顯示綠色，而不是整支報告只看 case-level 的全紅／全綠。
+    trend: list[ChartDataPoint] = []
+    if recent:
+        step_rows = (
+            await db.execute(
+                select(
+                    ExecutionStepLog.report_id,
+                    ExecutionStepLog.status,
+                    func.count(ExecutionStepLog.id),
+                )
+                .where(ExecutionStepLog.report_id.in_([r.id for r in recent]))
+                .group_by(ExecutionStepLog.report_id, ExecutionStepLog.status)
+            )
+        ).all()
+        step_agg: dict[str, dict[str, int]] = {}
+        for rid, status, cnt in step_rows:
+            d = step_agg.setdefault(rid, {"PASSED": 0, "FAILED": 0})
+            key = getattr(status, "value", str(status))
+            if key in d:
+                d[key] += int(cnt)
+
+        for r in recent:
+            agg = step_agg.get(r.id, {"PASSED": 0, "FAILED": 0})
+            # fallback：若該報告無 step log（例如只有 case-level 結果），
+            # 退回使用 case 層級數字，避免出現空白柱。
+            passed = agg["PASSED"] or r.passed_cases
+            failed = agg["FAILED"] or r.failed_cases
+            trend.append(
+                ChartDataPoint(
+                    label=f"#{r.id[:6]}",
+                    passed=passed,
+                    failed=failed,
+                    created_at=r.created_at,
+                )
+            )
 
     return ChartsResponse(
         status_summary={"passed": int(passed_sum), "failed": int(failed_sum)},
@@ -134,11 +163,36 @@ async def list_reports(
         .limit(limit)
     )
     items = result.scalars().all()
+
+    # 補上 step-level 統計（passed_steps / failed_steps），給前端列表顯示
+    item_dicts: list[dict] = []
+    if items:
+        report_ids = [r.id for r in items]
+        step_rows = (
+            await db.execute(
+                select(
+                    ExecutionStepLog.report_id,
+                    ExecutionStepLog.status,
+                    func.count(ExecutionStepLog.id),
+                )
+                .where(ExecutionStepLog.report_id.in_(report_ids))
+                .group_by(ExecutionStepLog.report_id, ExecutionStepLog.status)
+            )
+        ).all()
+        agg: dict[str, dict[str, int]] = {}
+        for rid, st, cnt in step_rows:
+            agg.setdefault(rid, {})[str(st.value if hasattr(st, "value") else st)] = int(cnt)
+        for r in items:
+            d = ReportListItem.model_validate(r).model_dump()
+            stats = agg.get(r.id, {})
+            d["passed_steps"] = stats.get("PASSED", 0)
+            d["failed_steps"] = stats.get("FAILED", 0)
+            item_dicts.append(d)
     return PaginatedResponse(
         total=total,
         page=page,
         limit=limit,
-        items=items,
+        items=item_dicts or [ReportListItem.model_validate(r).model_dump() for r in items],
     )
 
 
@@ -171,3 +225,44 @@ async def get_report_steps(report_id: str, db: AsyncSession = Depends(get_db)):
         total_steps=len(steps),
         steps=steps,
     )
+
+
+# 16. DELETE /api/reports/{id}  刪除單筆執行報告（連同步驟明細）
+@router.delete("/reports/{report_id}", status_code=204)
+async def delete_report(report_id: str, db: AsyncSession = Depends(get_db)):
+    """刪除單筆執行報告。ExecutionStepLog 已設 cascade=delete-orphan，會一起刪除。"""
+    report = await db.get(ExecutionReport, report_id)
+    if report is None:
+        raise HTTPException(status_code=404, detail="Report not found")
+    await db.delete(report)
+    await db.commit()
+    return None
+
+
+# 17. POST /api/reports/delete-batch  批次刪除執行報告
+class BatchDeleteRequest(BaseModel):
+    ids: list[str]
+
+
+class BatchDeleteResponse(BaseModel):
+    deleted: int
+    not_found: list[str]
+
+
+@router.post("/reports/delete-batch", response_model=BatchDeleteResponse)
+async def delete_reports_batch(
+    payload: BatchDeleteRequest, db: AsyncSession = Depends(get_db)
+):
+    """批次刪除多筆執行報告。回傳實際刪除筆數與不存在的 id 清單。"""
+    if not payload.ids:
+        return BatchDeleteResponse(deleted=0, not_found=[])
+    result = await db.execute(
+        select(ExecutionReport).where(ExecutionReport.id.in_(payload.ids))
+    )
+    reports = result.scalars().all()
+    found_ids = {r.id for r in reports}
+    not_found = [i for i in payload.ids if i not in found_ids]
+    for r in reports:
+        await db.delete(r)
+    await db.commit()
+    return BatchDeleteResponse(deleted=len(reports), not_found=not_found)

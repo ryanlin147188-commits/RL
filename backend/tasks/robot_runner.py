@@ -90,6 +90,16 @@ def _rf_escape(value: str) -> str:
     return s
 
 
+def _looks_named(s: str) -> bool:
+    """檢查字串是否會被 RF 解析為 named argument（如 text=foo / css=#x）。
+
+    RF 在 named-arg 偵測階段會把任何 `name=value` 形式視為 keyword 命名參數，
+    且 .robot 來源的 `\\=` 跳脫會在此階段之前還原 → 跳脫無效。
+    解決方式是把這類值放進變數再傳遞。
+    """
+    return bool(re.match(r"^[A-Za-z_][A-Za-z0-9_-]*=", s or ""))
+
+
 # ════════════════════════════════════════════════════════════════
 # action → Robot keyword 轉譯
 # ════════════════════════════════════════════════════════════════
@@ -102,63 +112,87 @@ def _translate_step(step: dict, ctx: dict) -> list[str]:
     """
     raw_action = (step.get("action") or "").strip()
     action = raw_action.lower()
-    locator = _rf_escape(_substitute(step.get("locator") or "", ctx))
+    # 兼容兩種欄位命名：locator (舊) / loc (前端與錄製器產生)
+    raw_locator = step.get("locator") or step.get("loc") or ""
+    locator = _rf_escape(_substitute(raw_locator, ctx))
     value = _rf_escape(_substitute(step.get("input") or "", ctx))
     expected = _rf_escape(_substitute(step.get("expected") or "", ctx))
 
     def line(*parts: str) -> str:
         return "    " + "    ".join(p for p in parts)
 
+    # ── 把 named-form 的 locator / value 預先存入變數，
+    #    避免 RF 把 `text=...` / `css=...` 誤判為命名參數 ────
+    prelude: list[str] = []
+    if _looks_named(locator):
+        prelude.append(line("${LOC}=", "Set Variable", locator))
+        locator = "${LOC}"
+    if _looks_named(value):
+        prelude.append(line("${VAL}=", "Set Variable", value))
+        value = "${VAL}"
+    if _looks_named(expected):
+        prelude.append(line("${EXP}=", "Set Variable", expected))
+        expected = "${EXP}"
+
+    def out(*body: list[str] | str) -> list[str]:
+        result: list[str] = list(prelude)
+        for b in body:
+            if isinstance(b, list):
+                result.extend(b)
+            else:
+                result.append(b)
+        return result
+
     # ── Browser Library（預設）────────────────────────
     if action in ("goto", "navigate", "open"):
         target = value or expected or locator
-        return [line("Go To", target)]
+        return out(line("Go To", target))
     if action == "click":
-        return [line("Click", locator)]
+        return out(line("Click", locator))
     if action in ("doubleclick", "dblclick"):
-        return [line("Click", locator, "clickCount=2")]
+        return out(line("Click", locator, "clickCount=2"))
     if action == "rightclick":
-        return [line("Click", locator, "button=right")]
+        return out(line("Click", locator, "button=right"))
     if action in ("fill", "input"):
-        return [line("Fill Text", locator, value)]
+        return out(line("Fill Text", locator, value))
     if action == "type":
-        return [line("Type Text", locator, value)]
+        return out(line("Type Text", locator, value))
     if action == "press":
         # Browser Library 用 Keyboard Key 或 Press Keys
-        return [line("Press Keys", locator, value or "Enter")]
+        return out(line("Press Keys", locator, value or "Enter"))
     if action == "hover":
-        return [line("Hover", locator)]
+        return out(line("Hover", locator))
     if action == "check":
-        return [line("Check Checkbox", locator)]
+        return out(line("Check Checkbox", locator))
     if action == "uncheck":
-        return [line("Uncheck Checkbox", locator)]
+        return out(line("Uncheck Checkbox", locator))
     if action == "select":
-        return [line("Select Options By", locator, "value", value)]
+        return out(line("Select Options By", locator, "value", value))
     if action in ("wait", "sleep"):
         ms = value or expected or "1000"
         # Browser 用 Sleep（BuiltIn）；單位 ms
-        return [line("Sleep", f"{int(float(ms)) / 1000.0}s")]
+        return out(line("Sleep", f"{int(float(ms)) / 1000.0}s"))
     if action in ("waitforselector", "waitfor"):
-        return [line("Wait For Elements State", locator, "visible")]
+        return out(line("Wait For Elements State", locator, "visible"))
     if action in ("assertvisible", "shouldbevisible"):
-        return [line("Wait For Elements State", locator, "visible")]
+        return out(line("Wait For Elements State", locator, "visible"))
     if action in ("asserthidden", "shouldbehidden"):
-        return [line("Wait For Elements State", locator, "hidden")]
+        return out(line("Wait For Elements State", locator, "hidden"))
     if action == "asserttext":
-        return [
+        return out(
             line("${actual}=", "Get Text", locator),
             line("Should Contain", "${actual}", expected),
-        ]
+        )
     if action == "assertvalue":
-        return [
+        return out(
             line("${actual}=", "Get Property", locator, "value"),
             line("Should Be Equal As Strings", "${actual}", expected),
-        ]
+        )
     if action == "asserturl":
-        return [
+        return out(
             line("${url}=", "Get Url"),
             line("Should Contain", "${url}", expected),
-        ]
+        )
 
     # ── HTTP（RequestsLibrary）────────────────────────
     if raw_action.startswith("Http."):
@@ -166,23 +200,23 @@ def _translate_step(step: dict, ctx: dict) -> list[str]:
         # locator = url；input = body(json) 或空；expected = 預期 status code
         if method in ("GET", "DELETE"):
             kw = "GET" if method == "GET" else "DELETE"
-            return [
+            return out(
                 line(f"${{resp}}=", kw, locator, "expected_status=any"),
                 line(
                     "Should Be Equal As Strings",
                     "${resp.status_code}",
                     expected or "200",
                 ),
-            ]
+            )
         if method in ("POST", "PUT", "PATCH"):
-            return [
+            return out(
                 line(f"${{resp}}=", method, locator, f"json={value or '{}'}", "expected_status=any"),
                 line(
                     "Should Be Equal As Strings",
                     "${resp.status_code}",
                     expected or "200",
                 ),
-            ]
+            )
 
     # ── DB（DatabaseLibrary）──────────────────────────
     if raw_action == "Db.Connect":
@@ -267,6 +301,10 @@ def _build_robot_file(
     lines.append("Library    OperatingSystem")
     lines.append("Library    String")
     lines.append("")
+    # 保留 tag：讓所有 test 在 keyword 失敗後仍繼續執行剩餘步驟
+    # （測試最終狀態仍會是 FAIL，但不會中斷後續 step）
+    lines.append("Test Tags    robot:continue-on-failure")
+    lines.append("")
     lines.append("*** Keywords ***")
     lines.append("Setup Browser Session")
     lines.append(f"    New Browser    chromium    headless={'true' if headless else 'false'}")
@@ -304,9 +342,30 @@ def _build_robot_file(
                 not action_lower.startswith(("http.", "db.", "mobile."))
                 and action_lower not in ("",)
             )
+            step_locator = _rf_escape(_substitute(step.get("locator") or step.get("loc") or "", ctx))
             if is_browser:
+                # 在 pre 截圖前先把目標元素以紅框 highlight，讓截圖直接含紅框標示
+                if step_locator:
+                    if _looks_named(step_locator):
+                        lines.append(f"    ${{HL_LOC}}=    Set Variable    {step_locator}")
+                        hl_loc = "${HL_LOC}"
+                    else:
+                        hl_loc = step_locator
+                    # duration 只要夠 Take Screenshot 截到圖即可（800ms 已綽綽有餘）。
+                    # 過長（例如 10s）會讓 robotframework-browser 注入的
+                    # <div class="robotframework-browser-highlight"> 殘留在頁面上，
+                    # 下一個 Click step 會被該 overlay 攔截而 timeout。
+                    lines.append(
+                        f"    Run Keyword And Ignore Error    Highlight Elements    {hl_loc}    duration=800ms    width=3px    style=solid    color=red"
+                    )
                 lines.append(
                     f"    Run Keyword And Ignore Error    Take Screenshot    filename={pre_path}    fullPage=False"
+                )
+                # 截圖完成後，主動把所有 robotframework-browser-highlight overlay 移除，
+                # 以免下一步互動被它擋住（pointer-events 攔截）。
+                lines.append(
+                    "    Run Keyword And Ignore Error    Evaluate JavaScript    ${None}"
+                    "    () => document.querySelectorAll('.robotframework-browser-highlight, .rfbrowser-highlight, .playwright-highlight').forEach(e => e.remove())"
                 )
             translated = _translate_step(step, ctx)
             lines.extend(translated)
@@ -424,9 +483,19 @@ def run_testcase(
         row_steps: list[StepResult] = []
         row_passed = True
         row_dur = 0
+        test_name = f"{case_tag}_row{row_i:02d}"
         for step_i in range(n_steps):
             global_idx = row_i * 1000 + step_i
             rec = next((r for r in step_records if r.get("step_index") == global_idx), None)
+
+            # 直接由預定檔名補回截圖 URL（listener 解析 result.message 並不可靠）
+            pre_url = (rec or {}).get("pre") or _resolve_screenshot_url(
+                screenshot_dir, f"{test_name}_s{step_i:02d}_pre", report_id
+            )
+            post_url = (rec or {}).get("post") or _resolve_screenshot_url(
+                screenshot_dir, f"{test_name}_s{step_i:02d}_post", report_id
+            )
+
             if rec is None:
                 # 該步驟未執行（前面失敗中止）
                 row_steps.append(
@@ -434,8 +503,8 @@ def run_testcase(
                         status="SKIPPED",
                         duration_ms=0,
                         error_message=None,
-                        pre_screenshot_url=None,
-                        post_screenshot_url=None,
+                        pre_screenshot_url=pre_url,
+                        post_screenshot_url=post_url,
                         target_highlight_json=None,
                     )
                 )
@@ -449,8 +518,8 @@ def run_testcase(
                     status=status,
                     duration_ms=rec.get("duration_ms", 0),
                     error_message=rec.get("error"),
-                    pre_screenshot_url=rec.get("pre"),
-                    post_screenshot_url=rec.get("post"),
+                    pre_screenshot_url=pre_url,
+                    post_screenshot_url=post_url,
                     target_highlight_json=None,
                 )
             )
@@ -470,6 +539,53 @@ def _safe_cleanup(path: str) -> None:
         shutil.rmtree(path, ignore_errors=True)
     except Exception:
         pass
+
+
+# Browser library Take Screenshot 會在 filename 後自動加副檔名（通常 .png），
+# 但版本不同有時會加上 timestamp / 編號。此 helper 依「base 名稱」搜尋實際檔案，
+# 並轉為對外可存取 URL（minio 或本地 /pics）。
+_SCREENSHOT_EXT_CANDIDATES = (".png", ".jpeg", ".jpg")
+
+
+def _resolve_screenshot_url(
+    screenshot_dir: str, base_name: str, report_id: str
+) -> Optional[str]:
+    candidate: Optional[str] = None
+    # 直接命中
+    for ext in _SCREENSHOT_EXT_CANDIDATES:
+        path = os.path.join(screenshot_dir, base_name + ext)
+        if os.path.isfile(path):
+            candidate = path
+            break
+    # 退而求其次：前綴比對（Browser library 可能加 _1 / timestamp）
+    if candidate is None and os.path.isdir(screenshot_dir):
+        try:
+            matches = sorted(
+                fn for fn in os.listdir(screenshot_dir)
+                if fn.startswith(base_name) and fn.lower().endswith(_SCREENSHOT_EXT_CANDIDATES)
+            )
+            if matches:
+                candidate = os.path.join(screenshot_dir, matches[-1])
+        except OSError:
+            return None
+    if candidate is None:
+        return None
+
+    # 轉成 URL
+    try:
+        if (settings.STORAGE_BACKEND or "local").lower() == "minio":
+            from app.services.storage_service import save_bytes  # type: ignore
+
+            with open(candidate, "rb") as fh:
+                data = fh.read()
+            key = f"screenshots/{report_id}/{os.path.basename(candidate)}"
+            return save_bytes(data, key, bucket="results", content_type="image/png")
+    except Exception:
+        pass
+
+    rel = os.path.basename(candidate)
+    base_url = (settings.BASE_URL or "").rstrip("/")
+    return f"{base_url}/pics/{report_id}/{rel}"
 
 
 def _extract_task_id(publish_log: Callable) -> Optional[str]:

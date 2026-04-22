@@ -43,3 +43,33 @@ async def get_project_tree(project_id: str, db: AsyncSession = Depends(get_db)):
     )
     nodes = result.scalars().all()
     return build_tree(nodes, parent_id=None)
+
+
+# 4. DELETE /api/projects/{projectId}
+@router.delete("/projects/{project_id}", status_code=204)
+async def delete_project(project_id: str, db: AsyncSession = Depends(get_db)):
+    """刪除專案（連同樹狀節點、測試案例、執行報告等一併由 DB cascade 刪除）。"""
+    proj = await db.get(Project, project_id)
+    if proj is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    await db.delete(proj)
+    await db.commit()
+    return None
+
+
+# 5. PUT /api/projects/{projectId}
+@router.put("/projects/{project_id}", response_model=ProjectResponse)
+async def update_project(
+    project_id: str, payload: ProjectCreate, db: AsyncSession = Depends(get_db)
+):
+    """更新專案名稱。"""
+    proj = await db.get(Project, project_id)
+    if proj is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    name = (payload.name or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Project name cannot be empty")
+    proj.name = name
+    await db.flush()
+    await db.refresh(proj)
+    return proj
