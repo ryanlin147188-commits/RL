@@ -7,7 +7,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class ScheduleBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
-    node_id: str
+    # 單選（舊版）與多選（新版）任一皆可；前端優先送 node_ids 多選清單
+    node_id: Optional[str] = None
+    node_ids: list[str] = Field(default_factory=list)
     repeat_type: str = Field("ONCE", description="ONCE / DAILY / WEEKLY / MONTHLY")
     repeat_config: Optional[str] = None
     # 使用者輸入的「本地時間」字串 `YYYY-MM-DDTHH:mm`（由前端 datetime-local 產生）
@@ -23,6 +25,8 @@ class ScheduleCreate(ScheduleBase):
 
 class ScheduleUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=200)
+    node_id: Optional[str] = None
+    node_ids: Optional[list[str]] = None
     repeat_type: Optional[str] = None
     repeat_config: Optional[str] = None
     next_run_at: Optional[datetime] = None
@@ -36,9 +40,13 @@ class ScheduleResponse(BaseModel):
     id: str
     name: str
     node_id: str
+    # 多選清單（可能只有一個元素）；前端用這個判斷是否要顯示「+N」
+    node_ids: list[str] = Field(default_factory=list)
     project_id: str
     # 額外塞入節點標題方便前端列表顯示（由 router 手動填入）
     node_title: Optional[str] = None
+    # 多選時每個 node 的 title（照 node_ids 順序）
+    node_titles: list[str] = Field(default_factory=list)
     repeat_type: str
     repeat_config: Optional[str] = None
     next_run_at: datetime

@@ -9,6 +9,7 @@
 """
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from typing import Optional
 
@@ -25,13 +26,42 @@ from app.services.schedule_service import _trigger_schedule, compute_next_run
 router = APIRouter()
 
 
-def _to_response(schedule: Schedule, node_title: Optional[str]) -> ScheduleResponse:
+def _get_node_ids(schedule: Schedule) -> list[str]:
+    """從 schedule 還原多選節點 id 清單；node_ids_json 優先，沒有才退化為 [node_id]。"""
+    raw = getattr(schedule, "node_ids_json", None)
+    if raw:
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, list) and parsed:
+                # 去重但保留順序
+                seen: set[str] = set()
+                out: list[str] = []
+                for nid in parsed:
+                    if isinstance(nid, str) and nid and nid not in seen:
+                        seen.add(nid)
+                        out.append(nid)
+                if out:
+                    return out
+        except Exception:
+            pass
+    return [schedule.node_id] if schedule.node_id else []
+
+
+def _to_response(
+    schedule: Schedule,
+    node_title: Optional[str],
+    node_titles: Optional[list[str]] = None,
+    node_ids: Optional[list[str]] = None,
+) -> ScheduleResponse:
+    nids = node_ids if node_ids is not None else _get_node_ids(schedule)
     return ScheduleResponse(
         id=schedule.id,
         name=schedule.name,
         node_id=schedule.node_id,
+        node_ids=nids,
         project_id=schedule.project_id,
         node_title=node_title,
+        node_titles=node_titles or [],
         repeat_type=schedule.repeat_type.value
         if isinstance(schedule.repeat_type, RepeatType)
         else schedule.repeat_type,
@@ -51,10 +81,21 @@ async def _attach_node_titles(
 ) -> list[ScheduleResponse]:
     if not schedules:
         return []
-    node_ids = {s.node_id for s in schedules}
-    rows = await db.execute(select(TreeNode).where(TreeNode.id.in_(node_ids)))
+    # 收集全部可能用到的 node id
+    all_ids: set[str] = set()
+    per_schedule: list[list[str]] = []
+    for s in schedules:
+        nids = _get_node_ids(s)
+        per_schedule.append(nids)
+        all_ids.update(nids)
+    rows = await db.execute(select(TreeNode).where(TreeNode.id.in_(all_ids)))
     titles = {n.id: n.name for n in rows.scalars()}
-    return [_to_response(s, titles.get(s.node_id)) for s in schedules]
+    out: list[ScheduleResponse] = []
+    for s, nids in zip(schedules, per_schedule):
+        primary_title = titles.get(s.node_id)
+        all_titles = [titles.get(nid, nid) for nid in nids]
+        out.append(_to_response(s, primary_title, node_titles=all_titles, node_ids=nids))
+    return out
 
 
 def _normalize_repeat_type(value: str) -> RepeatType:
@@ -62,6 +103,22 @@ def _normalize_repeat_type(value: str) -> RepeatType:
         return RepeatType(value.upper())
     except (KeyError, ValueError):
         raise HTTPException(status_code=400, detail=f"repeat_type 不合法：{value}")
+
+
+def _resolve_payload_nodes(payload: ScheduleCreate) -> list[str]:
+    """從 payload 決定節點清單：優先用 node_ids，沒有才退化到 node_id。"""
+    if payload.node_ids:
+        seen: set[str] = set()
+        out: list[str] = []
+        for nid in payload.node_ids:
+            if nid and nid not in seen:
+                seen.add(nid)
+                out.append(nid)
+        if out:
+            return out
+    if payload.node_id:
+        return [payload.node_id]
+    return []
 
 
 @router.get("/schedules", response_model=list[ScheduleResponse], tags=["F · 排程"])
@@ -79,13 +136,18 @@ async def list_schedules(
 
 @router.post("/schedules", response_model=ScheduleResponse, status_code=201, tags=["F · 排程"])
 async def create_schedule(payload: ScheduleCreate, db: AsyncSession = Depends(get_db)):
-    node = await db.get(TreeNode, payload.node_id)
+    nids = _resolve_payload_nodes(payload)
+    if not nids:
+        raise HTTPException(status_code=400, detail="請至少選擇一個節點")
+    primary = nids[0]
+    node = await db.get(TreeNode, primary)
     if node is None:
         raise HTTPException(status_code=404, detail="Node not found")
 
     schedule = Schedule(
         name=payload.name,
-        node_id=payload.node_id,
+        node_id=primary,
+        node_ids_json=json.dumps(nids, ensure_ascii=False),
         project_id=node.project_id,
         repeat_type=_normalize_repeat_type(payload.repeat_type),
         repeat_config=payload.repeat_config or None,
@@ -95,7 +157,12 @@ async def create_schedule(payload: ScheduleCreate, db: AsyncSession = Depends(ge
     )
     db.add(schedule)
     await db.flush()
-    return _to_response(schedule, node.name)
+    # 回傳含所有節點 title
+    rows = await db.execute(select(TreeNode).where(TreeNode.id.in_(nids)))
+    titles = {n.id: n.name for n in rows.scalars()}
+    return _to_response(
+        schedule, titles.get(primary), node_titles=[titles.get(i, i) for i in nids], node_ids=nids
+    )
 
 
 @router.get("/schedules/{schedule_id}", response_model=ScheduleResponse, tags=["F · 排程"])
@@ -103,8 +170,13 @@ async def get_schedule(schedule_id: str, db: AsyncSession = Depends(get_db)):
     schedule = await db.get(Schedule, schedule_id)
     if schedule is None:
         raise HTTPException(status_code=404, detail="Schedule not found")
-    node = await db.get(TreeNode, schedule.node_id)
-    return _to_response(schedule, node.name if node else None)
+    nids = _get_node_ids(schedule)
+    rows = await db.execute(select(TreeNode).where(TreeNode.id.in_(nids)))
+    titles = {n.id: n.name for n in rows.scalars()}
+    return _to_response(
+        schedule, titles.get(schedule.node_id),
+        node_titles=[titles.get(i, i) for i in nids], node_ids=nids,
+    )
 
 
 @router.put("/schedules/{schedule_id}", response_model=ScheduleResponse, tags=["F · 排程"])
@@ -127,10 +199,24 @@ async def update_schedule(
         schedule.active = payload.active
     if payload.execution_mode is not None:
         schedule.execution_mode = (payload.execution_mode or "docker").lower()
+    # 處理節點更新：node_ids 優先，其次單個 node_id
+    new_nids: Optional[list[str]] = None
+    if payload.node_ids is not None and payload.node_ids:
+        new_nids = [n for n in payload.node_ids if n]
+    elif payload.node_id:
+        new_nids = [payload.node_id]
+    if new_nids:
+        schedule.node_id = new_nids[0]
+        schedule.node_ids_json = json.dumps(new_nids, ensure_ascii=False)
 
     await db.flush()
-    node = await db.get(TreeNode, schedule.node_id)
-    return _to_response(schedule, node.name if node else None)
+    nids = _get_node_ids(schedule)
+    rows = await db.execute(select(TreeNode).where(TreeNode.id.in_(nids)))
+    titles = {n.id: n.name for n in rows.scalars()}
+    return _to_response(
+        schedule, titles.get(schedule.node_id),
+        node_titles=[titles.get(i, i) for i in nids], node_ids=nids,
+    )
 
 
 @router.delete("/schedules/{schedule_id}", status_code=204, tags=["F · 排程"])
@@ -165,5 +251,10 @@ async def trigger_schedule_now(
     schedule.last_run_at = datetime.now()
     schedule.last_report_id = report_id
     await db.flush()
-    node = await db.get(TreeNode, schedule.node_id)
-    return _to_response(schedule, node.name if node else None)
+    nids = _get_node_ids(schedule)
+    rows = await db.execute(select(TreeNode).where(TreeNode.id.in_(nids)))
+    titles = {n.id: n.name for n in rows.scalars()}
+    return _to_response(
+        schedule, titles.get(schedule.node_id),
+        node_titles=[titles.get(i, i) for i in nids], node_ids=nids,
+    )

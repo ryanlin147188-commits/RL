@@ -137,10 +137,35 @@ async def _trigger_schedule(
       - 背景自動觸發（scheduler_loop）：目前固定為 "docker"
     """
     from app.services.execution_service import collect_testcase_ids, create_report
+    import json as _json
 
-    testcase_ids = await collect_testcase_ids(db, schedule.node_id)
+    # 多選節點：node_ids_json 優先；否則退化為 [schedule.node_id]
+    node_ids: list[str] = []
+    raw_ids = getattr(schedule, "node_ids_json", None)
+    if raw_ids:
+        try:
+            parsed = _json.loads(raw_ids)
+            if isinstance(parsed, list):
+                node_ids = [n for n in parsed if isinstance(n, str) and n]
+        except Exception:
+            node_ids = []
+    if not node_ids:
+        node_ids = [schedule.node_id] if schedule.node_id else []
+
+    # 聚合所有選到節點底下的 TESTCASE ids（去重、保留第一次出現的順序）
+    seen: set[str] = set()
+    testcase_ids: list[str] = []
+    for nid in node_ids:
+        ids = await collect_testcase_ids(db, nid)
+        for tid in ids:
+            if tid not in seen:
+                seen.add(tid)
+                testcase_ids.append(tid)
     if not testcase_ids:
-        logger.warning("Schedule %s 的節點 %s 底下找不到 TESTCASE", schedule.id, schedule.node_id)
+        logger.warning(
+            "Schedule %s 的節點 %s 底下找不到 TESTCASE",
+            schedule.id, node_ids,
+        )
         return None
 
     task_id = str(uuid.uuid4())

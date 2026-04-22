@@ -162,6 +162,10 @@
             <h1 class="font-bold text-lg text-slate-700 tracking-tight">AutoTest <span class="text-xs text-slate-400 font-normal ml-2 border border-slate-200 px-1.5 py-0.5 rounded">v1.0</span></h1>
         </div>
         <div class="flex items-center gap-6">
+            <!-- 測試回合按鈕 -->
+            <button type="button" onclick="showTestRoundView()" id="navTestRoundBtn" class="text-slate-500 hover:text-purple-600 font-medium transition flex items-center gap-2">
+                <i class="fa-solid fa-layer-group"></i> 測試回合
+            </button>
             <!-- 測試報告按鈕 -->
             <button type="button" onclick="showReportView()" id="navReportBtn" class="text-slate-500 hover:text-blue-600 font-medium transition flex items-center gap-2">
                 <i class="fa-solid fa-chart-pie"></i> 測試報告
@@ -477,6 +481,37 @@ driver.swipe(100, 800, 100, 200, 500)"
                             </thead>
                             <tbody id="scheduleListBody" class="divide-y divide-slate-100">
                                 <tr><td colspan="7" class="p-4 text-center text-slate-400">載入中...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+
+            <!-- 視圖 5: 測試回合工作區 (Test Round) -->
+            <div id="testRoundWorkspace" class="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/50 hidden">
+                <section class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
+                    <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                        <h3 class="font-bold text-slate-700 flex items-center gap-2"><i class="fa-solid fa-layer-group text-purple-500"></i> 測試回合</h3>
+                        <div class="flex gap-2">
+                            <button type="button" onclick="openTestRoundModal()" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-medium flex items-center gap-1"><i class="fa-solid fa-plus"></i> 新增回合</button>
+                            <button type="button" onclick="refreshTestRoundList()" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-sm font-medium flex items-center gap-1"><i class="fa-solid fa-rotate"></i> 重新整理</button>
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-500 mb-4"><i class="fa-solid fa-circle-info text-amber-500"></i> 測試回合 = 一組被命名的測試案例集合。「執行」時會把選中的全部案例彙總起來一次執行，並產生一份報告。</p>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead class="bg-slate-100 text-slate-600 text-xs uppercase tracking-wider">
+                                <tr>
+                                    <th class="p-2 text-left">回合名稱</th>
+                                    <th class="p-2 text-left">案例數</th>
+                                    <th class="p-2 text-left">環境</th>
+                                    <th class="p-2 text-left">說明</th>
+                                    <th class="p-2 text-left">建立時間</th>
+                                    <th class="p-2 text-left">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="testRoundListBody" class="divide-y divide-slate-100">
+                                <tr><td colspan="6" class="p-4 text-center text-slate-400">載入中...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -881,11 +916,20 @@ driver.swipe(100, 800, 100, 200, 500)"
                     <input type="text" id="schedName" placeholder="例：每日回歸 Login 流程" class="w-full border border-slate-300 rounded p-2 text-sm focus:ring-2 focus:ring-emerald-100 focus:border-emerald-400 outline-none">
                 </div>
                 <div>
-                    <label for="schedNode" class="block text-sm font-medium text-slate-700 mb-1">選擇測試案例 / 節點</label>
-                    <select id="schedNode" class="w-full border border-slate-300 rounded p-2 text-sm bg-white focus:ring-2 focus:ring-emerald-100 focus:border-emerald-400 outline-none">
-                        <option value="">— 請選擇 —</option>
-                    </select>
-                    <p class="text-xs text-slate-500 mt-1">可選 TESTCASE、SCENARIO、PAGE 或 FEATURE；後端會遞迴展開其下所有 TESTCASE。</p>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="block text-sm font-medium text-slate-700">選擇測試案例（可多選）</label>
+                        <div class="flex items-center gap-2 text-xs">
+                            <input type="text" id="schedNodeFilter" placeholder="搜尋..."
+                                oninput="renderScheduleNodeList()"
+                                class="border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-emerald-400 outline-none">
+                            <span id="schedNodeSelCount" class="text-slate-500">已選 0</span>
+                        </div>
+                    </div>
+                    <div id="schedNodeList"
+                        class="border border-slate-300 rounded bg-white max-h-48 overflow-y-auto divide-y divide-slate-100 text-xs">
+                        <div class="p-3 text-slate-400 text-center">載入專案後才能選擇</div>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-1">只列出 .md 測試案例；可搜尋關鍵字過濾。</p>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-700 mb-1">重複設定</label>
@@ -934,6 +978,52 @@ driver.swipe(100, 800, 100, 200, 500)"
             <div class="p-4 border-t border-slate-200 flex justify-end gap-2 bg-slate-50 rounded-b-lg">
                 <button type="button" onclick="closeScheduleModal()" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 rounded transition">取消</button>
                 <button type="button" onclick="saveSchedule()" class="px-4 py-2 text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 rounded shadow-sm transition">儲存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 測試回合 Modal（新增 / 編輯） -->
+    <div id="testRoundModal" class="fixed inset-0 bg-slate-900/50 hidden z-50 flex items-center justify-center opacity-0 transition-opacity">
+        <div class="bg-white rounded-lg shadow-xl w-[560px] max-w-[95vw] transform scale-95 transition-transform" id="testRoundModalContent">
+            <div class="p-4 border-b border-slate-200 flex items-center gap-2">
+                <i class="fa-solid fa-layer-group text-purple-500"></i>
+                <h3 id="testRoundModalTitle" class="text-lg font-bold text-slate-800">新增測試回合</h3>
+            </div>
+            <div class="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+                <div>
+                    <label for="trName" class="block text-sm font-medium text-slate-700 mb-1">回合名稱</label>
+                    <input type="text" id="trName" placeholder="例：冒煙測試 / 登入流程回歸"
+                        class="w-full border border-slate-300 rounded p-2 text-sm focus:ring-2 focus:ring-purple-100 focus:border-purple-400 outline-none">
+                </div>
+                <div>
+                    <label for="trDesc" class="block text-sm font-medium text-slate-700 mb-1">說明（選填）</label>
+                    <textarea id="trDesc" rows="2" placeholder="此回合的用途或涵蓋範圍..."
+                        class="w-full border border-slate-300 rounded p-2 text-sm focus:ring-2 focus:ring-purple-100 focus:border-purple-400 outline-none resize-none"></textarea>
+                </div>
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="block text-sm font-medium text-slate-700">選擇測試案例（可多選）</label>
+                        <div class="flex items-center gap-2 text-xs">
+                            <input type="text" id="trNodeFilter" placeholder="搜尋..." oninput="renderTestRoundNodeList()"
+                                class="border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-purple-400 outline-none">
+                            <span id="trNodeSelCount" class="text-slate-500">已選 0</span>
+                        </div>
+                    </div>
+                    <div id="trNodeList" class="border border-slate-300 rounded bg-white max-h-48 overflow-y-auto divide-y divide-slate-100 text-xs">
+                        <div class="p-3 text-slate-400 text-center">請先載入專案</div>
+                    </div>
+                </div>
+                <div>
+                    <label for="trExecMode" class="block text-sm font-medium text-slate-700 mb-1">預設執行環境</label>
+                    <select id="trExecMode" class="w-full border border-slate-300 rounded p-2 text-sm bg-white focus:ring-2 focus:ring-purple-100 focus:border-purple-400 outline-none">
+                        <option value="docker">Docker（容器內 headless）</option>
+                        <option value="local">本機（本機 agent + 有頭瀏覽器）</option>
+                    </select>
+                </div>
+            </div>
+            <div class="p-4 border-t border-slate-200 flex justify-end gap-2 bg-slate-50 rounded-b-lg">
+                <button type="button" onclick="closeTestRoundModal()" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 rounded transition">取消</button>
+                <button type="button" onclick="saveTestRound()" class="px-4 py-2 text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 rounded shadow-sm transition">儲存</button>
             </div>
         </div>
     </div>
@@ -2008,6 +2098,7 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('detailReportWorkspace').classList.add('hidden');
             document.getElementById('recorderWorkspace')?.classList.add('hidden');
             document.getElementById('scheduleWorkspace')?.classList.add('hidden');
+            document.getElementById('testRoundWorkspace')?.classList.add('hidden');
             document.getElementById('reportWorkspace').classList.remove('hidden');
             document.getElementById('mainActions').classList.add('hidden');
             document.getElementById('mainHeader').classList.remove('hidden');
@@ -2875,6 +2966,7 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('detailReportWorkspace').classList.add('hidden');
             document.getElementById('recorderWorkspace')?.classList.add('hidden');
             document.getElementById('scheduleWorkspace')?.classList.add('hidden');
+            document.getElementById('testRoundWorkspace')?.classList.add('hidden');
             document.getElementById('emptyWorkspace').classList.remove('hidden');
             document.getElementById('mainHeader').classList.remove('hidden');
             document.getElementById('mainActions').classList.add('hidden');
@@ -3072,6 +3164,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 document.getElementById('detailReportWorkspace').classList.add('hidden');
                 document.getElementById('recorderWorkspace')?.classList.add('hidden');
             document.getElementById('scheduleWorkspace')?.classList.add('hidden');
+                document.getElementById('testRoundWorkspace')?.classList.add('hidden');
                 document.getElementById('editorWorkspace').classList.remove('hidden');
                 document.getElementById('mainActions').classList.remove('hidden');
                 renderEditor();
@@ -3255,7 +3348,7 @@ driver.swipe(100, 800, 100, 200, 500)"
         }
 
         function closeModals() {
-            ['nodeModal', 'deleteModal', 'scheduleModal', 'localAgentModal'].forEach(id => {
+            ['nodeModal', 'deleteModal', 'scheduleModal', 'testRoundModal', 'localAgentModal'].forEach(id => {
                 const modal = document.getElementById(id);
                 modal.classList.add('opacity-0');
                 const content = modal.querySelector('[id$="Content"], [id$="ModalContent"]');
@@ -3414,6 +3507,7 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('detailReportWorkspace').classList.add('hidden');
             document.getElementById('reportWorkspace').classList.add('hidden');
             document.getElementById('scheduleWorkspace').classList.add('hidden');
+            document.getElementById('testRoundWorkspace').classList.add('hidden');
             document.getElementById('recorderWorkspace').classList.remove('hidden');
             document.getElementById('mainHeader').classList.remove('hidden');
             document.getElementById('mainActions').classList.add('hidden');
@@ -3431,6 +3525,208 @@ driver.swipe(100, 800, 100, 200, 500)"
         let scheduleList = [];           // 後端回傳的排程清單
         let scheduleEditingId = null;    // 編輯中的 id；null 代表新增模式
 
+        // ==================== 測試回合 (Test Round) ====================
+        let testRoundList = [];
+        let testRoundEditingId = null;
+        const trNodeSelection = new Set();
+
+        function showTestRoundView() {
+            if (!confirmDiscardIfDirty()) return;
+            document.getElementById('editorWorkspace').classList.add('hidden');
+            document.getElementById('emptyWorkspace').classList.add('hidden');
+            document.getElementById('detailReportWorkspace').classList.add('hidden');
+            document.getElementById('recorderWorkspace')?.classList.add('hidden');
+            document.getElementById('scheduleWorkspace')?.classList.add('hidden');
+            document.getElementById('reportWorkspace').classList.add('hidden');
+            document.getElementById('testRoundWorkspace').classList.remove('hidden');
+            document.getElementById('mainHeader').classList.remove('hidden');
+            document.getElementById('mainActions').classList.add('hidden');
+            document.getElementById('viewFilename').textContent = '測試回合';
+            document.getElementById('viewTitle').innerHTML = '<i class="fa-solid fa-layer-group text-purple-500"></i> 測試回合管理';
+            document.getElementById('viewTag').className = 'bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium';
+            document.getElementById('viewTag').textContent = 'Round';
+            currentTestCase = null;
+            refreshTestRoundList();
+        }
+
+        function setTestRoundSelection(ids) {
+            trNodeSelection.clear();
+            (ids || []).forEach(id => trNodeSelection.add(id));
+            renderTestRoundNodeList();
+        }
+        function toggleTestRoundNode(id, checked) {
+            if (checked) trNodeSelection.add(id);
+            else trNodeSelection.delete(id);
+            const el = document.getElementById('trNodeSelCount');
+            if (el) el.textContent = `已選 ${trNodeSelection.size}`;
+        }
+        function renderTestRoundNodeList() {
+            const box = document.getElementById('trNodeList');
+            if (!box) return;
+            const cntEl = document.getElementById('trNodeSelCount');
+            if (cntEl) cntEl.textContent = `已選 ${trNodeSelection.size}`;
+            if (!activeTreeData || !activeTreeData.length) {
+                box.innerHTML = '<div class="p-3 text-slate-400 text-center">請先在左側載入專案</div>';
+                return;
+            }
+            const all = [];
+            collectAllSchedulableNodes(activeTreeData, '', all);
+            const testcases = all.filter(n => n.level_type === 'TESTCASE' || n.isFile);
+            const filter = (document.getElementById('trNodeFilter')?.value || '').trim().toLowerCase();
+            const filtered = filter
+                ? testcases.filter(n => (n.label || '').toLowerCase().includes(filter))
+                : testcases;
+            if (!filtered.length) {
+                box.innerHTML = testcases.length
+                    ? `<div class="p-3 text-slate-400 text-center">無符合「${filter}」的案例</div>`
+                    : '<div class="p-3 text-slate-400 text-center">此專案尚無 .md 案例</div>';
+                return;
+            }
+            box.innerHTML = filtered.map((n) => `
+                <label class="flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-slate-50">
+                    <input type="checkbox" class="accent-purple-600"
+                        ${trNodeSelection.has(n.id) ? 'checked' : ''}
+                        onchange="toggleTestRoundNode('${n.id}', this.checked)">
+                    <span class="flex-1">${escapeAttrBasic(n.label)}</span>
+                </label>
+            `).join('');
+        }
+
+        function openTestRoundModal(id) {
+            testRoundEditingId = id || null;
+            const target = id ? testRoundList.find(r => r.id === id) : null;
+            document.getElementById('testRoundModalTitle').textContent = target ? '編輯測試回合' : '新增測試回合';
+            document.getElementById('trName').value = target ? target.name : '';
+            document.getElementById('trDesc').value = target?.description || '';
+            document.getElementById('trExecMode').value = target?.execution_mode || getExecutionMode();
+            setTestRoundSelection(target?.node_ids || []);
+            const fb = document.getElementById('trNodeFilter'); if (fb) fb.value = '';
+            renderTestRoundNodeList();
+            const modal = document.getElementById('testRoundModal');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                document.getElementById('testRoundModalContent').classList.remove('scale-95');
+            }, 10);
+        }
+        function closeTestRoundModal() {
+            const modal = document.getElementById('testRoundModal');
+            modal.classList.add('opacity-0');
+            document.getElementById('testRoundModalContent').classList.add('scale-95');
+            setTimeout(() => modal.classList.add('hidden'), 200);
+            testRoundEditingId = null;
+        }
+
+        async function refreshTestRoundList() {
+            const tbody = document.getElementById('testRoundListBody');
+            if (!tbody) return;
+            tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-slate-400">載入中...</td></tr>';
+            try {
+                const url = currentProjectId ? `/api/rounds?project_id=${currentProjectId}` : '/api/rounds';
+                const res = await fetch(url);
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                testRoundList = await res.json();
+                if (!testRoundList.length) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-slate-400">尚無測試回合；點右上「新增回合」</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = '';
+                testRoundList.forEach((r) => {
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-slate-50';
+                    const firstTitle = (r.node_titles && r.node_titles[0]) || '';
+                    const tooltipTitle = (r.node_titles || []).join('\n');
+                    tr.innerHTML = `
+                        <td class="p-2 font-medium text-slate-700">${escapeAttrBasic(r.name)}</td>
+                        <td class="p-2 text-slate-600" title="${escapeAttrBasic(tooltipTitle)}">
+                            <span class="font-mono">${(r.node_ids || []).length}</span>
+                            ${firstTitle ? `<span class="ml-2 text-xs text-slate-500">${escapeAttrBasic(firstTitle)}${r.node_ids.length > 1 ? ' …' : ''}</span>` : ''}
+                        </td>
+                        <td class="p-2">
+                            ${r.execution_mode === 'local'
+                                ? '<span class="inline-block bg-amber-50 text-amber-700 border border-amber-200 rounded px-1.5 py-0.5 text-[10px] font-mono"><i class="fa-solid fa-laptop mr-0.5"></i>本機</span>'
+                                : '<span class="inline-block bg-indigo-50 text-indigo-700 border border-indigo-200 rounded px-1.5 py-0.5 text-[10px] font-mono"><i class="fa-brands fa-docker mr-0.5"></i>Docker</span>'}
+                        </td>
+                        <td class="p-2 text-slate-600 text-xs max-w-xs truncate" title="${escapeAttrBasic(r.description || '')}">${escapeAttrBasic(r.description || '')}</td>
+                        <td class="p-2 font-mono text-xs text-slate-500">${formatScheduleDate(r.created_at)}</td>
+                        <td class="p-2 space-x-1 whitespace-nowrap">
+                            <button type="button" onclick="executeTestRound('${r.id}')" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded" title="立即執行全部案例"><i class="fa-solid fa-play"></i> 執行</button>
+                            <button type="button" onclick="openTestRoundModal('${r.id}')" class="text-xs px-2 py-1 bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 rounded"><i class="fa-solid fa-pen"></i> 編輯</button>
+                            <button type="button" onclick="deleteTestRound('${r.id}')" class="text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded"><i class="fa-solid fa-trash"></i> 刪除</button>
+                        </td>`;
+                    tbody.appendChild(tr);
+                });
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-red-500">載入失敗：${e.message}</td></tr>`;
+            }
+        }
+
+        async function saveTestRound() {
+            const name = document.getElementById('trName').value.trim();
+            const desc = document.getElementById('trDesc').value.trim();
+            const mode = document.getElementById('trExecMode').value || 'docker';
+            const nodeIds = Array.from(trNodeSelection);
+            if (!name) return showToast('請輸入回合名稱', 'error');
+            if (!currentProjectId) return showToast('請先在左側載入專案', 'error');
+            if (!nodeIds.length) return showToast('請至少選一個測試案例', 'error');
+            const payload = {
+                name,
+                description: desc || null,
+                execution_mode: mode,
+                node_ids: nodeIds,
+                project_id: currentProjectId,
+            };
+            try {
+                const url = testRoundEditingId ? `/api/rounds/${testRoundEditingId}` : '/api/rounds';
+                const method = testRoundEditingId ? 'PUT' : 'POST';
+                const res = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.detail || ('HTTP ' + res.status));
+                }
+                showToast(testRoundEditingId ? '回合已更新' : '回合已建立', 'success');
+                closeTestRoundModal();
+                refreshTestRoundList();
+            } catch (e) {
+                showToast('儲存失敗：' + e.message, 'error');
+            }
+        }
+
+        async function executeTestRound(id) {
+            const r = testRoundList.find(x => x.id === id);
+            if (!r) return;
+            const mode = getExecutionMode();
+            if (!confirm(`確定以「${mode === 'local' ? '本機' : 'Docker'}」模式執行回合「${r.name}」？（共 ${r.node_ids.length} 個案例）`)) return;
+            try {
+                const res = await fetch(`/api/rounds/${id}/execute?execution_mode=${mode}`, { method: 'POST' });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.detail || ('HTTP ' + res.status));
+                }
+                const data = await res.json();
+                showToast(`已觸發：${data.testcase_count} 個測試案例；可到「測試報告」查看進度`, 'success');
+            } catch (e) {
+                showToast('執行失敗：' + e.message, 'error');
+            }
+        }
+
+        async function deleteTestRound(id) {
+            const r = testRoundList.find(x => x.id === id);
+            if (!confirm(`確定刪除測試回合「${r?.name || id}」？`)) return;
+            try {
+                const res = await fetch(`/api/rounds/${id}`, { method: 'DELETE' });
+                if (!res.ok && res.status !== 204) throw new Error('HTTP ' + res.status);
+                showToast('已刪除', 'success');
+                refreshTestRoundList();
+            } catch (e) {
+                showToast('刪除失敗：' + e.message, 'error');
+            }
+        }
+
         function showScheduleView() {
             if (!confirmDiscardIfDirty()) return;
             document.getElementById('editorWorkspace').classList.add('hidden');
@@ -3438,6 +3734,7 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('detailReportWorkspace').classList.add('hidden');
             document.getElementById('recorderWorkspace')?.classList.add('hidden');
             document.getElementById('reportWorkspace').classList.add('hidden');
+            document.getElementById('testRoundWorkspace')?.classList.add('hidden');
             document.getElementById('scheduleWorkspace').classList.remove('hidden');
             document.getElementById('mainHeader').classList.remove('hidden');
             document.getElementById('mainActions').classList.add('hidden');
@@ -3461,30 +3758,54 @@ driver.swipe(100, 800, 100, 200, 500)"
             }
         }
 
-        function populateScheduleNodeSelect() {
-            const sel = document.getElementById('schedNode');
-            if (!sel) return;
-            const prev = sel.value;
-            sel.innerHTML = '<option value="">— 請選擇 —</option>';
+        // 排程 modal：節點多選 state
+        const schedNodeSelection = new Set();
+        function setScheduleSelection(ids) {
+            schedNodeSelection.clear();
+            (ids || []).forEach(id => schedNodeSelection.add(id));
+            renderScheduleNodeList();
+        }
+        function toggleScheduleNode(id, checked) {
+            if (checked) schedNodeSelection.add(id);
+            else schedNodeSelection.delete(id);
+            updateSchedSelCount();
+        }
+        function updateSchedSelCount() {
+            const el = document.getElementById('schedNodeSelCount');
+            if (el) el.textContent = `已選 ${schedNodeSelection.size}`;
+        }
+
+        function renderScheduleNodeList() {
+            const box = document.getElementById('schedNodeList');
+            if (!box) return;
             if (!activeTreeData || !activeTreeData.length) {
-                sel.innerHTML += '<option value="" disabled>（請先於左側載入專案）</option>';
+                box.innerHTML = '<div class="p-3 text-slate-400 text-center">請先在左側載入專案</div>';
+                updateSchedSelCount();
                 return;
             }
-            const list = [];
-            collectAllSchedulableNodes(activeTreeData, '', list);
-            // 只保留 .md 測試案例（TESTCASE 層級，isFile=true）
-            const testcases = list.filter(n => n.level_type === 'TESTCASE' || n.isFile);
-            if (!testcases.length) {
-                sel.innerHTML += '<option value="" disabled>（此專案尚無 .md 案例）</option>';
+            const all = [];
+            collectAllSchedulableNodes(activeTreeData, '', all);
+            const testcases = all.filter(n => n.level_type === 'TESTCASE' || n.isFile);
+            const filter = (document.getElementById('schedNodeFilter')?.value || '').trim().toLowerCase();
+            const filtered = filter
+                ? testcases.filter(n => (n.label || '').toLowerCase().includes(filter))
+                : testcases;
+            if (!filtered.length) {
+                box.innerHTML = testcases.length
+                    ? `<div class="p-3 text-slate-400 text-center">無符合「${filter}」的案例</div>`
+                    : '<div class="p-3 text-slate-400 text-center">此專案尚無 .md 案例</div>';
+                updateSchedSelCount();
                 return;
             }
-            testcases.forEach((n) => {
-                const opt = document.createElement('option');
-                opt.value = n.id;
-                opt.textContent = n.label;
-                if (n.id === prev) opt.selected = true;
-                sel.appendChild(opt);
-            });
+            box.innerHTML = filtered.map((n) => `
+                <label class="flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-slate-50">
+                    <input type="checkbox" class="accent-emerald-600"
+                        ${schedNodeSelection.has(n.id) ? 'checked' : ''}
+                        onchange="toggleScheduleNode('${n.id}', this.checked)">
+                    <span class="flex-1">${escapeAttrBasic(n.label)}</span>
+                </label>
+            `).join('');
+            updateSchedSelCount();
         }
 
         function renderScheduleWeekdays(selectedList) {
@@ -3514,9 +3835,15 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('scheduleModalTitle').textContent = target ? '編輯排程' : '新增排程';
             // 重設欄位
             document.getElementById('schedName').value = target ? target.name : '';
-            populateScheduleNodeSelect();
-            const nodeSel = document.getElementById('schedNode');
-            if (target && nodeSel) nodeSel.value = target.node_id;
+            // 多選節點：編輯時塞入 target.node_ids；新增時清空
+            const initialIds = target && Array.isArray(target.node_ids) && target.node_ids.length
+                ? target.node_ids
+                : (target && target.node_id ? [target.node_id] : []);
+            setScheduleSelection(initialIds);
+            // 清空搜尋框並渲染列表
+            const filterBox = document.getElementById('schedNodeFilter');
+            if (filterBox) filterBox.value = '';
+            renderScheduleNodeList();
             // ONCE 用完整日期時間、其他類型用 HH:mm；兩個 input 分開填
             const dt = target ? new Date(target.next_run_at) : new Date(Date.now() + 5 * 60 * 1000);
             document.getElementById('schedTime').value = toDatetimeLocal(dt);
@@ -3638,7 +3965,12 @@ driver.swipe(100, 800, 100, 200, 500)"
                             </label>
                         </td>
                         <td class="p-2 font-medium text-slate-700">${escapeAttrBasic(s.name)}</td>
-                        <td class="p-2 text-slate-600 text-xs">${escapeAttrBasic(s.node_title || s.node_id)}</td>
+                        <td class="p-2 text-slate-600 text-xs" title="${escapeAttrBasic((s.node_titles || []).join('\\n'))}">
+                            ${escapeAttrBasic((s.node_titles && s.node_titles.length) ? s.node_titles[0] : (s.node_title || s.node_id))}
+                            ${(s.node_ids && s.node_ids.length > 1)
+                                ? `<span class="ml-1 inline-block bg-slate-100 text-slate-600 border border-slate-200 rounded px-1.5 py-0.5 text-[10px] font-mono">+${s.node_ids.length - 1}</span>`
+                                : ''}
+                        </td>
                         <td class="p-2 text-slate-600">
                             ${escapeAttrBasic(describeRepeat(s))}
                             ${s.execution_mode === 'local'
@@ -3665,12 +3997,12 @@ driver.swipe(100, 800, 100, 200, 500)"
 
         async function saveSchedule() {
             const name = document.getElementById('schedName').value.trim();
-            const nodeId = document.getElementById('schedNode').value;
+            const nodeIds = Array.from(schedNodeSelection);
             const repeat = document.querySelector('input[name="schedRepeat"]:checked')?.value || 'ONCE';
             const active = document.getElementById('schedActive').checked;
             const execMode = (document.getElementById('schedExecMode')?.value || 'docker');
             if (!name) return showToast('請輸入排程名稱', 'error');
-            if (!nodeId) return showToast('請選擇要執行的節點', 'error');
+            if (!nodeIds.length) return showToast('請至少選一個測試案例', 'error');
 
             let repeatConfig = '';
             let weekdays = [];
@@ -3700,7 +4032,8 @@ driver.swipe(100, 800, 100, 200, 500)"
 
             const payload = {
                 name,
-                node_id: nodeId,
+                node_id: nodeIds[0],
+                node_ids: nodeIds,
                 repeat_type: repeat,
                 repeat_config: repeatConfig || null,
                 // 無時區字串，後端視為伺服器本地時間（Asia/Taipei）
@@ -3961,6 +4294,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 document.getElementById('detailReportWorkspace')?.classList.add('hidden');
                 document.getElementById('recorderWorkspace')?.classList.add('hidden');
             document.getElementById('scheduleWorkspace')?.classList.add('hidden');
+                document.getElementById('testRoundWorkspace')?.classList.add('hidden');
                 document.getElementById('editorWorkspace')?.classList.remove('hidden');
                 document.getElementById('mainActions')?.classList.remove('hidden');
                 if (typeof renderEditor === 'function') renderEditor(); else renderSteps();

@@ -31,9 +31,12 @@ class Schedule(Base):
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     # 目標節點（TESTCASE / SCENARIO / PAGE / PLATFORM / FEATURE；backend 會遞迴展開下面所有 TESTCASE）
+    # 為了相容舊版，仍保留 node_id 當作「主要節點」；多選節點放在 node_ids_json 裡（JSON array）
     node_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("tree_nodes.id", ondelete="CASCADE"), nullable=False
     )
+    # 多選節點清單（JSON array of string）；若為 None/空陣列，就退化為只使用 node_id
+    node_ids_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     # 同時紀錄 project_id，方便列表 / 查詢 / 刪除時過濾
     project_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
