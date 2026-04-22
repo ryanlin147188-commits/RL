@@ -489,8 +489,8 @@ driver.swipe(100, 800, 100, 200, 500)"
                     <div class="flex items-center justify-between mb-4">
                         <h3 class="font-bold text-slate-700 flex items-center gap-2"><i class="fa-solid fa-database text-amber-500"></i> 測試資料集 (DDT)</h3>
                         <div class="flex gap-2">
-                            <input type="file" id="jsonUploadInput" accept=".json" aria-label="匯入 JSON 測試資料" class="hidden" onchange="handleJsonImport(event)">
-                            <button onclick="document.getElementById('jsonUploadInput').click()" class="text-sm px-3 py-1.5 text-slate-600 border border-slate-200 hover:bg-slate-50 rounded flex items-center gap-1 transition shadow-sm"><i class="fa-solid fa-file-import"></i> 匯入 JSON</button>
+                            <input type="file" id="jsonUploadInput" accept=".json,application/json" multiple aria-label="匯入 JSON 測試資料（可複選）" class="hidden" onchange="handleJsonImport(event)">
+                            <button onclick="document.getElementById('jsonUploadInput').click()" class="text-sm px-3 py-1.5 text-slate-600 border border-slate-200 hover:bg-slate-50 rounded flex items-center gap-1 transition shadow-sm" title="可一次選取多個 JSON 檔；巢狀結構會以點記法展開為 Key 路徑"><i class="fa-solid fa-file-import"></i> 匯入 JSON</button>
                             <button onclick="addDdtRow()" class="text-sm px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 rounded flex items-center gap-1 transition shadow-sm"><i class="fa-solid fa-plus"></i> 新增資料列</button>
                         </div>
                     </div>
@@ -1286,7 +1286,24 @@ driver.swipe(100, 800, 100, 200, 500)"
         }
 
         // DDT 固定欄位（預設欄位不允許刪除；使用者只能新增/刪除資料列）
-        const DDT_FIXED_HEADERS = ['No', 'Key', 'Value'];
+        const DDT_FIXED_HEADERS = ['No', '檔案名稱', 'Key', 'Value'];
+
+        // 將舊版 3 欄（No / Key / Value）的 DDT 升級為新版 4 欄（No / 檔案名稱 / Key / Value）
+        // 只在中間補一欄空白「檔案名稱」，原有資料保留在 Key / Value。
+        function migrateDdtShape(ddt) {
+            const headers = (ddt && ddt.headers) || [];
+            const rows = (ddt && ddt.rows) || [];
+            const isLegacy3Col =
+                headers.length === 3 &&
+                headers[0]?.toLowerCase() === 'no' &&
+                headers[1] === 'Key' &&
+                headers[2] === 'Value';
+            if (!isLegacy3Col) return ddt;
+            return {
+                headers: DDT_FIXED_HEADERS.slice(),
+                rows: rows.map((r) => [r[0] || '', '', r[1] || '', r[2] || '']),
+            };
+        }
 
         function renderDDT() {
             const tc = testCases[currentTestCase];
@@ -1338,49 +1355,85 @@ driver.swipe(100, 800, 100, 200, 500)"
             renderDDT();
         }
 
-        function handleJsonImport(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                try {
-                    const data = JSON.parse(e.target.result);
-                    // DDT 固定為 No / Key / Value 三欄，匯入須轉成這個結構：
-                    //   1. 物件  {Username:"u1", Password:"p1"}  → 兩列
-                    //   2. 陣列  [{Key:"a", Value:"1"}, ...]    → 直接對應
-                    //   3. 陣列  [{任意:"值"}, ...]             → 取每列第一組 key/value
-                    const rows = [];
-                    if (Array.isArray(data)) {
-                        data.forEach((item, i) => {
-                            if (item && typeof item === 'object') {
-                                if ('Key' in item || 'key' in item) {
-                                    rows.push([String(i + 1), String(item.Key ?? item.key ?? ''), String(item.Value ?? item.value ?? '')]);
-                                } else {
-                                    const keys = Object.keys(item);
-                                    if (keys.length) {
-                                        rows.push([String(i + 1), keys[0], String(item[keys[0]] ?? '')]);
-                                    }
-                                }
-                            }
-                        });
-                    } else if (data && typeof data === 'object') {
-                        Object.entries(data).forEach(([k, v], i) => {
-                            rows.push([String(i + 1), String(k), String(v ?? '')]);
-                        });
-                    }
-                    if (!rows.length) {
-                        showToast('JSON 沒有可匯入的 key/value 資料', 'error');
-                        return;
-                    }
-                    testCases[currentTestCase].ddt = { headers: DDT_FIXED_HEADERS.slice(), rows };
-                    markDirty();
-                    renderDDT();
-                    showToast(`成功匯入 ${rows.length} 筆資料`, 'success');
-                } catch {
-                    showToast('JSON 格式錯誤，請確認檔案內容', 'error');
+        // 把 JSON 巢狀結構展開為 [key, value] 對（僅輸出葉節點；路徑以點記法保留階層）。
+        //   { a: { b: 1, c: [2, 3] } } →
+        //     [['a.b', 1], ['a.c.0', 2], ['a.c.1', 3]]
+        // Value 欄位僅保留原型別的字串化；null/undefined → 空字串；空物件/空陣列會留一列並用 {} / [] 表示。
+        function flattenJsonToPairs(obj, prefix = '') {
+            const out = [];
+            if (obj === null || obj === undefined) {
+                out.push([prefix, '']);
+                return out;
+            }
+            if (typeof obj !== 'object') {
+                out.push([prefix, typeof obj === 'string' ? obj : String(obj)]);
+                return out;
+            }
+            if (Array.isArray(obj)) {
+                if (obj.length === 0) {
+                    out.push([prefix, '[]']);
+                    return out;
                 }
-            };
-            reader.readAsText(file);
+                obj.forEach((item, i) => {
+                    const p = prefix ? `${prefix}.${i}` : String(i);
+                    out.push(...flattenJsonToPairs(item, p));
+                });
+                return out;
+            }
+            const keys = Object.keys(obj);
+            if (keys.length === 0) {
+                out.push([prefix, '{}']);
+                return out;
+            }
+            keys.forEach((k) => {
+                const p = prefix ? `${prefix}.${k}` : k;
+                out.push(...flattenJsonToPairs(obj[k], p));
+            });
+            return out;
+        }
+
+        function handleJsonImport(event) {
+            const files = Array.from(event.target.files || []);
+            if (!files.length) return;
+
+            // 逐檔非同步讀取，全部讀完後一次更新 DDT
+            const readFile = (file) => new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const json = JSON.parse(e.target.result);
+                        const pairs = flattenJsonToPairs(json, '');
+                        resolve({ ok: true, name: file.name, pairs });
+                    } catch {
+                        resolve({ ok: false, name: file.name, pairs: [] });
+                    }
+                };
+                reader.onerror = () => resolve({ ok: false, name: file.name, pairs: [] });
+                reader.readAsText(file);
+            });
+
+            Promise.all(files.map(readFile)).then((results) => {
+                const bad = results.filter(r => !r.ok).map(r => r.name);
+                // 每一對攤平結果附上對應的檔名，輸出 [No, 檔案名稱, Key, Value] 四欄列
+                const rows = [];
+                results.forEach((r) => {
+                    if (!r.ok) return;
+                    r.pairs.forEach(([k, v]) => {
+                        rows.push([String(rows.length + 1), r.name, String(k), String(v ?? '')]);
+                    });
+                });
+                if (!rows.length) {
+                    showToast(bad.length ? `JSON 格式錯誤：${bad.join(', ')}` : 'JSON 沒有可匯入的 key/value 資料', 'error');
+                    return;
+                }
+                testCases[currentTestCase].ddt = { headers: DDT_FIXED_HEADERS.slice(), rows };
+                markDirty();
+                renderDDT();
+                const summary = `成功匯入 ${files.length - bad.length} 個檔案、共 ${rows.length} 筆資料`;
+                const warn = bad.length ? `（略過格式錯誤：${bad.join(', ')}）` : '';
+                showToast(summary + warn, bad.length ? 'info' : 'success');
+            });
+
             event.target.value = '';
         }
 
@@ -2508,7 +2561,9 @@ driver.swipe(100, 800, 100, 200, 500)"
                     ac: tc.ac_text || '',
                     setup: tc.setup_text || '',
                     steps: Array.isArray(tc.steps_json) ? tc.steps_json : [],
-                    ddt: (tc.ddt_json && tc.ddt_json.headers && tc.ddt_json.headers.length) ? tc.ddt_json : { headers: ['No', 'Key', 'Value'], rows: [['1', '', '']] }
+                    ddt: (tc.ddt_json && tc.ddt_json.headers && tc.ddt_json.headers.length)
+                        ? migrateDdtShape(tc.ddt_json)
+                        : { headers: DDT_FIXED_HEADERS.slice(), rows: [['1', '', '', '']] }
                 };
                 currentTestCase = id;
                 clearDirty(id);
