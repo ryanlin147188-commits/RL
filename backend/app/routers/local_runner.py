@@ -16,12 +16,14 @@ Endpoints:
 from __future__ import annotations
 
 import json
+import os
+import re
 import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select, update
@@ -65,12 +67,24 @@ class ClaimResponse(BaseModel):
     cases: list[CaseJob]
 
 
+class StepLogInput(BaseModel):
+    testcase_node_id: Optional[str] = None
+    step_index: int = 0
+    status: str = "PASSED"
+    duration_ms: int = 0
+    error_message: Optional[str] = None
+    pre_screenshot_url: Optional[str] = None
+    post_screenshot_url: Optional[str] = None
+
+
 class CompleteRequest(BaseModel):
     status: str = Field("PASSED", description="PASSED / FAILED")
     passed_cases: int = 0
     failed_cases: int = 0
     duration_ms: int = 0
     error_message: Optional[str] = None
+    # Agent 端收集的每步結果；backend 會寫進 ExecutionStepLog 供詳細報告顯示
+    steps: list[StepLogInput] = Field(default_factory=list)
 
 
 @router.post("/local-runner/claim", tags=["G · 本機執行"])
@@ -120,11 +134,12 @@ async def claim_local_job(
 
     # 為每個 testcase 抓 steps_json + ddt_json
     # 若 report.ddt_expand=False → 把 DDT 的 rows 截到只有第一列（整個 testcase 只跑一次）
+    # TestcaseContent 的 primary key 是 node_id（不是 id）
     cases: list[CaseJob] = []
     rows_db = await db.execute(
-        select(TestcaseContent).where(TestcaseContent.id.in_(testcase_ids))
+        select(TestcaseContent).where(TestcaseContent.node_id.in_(testcase_ids))
     )
-    tc_map = {t.id: t for t in rows_db.scalars()}
+    tc_map = {t.node_id: t for t in rows_db.scalars()}
     for tid in testcase_ids:
         tc = tc_map.get(tid)
         ddt = (tc.ddt_json if tc else None) or {}
@@ -164,7 +179,10 @@ async def complete_local_job(
     payload: CompleteRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """Agent 執行完後回報最終結果。"""
+    """Agent 執行完後回報最終結果 + 每步記錄（寫進 ExecutionStepLog 供詳細報告顯示）。"""
+    import uuid as _uuid
+    from app.models.execution_step_log import ExecutionStepLog, StepStatus
+
     result = await db.execute(
         select(ExecutionReport).where(ExecutionReport.task_id == task_id)
     )
@@ -180,6 +198,28 @@ async def complete_local_job(
     report.passed_cases = int(payload.passed_cases or 0)
     report.failed_cases = int(payload.failed_cases or 0)
     report.duration_ms = int(payload.duration_ms or 0)
+
+    # 寫入每步記錄（若 agent 有提供）
+    for s in payload.steps or []:
+        st_raw = (s.status or "FAILED").upper()
+        try:
+            st_enum = StepStatus(st_raw)
+        except (KeyError, ValueError):
+            st_enum = StepStatus.FAILED
+        db.add(
+            ExecutionStepLog(
+                id=str(_uuid.uuid4()),
+                report_id=report.id,
+                testcase_node_id=s.testcase_node_id,
+                step_index=int(s.step_index or 0),
+                status=st_enum,
+                duration_ms=int(s.duration_ms or 0),
+                error_message=s.error_message,
+                pre_screenshot_url=s.pre_screenshot_url,
+                post_screenshot_url=s.post_screenshot_url,
+            )
+        )
+
     await db.flush()
 
     # 通知 Test Execution Console：任務結束；WS 端會讀到 type=done 後自動收尾
@@ -197,6 +237,47 @@ async def complete_local_job(
     _publish_ws(task_id, {"type": "done", "status": report.status.value})
 
     return {"ok": True, "report_id": report.id, "status": report.status.value}
+
+
+_SAFE_FILENAME_RE = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+@router.post("/local-runner/upload-screenshot", tags=["G · 本機執行"])
+async def upload_screenshot(
+    report_id: str = Form(...),
+    filename: str = Form(...),
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """Agent 上傳單張截圖；backend 寫到 PIC_FOLDER/<report_id>/<filename> 並回 URL。
+
+    URL 格式與 Docker runner 產出的一致：`{BASE_URL}/pics/<report_id>/<filename>`
+    """
+    # 驗證 report 存在（避免任意寫入）
+    report = await db.get(ExecutionReport, report_id)
+    if report is None:
+        raise HTTPException(status_code=404, detail="report_id 不存在")
+
+    # 檔名防穿越：只保留英數與 . _ -
+    safe_name = _SAFE_FILENAME_RE.sub("_", filename.strip())
+    if not safe_name or safe_name in (".", ".."):
+        raise HTTPException(status_code=400, detail="filename 不合法")
+    if "." not in safe_name:
+        safe_name += ".png"
+
+    dest_dir = os.path.join(settings.PIC_FOLDER, report_id)
+    os.makedirs(dest_dir, exist_ok=True)
+    dest_path = os.path.join(dest_dir, safe_name)
+    try:
+        content = await file.read()
+        with open(dest_path, "wb") as fh:
+            fh.write(content)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"寫檔失敗：{exc}")
+
+    base = (getattr(settings, "BASE_URL", "") or "").rstrip("/")
+    url = f"{base}/pics/{report_id}/{safe_name}" if base else f"/pics/{report_id}/{safe_name}"
+    return {"ok": True, "url": url, "size": len(content)}
 
 
 @router.get("/local-runner/agent", response_class=PlainTextResponse, tags=["G · 本機執行"])

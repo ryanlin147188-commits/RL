@@ -366,25 +366,154 @@ def run_step(page: Page, step: dict[str, Any], ctx: dict[str, str]) -> tuple[boo
         return False, f"{type(exc).__name__}: {exc}"
 
 
-def run_case(page: Page, case: dict[str, Any]) -> tuple[bool, int]:
-    """執行一整個 testcase。回傳 (全部 passed?, 失敗步驟數)。"""
+def upload_screenshot_bytes(server: str, report_id: str, filename: str, img_bytes: bytes) -> Optional[str]:
+    """把 PNG bytes 上傳到 backend 的 /api/local-runner/upload-screenshot。
+
+    成功回傳 backend 提供的 URL（可存進 pre/post_screenshot_url）；失敗回傳 None。
+    """
+    try:
+        resp = requests.post(
+            f"{server}/api/local-runner/upload-screenshot",
+            data={"report_id": report_id, "filename": filename},
+            files={"file": (filename, img_bytes, "image/png")},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        return resp.json().get("url")
+    except Exception as exc:
+        log(f"上傳截圖失敗（{filename}）：{exc}", "WARN")
+        return None
+
+
+def safe_screenshot(page: Page) -> Optional[bytes]:
+    """嘗試 page.screenshot()；失敗時吞錯回 None（例如 page 已關）。"""
+    try:
+        return page.screenshot(full_page=False, type="png", timeout=5000)
+    except Exception as exc:
+        log(f"截圖失敗：{exc}", "WARN")
+        return None
+
+
+# 這些 action 本質上沒有單一目標元素，不用也不能畫紅框
+_ACTIONS_WITHOUT_TARGET = {
+    "navigate", "goto", "open", "reload", "goback", "goforward",
+    "wait", "sleep", "waitforloadstate",
+    "screenshot", "executescript", "switchtab", "closetab", "scroll",
+}
+
+
+def highlight_element(page: Page, step: dict[str, Any], ctx: dict[str, str]) -> bool:
+    """在目標元素周圍畫紅框（fixed overlay div）。
+
+    成功回 True。此函式設計成「盡力而為」：找不到元素、timeout 都不會拋例外，
+    只是沒畫框，後續截圖照樣能拍。
+    """
+    action = (step.get("action") or "").strip().lower()
+    if action in _ACTIONS_WITHOUT_TARGET:
+        return False
+    locator_raw = substitute_ddt(step.get("loc") or step.get("locator") or "", ctx)
+    if not locator_raw.strip():
+        return False
+    try:
+        bb = pw_locator(page, locator_raw).first.bounding_box(timeout=2000)
+    except Exception:
+        return False
+    if not bb:
+        return False
+    try:
+        page.evaluate(
+            """(bb) => {
+                const o = document.createElement('div');
+                o.className = '__autotest_hl';
+                Object.assign(o.style, {
+                    position: 'fixed',
+                    top: (bb.y - 2) + 'px',
+                    left: (bb.x - 2) + 'px',
+                    width: (bb.width + 4) + 'px',
+                    height: (bb.height + 4) + 'px',
+                    border: '3px solid red',
+                    boxSizing: 'border-box',
+                    pointerEvents: 'none',
+                    zIndex: '2147483647',
+                    boxShadow: '0 0 0 1px rgba(255,255,255,0.8) inset',
+                });
+                document.body.appendChild(o);
+            }""",
+            {"x": bb["x"], "y": bb["y"], "width": bb["width"], "height": bb["height"]},
+        )
+        return True
+    except Exception:
+        return False
+
+
+def remove_highlights(page: Page) -> None:
+    """清除所有 autotest 畫的紅框 overlay。"""
+    try:
+        page.evaluate(
+            "document.querySelectorAll('.__autotest_hl').forEach(e => e.remove())"
+        )
+    except Exception:
+        pass
+
+
+def run_case(
+    page: Page,
+    case: dict[str, Any],
+    server: str,
+    report_id: str,
+) -> tuple[bool, int, list[dict[str, Any]]]:
+    """執行一整個 testcase。
+
+    回傳：(全部 passed?, 失敗步驟數, 每步記錄 list)
+    每步記錄欄位與 ExecutionStepLog 對齊：
+        testcase_node_id / step_index / status / duration_ms / error_message
+        + pre_screenshot_url / post_screenshot_url（本機 agent 上傳後拿到的 URL）
+    step_index 沿用 Docker runner 的編碼：round_idx * 1000 + step_position
+    """
     steps = case.get("steps_json") or []
     ddt_contexts = build_ddt_context(case.get("ddt_json"))
     all_passed = True
     fail_count = 0
+    step_logs: list[dict[str, Any]] = []
+    tc_id = case.get("testcase_id") or "case"
+    tc_short = (tc_id or "case")[:8]
     for round_i, ctx in enumerate(ddt_contexts):
         log(f"  ─ Round {round_i + 1} / {len(ddt_contexts)} (ctx={list(ctx.keys()) or 'none'})")
-        for i, step in enumerate(steps, 1):
-            desc = step.get("desc") or step.get("action") or f"step {i}"
+        for i, step in enumerate(steps):
+            desc = step.get("desc") or step.get("action") or f"step {i + 1}"
+            # 執行前：畫紅框 → 截圖 → 清除紅框（和 Docker runner 的行為一致）
+            highlight_element(page, step, ctx)
+            pre_bytes = safe_screenshot(page)
+            remove_highlights(page)
+            pre_fn = f"tc_{tc_short}_row{round_i:02d}_s{i:02d}_pre.png"
+            pre_url = upload_screenshot_bytes(server, report_id, pre_fn, pre_bytes) if pre_bytes else None
+
+            t0 = time.time()
             ok, err = run_step(page, step, ctx)
+            dur_ms = int((time.time() - t0) * 1000)
+
+            # 執行後截圖（不畫框，顯示動作後的實際狀態）→ 上傳
+            post_bytes = safe_screenshot(page)
+            post_fn = f"tc_{tc_short}_row{round_i:02d}_s{i:02d}_post.png"
+            post_url = upload_screenshot_bytes(server, report_id, post_fn, post_bytes) if post_bytes else None
+
+            step_logs.append({
+                "testcase_node_id": tc_id,
+                "step_index": round_i * 1000 + i,
+                "status": "PASSED" if ok else "FAILED",
+                "duration_ms": dur_ms,
+                "error_message": err,
+                "pre_screenshot_url": pre_url,
+                "post_screenshot_url": post_url,
+            })
             if ok:
-                log(f"    ✓ [{i}] {desc}")
+                log(f"    ✓ [{i + 1}] {desc} ({dur_ms}ms)")
             else:
                 all_passed = False
                 fail_count += 1
-                log(f"    ✗ [{i}] {desc} → {err}", "ERROR")
+                log(f"    ✗ [{i + 1}] {desc} → {err} ({dur_ms}ms)", "ERROR")
                 # 維持 robot:continue-on-failure 的語意：失敗了仍繼續跑後面步驟
-    return all_passed, fail_count
+    return all_passed, fail_count, step_logs
 
 
 def process_job(job: dict[str, Any], server: str) -> None:
@@ -396,6 +525,7 @@ def process_job(job: dict[str, Any], server: str) -> None:
     passed = 0
     failed = 0
     start_ts = time.time()
+    all_step_logs: list[dict[str, Any]] = []
 
     with sync_playwright() as pw:
         browser = pw.chromium.launch(headless=False)
@@ -405,7 +535,8 @@ def process_job(job: dict[str, Any], server: str) -> None:
             for idx, case in enumerate(cases, 1):
                 log(f"▶ [{idx}/{len(cases)}] 案例 {case.get('testcase_id','')[:8]}…")
                 try:
-                    ok, fc = run_case(page, case)
+                    ok, fc, logs = run_case(page, case, server, report_id)
+                    all_step_logs.extend(logs)
                     if ok:
                         passed += 1
                         log(f"✅ 案例 {idx} 通過")
@@ -416,6 +547,14 @@ def process_job(job: dict[str, Any], server: str) -> None:
                     failed += 1
                     log(f"💥 案例 {idx} 執行器例外：{exc}", "ERROR")
                     traceback.print_exc()
+                    # 也寫一筆失敗 step log 標記該案例出事
+                    all_step_logs.append({
+                        "testcase_node_id": case.get("testcase_id"),
+                        "step_index": 0,
+                        "status": "FAILED",
+                        "duration_ms": 0,
+                        "error_message": f"Runner exception: {exc}",
+                    })
         finally:
             try:
                 context.close()
@@ -435,11 +574,12 @@ def process_job(job: dict[str, Any], server: str) -> None:
                 "passed_cases": passed,
                 "failed_cases": failed,
                 "duration_ms": dur_ms,
+                "steps": all_step_logs,
             },
-            timeout=30,
+            timeout=60,
         )
         r.raise_for_status()
-        log(f"📤 已回報 backend（report_id={report_id}）")
+        log(f"📤 已回報 backend（report_id={report_id}，共 {len(all_step_logs)} 步）")
     except Exception as exc:
         log(f"回報失敗：{exc}", "ERROR")
 
