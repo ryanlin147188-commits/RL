@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
@@ -27,6 +27,8 @@ class ExecutionReport(Base):
         String(36), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
     )
     trigger_type: Mapped[str] = mapped_column(String(50), default="Manual")
+    # 執行環境：docker（Celery 容器執行）/ local（標記為本機執行）
+    execution_mode: Mapped[str] = mapped_column(String(16), default="docker", nullable=False)
     status: Mapped[ReportStatus] = mapped_column(
         Enum(ReportStatus), default=ReportStatus.RUNNING
     )
@@ -35,6 +37,13 @@ class ExecutionReport(Base):
     passed_cases: Mapped[int] = mapped_column(Integer, default=0)
     failed_cases: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    # 本機執行（execution_mode=local）的專用欄位：agent 認領後填入當下時間，作為搶鎖記號。
+    # 這個欄位在 docker 模式下永遠為 NULL。
+    claimed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    # 原始觸發節點（local 模式認領時用來還原 testcase_ids；docker 模式不依賴此欄位）
+    source_node_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    # 是否把測試案例的 DDT 全部列依序執行。False 時只使用第一列當變數來源，整體只跑一次。
+    ddt_expand: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     project: Mapped["Project"] = relationship(
         "Project", back_populates="execution_reports", lazy="noload"

@@ -37,13 +37,16 @@ def _pub_done(r, channel: str, status: str) -> None:
 
 
 @celery_app.task(bind=True, name="tasks.execution_tasks.run_tests")
-def run_tests(self, task_id: str, report_id: str, testcase_ids: list[str]):
+def run_tests(self, task_id: str, report_id: str, testcase_ids: list[str], ddt_expand: bool = False):
     """
     執行指定的 testcase_ids：
       1. 從 testcase_contents 讀 steps_json + ddt_json
       2. 呼叫 Playwright runner 實際執行
       3. 將每步結果寫入 execution_steps_log
       4. 更新 execution_reports 統計與最終狀態
+
+    ddt_expand=False 時（預設）：只用 DDT 第一列當變數上下文，整個 testcase 只跑一次。
+    ddt_expand=True  時：依 DDT 每一列各自重跑一次 testcase。
     """
     import redis
 
@@ -100,6 +103,14 @@ def run_tests(self, task_id: str, report_id: str, testcase_ids: list[str]):
 
             steps = content.steps_json or []
             ddt = content.ddt_json or {}
+            # ddt_expand=False → 最多只跑一輪（以 DDT 第一列當變數）
+            if not ddt_expand and ddt and isinstance(ddt, dict):
+                rows = ddt.get("rows") or []
+                if len(rows) > 1:
+                    ddt = {
+                        "headers": ddt.get("headers") or [],
+                        "rows": rows[:1],
+                    }
 
             try:
                 round_results = run_testcase(

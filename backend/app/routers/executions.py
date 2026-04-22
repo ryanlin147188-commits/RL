@@ -45,8 +45,22 @@ async def run_execution(
 
     task_id = str(uuid.uuid4())
     report = await create_report(
-        db, node.project_id, payload.trigger_type, len(testcase_ids), task_id
+        db, node.project_id, payload.trigger_type, len(testcase_ids), task_id,
+        execution_mode=payload.execution_mode,
+        source_node_id=payload.node_id,
+        ddt_expand=payload.ddt_expand,
     )
+
+    # local 模式：不送 Celery，留給本機 agent 透過 /api/local-runner/claim 認領
+    if (payload.execution_mode or "docker").lower() == "local":
+        return ExecutionRunResponse(
+            task_id=task_id,
+            report_id=report.id,
+            message=(
+                f"Local execution queued for {len(testcase_ids)} test case(s). "
+                "請確認本機 agent 已啟動（python local_agent.py）"
+            ),
+        )
 
     try:
         from tasks.celery_app import celery_app
@@ -56,6 +70,7 @@ async def run_execution(
                 "task_id": task_id,
                 "report_id": report.id,
                 "testcase_ids": testcase_ids,
+                "ddt_expand": bool(payload.ddt_expand),
             },
         )
     except Exception:
@@ -97,6 +112,58 @@ async def get_execution_status(task_id: str, db: AsyncSession = Depends(get_db))
         failed_cases=report.failed_cases,
         progress=progress,
     )
+
+
+# POST /api/executions/{task_id}/cancel  ── 中斷執行中的任務
+@rest_router.post("/executions/{task_id}/cancel", status_code=200)
+async def cancel_execution(task_id: str, db: AsyncSession = Depends(get_db)):
+    """
+    取消執行中的任務：
+      1. 呼叫 Celery revoke(terminate=True, signal='SIGTERM')
+         - signal 會傳遞到 worker 行程；worker 若正在執行 subprocess.run(robot ...)
+           會讓 robot 收到 SIGTERM 而結束
+      2. 把 execution_reports 狀態改成 FAILED，讓前端清單立刻離開 RUNNING
+    """
+    result = await db.execute(
+        select(ExecutionReport).where(ExecutionReport.task_id == task_id)
+    )
+    report = result.scalar_one_or_none()
+    if report is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    # 1. 送 Celery revoke
+    try:
+        from tasks.celery_app import celery_app
+
+        celery_app.control.revoke(task_id, terminate=True, signal="SIGTERM")
+    except Exception:
+        # Celery 無法連線也不要擋 API；至少先把 DB 狀態修好
+        pass
+
+    # 2. 更新 report 狀態
+    if report.status.value == "RUNNING":
+        from app.models.execution_report import ReportStatus
+
+        report.status = ReportStatus.FAILED
+        await db.flush()
+
+    # 3. 額外送一個「cancelled」訊息到 WS log channel，讓前端可以看到
+    try:
+        import json as _json
+
+        import redis as _redis
+
+        r = _redis.from_url(settings.REDIS_URL)
+        r.publish(
+            f"task:{task_id}:logs",
+            _json.dumps({"type": "log", "level": "WARN", "message": "🛑 使用者取消執行"}),
+        )
+        r.publish(f"task:{task_id}:logs", _json.dumps({"type": "done", "status": "CANCELLED"}))
+        r.close()
+    except Exception:
+        pass
+
+    return {"ok": True, "task_id": task_id, "status": "FAILED"}
 
 
 # WS 11. WS /ws/v1/executions/{task_id}/logs  （掛在 /ws/v1 prefix 下）

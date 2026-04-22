@@ -21,6 +21,10 @@ class PaginatedResponse(BaseModel, Generic[T]):
 class ExecutionRunRequest(BaseModel):
     node_id: str
     trigger_type: str = "Manual"
+    # 執行環境："docker"（Celery 容器）或 "local"（本機標記）。預設 docker。
+    execution_mode: str = "docker"
+    # 是否把測試案例的 DDT 全部列依序執行。預設 False（只跑一次；只用第一列當變數）
+    ddt_expand: bool = False
 
 
 class ExecutionRunResponse(BaseModel):
@@ -66,6 +70,7 @@ class ReportListItem(BaseModel):
     task_id: Optional[str]
     project_id: str
     trigger_type: str
+    execution_mode: str = "docker"
     status: ReportStatus
     duration_ms: int
     total_cases: int

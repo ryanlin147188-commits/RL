@@ -31,6 +31,7 @@ async def init_db() -> None:
         execution_step_log,
         project,
         recording,
+        schedule,
         testcase_content,
         tree_node,
     )

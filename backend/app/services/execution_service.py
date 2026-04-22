@@ -53,13 +53,19 @@ async def create_report(
     trigger_type: str,
     total_cases: int,
     task_id: str,
+    execution_mode: str = "docker",
+    source_node_id: str | None = None,
+    ddt_expand: bool = False,
 ) -> ExecutionReport:
     report = ExecutionReport(
         id=str(uuid.uuid4()),
         task_id=task_id,
         project_id=project_id,
         trigger_type=trigger_type,
+        execution_mode=(execution_mode or "docker").lower(),
         total_cases=total_cases,
+        source_node_id=source_node_id,
+        ddt_expand=bool(ddt_expand),
     )
     db.add(report)
     await db.flush()

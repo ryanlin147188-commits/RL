@@ -1,3 +1,4 @@
+import asyncio
 import os
 from contextlib import asynccontextmanager
 
@@ -7,16 +8,25 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.database import init_db
-from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings
+from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings, schedules, local_runner
+from app.services.schedule_service import scheduler_loop
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup：建立 PIC 資料夾 + 自動建表
+    # Startup：建立 PIC 資料夾 + 自動建表 + 啟動排程背景任務
     os.makedirs(settings.PIC_FOLDER, exist_ok=True)
     await init_db()
-    yield
-    # Shutdown：nothing needed
+    scheduler_task = asyncio.create_task(scheduler_loop())
+    try:
+        yield
+    finally:
+        # Shutdown：停掉排程背景任務
+        scheduler_task.cancel()
+        try:
+            await scheduler_task
+        except (asyncio.CancelledError, Exception):
+            pass
 
 
 app = FastAPI(
@@ -47,6 +57,8 @@ app.include_router(executions.ws_router,   prefix="/ws",  tags=["C · 執行引�
 app.include_router(reports.router,         prefix="/api", tags=["D · 報告與儀表板"])
 app.include_router(upload.router,          prefix="/api", tags=["D · 報告與儀表板"])
 app.include_router(recordings.router,      prefix="/api", tags=["E · 錄製"])
+app.include_router(schedules.router,       prefix="/api", tags=["F · 排程"])
+app.include_router(local_runner.router,    prefix="/api", tags=["G · 本機執行"])
 
 
 @app.get("/", tags=["Health"])

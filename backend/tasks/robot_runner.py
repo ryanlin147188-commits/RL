@@ -179,12 +179,24 @@ def _translate_step(step: dict, ctx: dict) -> list[str]:
         return out(line("Go Forward"))
 
     # 點擊 / 輸入
+    # ★ 所有 Click 動作之前都先 Wait For Elements State ... visible timeout=10s，
+    #   避免目標元素找不到時整個 test 卡住（Browser Library 的 Click 預設 timeout 會跟隨 suite timeout，
+    #   在舊版 .robot 裡可能是 30s～無上限）。
     if action == "click":
-        return out(line("Click", locator))
+        return out(
+            line("Wait For Elements State", locator, "visible", "timeout=10s"),
+            line("Click", locator),
+        )
     if action in ("doubleclick", "dblclick"):
-        return out(line("Click", locator, "clickCount=2"))
+        return out(
+            line("Wait For Elements State", locator, "visible", "timeout=10s"),
+            line("Click", locator, "clickCount=2"),
+        )
     if action == "rightclick":
-        return out(line("Click", locator, "button=right"))
+        return out(
+            line("Wait For Elements State", locator, "visible", "timeout=10s"),
+            line("Click", locator, "button=right"),
+        )
     if action in ("fill", "input"):
         return out(line("Fill Text", locator, value))
     if action == "type":
@@ -206,6 +218,27 @@ def _translate_step(step: dict, ctx: dict) -> list[str]:
     if action == "upload":
         # value = 檔案路徑（容器內可讀）
         return out(line("Upload File By Selector", locator, value))
+    if action == "download":
+        # 下載檔案：locator = 觸發下載的連結/按鈕；value = 儲存到 worker 容器內的檔案路徑
+        # 使用 Browser Library 的 Promise / Wait For 模式：先下 promise，再點擊，再等它完成
+        save_path = value or "/tmp/download"
+        return out(
+            line("${dl}=", "Promise To Wait For Download", save_path),
+            line("Click", locator),
+            line("${downloaded}=", "Wait For", "${dl}"),
+            line("File Should Exist", save_path),
+        )
+    if action in ("clickat", "canvasclick"):
+        # 在元素的指定座標點擊（適合 Canvas / 地圖類互動）
+        # value 格式："x,y" 或 "x y"，單位為元素內部像素（左上角 0,0）
+        import re as _re
+        parts = _re.split(r"[,\s]+", (value or "").strip())
+        parts = [p for p in parts if p]
+        x, y = (parts + ["0", "0"])[:2]
+        return out(
+            line("Wait For Elements State", locator, "visible", "timeout=10s"),
+            line("Click With Options", locator, f"position_x={x}", f"position_y={y}"),
+        )
 
     # 捲動 / 拖曳
     if action == "scroll":
@@ -291,6 +324,39 @@ def _translate_step(step: dict, ctx: dict) -> list[str]:
         return out(
             line("${attr}=", "Get Attribute", locator, value or "value"),
             compare_line("${attr}", compare or "Equals", expected),
+        )
+    if action == "assertimageloaded":
+        # 檢查 <img> 是否真的載入完成（complete=true && naturalWidth>0），
+        # 避免破圖被當成「顯示」通過
+        return out(
+            line("Wait For Elements State", locator, "visible", "timeout=10s"),
+            line(
+                "${loaded}=",
+                "Evaluate JavaScript",
+                locator,
+                "(el) => el && el.complete && el.naturalWidth > 0",
+            ),
+            line("Should Be True", "${loaded}"),
+        )
+    if action == "assertboundingbox":
+        # value = 期望的 x,y,w,h（逗號/空白分隔）；expected = 允許誤差（像素，預設 2）
+        # 例如：value="100,200,300,400"  expected="3"
+        import re as _re
+        parts = _re.split(r"[,\s]+", (value or "").strip())
+        parts = [p for p in parts if p]
+        if len(parts) < 4:
+            return out(
+                line("Log", f"AssertBoundingBox 需 value='x,y,w,h'，收到：{value!r}")
+            )
+        ex, ey, ew, eh = parts[:4]
+        tol = expected or "2"
+        return out(
+            line("Wait For Elements State", locator, "visible", "timeout=10s"),
+            line("${bb}=", "Get Boundingbox", locator),
+            line("Should Be True", f"abs(${{bb}}[\"x\"] - {ex}) <= {tol}"),
+            line("Should Be True", f"abs(${{bb}}[\"y\"] - {ey}) <= {tol}"),
+            line("Should Be True", f"abs(${{bb}}[\"width\"] - {ew}) <= {tol}"),
+            line("Should Be True", f"abs(${{bb}}[\"height\"] - {eh}) <= {tol}"),
         )
 
     # ── HTTP（RequestsLibrary）────────────────────────
@@ -532,6 +598,9 @@ def _build_robot_file(
     lines.append(f"    New Browser    chromium    headless={'true' if headless else 'false'}")
     lines.append("    New Context    viewport={'width': 1280, 'height': 720}")
     lines.append("    New Page")
+    # 預設所有 Browser Library 動作（Click / Fill / Wait For Elements State / ...）
+    # 超過 30 秒就算失敗，避免找不到元素時整個 test 卡住無限等。
+    lines.append("    Set Browser Timeout    30s")
     lines.append("")
     lines.append("Teardown Browser Session")
     lines.append("    Run Keyword And Ignore Error    Close Browser    ALL")

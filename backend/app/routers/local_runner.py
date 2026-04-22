@@ -1,0 +1,208 @@
+"""本機執行 Agent（local-runner）API。
+
+使用流程：
+    1. 使用者在前端把「環境切換」按鈕切到「本機」
+    2. 按「執行測試」 → backend 建立 `execution_mode=local` 的報告，不送 Celery
+    3. 使用者在本機跑 `python local_agent.py --server http://<ip>`
+    4. Agent 定期 POST /api/local-runner/claim；backend atomically 認領一筆未被接手的
+       local 報告，回傳每個 testcase 的 steps_json + ddt_json
+    5. Agent 用 Playwright 執行，完成後 POST /api/local-runner/tasks/{task_id}/complete
+
+Endpoints:
+    - POST /api/local-runner/claim
+    - POST /api/local-runner/tasks/{task_id}/complete
+    - GET  /api/local-runner/agent         （下載 agent Python 腳本）
+"""
+from __future__ import annotations
+
+import json
+import time
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Optional
+
+from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi.responses import PlainTextResponse
+from pydantic import BaseModel, Field
+from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.config import settings
+from app.database import get_db
+from app.models.execution_report import ExecutionReport, ReportStatus
+from app.models.testcase_content import TestcaseContent
+from app.services.execution_service import collect_testcase_ids
+
+
+def _publish_ws(task_id: str, message: dict[str, Any]) -> None:
+    """Best-effort 推一則訊息到 WS log channel（給 Test Execution Console 即時顯示用）。"""
+    try:
+        import redis as _redis
+
+        r = _redis.from_url(settings.REDIS_URL)
+        r.publish(f"task:{task_id}:logs", json.dumps(message))
+        r.close()
+    except Exception:
+        pass
+
+router = APIRouter()
+
+
+class ClaimRequest(BaseModel):
+    agent_id: str = Field(..., description="Agent 執行個體識別，任意字串")
+
+
+class CaseJob(BaseModel):
+    testcase_id: str
+    name: Optional[str] = None
+    steps_json: list[dict[str, Any]] = Field(default_factory=list)
+    ddt_json: Optional[dict[str, Any]] = None
+
+
+class ClaimResponse(BaseModel):
+    report_id: str
+    task_id: str
+    cases: list[CaseJob]
+
+
+class CompleteRequest(BaseModel):
+    status: str = Field("PASSED", description="PASSED / FAILED")
+    passed_cases: int = 0
+    failed_cases: int = 0
+    duration_ms: int = 0
+    error_message: Optional[str] = None
+
+
+@router.post("/local-runner/claim", tags=["G · 本機執行"])
+async def claim_local_job(
+    payload: ClaimRequest = Body(default=ClaimRequest(agent_id="unknown")),
+    db: AsyncSession = Depends(get_db),
+):
+    """搶鎖取一筆未被認領的 local 模式報告。無可認領時回 204。"""
+    # 只撈 status=RUNNING 且 execution_mode=local 且 claimed_at=NULL
+    result = await db.execute(
+        select(ExecutionReport)
+        .where(
+            ExecutionReport.execution_mode == "local",
+            ExecutionReport.status == ReportStatus.RUNNING,
+            ExecutionReport.claimed_at.is_(None),
+        )
+        .order_by(ExecutionReport.created_at.asc())
+        .limit(1)
+    )
+    report = result.scalar_one_or_none()
+    if report is None:
+        # 204 No Content：Agent 再等等就好
+        from fastapi import Response
+        return Response(status_code=204)
+
+    # Atomic 搶鎖：只在 claimed_at 仍為 NULL 時寫入；若另一個 agent 已先搶走，rowcount=0
+    now = datetime.now()
+    stmt = (
+        update(ExecutionReport)
+        .where(ExecutionReport.id == report.id, ExecutionReport.claimed_at.is_(None))
+        .values(claimed_at=now)
+    )
+    upd = await db.execute(stmt)
+    if upd.rowcount == 0:
+        from fastapi import Response
+        return Response(status_code=204)
+
+    # 還原 testcase_ids
+    if not report.source_node_id:
+        raise HTTPException(status_code=500, detail="report 缺少 source_node_id，無法還原測試案例")
+    testcase_ids = await collect_testcase_ids(db, report.source_node_id)
+    if not testcase_ids:
+        # 沒有 TC 可執行，直接標記 FAILED
+        report.status = ReportStatus.FAILED
+        await db.flush()
+        raise HTTPException(status_code=404, detail="此 report 無可執行的測試案例")
+
+    # 為每個 testcase 抓 steps_json + ddt_json
+    # 若 report.ddt_expand=False → 把 DDT 的 rows 截到只有第一列（整個 testcase 只跑一次）
+    cases: list[CaseJob] = []
+    rows_db = await db.execute(
+        select(TestcaseContent).where(TestcaseContent.id.in_(testcase_ids))
+    )
+    tc_map = {t.id: t for t in rows_db.scalars()}
+    for tid in testcase_ids:
+        tc = tc_map.get(tid)
+        ddt = (tc.ddt_json if tc else None) or {}
+        if isinstance(ddt, dict) and not report.ddt_expand:
+            rs = ddt.get("rows") or []
+            if len(rs) > 1:
+                ddt = {"headers": ddt.get("headers") or [], "rows": rs[:1]}
+        cases.append(
+            CaseJob(
+                testcase_id=tid,
+                name=None,
+                steps_json=(tc.steps_json if tc and tc.steps_json else []),
+                ddt_json=ddt if ddt else None,
+            )
+        )
+
+    # 通知前端 Console：已被某個 agent 認領
+    _publish_ws(
+        report.task_id or report.id,
+        {
+            "type": "log",
+            "level": "INFO",
+            "message": f"🖥️  本機 Agent『{payload.agent_id}』已認領此任務，開始執行…",
+        },
+    )
+
+    return ClaimResponse(
+        report_id=report.id,
+        task_id=report.task_id or report.id,
+        cases=cases,
+    )
+
+
+@router.post("/local-runner/tasks/{task_id}/complete", tags=["G · 本機執行"])
+async def complete_local_job(
+    task_id: str,
+    payload: CompleteRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Agent 執行完後回報最終結果。"""
+    result = await db.execute(
+        select(ExecutionReport).where(ExecutionReport.task_id == task_id)
+    )
+    report = result.scalar_one_or_none()
+    if report is None:
+        raise HTTPException(status_code=404, detail="找不到對應的 report")
+
+    status_upper = (payload.status or "FAILED").upper()
+    if status_upper == "PASSED":
+        report.status = ReportStatus.PASSED
+    else:
+        report.status = ReportStatus.FAILED
+    report.passed_cases = int(payload.passed_cases or 0)
+    report.failed_cases = int(payload.failed_cases or 0)
+    report.duration_ms = int(payload.duration_ms or 0)
+    await db.flush()
+
+    # 通知 Test Execution Console：任務結束；WS 端會讀到 type=done 後自動收尾
+    _publish_ws(
+        task_id,
+        {
+            "type": "log",
+            "level": "INFO",
+            "message": (
+                f"🏁 本機 Agent 回報完成：passed={report.passed_cases} "
+                f"failed={report.failed_cases} duration={report.duration_ms}ms"
+            ),
+        },
+    )
+    _publish_ws(task_id, {"type": "done", "status": report.status.value})
+
+    return {"ok": True, "report_id": report.id, "status": report.status.value}
+
+
+@router.get("/local-runner/agent", response_class=PlainTextResponse, tags=["G · 本機執行"])
+async def download_agent_script():
+    """提供 agent 腳本供使用者下載；內容從同目錄的 local_agent_template.py 讀出。"""
+    template_path = Path(__file__).resolve().parent.parent / "static" / "local_agent.py"
+    if not template_path.exists():
+        raise HTTPException(status_code=500, detail="local_agent.py 未部署")
+    return template_path.read_text(encoding="utf-8")

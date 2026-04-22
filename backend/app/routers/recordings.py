@@ -427,6 +427,42 @@ _PATTERNS = [
         ),
         "assert_role_contain_text",
     ),
+    # page.locator("...").set_input_files("path")  ── 上傳檔案
+    (
+        re.compile(
+            r'page\.locator\(\s*["\']([^"\']+)["\']\s*\)\.set_input_files\(\s*["\']([^"\']+)["\']\s*\)'
+        ),
+        "upload",
+    ),
+    # page.get_by_role("button", name="上傳").set_input_files("path")
+    (
+        re.compile(
+            r'page\.get_by_role\(\s*["\']([^"\']+)["\']\s*,\s*name\s*=\s*["\']([^"\']+)["\'][^)]*\)\s*'
+            r'\.set_input_files\(\s*["\']([^"\']+)["\']\s*\)'
+        ),
+        "role_upload",
+    ),
+    # page.locator("...").drag_to(page.locator("..."))  ── 拖拉
+    (
+        re.compile(
+            r'page\.locator\(\s*["\']([^"\']+)["\']\s*\)\.drag_to\(\s*'
+            r'page\.locator\(\s*["\']([^"\']+)["\']\s*\)\s*\)'
+        ),
+        "drag_to",
+    ),
+    # with page.expect_download() as download_info:
+    #     page.get_by_role("link", name="xxx").click()
+    #   → codegen 只會留下 click；我們把 expect_download 當成「提示標記」
+    #     讓下一個 click 升格為 Download 動作
+    (
+        re.compile(r'page\.expect_download\(\s*\)'),
+        "_download_hint",
+    ),
+    # with context.expect_page() as ... → 下一個 click 後會開新分頁，之後動作要 Switch Page
+    (
+        re.compile(r'context\.expect_page\(\s*\)'),
+        "_new_tab_hint",
+    ),
 ]
 
 
@@ -439,6 +475,10 @@ def _parse_script(script: str) -> list[GeneratedStep]:
     if not script:
         return steps
 
+    # 「提示狀態」：用來偵測上一行看到的 expect_download / expect_page 會把「下一個 click」
+    # 升格為 Download / SwitchTab。
+    pending_hint: Optional[str] = None  # None / "download" / "new_tab"
+
     for raw_line in script.splitlines():
         line = raw_line.strip()
         if not line or line.startswith("#"):
@@ -447,6 +487,13 @@ def _parse_script(script: str) -> list[GeneratedStep]:
             m = pattern.search(line)
             if not m:
                 continue
+            # 先處理「提示」類（不產 step，只設 flag 給下一行 click 用）
+            if kind == "_download_hint":
+                pending_hint = "download"
+                break
+            if kind == "_new_tab_hint":
+                pending_hint = "new_tab"
+                break
             if kind == "goto":
                 url = m.group(1)
                 steps.append(
@@ -461,15 +508,51 @@ def _parse_script(script: str) -> list[GeneratedStep]:
                 )
             elif kind == "click":
                 sel = m.group(1)
-                steps.append(
-                    GeneratedStep(
-                        id=_new_id(),
-                        keyword="When",
-                        description=f"點擊 {sel}",
-                        action="Click",
-                        locator=sel,
+                # 若前一行看到 expect_download()，此次 click 升格為 Download
+                if pending_hint == "download":
+                    steps.append(
+                        GeneratedStep(
+                            id=_new_id(),
+                            keyword="When",
+                            description=f"點擊 {sel} 下載檔案",
+                            action="Download",
+                            locator=sel,
+                            input="/tmp/download",
+                        )
                     )
-                )
+                    pending_hint = None
+                elif pending_hint == "new_tab":
+                    # 點了之後會開新分頁：先 Click，再 SwitchTab 到 NEW
+                    steps.append(
+                        GeneratedStep(
+                            id=_new_id(),
+                            keyword="When",
+                            description=f"點擊 {sel}（會開新分頁）",
+                            action="Click",
+                            locator=sel,
+                        )
+                    )
+                    steps.append(
+                        GeneratedStep(
+                            id=_new_id(),
+                            keyword="When",
+                            description="切換到新分頁",
+                            action="SwitchTab",
+                            locator="",
+                            input="NEW",
+                        )
+                    )
+                    pending_hint = None
+                else:
+                    steps.append(
+                        GeneratedStep(
+                            id=_new_id(),
+                            keyword="When",
+                            description=f"點擊 {sel}",
+                            action="Click",
+                            locator=sel,
+                        )
+                    )
             elif kind == "fill":
                 sel, val = m.group(1), m.group(2)
                 steps.append(
@@ -497,15 +580,49 @@ def _parse_script(script: str) -> list[GeneratedStep]:
             elif kind == "role_click":
                 role, name = m.group(1), m.group(2)
                 loc = f'role={role}[name="{name}"]'
-                steps.append(
-                    GeneratedStep(
-                        id=_new_id(),
-                        keyword="When",
-                        description=f"點擊 {role}「{name}」",
-                        action="Click",
-                        locator=loc,
+                if pending_hint == "download":
+                    steps.append(
+                        GeneratedStep(
+                            id=_new_id(),
+                            keyword="When",
+                            description=f"點擊 {role}「{name}」下載檔案",
+                            action="Download",
+                            locator=loc,
+                            input="/tmp/download",
+                        )
                     )
-                )
+                    pending_hint = None
+                elif pending_hint == "new_tab":
+                    steps.append(
+                        GeneratedStep(
+                            id=_new_id(),
+                            keyword="When",
+                            description=f"點擊 {role}「{name}」（會開新分頁）",
+                            action="Click",
+                            locator=loc,
+                        )
+                    )
+                    steps.append(
+                        GeneratedStep(
+                            id=_new_id(),
+                            keyword="When",
+                            description="切換到新分頁",
+                            action="SwitchTab",
+                            locator="",
+                            input="NEW",
+                        )
+                    )
+                    pending_hint = None
+                else:
+                    steps.append(
+                        GeneratedStep(
+                            id=_new_id(),
+                            keyword="When",
+                            description=f"點擊 {role}「{name}」",
+                            action="Click",
+                            locator=loc,
+                        )
+                    )
             elif kind == "label_fill":
                 label, val = m.group(1), m.group(2)
                 loc = f'label={label}'
@@ -635,6 +752,43 @@ def _parse_script(script: str) -> list[GeneratedStep]:
                         locator=loc,
                         condition="Contains",
                         expected=exp,
+                    )
+                )
+            elif kind == "upload":
+                sel, path = m.group(1), m.group(2)
+                steps.append(
+                    GeneratedStep(
+                        id=_new_id(),
+                        keyword="When",
+                        description=f"上傳檔案「{path}」至 {sel}",
+                        action="Upload",
+                        locator=sel,
+                        input=path,
+                    )
+                )
+            elif kind == "role_upload":
+                role, name, path = m.group(1), m.group(2), m.group(3)
+                loc = f'role={role}[name="{name}"]'
+                steps.append(
+                    GeneratedStep(
+                        id=_new_id(),
+                        keyword="When",
+                        description=f"上傳檔案「{path}」至 {role}「{name}」",
+                        action="Upload",
+                        locator=loc,
+                        input=path,
+                    )
+                )
+            elif kind == "drag_to":
+                src, dst = m.group(1), m.group(2)
+                steps.append(
+                    GeneratedStep(
+                        id=_new_id(),
+                        keyword="When",
+                        description=f"把 {src} 拖到 {dst}",
+                        action="DragAndDrop",
+                        locator=src,
+                        input=dst,
                     )
                 )
             break  # 一行只匹配一個 pattern

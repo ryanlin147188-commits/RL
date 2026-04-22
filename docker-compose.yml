@@ -83,6 +83,8 @@ services:
       redis:
         condition: service_healthy
     environment:
+      # 與 mysql 容器一致使用本地時區；排程比較時間 / 報表 created_at 才會與前端一致
+      TZ: Asia/Taipei
       DB_HOST: mysql
       DB_PORT: 3306
       DB_USER: root
@@ -115,6 +117,7 @@ services:
       redis:
         condition: service_healthy
     environment:
+      TZ: Asia/Taipei
       DB_HOST: mysql
       DB_PORT: 3306
       DB_USER: root
