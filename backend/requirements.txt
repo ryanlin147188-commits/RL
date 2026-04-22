@@ -30,6 +30,6 @@ redis==5.1.1
 # ── 執行引擎：Robot Framework + 周邊 Library（Celery worker 用）──
 robotframework==7.1
 robotframework-browser==18.8.1          # Playwright-based, 需 Node + `rfbrowser init`
-robotframework-requests==2.0.0          # HTTP API 測試（2.0 起支援原生 GET/POST/PUT/PATCH/DELETE/HEAD/OPTIONS 短名稱與 json=）
+robotframework-requests==0.9.7          # HTTP API 測試（0.9.x 已提供短名稱 GET/POST/PUT/PATCH/DELETE/HEAD/OPTIONS 與 headers=/json=/expected_status= 參數；pypi 上無 1.x 正式版，只有 1.0a*）
 robotframework-databaselibrary==2.1.3   # SQL 測試（搭配 pymysql）
 robotframework-appiumlibrary==2.1.0     # 行動裝置自動化（需外接 Appium server）
