@@ -45,12 +45,17 @@ class RTListener:
 
         # 當前 step index（由 marker keyword 設定；None = 尚未進入任何 step）
         self._current_idx: int | None = None
-        # 所有 step 結果 [{step_index, status, duration_ms, error, pre, post}]
+        # 所有 step 結果 [{step_index, status, duration_ms, error, pre, post,
+        #                  video_offset_start_ms, video_offset_end_ms, test_name}]
         self._results: list[dict[str, Any]] = []
         # 暫存每個 step 的累積資訊
         self._buffer: dict[int, dict[str, Any]] = {}
         # 偵測 Take Screenshot 後的檔案路徑
         self._last_screenshot_path: str | None = None
+        # ── Trace / Video 計時 ─────────────────────────────────
+        # 每個 test name 的錄影起始 wall time（time.time()），由 New Context 觸發
+        self._test_recording_start: dict[str, float] = {}
+        self._current_test_name: str | None = None
 
     # ── 工具 ──────────────────────────────────────────────
     def _publish(self, level: str, message: str) -> None:
@@ -89,11 +94,16 @@ class RTListener:
     def start_test(self, data, result):
         # 進入新 test：重置 step 游標，避免上一個 test 的尾段事件污染
         self._current_idx = None
+        self._current_test_name = data.name
         self._publish("INFO", f"  ▶ Test: {data.name}")
 
     def end_test(self, data, result):
         # test 結束後 [Teardown] 的 keyword 仍會 fire；要立刻關掉游標，
         # 否則 teardown 內的 PASS 會被誤算到最後一個 step 上（升級 SKIPPED→PASSED）。
+        # 同時把最後一個 step 的錄影結束時間補上（最後一步沒有後續 AT_STEP marker 來觸發）。
+        if self._current_idx is not None:
+            buf = self._ensure_buf(self._current_idx)
+            buf.setdefault("_end_wall", time.time())
         self._current_idx = None
         if result.passed:
             self._publish("INFO", f"  ✅ Test PASSED: {data.name}")
@@ -104,22 +114,39 @@ class RTListener:
         # 檢查是不是 step marker
         kw_name = (data.name or "").strip()
         args = list(data.args or [])
+        now = time.time()
 
         # 偵測 teardown 入口 → 立刻關掉 step 游標
         # （否則 teardown 內 PASS 的 keyword 會被誤算到最後一個 step）
         bare = kw_name.split(".")[-1].strip().lower()
         if bare in {"teardown browser session", "close browser"}:
+            if self._current_idx is not None:
+                buf = self._ensure_buf(self._current_idx)
+                buf.setdefault("_end_wall", now)
             self._current_idx = None
+            return
+
+        # 偵測 New Context（Browser Library）→ 視為錄影起始時間
+        # （recordVideo 在 context 建立時開始；此時 wall time 即影片 0:00）
+        if bare == "new context" and self._current_test_name:
+            self._test_recording_start.setdefault(self._current_test_name, now)
             return
 
         if kw_name == "Log" and args and isinstance(args[0], str) and args[0].startswith(_STEP_MARKER_PREFIX):
             try:
                 idx = int(args[0][len(_STEP_MARKER_PREFIX):].strip())
-                self._current_idx = idx
-                self._ensure_buf(idx)
-                self._publish("INFO", f"    → Step {idx + 1} 開始")
             except ValueError:
-                pass
+                return
+            # 切換 step 時：替「上一個 step」補 _end_wall（end = 下一個 marker 出現的時刻）
+            if self._current_idx is not None and self._current_idx != idx:
+                prev = self._ensure_buf(self._current_idx)
+                prev.setdefault("_end_wall", now)
+            self._current_idx = idx
+            buf = self._ensure_buf(idx)
+            buf["_start_wall"] = now
+            if self._current_test_name:
+                buf["_test_name"] = self._current_test_name
+            self._publish("INFO", f"    → Step {idx + 1} 開始")
 
     def end_keyword(self, data, result):
         kw_name = (data.name or "").strip()
@@ -198,7 +225,7 @@ class RTListener:
         pass
 
     def close(self):
-        # 把 buffer 整理成 list、解析 pre/post screenshot URL
+        # 把 buffer 整理成 list、解析 pre/post screenshot URL、計算錄影偏移
         for idx in sorted(self._buffer.keys()):
             buf = self._buffer[idx]
             shots: list[str] = buf.pop("_screenshots", [])
@@ -207,6 +234,19 @@ class RTListener:
                 buf["pre"] = self._to_url(shots[0])
                 if len(shots) >= 2:
                     buf["post"] = self._to_url(shots[-1])
+
+            # 錄影 offset：相對於該 test 的 New Context wall time（影片 0:00）
+            test_name = buf.pop("_test_name", None)
+            sw = buf.pop("_start_wall", None)
+            ew = buf.pop("_end_wall", None)
+            rec_start = self._test_recording_start.get(test_name) if test_name else None
+            if rec_start is not None and isinstance(sw, (int, float)):
+                buf["video_offset_start_ms"] = max(0, int((sw - rec_start) * 1000))
+            if rec_start is not None and isinstance(ew, (int, float)):
+                buf["video_offset_end_ms"] = max(0, int((ew - rec_start) * 1000))
+            if test_name:
+                buf["test_name"] = test_name
+
             self._results.append(buf)
 
         # 寫入結果 JSON

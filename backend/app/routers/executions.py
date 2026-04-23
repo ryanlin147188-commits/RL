@@ -49,6 +49,7 @@ async def run_execution(
         execution_mode=payload.execution_mode,
         source_node_id=payload.node_id,
         ddt_expand=payload.ddt_expand,
+        enable_recording=payload.enable_recording,
     )
 
     # local 模式：不送 Celery，留給本機 agent 透過 /api/local-runner/claim 認領
@@ -71,6 +72,7 @@ async def run_execution(
                 "report_id": report.id,
                 "testcase_ids": testcase_ids,
                 "ddt_expand": bool(payload.ddt_expand),
+                "enable_recording": bool(payload.enable_recording),
             },
         )
     except Exception:

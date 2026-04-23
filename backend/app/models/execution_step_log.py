@@ -44,6 +44,15 @@ class ExecutionStepLog(Base):
     req_payload_json: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
     res_payload_json: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
 
+    # ── Trace / Video（僅在每個案例/DDT round 的「第一個步驟」填入；其餘 step 的
+    #    case 級欄位為 NULL；step_video_url 則為該步驟的影片切片）─────────────
+    # Playwright trace.zip 對外 URL（可用 playwright show-trace 或 trace.playwright.dev 開啟）
+    trace_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    # 案例完整錄影（.webm）對外 URL
+    video_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    # 該步驟切片錄影（.webm）對外 URL
+    step_video_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+
     report: Mapped["ExecutionReport"] = relationship(
         "ExecutionReport", back_populates="steps", lazy="noload"
     )

@@ -41,6 +41,8 @@ class StepResult:
     pre_screenshot_url: Optional[str]
     post_screenshot_url: Optional[str]
     target_highlight_json: Optional[dict]  # 在 RF 模式下保留欄位但通常為 None
+    # 該步驟錄影切片（.webm）對外 URL；未啟用 enable_recording 或 ffmpeg 不可用時為 None。
+    step_video_url: Optional[str] = None
 
 
 @dataclass
@@ -48,6 +50,10 @@ class CaseResult:
     passed: bool
     steps: list[StepResult]
     duration_ms: int
+    # 案例級錄影 / 軌跡（一個案例 = 一輪 DDT 行；每輪各一份）。
+    # 未啟用 enable_recording 時兩者皆為 None。
+    trace_url: Optional[str] = None
+    video_url: Optional[str] = None
 
 
 # ════════════════════════════════════════════════════════════════
@@ -557,6 +563,9 @@ def _build_robot_file(
     case_tag: str,
     screenshot_dir: str,
     headless: bool = False,
+    enable_recording: bool = True,
+    video_dir: Optional[str] = None,
+    trace_dir: Optional[str] = None,
 ) -> tuple[str, list[list[dict]]]:
     """
     回傳 (.robot 檔內容, 每個 test case 的 step 清單)。
@@ -565,11 +574,22 @@ def _build_robot_file(
         Take Screenshot    filename=...    fullPage=False
         <action keyword(s)>
         Take Screenshot    filename=...    fullPage=False
+
+    enable_recording=True 時：
+      - New Context 設定 recordVideo（產生 .webm）
+      - Setup 內呼叫 New Context 之後 Start Tracing  / Teardown 前 Stop Tracing -> trace.zip
     """
     rows = (ddt or {}).get("rows") or []
     headers = (ddt or {}).get("headers") or []
     if not rows:
         rows = [[]]
+
+    # 在 .robot 中以正斜線表示路徑（Windows 與 Linux 都吃；避免反斜線跳脫困擾）
+    def _posix(p: Optional[str]) -> str:
+        return (p or "").replace("\\", "/")
+
+    video_dir_p = _posix(video_dir) if enable_recording else ""
+    trace_dir_p = _posix(trace_dir) if enable_recording else ""
 
     lines: list[str] = []
     lines.append("*** Settings ***")
@@ -580,6 +600,7 @@ def _build_robot_file(
     lines.append("Library    Collections")
     lines.append("Library    OperatingSystem")
     lines.append("Library    String")
+    lines.append("Library    DateTime")
     lines.append("")
     # 保留 tag：讓所有 test 在 keyword 失敗後仍繼續執行剩餘步驟
     # （測試最終狀態仍會是 FAIL，但不會中斷後續 step）
@@ -596,13 +617,31 @@ def _build_robot_file(
     lines.append("*** Keywords ***")
     lines.append("Setup Browser Session")
     lines.append(f"    New Browser    chromium    headless={'true' if headless else 'false'}")
-    lines.append("    New Context    viewport={'width': 1280, 'height': 720}")
+    # ── New Context 一次帶齊：viewport / recordVideo / tracing ──
+    # robotframework-browser 18.x 沒有 Start/Stop Tracing keyword；
+    # tracing 改在 context 開啟時用 ``tracing=<filename>`` 啟用，
+    # context 關閉（auto_closing_level=TEST）時自動寫到 ``${OUTPUT_DIR}/<filename>``。
+    # ${TEST_NAME} 在 [Setup] 階段已可用，每個 DDT row 各自取得獨立檔名。
+    nc_args = ["viewport={'width': 1280, 'height': 720}"]
+    if enable_recording and video_dir_p:
+        nc_args.append(
+            f"recordVideo={{'dir': '{video_dir_p}', 'size': {{'width': 1280, 'height': 720}}}}"
+        )
+    if enable_recording and trace_dir_p:
+        # 注意：value 中不可含路徑分隔符（Browser Library 把它當檔名用，會與 outputdir 拼接）
+        nc_args.append("tracing=${TEST_NAME}.zip")
+    lines.append("    New Context    " + "    ".join(nc_args))
     lines.append("    New Page")
     # 預設所有 Browser Library 動作（Click / Fill / Wait For Elements State / ...）
     # 超過 30 秒就算失敗，避免找不到元素時整個 test 卡住無限等。
     lines.append("    Set Browser Timeout    30s")
+    # 把錄影起始時間（epoch 秒）寫入 RECORDING_START；listener 用此計算每步的 video offset
+    lines.append("    ${RECORDING_START}=    Get Time    epoch")
+    lines.append("    Set Suite Variable    ${RECORDING_START}")
+    lines.append("    Log    RECORDING_START ts=${RECORDING_START}")
     lines.append("")
     lines.append("Teardown Browser Session")
+    # 關閉 context 會自動寫出 trace.zip 與最終化 .webm（不需顯式 Stop Tracing）
     lines.append("    Run Keyword And Ignore Error    Close Browser    ALL")
     lines.append("")
 
@@ -683,10 +722,15 @@ def run_testcase(
     case_tag: str,
     publish_log: Callable[[str, str], None],
     headless: bool = True,
+    enable_recording: bool = True,
 ) -> list[CaseResult]:
     """
     執行單一測試案例（含 DDT 多列）。
     回傳每一輪 (DDT 列) 的 CaseResult；無 DDT 時長度為 1。
+
+    enable_recording=True 時：
+      - 啟動 Playwright Trace（trace.zip） 與 Video（.webm，每個案例/DDT 列一份）
+      - 執行結束後使用 ffmpeg 把完整影片切成「每步驟一份」短片（ffmpeg 不可用時跳過）
     """
     if not steps:
         publish_log("ERROR", "  ⚠ 此案例 steps_json 為空")
@@ -695,6 +739,12 @@ def run_testcase(
     # ── 截圖目錄與工作區 ──────────────────────────────
     screenshot_dir = os.path.abspath(os.path.join(settings.PIC_FOLDER, report_id))
     os.makedirs(screenshot_dir, exist_ok=True)
+    # Trace / Video 目錄（位於 PIC_FOLDER/<report_id> 下，與截圖共享 /pics/ static mount）
+    trace_dir = os.path.abspath(os.path.join(settings.PIC_FOLDER, report_id, "traces"))
+    video_dir = os.path.abspath(os.path.join(settings.PIC_FOLDER, report_id, "videos"))
+    if enable_recording:
+        os.makedirs(trace_dir, exist_ok=True)
+        os.makedirs(video_dir, exist_ok=True)
     workdir = tempfile.mkdtemp(prefix=f"rf_{case_tag}_")
     robot_file = os.path.join(workdir, "test.robot")
     output_dir = os.path.join(workdir, "out")
@@ -702,7 +752,16 @@ def run_testcase(
     result_json = os.path.join(workdir, "step_results.json")
 
     # ── 產生 .robot ────────────────────────────────────
-    robot_text, _ = _build_robot_file(steps, ddt, case_tag, screenshot_dir, headless=headless)
+    robot_text, _ = _build_robot_file(
+        steps,
+        ddt,
+        case_tag,
+        screenshot_dir,
+        headless=headless,
+        enable_recording=enable_recording,
+        video_dir=video_dir if enable_recording else None,
+        trace_dir=trace_dir if enable_recording else None,
+    )
     with open(robot_file, "w", encoding="utf-8") as f:
         f.write(robot_text)
     publish_log("INFO", f"  📝 已生成 {os.path.basename(robot_file)} ({len(steps)} 步驟)")
@@ -769,12 +828,31 @@ def run_testcase(
     n_rows = max(1, len(rows))
     n_steps = len(steps)
 
+    # 收集 trace.zip（test_name → 路徑）與 video（test_name → .webm 路徑）
+    trace_by_test: dict[str, str] = {}
+    video_by_test: dict[str, str] = {}
+    if enable_recording:
+        trace_by_test = _collect_traces(trace_dir, output_dir, n_rows, case_tag)
+        video_by_test = _collect_videos(video_dir, n_rows, case_tag)
+
     case_results: list[CaseResult] = []
     for row_i in range(n_rows):
         row_steps: list[StepResult] = []
         row_passed = True
         row_dur = 0
         test_name = f"{case_tag}_row{row_i:02d}"
+
+        # case 級 trace / video URL
+        case_trace_url = (
+            _to_pics_url(trace_by_test[test_name], report_id)
+            if test_name in trace_by_test
+            else None
+        )
+        case_video_path = video_by_test.get(test_name)
+        case_video_url = (
+            _to_pics_url(case_video_path, report_id) if case_video_path else None
+        )
+
         for step_i in range(n_steps):
             global_idx = row_i * 1000 + step_i
             rec = next((r for r in step_records if r.get("step_index") == global_idx), None)
@@ -804,6 +882,25 @@ def run_testcase(
             row_dur += rec.get("duration_ms", 0)
             if status != "PASSED":
                 row_passed = False
+
+            # ── 步驟切片影片（ffmpeg）──
+            step_video_url: Optional[str] = None
+            if enable_recording and case_video_path:
+                start_off = rec.get("video_offset_start_ms")
+                end_off = rec.get("video_offset_end_ms")
+                if isinstance(start_off, int) and isinstance(end_off, int) and end_off > start_off:
+                    clip_path = _ffmpeg_clip(
+                        case_video_path,
+                        os.path.join(
+                            video_dir,
+                            f"{test_name}_s{step_i:02d}.webm",
+                        ),
+                        start_off / 1000.0,
+                        max(0.5, (end_off - start_off) / 1000.0),
+                    )
+                    if clip_path:
+                        step_video_url = _to_pics_url(clip_path, report_id)
+
             row_steps.append(
                 StepResult(
                     status=status,
@@ -812,9 +909,18 @@ def run_testcase(
                     pre_screenshot_url=pre_url,
                     post_screenshot_url=post_url,
                     target_highlight_json=None,
+                    step_video_url=step_video_url,
                 )
             )
-        case_results.append(CaseResult(passed=row_passed, steps=row_steps, duration_ms=row_dur))
+        case_results.append(
+            CaseResult(
+                passed=row_passed,
+                steps=row_steps,
+                duration_ms=row_dur,
+                trace_url=case_trace_url,
+                video_url=case_video_url,
+            )
+        )
 
     _safe_cleanup(workdir)
     return case_results
@@ -885,3 +991,158 @@ def _extract_task_id(publish_log: Callable) -> Optional[str]:
     為了讓 listener 用同一條 channel，caller 在環境變數 AUTOTEST_TASK_ID 提供。
     """
     return os.environ.get("AUTOTEST_TASK_ID")
+
+
+# ════════════════════════════════════════════════════════════════
+# Trace / Video 後處理
+# ════════════════════════════════════════════════════════════════
+
+
+def _collect_traces(
+    trace_dir: str, output_dir: str, n_rows: int, case_tag: str
+) -> dict[str, str]:
+    """
+    回傳 test_name → trace.zip 絕對路徑（已搬到 ``trace_dir`` 下）。
+
+    Browser Library 18.x 把 trace 寫到 Robot ``--outputdir`` 之下、檔名為 New Context
+    的 ``tracing=`` 參數。我們在 Setup 用 ``tracing=${TEST_NAME}.zip``，因此原始檔位於
+    ``<output_dir>/<test_name>.zip``。為了能透過 ``/pics/...`` 對外服務，這裡將檔案搬
+    到 PIC_FOLDER 之下的 ``trace_dir``（與截圖、錄影同一個 report 目錄）。
+    """
+    out: dict[str, str] = {}
+    if not os.path.isdir(trace_dir) or not os.path.isdir(output_dir):
+        return out
+    for row_i in range(n_rows):
+        test_name = f"{case_tag}_row{row_i:02d}"
+        src = os.path.join(output_dir, f"{test_name}.zip")
+        if not os.path.isfile(src):
+            continue
+        dst = os.path.join(trace_dir, f"{test_name}.zip")
+        try:
+            if os.path.isfile(dst):
+                os.remove(dst)
+            shutil.move(src, dst)
+            out[test_name] = dst
+        except OSError:
+            # 移動失敗就直接讀原位（仍會在 _safe_cleanup 時被刪掉，但至少這次能登錄到 DB）
+            out[test_name] = src
+    return out
+
+
+def _collect_videos(video_dir: str, n_rows: int, case_tag: str) -> dict[str, str]:
+    """
+    回傳 test_name → 完整錄影 .webm 絕對路徑。
+
+    Playwright 給 video 的檔名是隨機 hash，無法由名稱直接對應到 test_name。
+    由於 .robot 內 DDT row 是依序執行（列 0 → 列 N-1），且每個 test 結束時才完成 .webm 寫檔，
+    我們以「修改時間排序」對應到 row index。
+    """
+    out: dict[str, str] = {}
+    if not os.path.isdir(video_dir):
+        return out
+    candidates = [
+        os.path.join(video_dir, fn)
+        for fn in os.listdir(video_dir)
+        # 只取 Playwright 寫出的「原檔」（隨機 hash 名）。排除：
+        #   - 步驟切片：*_sNN.webm
+        #   - 我們搬移過的成品（不論哪個 testcase）：*_rowNN.webm
+        if fn.lower().endswith(".webm")
+        and not re.search(r"_s\d{2}\.webm$", fn, re.IGNORECASE)
+        and not re.search(r"_row\d{2}\.webm$", fn, re.IGNORECASE)
+    ]
+    candidates.sort(key=lambda p: os.path.getmtime(p))
+    for row_i in range(min(n_rows, len(candidates))):
+        test_name = f"{case_tag}_row{row_i:02d}"
+        # 改名為可預期的形式：<case_tag>_row<NN>.webm（同目錄移動）
+        target = os.path.join(video_dir, f"{test_name}.webm")
+        try:
+            if os.path.abspath(candidates[row_i]) != os.path.abspath(target):
+                # 移動失敗（rename 跨檔案系統等）就退回原檔
+                if os.path.isfile(target):
+                    os.remove(target)
+                shutil.move(candidates[row_i], target)
+            out[test_name] = target
+        except OSError:
+            out[test_name] = candidates[row_i]
+    return out
+
+
+_FFMPEG_OK: Optional[bool] = None
+
+
+def _ffmpeg_available() -> bool:
+    """
+    結果快取：只探測一次（多 step 重複呼叫時不再每次 spawn）。
+    回傳 False 時 caller 應跳過 step-level 切片，但仍會保留完整錄影。
+    """
+    global _FFMPEG_OK
+    if _FFMPEG_OK is None:
+        try:
+            r = subprocess.run(
+                ["ffmpeg", "-version"], capture_output=True, timeout=5
+            )
+            _FFMPEG_OK = r.returncode == 0
+        except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+            _FFMPEG_OK = False
+    return _FFMPEG_OK
+
+
+def _ffmpeg_clip(
+    src_path: str, out_path: str, start_sec: float, duration_sec: float
+) -> Optional[str]:
+    """
+    用 ffmpeg 把 src_path 的 [start, start+duration] 區段切到 out_path。
+    使用 ``-c copy`` 不重編，速度快但起點可能對齊到最近的 keyframe（誤差 < 1s）。
+    成功回傳 out_path；失敗或 ffmpeg 不可用回傳 None。
+    """
+    if not _ffmpeg_available():
+        return None
+    if not os.path.isfile(src_path):
+        return None
+    if duration_sec <= 0:
+        return None
+    try:
+        cmd = [
+            "ffmpeg", "-y",
+            "-ss", f"{max(0.0, start_sec):.3f}",
+            "-i", src_path,
+            "-t", f"{duration_sec:.3f}",
+            "-c", "copy",
+            out_path,
+        ]
+        r = subprocess.run(cmd, capture_output=True, timeout=60)
+        if r.returncode == 0 and os.path.isfile(out_path) and os.path.getsize(out_path) > 0:
+            return out_path
+    except (subprocess.TimeoutExpired, OSError):
+        pass
+    return None
+
+
+def _to_pics_url(abs_path: str, report_id: str) -> Optional[str]:
+    """
+    將 PIC_FOLDER 下的絕對路徑轉成可由瀏覽器存取的 URL。
+    STORAGE_BACKEND=minio 時上傳到 ``results`` bucket；否則退回 /pics/ static mount。
+    """
+    if not abs_path or not os.path.isfile(abs_path):
+        return None
+    try:
+        if (settings.STORAGE_BACKEND or "local").lower() == "minio":
+            from app.services.storage_service import save_bytes  # type: ignore
+
+            with open(abs_path, "rb") as fh:
+                data = fh.read()
+            base = os.path.basename(abs_path)
+            sub = "traces" if base.endswith(".zip") else "videos"
+            key = f"{sub}/{report_id}/{base}"
+            ct = "application/zip" if base.endswith(".zip") else "video/webm"
+            return save_bytes(data, key, bucket="results", content_type=ct)
+    except Exception:
+        pass
+
+    pic_root = os.path.abspath(settings.PIC_FOLDER)
+    ap = os.path.abspath(abs_path)
+    if not ap.startswith(pic_root):
+        return None
+    rel = ap[len(pic_root):].replace("\\", "/").lstrip("/")
+    base_url = (settings.BASE_URL or "").rstrip("/")
+    return f"{base_url}/pics/{rel}"

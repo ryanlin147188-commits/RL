@@ -283,6 +283,30 @@
                     <button onclick="runTest()" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium shadow-sm transition flex items-center gap-2">
                         <i class="fa-solid fa-play"></i> 執行測試
                     </button>
+                    <!-- 執行設定（齒輪 popover）：Trace+Video / DDT 展開 -->
+                    <div class="relative">
+                        <button type="button" onclick="toggleRunOptionsPopover(event)" aria-label="執行設定" title="執行設定"
+                            class="px-3 py-2 border border-slate-300 rounded-md text-slate-600 hover:bg-slate-50 font-medium transition flex items-center gap-2 shadow-sm">
+                            <i class="fa-solid fa-gear"></i>
+                        </button>
+                        <div id="runOptionsPopover" class="hidden absolute right-0 mt-2 w-72 bg-white border border-slate-200 rounded-md shadow-lg p-3 z-30">
+                            <p class="text-xs font-semibold text-slate-500 mb-2">執行設定</p>
+                            <label class="flex items-start gap-2 py-1 cursor-pointer">
+                                <input type="checkbox" id="optEnableRecording" checked class="mt-0.5">
+                                <span>
+                                    <span class="text-sm text-slate-800">啟用 Trace（軌跡）+ Video（錄影）</span>
+                                    <span class="block text-[11px] text-slate-500">產生 trace.zip / .webm；關閉可加快執行</span>
+                                </span>
+                            </label>
+                            <label class="flex items-start gap-2 py-1 cursor-pointer">
+                                <input type="checkbox" id="optDdtExpand" class="mt-0.5">
+                                <span>
+                                    <span class="text-sm text-slate-800">展開 DDT 每一列都執行</span>
+                                    <span class="block text-[11px] text-slate-500">預設僅以第一列當變數來源跑一次</span>
+                                </span>
+                            </label>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -826,6 +850,23 @@ driver.swipe(100, 800, 100, 200, 500)"
                                 </div>
                             </div>
 
+                            <!-- Trace（軌跡追蹤）+ Video（錄影）區塊（預設隱藏；該步驟有資料時才顯示）-->
+                            <div id="traceVideoArea" class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm hidden">
+                                <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                                    <h4 class="font-bold text-slate-700 text-sm flex items-center gap-2">
+                                        <i class="fa-solid fa-video text-purple-500"></i> 軌跡 / 錄影
+                                    </h4>
+                                    <div class="flex gap-2 flex-wrap" id="traceVideoActions">
+                                        <!-- 由 JS 動態填入按鈕（完整錄影 / 下載 Trace / Trace Viewer / 嵌入檢視）-->
+                                    </div>
+                                </div>
+                                <div id="stepVideoBox" class="hidden">
+                                    <p class="text-xs text-slate-500 mb-2"><i class="fa-solid fa-circle-play text-purple-400"></i> 本步驟切片錄影</p>
+                                    <video id="stepVideoPlayer" controls preload="metadata" class="w-full max-h-[360px] rounded border border-slate-200 bg-black"></video>
+                                </div>
+                                <div id="traceVideoEmpty" class="text-xs text-slate-400 hidden">本步驟未啟用 Trace + Video，或執行時被關閉。</div>
+                            </div>
+
                             <!-- API JSON 檢視區塊 (預設隱藏) -->
                             <div id="apiJsonArea" class="grid grid-cols-2 gap-6 hidden">
                                 <!-- Request JSON -->
@@ -878,6 +919,36 @@ driver.swipe(100, 800, 100, 200, 500)"
     </div>
 
     <!-- ==================== 彈出視窗 (Modals) ==================== -->
+
+    <!-- 完整錄影 Modal（案例完整錄影 .webm）-->
+    <div id="fullVideoModal" class="fixed inset-0 bg-slate-900/70 hidden z-[60] flex items-center justify-center opacity-0 transition-opacity">
+        <div class="bg-white rounded-lg shadow-xl w-[960px] max-w-[95vw] transform scale-95 transition-transform">
+            <div class="flex items-center justify-between p-3 border-b border-slate-200">
+                <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-circle-play text-purple-500"></i> 案例完整錄影
+                </h3>
+                <button onclick="closeFullVideo()" aria-label="關閉" class="text-slate-400 hover:text-red-500"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="p-3 bg-black">
+                <video id="fullVideoPlayer" controls class="w-full max-h-[70vh] rounded"></video>
+            </div>
+        </div>
+    </div>
+
+    <!-- Trace Viewer 嵌入式 Modal（iframe 載入 trace.playwright.dev）-->
+    <div id="traceViewerModal" class="fixed inset-0 bg-slate-900/70 hidden z-[60] flex items-center justify-center opacity-0 transition-opacity">
+        <div class="bg-white rounded-lg shadow-xl w-[95vw] h-[90vh] flex flex-col transform scale-95 transition-transform">
+            <div class="flex items-center justify-between p-3 border-b border-slate-200 shrink-0">
+                <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-route text-purple-500"></i> Trace Viewer
+                    <span class="text-xs font-normal text-slate-400">由 trace.playwright.dev 提供；需 trace.zip 對外可達</span>
+                </h3>
+                <button onclick="closeTraceViewer()" aria-label="關閉" class="text-slate-400 hover:text-red-500"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <iframe id="traceViewerIframe" title="Playwright Trace Viewer" class="flex-1 w-full border-0 rounded-b-lg"></iframe>
+        </div>
+    </div>
+
     <div id="nodeModal" class="fixed inset-0 bg-slate-900/50 hidden z-50 flex items-center justify-center opacity-0 transition-opacity">
         <div class="bg-white rounded-lg shadow-xl w-[400px] transform scale-95 transition-transform" id="nodeModalContent">
             <div class="p-4 border-b border-slate-200"><h3 id="nodeModalTitle" class="text-lg font-bold text-slate-800 flex items-center gap-2">新增節點</h3></div>
@@ -1128,8 +1199,16 @@ driver.swipe(100, 800, 100, 200, 500)"
             let report_id = null;
             try {
                 const execMode = getExecutionMode();
+                const opts = getRunOptions();
                 append(`> 執行環境：${execMode === 'local' ? '本機 (headed)' : 'Docker (headless)'}`, 'text-slate-400');
-                append(`> DDT 模式：單次執行（DDT 僅作為變數值來源，不依列重跑）`, 'text-slate-400');
+                append(
+                    `> DDT 模式：${opts.ddt_expand ? '展開（每一列都跑一次）' : '單次執行（DDT 僅作為變數值來源）'}`,
+                    'text-slate-400'
+                );
+                append(
+                    `> Trace + Video：${opts.enable_recording ? '啟用' : '關閉'}`,
+                    opts.enable_recording ? 'text-purple-300' : 'text-slate-400'
+                );
                 const resp = await apiFetch('/api/executions', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1137,7 +1216,8 @@ driver.swipe(100, 800, 100, 200, 500)"
                         node_id: currentTestCase,
                         trigger_type: 'Manual',
                         execution_mode: execMode,
-                        ddt_expand: false,
+                        ddt_expand: opts.ddt_expand,
+                        enable_recording: opts.enable_recording,
                     })
                 });
                 task_id = resp.task_id;
@@ -1295,6 +1375,15 @@ driver.swipe(100, 800, 100, 200, 500)"
             const cases = Object.entries(bucket).map(([nodeId, rawSteps]) => {
                 // step_index 編碼 = round_idx * 1000 + step_i；取餘數得到原始步驟位置。
                 const tcSteps = (tcMap[nodeId]?.steps_json) || [];
+                // 案例級 trace_url / video_url 只掛在每輪「第一個被持久化的步驟」上。
+                // 為了讓同 round 的任何步驟都看得到完整錄影 / Trace，先建一個 round → anchor 對照表。
+                const caseAnchor = {}; // roundIdx → { trace_url, video_url }
+                for (const s of rawSteps) {
+                    const r = Math.floor((s.step_index ?? 0) / 1000);
+                    if (!caseAnchor[r] && (s.trace_url || s.video_url)) {
+                        caseAnchor[r] = { trace_url: s.trace_url || null, video_url: s.video_url || null };
+                    }
+                }
                 return {
                     name: testCases[nodeId]?.title || testCases[nodeId]?.filename || nodeId.slice(0, 8),
                     steps: rawSteps.map((s, i) => {
@@ -1305,6 +1394,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                         const bdd = def.bdd || def.keyword || '';
                         const descText = def.step_desc || def.description || def.desc || '';
                         const roundPrefix = roundIdx > 0 ? `[Row ${roundIdx + 1}] ` : '';
+                        const anchor = caseAnchor[roundIdx] || {};
                         return {
                             id: s.id || `s${i}`,
                             bdd,
@@ -1319,6 +1409,10 @@ driver.swipe(100, 800, 100, 200, 500)"
                             postState: s.status === 'FAILED' ? 'error' : 'empty',
                             preScreenshotUrl: s.pre_screenshot_url || null,
                             postScreenshotUrl: s.post_screenshot_url || null,
+                            // ── Trace / Video（軌跡追蹤 / 錄影）──
+                            stepVideoUrl: s.step_video_url || null,
+                            traceUrl: s.trace_url || anchor.trace_url || null,
+                            videoUrl: s.video_url || anchor.video_url || null,
                         };
                     }),
                 };
@@ -2466,6 +2560,112 @@ driver.swipe(100, 800, 100, 200, 500)"
                 // ── 動作後截圖 ────────────────────────────────────────
                 renderPostScreenshot(step);
             }
+
+            // ── Trace（軌跡追蹤）+ Video（錄影）──
+            renderTraceVideo(step);
+        }
+
+        // 渲染步驟切片影片 + 案例完整錄影 / Trace 下載 / Trace Viewer 嵌入式檢視按鈕。
+        // 任一資料缺少時自動隱藏對應按鈕；全空時整個 area 收起。
+        function renderTraceVideo(step) {
+            const area = document.getElementById('traceVideoArea');
+            const actions = document.getElementById('traceVideoActions');
+            const stepBox = document.getElementById('stepVideoBox');
+            const stepPlayer = document.getElementById('stepVideoPlayer');
+            const empty = document.getElementById('traceVideoEmpty');
+            if (!area) return;
+
+            const hasAny = !!(step.stepVideoUrl || step.videoUrl || step.traceUrl);
+            area.classList.toggle('hidden', !hasAny);
+            if (!hasAny) return;
+
+            // 步驟切片影片（每步一份）
+            if (step.stepVideoUrl) {
+                stepBox.classList.remove('hidden');
+                if (stepPlayer.src !== step.stepVideoUrl) stepPlayer.src = step.stepVideoUrl;
+            } else {
+                stepBox.classList.add('hidden');
+                stepPlayer.removeAttribute('src');
+                try { stepPlayer.load(); } catch (_) {}
+            }
+
+            // 動態組裝按鈕
+            actions.innerHTML = '';
+            const btnCls = 'px-3 py-1.5 text-xs font-medium rounded border transition flex items-center gap-1.5';
+            if (step.videoUrl) {
+                const playBtn = document.createElement('button');
+                playBtn.className = `${btnCls} bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100`;
+                playBtn.innerHTML = '<i class="fa-solid fa-play"></i> 完整錄影';
+                playBtn.onclick = () => openFullVideo(step.videoUrl);
+                actions.appendChild(playBtn);
+
+                const dlVideoBtn = document.createElement('a');
+                dlVideoBtn.className = `${btnCls} bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100`;
+                dlVideoBtn.href = step.videoUrl;
+                dlVideoBtn.target = '_blank';
+                dlVideoBtn.rel = 'noreferrer';
+                dlVideoBtn.innerHTML = '<i class="fa-solid fa-download"></i> 下載錄影';
+                actions.appendChild(dlVideoBtn);
+            }
+            if (step.traceUrl) {
+                const dlTraceBtn = document.createElement('a');
+                dlTraceBtn.className = `${btnCls} bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100`;
+                dlTraceBtn.href = step.traceUrl;
+                dlTraceBtn.target = '_blank';
+                dlTraceBtn.rel = 'noreferrer';
+                dlTraceBtn.innerHTML = '<i class="fa-solid fa-download"></i> 下載 Trace';
+                actions.appendChild(dlTraceBtn);
+
+                const viewerUrl = `https://trace.playwright.dev/?trace=${encodeURIComponent(step.traceUrl)}`;
+                const openExtBtn = document.createElement('a');
+                openExtBtn.className = `${btnCls} bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100`;
+                openExtBtn.href = viewerUrl;
+                openExtBtn.target = '_blank';
+                openExtBtn.rel = 'noreferrer';
+                openExtBtn.innerHTML = '<i class="fa-solid fa-arrow-up-right-from-square"></i> Trace Viewer';
+                actions.appendChild(openExtBtn);
+
+                const embedBtn = document.createElement('button');
+                embedBtn.className = `${btnCls} bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100`;
+                embedBtn.innerHTML = '<i class="fa-solid fa-window-maximize"></i> 嵌入檢視';
+                embedBtn.onclick = () => openTraceViewer(viewerUrl);
+                actions.appendChild(embedBtn);
+            }
+
+            empty.classList.toggle('hidden', !!(step.stepVideoUrl || step.videoUrl || step.traceUrl));
+        }
+
+        // ── 完整錄影 / Trace Viewer Modal ──
+        function openFullVideo(url) {
+            const m = document.getElementById('fullVideoModal');
+            const p = document.getElementById('fullVideoPlayer');
+            if (!m || !p || !url) return;
+            p.src = url;
+            m.classList.remove('hidden');
+            requestAnimationFrame(() => m.classList.remove('opacity-0'));
+            try { p.play(); } catch (_) {}
+        }
+        function closeFullVideo() {
+            const m = document.getElementById('fullVideoModal');
+            const p = document.getElementById('fullVideoPlayer');
+            if (!m) return;
+            m.classList.add('hidden', 'opacity-0');
+            if (p) { try { p.pause(); } catch (_) {} p.removeAttribute('src'); try { p.load(); } catch (_) {} }
+        }
+        function openTraceViewer(url) {
+            const m = document.getElementById('traceViewerModal');
+            const f = document.getElementById('traceViewerIframe');
+            if (!m || !f || !url) return;
+            f.src = url;
+            m.classList.remove('hidden');
+            requestAnimationFrame(() => m.classList.remove('opacity-0'));
+        }
+        function closeTraceViewer() {
+            const m = document.getElementById('traceViewerModal');
+            const f = document.getElementById('traceViewerIframe');
+            if (!m) return;
+            m.classList.add('hidden', 'opacity-0');
+            if (f) f.src = 'about:blank';
         }
 
         // ── 圖片燈箱（報告截圖點擊放大）────────────────────
@@ -3422,6 +3622,33 @@ driver.swipe(100, 800, 100, 200, 500)"
             const v = (localStorage.getItem('autotest_execution_mode') || 'docker').toLowerCase();
             return (v === 'local') ? 'local' : 'docker';
         }
+
+        // ── 執行設定（齒輪 popover）──────────────────────────────
+        // 讀取 checkbox 當下狀態；checkbox 不在 DOM 時退回預設（recording=true、ddt_expand=false）
+        function getRunOptions() {
+            const rec = document.getElementById('optEnableRecording');
+            const dd = document.getElementById('optDdtExpand');
+            return {
+                enable_recording: rec ? !!rec.checked : true,
+                ddt_expand: dd ? !!dd.checked : false,
+            };
+        }
+        function toggleRunOptionsPopover(ev) {
+            if (ev) ev.stopPropagation();
+            const pop = document.getElementById('runOptionsPopover');
+            if (!pop) return;
+            pop.classList.toggle('hidden');
+        }
+        // 點 popover 外面就關閉
+        document.addEventListener('click', (e) => {
+            const pop = document.getElementById('runOptionsPopover');
+            if (!pop || pop.classList.contains('hidden')) return;
+            if (pop.contains(e.target)) return;
+            // 點齒輪本身會由 toggle 處理；其餘外部點擊都關閉
+            const gear = e.target.closest('[onclick^="toggleRunOptionsPopover"]');
+            if (gear) return;
+            pop.classList.add('hidden');
+        });
         function setExecutionMode(mode) {
             const normalized = (mode === 'local') ? 'local' : 'docker';
             localStorage.setItem('autotest_execution_mode', normalized);

@@ -15,8 +15,9 @@ WORKDIR /app
 
 # Node.js 20（robotframework-browser 必要）
 # xvfb：提供虛擬 framebuffer，讓 headed Chromium 可在無顯示器的 container 中啟動
+# ffmpeg：把 Playwright 錄影 (.webm) 切成每步驟一份短片
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl ca-certificates gnupg xvfb \
+    && apt-get install -y --no-install-recommends curl ca-certificates gnupg xvfb ffmpeg \
     && mkdir -p /etc/apt/keyrings \
     && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
        | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \

@@ -56,6 +56,7 @@ async def create_report(
     execution_mode: str = "docker",
     source_node_id: str | None = None,
     ddt_expand: bool = False,
+    enable_recording: bool = True,
 ) -> ExecutionReport:
     report = ExecutionReport(
         id=str(uuid.uuid4()),
@@ -66,6 +67,7 @@ async def create_report(
         total_cases=total_cases,
         source_node_id=source_node_id,
         ddt_expand=bool(ddt_expand),
+        enable_recording=bool(enable_recording),
     )
     db.add(report)
     await db.flush()

@@ -107,6 +107,11 @@ ALTER TABLE execution_reports
 ALTER TABLE execution_reports
     ADD INDEX IF NOT EXISTS idx_report_task_id (task_id);
 
+-- ── enable_recording 欄位（控制是否收集 Trace + Video）─────────────────
+ALTER TABLE execution_reports
+    ADD COLUMN IF NOT EXISTS enable_recording TINYINT(1) NOT NULL DEFAULT 1
+        COMMENT '是否啟用 Trace/Video 收集；0=關閉、1=啟用';
+
 
 -- ────────────────────────────────────────────────────────────
 -- 5. 執行步驟詳細表 execution_steps_log
@@ -132,6 +137,13 @@ CREATE TABLE IF NOT EXISTS execution_steps_log (
     req_payload_json     JSON            NULL COMMENT 'HTTP 請求內容',
     res_payload_json     JSON            NULL COMMENT 'HTTP 回應內容',
 
+    -- Trace（軌跡追蹤）/ Video（錄影）欄位
+    -- 案例級欄位（trace_url / video_url）僅在每個 case/DDT round 的「第一個步驟」填入；
+    -- step_video_url 是該步驟的影片切片（每個步驟各一）。未啟用 enable_recording 時皆為 NULL。
+    trace_url            VARCHAR(500)    NULL COMMENT 'Playwright trace.zip 對外 URL',
+    video_url            VARCHAR(500)    NULL COMMENT '案例完整錄影 (.webm) 對外 URL',
+    step_video_url       VARCHAR(500)    NULL COMMENT '該步驟的影片切片 (.webm) 對外 URL',
+
     PRIMARY KEY (id),
     CONSTRAINT fk_step_report
         FOREIGN KEY (report_id)        REFERENCES execution_reports(id) ON DELETE CASCADE,
@@ -141,6 +153,17 @@ CREATE TABLE IF NOT EXISTS execution_steps_log (
     INDEX idx_step_node   (testcase_node_id),
     INDEX idx_step_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ── trace / video 欄位（升級情境補欄位）───────────────────────────────
+ALTER TABLE execution_steps_log
+    ADD COLUMN IF NOT EXISTS trace_url VARCHAR(500) NULL
+        COMMENT 'Playwright trace.zip 對外 URL';
+ALTER TABLE execution_steps_log
+    ADD COLUMN IF NOT EXISTS video_url VARCHAR(500) NULL
+        COMMENT '案例完整錄影 (.webm) 對外 URL';
+ALTER TABLE execution_steps_log
+    ADD COLUMN IF NOT EXISTS step_video_url VARCHAR(500) NULL
+        COMMENT '該步驟的影片切片 (.webm) 對外 URL';
 
 
 -- ────────────────────────────────────────────────────────────

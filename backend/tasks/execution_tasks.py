@@ -37,7 +37,14 @@ def _pub_done(r, channel: str, status: str) -> None:
 
 
 @celery_app.task(bind=True, name="tasks.execution_tasks.run_tests")
-def run_tests(self, task_id: str, report_id: str, testcase_ids: list[str], ddt_expand: bool = False):
+def run_tests(
+    self,
+    task_id: str,
+    report_id: str,
+    testcase_ids: list[str],
+    ddt_expand: bool = False,
+    enable_recording: bool = True,
+):
     """
     執行指定的 testcase_ids：
       1. 從 testcase_contents 讀 steps_json + ddt_json
@@ -47,6 +54,11 @@ def run_tests(self, task_id: str, report_id: str, testcase_ids: list[str], ddt_e
 
     ddt_expand=False 時（預設）：只用 DDT 第一列當變數上下文，整個 testcase 只跑一次。
     ddt_expand=True  時：依 DDT 每一列各自重跑一次 testcase。
+
+    enable_recording=True 時（預設）：
+      - 啟用 Playwright Trace（trace.zip）與 Video（每案例一支 .webm + 每步驟切片）
+      - 對應 URL 會寫到 ExecutionStepLog 的 trace_url / video_url（案例級，僅第一個 step）
+        與 step_video_url（每個有 ffmpeg 切到的 step）
     """
     import redis
 
@@ -120,6 +132,7 @@ def run_tests(self, task_id: str, report_id: str, testcase_ids: list[str], ddt_e
                     case_tag=f"tc_{tc_id[:8]}",
                     publish_log=publish_log,
                     headless=headless,
+                    enable_recording=enable_recording,
                 )
             except Exception as exc:  # noqa: BLE001
                 publish_log("ERROR", f"💥 案例 {idx} 執行器異常: {exc}")
@@ -150,10 +163,16 @@ def run_tests(self, task_id: str, report_id: str, testcase_ids: list[str], ddt_e
             # DDT 多列：用 step_index = round*1000 + step 編碼
             with Session(engine) as db:
                 for round_idx, round_res in enumerate(round_results):
+                    # 找出本輪「第一個會被寫入 DB 的 step」(非 SKIPPED) 以掛 case 級欄位
+                    first_persisted_step: Optional[int] = next(
+                        (i for i, s in enumerate(round_res.steps) if s.status != "SKIPPED"),
+                        None,
+                    )
                     for step_i, sr in enumerate(round_res.steps):
                         # SKIPPED 不寫入 DB（來自 Robot Framework 失敗後中止的順位步驟）
                         if sr.status == "SKIPPED":
                             continue
+                        is_case_anchor = step_i == first_persisted_step
                         db.add(
                             ExecutionStepLog(
                                 id=str(uuid.uuid4()),
@@ -166,6 +185,10 @@ def run_tests(self, task_id: str, report_id: str, testcase_ids: list[str], ddt_e
                                 pre_screenshot_url=sr.pre_screenshot_url,
                                 post_screenshot_url=sr.post_screenshot_url,
                                 target_highlight_json=sr.target_highlight_json,
+                                # case 級 trace / video 只掛在本輪第一個被持久化的 step 上
+                                trace_url=round_res.trace_url if is_case_anchor else None,
+                                video_url=round_res.video_url if is_case_anchor else None,
+                                step_video_url=sr.step_video_url,
                             )
                         )
                 db.commit()
@@ -193,146 +216,6 @@ def run_tests(self, task_id: str, report_id: str, testcase_ids: list[str], ddt_e
 
     except Exception as exc:
         publish_log("ERROR", f"💥 執行器異常: {exc}")
-        _pub_done(r, channel, "FAILED")
-        logger.exception("Task %s failed", task_id)
-        raise
-    finally:
-        engine.dispose()
-        r.close()
-"""
-Celery 執行任務：模擬 Playwright 腳本執行並即時發布 Log。
-
-實際整合 Playwright 時，將 _simulate_step() 函式替換為：
-    page.locator(selector).fill(value)
-    bbox = await page.locator(selector).bounding_box()
-    # 換算成百分比後存入 target_highlight_json
-
-WebSocket Log 流向：
-    Celery Worker → Redis pub/sub (channel: task:{task_id}:logs)
-                  → FastAPI WS endpoint → 前端終端機
-"""
-import json
-import random
-import time
-import uuid
-from datetime import datetime
-
-from celery.utils.log import get_task_logger
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session
-
-from app.config import settings
-from tasks.celery_app import celery_app
-
-logger = get_task_logger(__name__)
-
-
-def _now() -> str:
-    return datetime.now().strftime("%H:%M:%S")
-
-
-def _pub(r, channel: str, msg: str, level: str = "INFO") -> None:
-    r.publish(channel, json.dumps({"type": "log", "level": level, "message": msg}))
-
-
-def _pub_done(r, channel: str, status: str) -> None:
-    r.publish(channel, json.dumps({"type": "done", "status": status}))
-
-
-@celery_app.task(bind=True, name="tasks.execution_tasks.run_tests")
-def run_tests(self, task_id: str, report_id: str, testcase_ids: list[str]):
-    """
-    執行指定的 testcase_ids，將結果寫入 DB 並透過 Redis 推送 Log。
-    使用同步 SQLAlchemy (pymysql)，避免 Celery 與 asyncio 衝突。
-    """
-    import redis
-
-    r = redis.from_url(settings.REDIS_URL)
-    channel = f"task:{task_id}:logs"
-
-    # 使用 sync driver (pymysql) 連接資料庫
-    engine = create_engine(settings.SYNC_DATABASE_URL, pool_pre_ping=True)
-
-    try:
-        _pub(r, channel, f"[{_now()}] 🚀 任務啟動 | Task: {task_id[:8]}...")
-        _pub(r, channel, f"[{_now()}] 📋 共 {len(testcase_ids)} 個測試案例")
-
-        with Session(engine) as db:
-            from app.models.execution_report import ExecutionReport, ReportStatus
-            from app.models.execution_step_log import ExecutionStepLog, StepStatus
-
-            passed = 0
-            failed = 0
-            start_ts = time.time()
-
-            for idx, tc_id in enumerate(testcase_ids, 1):
-                _pub(r, channel, f"[{_now()}] ▶ [{idx}/{len(testcase_ids)}] 案例 {tc_id[:8]}...")
-                case_start = time.time()
-                case_passed = True
-
-                # ── 每個 TESTCASE 模擬 3–6 個步驟 ────────────────────
-                step_count = random.randint(3, 6)
-                for step_i in range(step_count):
-                    time.sleep(random.uniform(0.05, 0.3))  # 模擬執行耗時
-                    step_failed = random.random() < 0.05   # 5% 失敗率
-                    step_dur = int((time.time() - case_start) * 1000)
-
-                    # 模擬 Playwright boundingBox（供前端畫紅框）
-                    highlight = {
-                        "top": f"{random.randint(20, 60)}%",
-                        "left": f"{random.randint(10, 50)}%",
-                        "width": f"{random.randint(20, 40)}%",
-                        "height": f"{random.randint(5, 15)}%",
-                    }
-
-                    step_log = ExecutionStepLog(
-                        id=str(uuid.uuid4()),
-                        report_id=report_id,
-                        testcase_node_id=tc_id,
-                        step_index=step_i,
-                        status=StepStatus.FAILED if step_failed else StepStatus.PASSED,
-                        duration_ms=step_dur,
-                        error_message="AssertionError: element #submit-btn not visible" if step_failed else None,
-                        target_highlight_json=highlight,
-                    )
-                    db.add(step_log)
-
-                    if step_failed:
-                        case_passed = False
-                        _pub(r, channel, f"[{_now()}]   ✗ Step {step_i + 1}: FAILED ({step_dur}ms)", "ERROR")
-                        break
-                    else:
-                        _pub(r, channel, f"[{_now()}]   ✓ Step {step_i + 1}: PASSED ({step_dur}ms)")
-
-                db.commit()
-
-                if case_passed:
-                    passed += 1
-                    _pub(r, channel, f"[{_now()}] ✅ 案例 {idx} 通過")
-                else:
-                    failed += 1
-                    _pub(r, channel, f"[{_now()}] ❌ 案例 {idx} 失敗", "ERROR")
-
-            # ── 更新 execution_reports 最終狀態 ──────────────────────
-            total_dur = int((time.time() - start_ts) * 1000)
-            final_status = ReportStatus.PASSED if failed == 0 else ReportStatus.FAILED
-
-            report: ExecutionReport | None = db.get(ExecutionReport, report_id)
-            if report:
-                report.status = final_status
-                report.passed_cases = passed
-                report.failed_cases = failed
-                report.duration_ms = total_dur
-                db.commit()
-
-            _pub(
-                r, channel,
-                f"[{_now()}] 🏁 執行完成 ── 通過: {passed}  失敗: {failed}  耗時: {total_dur}ms"
-            )
-            _pub_done(r, channel, final_status.value)
-
-    except Exception as exc:
-        _pub(r, channel, f"[{_now()}] 💥 執行器異常: {exc}", "ERROR")
         _pub_done(r, channel, "FAILED")
         logger.exception("Task %s failed", task_id)
         raise

@@ -44,6 +44,8 @@ class ExecutionReport(Base):
     source_node_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
     # 是否把測試案例的 DDT 全部列依序執行。False 時只使用第一列當變數來源，整體只跑一次。
     ddt_expand: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # 是否啟用 Trace（軌跡追蹤，trace.zip）與 Video（錄影）收集。預設 True；關閉可大幅降低執行時間與磁碟用量。
+    enable_recording: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     project: Mapped["Project"] = relationship(
         "Project", back_populates="execution_reports", lazy="noload"

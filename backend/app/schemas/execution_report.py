@@ -25,6 +25,9 @@ class ExecutionRunRequest(BaseModel):
     execution_mode: str = "docker"
     # 是否把測試案例的 DDT 全部列依序執行。預設 False（只跑一次；只用第一列當變數）
     ddt_expand: bool = False
+    # 是否啟用 Trace（軌跡追蹤）+ Video（錄影）收集。預設 True；
+    # 關閉可加快執行速度並節省磁碟（不會產生 trace.zip / .webm）。
+    enable_recording: bool = True
 
 
 class ExecutionRunResponse(BaseModel):
@@ -60,6 +63,10 @@ class StepLogResponse(BaseModel):
     target_highlight_json: Any
     req_payload_json: Any
     res_payload_json: Any
+    # Trace / Video（案例級欄位 trace_url、video_url 僅在每個 case/round 第一個 step 上才有值）
+    trace_url: Optional[str] = None
+    video_url: Optional[str] = None
+    step_video_url: Optional[str] = None
 
 
 # ── 報告清單（摘要）─────────────────────────────────────────
@@ -79,6 +86,7 @@ class ReportListItem(BaseModel):
     # step-level 統計（不存於 ExecutionReport，由清單端點動態聚合）
     passed_steps: int = 0
     failed_steps: int = 0
+    enable_recording: bool = True
     created_at: datetime
 
 
