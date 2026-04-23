@@ -2616,7 +2616,10 @@ driver.swipe(100, 800, 100, 200, 500)"
                 dlTraceBtn.innerHTML = '<i class="fa-solid fa-download"></i> 下載 Trace';
                 actions.appendChild(dlTraceBtn);
 
-                const viewerUrl = `https://trace.playwright.dev/?trace=${encodeURIComponent(step.traceUrl)}`;
+                // trace.playwright.dev 是跨網域 viewer，必須給絕對 URL；否則它用自己的 origin 當 base 會 404。
+                // 也順便要求 nginx /results/ 開 CORS（已在 nginx.conf 設好）。
+                const absTraceUrl = /^https?:/i.test(step.traceUrl) ? step.traceUrl : (window.location.origin + step.traceUrl);
+                const viewerUrl = `https://trace.playwright.dev/?trace=${encodeURIComponent(absTraceUrl)}`;
                 const openExtBtn = document.createElement('a');
                 openExtBtn.className = `${btnCls} bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100`;
                 openExtBtn.href = viewerUrl;
