@@ -22,6 +22,9 @@
 - **本機 Agent**：下載 `local_agent.py` 後可由本機直接認領 local 模式任務，視覺化觀察瀏覽器執行過程，並把每步 PRE / POST 截圖與耗時回寫到詳細報告
 - **每案例 spawn 獨立容器**：Docker 模式下，每個 testcase 由 Celery worker 透過 docker SDK 啟動一個一次性的 `autotest-robot-runner` 容器執行（base = `ppodgorsek/robot-framework`），徹底與 worker 進程隔離；測試結束容器自毀
 - **Trace（軌跡追蹤）+ Video（錄影）**：執行時 Browser Library 19.x 在 Playwright context 同時開啟 trace 與 video；listener 即時把截圖／影片／trace 上傳到 MinIO，報告詳細頁可下載、播放、頁內嵌入式 Trace Viewer 檢視
+- **全專案環境變數 + Android/iOS 設備資訊**：在「測試回合」頁左側 sidebar 維護；執行時自動注入成 Robot suite variable（`${BASE_URL}` / `&{DEVICE_pixel5_emu}`），測試步驟可直接引用
+- **Screenshot Diff（Playwright 風格 UI 前後比對）**：步驟 action 選 `AssertScreenshotMatch` 即啟用；首次跑自動把當下截圖存為 baseline，之後跑用 Pillow + numpy 像素 diff，超過容忍 % 即 FAIL 並產出紅色覆蓋差異圖，報告頁顯示 baseline / actual / diff 三聯比對與「設為新 baseline」捷徑
+- **資料庫測試（DatabaseLibrary）增強**：除了原生 `Db.Connect/Query/Execute/RowCount`，新增 `Db.Insert/Update/Delete` 寫入語意明確化、以及 `Db.AssertRowExists/AssertNoRow/AssertValue` 三組斷言，方便驗證 INSERT/UPDATE 後的資料庫狀態
 - WebSocket 即時執行日誌（編輯頁底部抽屜）
 - 執行報告儀表板（通過率、趨勢圖）與步驟時間軸詳細頁
 
@@ -188,6 +191,7 @@ celery -A tasks.celery_app worker -l info           # T2 worker
 | AssertText | 元素內含文字 | locator, expected |
 | AssertValue | 表單欄位值 | locator, expected |
 | AssertUrl | 當前 URL 內含 | expected |
+| **AssertScreenshotMatch** | Pillow 像素 diff vs baseline；超過容忍 % 即 FAIL | locator（空=整頁）, expected=容忍 %（如 `1.5`）, step UUID 自動帶入 |
 
 ### HTTP API（RequestsLibrary）— 前綴 `Http.`
 
@@ -202,9 +206,18 @@ celery -A tasks.celery_app worker -l info           # T2 worker
 | action | 說明 | 欄位對應 |
 |---|---|---|
 | Db.Connect | 建立連線 | input=`driver|host|port|user|pwd|db`（driver 如 `pymysql`）|
-| Db.Query | 查詢 SELECT | input 或 locator = SQL |
-| Db.Execute | 執行 INSERT/UPDATE/DELETE | input 或 locator = SQL |
+| Db.Query | 查詢 SELECT；結果 log 出來 | input 或 locator = SQL |
+| Db.Execute | 執行任意 SQL（不驗證） | input 或 locator = SQL |
 | Db.RowCount | 驗證列數 | input=SQL、expected=預期列數 |
+| Db.Insert / Db.Update / Db.Delete | 寫入語意明確化（行為同 Db.Execute） | input 或 locator = SQL |
+| Db.AssertRowExists | WHERE 過濾的 SELECT 必須回 ≥ 1 列 | input/locator=SELECT SQL |
+| Db.AssertNoRow | WHERE 過濾的 SELECT 必須回 0 列 | input/locator=SELECT SQL |
+| Db.AssertValue | SELECT 單格比對固定值（支援 compare）| input=SELECT SQL、expected=值、compare=Equals/Contains/...|
+
+> **典型「驗證寫入」流程**：
+> 1. `Db.Insert` → `INSERT INTO users(name,email) VALUES('Alice','a@b.com')`
+> 2. `Db.AssertRowExists` → `SELECT 1 FROM users WHERE email='a@b.com'`
+> 3. `Db.AssertValue` → `SELECT name FROM users WHERE email='a@b.com'`，expected=`Alice`
 
 ### Mobile（AppiumLibrary）— 前綴 `Mobile.`
 
@@ -302,6 +315,84 @@ python run_tests.py -f tests/e2e/samples/integration_test.md
 python run_tests.py -t "登入測試案例"
 ```
 
+## 全專案環境變數 + Android/iOS 設備資訊
+
+執行測試時需要的「會跨案例共用」設定（API base URL、token、Appium 虛擬機 capabilities 等）放在「測試回合」頁的左側 sidebar 維護，**整個 project 共用一份**，所有 testcase 執行時自動注入。
+
+### 環境變數 → Robot suite variable
+
+```
+name = BASE_URL    value = https://staging.example.com/api
+name = API_TOKEN   value = eyJhbGciOi...
+```
+
+執行時 `_build_robot_file` 會在生成的 `.robot` 內加入：
+
+```robot
+*** Variables ***
+${BASE_URL}     https://staging.example.com/api
+${API_TOKEN}    eyJhbGciOi...
+```
+
+→ 步驟欄位內可直接寫 `${BASE_URL}/users/1`、`Bearer ${API_TOKEN}`，Robot Framework 會自動展開。命名限制：`[A-Za-z_][A-Za-z0-9_]*`（不合法的略過）。
+
+### 設備資訊 → `&{DEVICE_<label>}` dict
+
+每個 device row 注入成 Robot dict 變數，含 Appium capabilities：
+
+```robot
+&{DEVICE_pixel5_emu}    platformName=Android    platformVersion=13.0    deviceName=Pixel 5    automationName=UiAutomator2    avd=pixel_5_api_33
+&{DEVICE_iphone15}      platformName=iOS        platformVersion=17.4    deviceName=iPhone 15  automationName=XCUITest        udid=B5A2C... 
+```
+
+→ `Mobile.Open` 步驟內可寫 `${DEVICE_pixel5_emu.platformName}` / `${DEVICE_pixel5_emu.deviceName}` 引用。`automationName` 沒填會依 platform 自動帶 `UiAutomator2` / `XCUITest`。`extra_caps_json` 可塞額外 capability 一併合併進 dict。
+
+### API
+- `GET / PUT /api/projects/{project_id}/env-vars` — list / 整批替換
+- `GET / PUT /api/projects/{project_id}/devices` — 同上
+
+PUT 是「整批替換」（delete-then-insert），前端不用維護局部 diff。
+
+---
+
+## Screenshot Diff（Playwright 風格 UI 前後比對）
+
+對 **UI / WEB / E2E** 案例步驟把 action 選 `AssertScreenshotMatch`，即啟用基於 Pillow + numpy 的像素級截圖比對。
+
+### 機制
+- 每個 step 都有穩定的 UUID（`steps_json[i].id`），baseline 以此 UUID 為 key 存 MinIO `baselines/<uuid>.png`
+- spawn 容器內 `tasks.assert_screenshot_lib` 提供 Robot keyword `AssertScreenshot.Match`，被 .robot 自動呼叫
+- baseline **不存在 → auto-save**：把當下截圖存為 baseline → 此次 PASS（首次跑通常是這狀態）
+- baseline **存在 → diff**：載入 baseline + 當下截圖，逐像素 RGB 距離 > 30 視為差異
+  - 差異 % ≤ 容忍門檻 → PASS
+  - 差異 % > 容忍門檻 → FAIL，產出**紅色覆蓋差異圖**上傳 MinIO，DB 記錄 baseline / actual / diff 三個 URL + 實際 diff %
+
+### 步驟欄位
+| 欄位 | 用途 |
+|---|---|
+| action | `AssertScreenshotMatch` |
+| locator | 空白 = 整頁；填則只截單一元素 |
+| expected | 容忍 %（如 `1.5` 或 `1.5%`，預設 `1.0`）|
+
+### Baseline 維護
+- **自動**：第一次跑時 listener 自動把當下截圖當 baseline
+- **手動上傳**：步驟列右側 📷 按鈕 → 開 Modal → 上傳 PNG/JPEG/WebP（會覆蓋既有）
+- **報告中設定**：報告詳情頁的「把當下 actual 設為新 baseline」按鈕 → 呼叫 `POST /api/steps/{uuid}/baseline/copy-from`，把這次跑的 actual 截圖直接設為新 baseline（適合「現在的畫面才對」的情境）
+
+### API
+- `GET /api/steps/{step_uuid}/baseline` — 查現有 baseline + 門檻
+- `PUT /api/steps/{step_uuid}/baseline` — multipart 上傳新 PNG（覆蓋舊的）
+- `POST /api/steps/{step_uuid}/baseline/copy-from` body=`{source_url, threshold_pct}` — 從 `/results/...` URL 複製成 baseline
+- `DELETE /api/steps/{step_uuid}/baseline` — 移除（下次跑會 auto-save 新的）
+
+### 報告呈現
+報告詳情頁點該步驟，右側多一塊紫色「Screenshot Diff」面板：
+- 三聯比對：**Baseline | Actual | Diff（紅色覆蓋）**
+- 標題顯示實際 diff %
+- 「把當下 actual 設為新 baseline」按鈕（一鍵解決「baseline 過時」情境）
+
+---
+
 ## Trace（軌跡追蹤）+ Video（錄影）
 
 spawn 容器內 Browser Library 19.x 在 New Context 時帶入 `tracing=True` 與 `recordVideo`，listener 在執行過程中即時把截圖上傳到 MinIO，case 結束關閉 context 後 listener 再把完整 `.webm` 與 `trace.zip` 也上傳。所有產物統一存於 MinIO `results` bucket：
@@ -383,6 +474,9 @@ results/
 - 截圖 / 錄影 / Trace：`http://localhost/results/{key}`（spawn 模式，nginx → MinIO，已開 CORS）
 - 本機 Agent 上傳區（保留兼容）：`http://localhost/pics/{key}`
 - Playwright Trace Viewer：<https://trace.playwright.dev/?trace=>`<absolute_url>`（自動由前端產生）
+- 全專案環境變數：`GET / PUT /api/projects/{id}/env-vars`
+- 全專案設備資訊：`GET / PUT /api/projects/{id}/devices`
+- Screenshot baseline：`GET / PUT / DELETE /api/steps/{step_uuid}/baseline`、`POST .../baseline/copy-from`
 
 常用頁面：
 
