@@ -1,0 +1,48 @@
+# 衍生 image：autotest-robot-runner
+#
+# Spawn 模式（execution_mode=docker）下，celery worker 會為每個 testcase 啟動
+# 一個此 image 的容器來執行 Robot Framework；測試結束後容器自毀（--rm）。
+#
+# Base：ppodgorsek/robot-framework:latest（Fedora 42，內建 Python 3.13、
+# Robot Framework 7.3、robotframework-browser 19.x、Playwright + chromium、
+# ffmpeg、Node.js）
+#
+# 我們在這層加上：
+#   - boto3：listener 即時把截圖 / Trace / 影片上傳到 MinIO
+#   - tasks/ 目錄：robot_listener.py + 容器 entrypoint robot_container.py
+#   - app/ 目錄子集：listener / runtime 會用到的 storage_service、config 等
+
+FROM ppodgorsek/robot-framework:latest
+
+USER root
+
+# 為了 Browser Library 把 Chromium 跑起來：xvfb（虛擬顯示）
+# ppodgorsek 已含 Firefox / chromium-1181 / ffmpeg 但沒裝 xvfb-run
+RUN dnf install -y xorg-x11-server-Xvfb procps-ng \
+    && dnf clean all
+
+# boto3：上傳到 MinIO（S3 相容 API）
+# redis：listener 用 pub/sub 把 log 推到 redis，由 backend WS endpoint 中繼到前端
+# pydantic-settings：app.config 需要
+# aiofiles + fastapi：app.services.storage_service import 鏈上會用到（spawn 內只跑 save_bytes
+#   走 sync 分支，但 module 本身的 top-level import 還是會執行）
+RUN pip3 install --no-cache-dir \
+        boto3==1.35.36 \
+        redis==5.1.1 \
+        pymysql==1.1.1 \
+        sqlalchemy==2.0.35 \
+        pydantic-settings==2.5.2 \
+        aiofiles==24.1.0 \
+        'fastapi[standard]==0.115.0'
+
+# 把 backend/ 的程式碼放到 /app（與 celery image 結構一致，避免 listener import path 不同）
+WORKDIR /app
+COPY app/ /app/app/
+COPY tasks/ /app/tasks/
+
+# Python 找得到 /app 下的 module
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+
+# 容器入口：讀取 env 變數 → 從 MinIO 拉 .robot → 跑 robot → 即時上傳產物
+ENTRYPOINT ["python3", "/app/tasks/robot_container.py"]

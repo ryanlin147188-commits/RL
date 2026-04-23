@@ -27,6 +27,10 @@ boto3==1.35.36
 celery[redis]==5.4.0
 redis==5.1.1
 
+# Docker SDK：execution_mode=docker 時，由 celery worker 透過 docker.sock
+# spawn 一個 autotest-robot-runner 容器跑每個 testcase
+docker==7.1.0
+
 # ── 執行引擎：Robot Framework + 周邊 Library（Celery worker 用）──
 robotframework==7.1
 robotframework-browser==18.8.1          # Playwright-based, 需 Node + `rfbrowser init`

@@ -132,8 +132,17 @@ services:
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       # 容器內預設用 headless；如需 headed demo，改成 "0" 並確保 Xvfb 已啟動
       PLAYWRIGHT_HEADLESS: ${PLAYWRIGHT_HEADLESS:-1}
+      # ── Spawn 模式（execution_mode=docker）─────────────────────
+      # ROBOT_RUNNER_IMAGE：每個 case 啟動的獨立容器使用的 image
+      #   預設值會被 docker-compose build 時建立的 autotest-robot-runner（FROM ppodgorsek/robot-framework）取代
+      # ROBOT_RUNNER_NETWORK：spawn 容器要附加的 docker network，必須能連到 minio / redis
+      ROBOT_RUNNER_IMAGE: ${ROBOT_RUNNER_IMAGE:-autotest-robot-runner:latest}
+      ROBOT_RUNNER_NETWORK: ${ROBOT_RUNNER_NETWORK:-autotest_v10_20260420_default}
     volumes:
       - pic_data:/app/PIC
+      # 把 host 的 docker daemon 開放給 celery worker 用（spawn 子容器時呼叫）
+      # ⚠ 這等同 root 權限；正式部署請改用 docker-socket-proxy 限制 API 權限
+      - /var/run/docker.sock:/var/run/docker.sock
 
   frontend:
     # 直接用官方 nginx image，無需自訂 Dockerfile / build step。

@@ -3,21 +3,30 @@ Robot Framework Listener v3。
 
 職責：
 1. 即時把 keyword/test 事件 publish 到 Redis（給前端 WebSocket）。
-2. 收集每一個「STEP marker keyword」前後所夾的真正執行 keyword 的狀態與耗時，
-   並依 step_index 累計成一份 JSON，供 robot_runner 在執行結束後讀取。
+2. **即時上傳**每張 Take Screenshot 的截圖到 MinIO，URL 寫入 step buffer。
+3. 在 close()（suite 結束）時 glob 出 video / trace 檔，做 ffmpeg 切片並上傳，
+   把 URL 注入對應 step buffer。
+4. 把所有 step record 寫成 JSON：
+   - 在 spawn 模式：寫到 ``AUTOTEST_RESULT_PATH``，由 robot_container.py 上傳到 MinIO
+   - 在 in-process 模式：寫到本地路徑，由 robot_runner.py 直接讀
 
-由 robot_runner 透過 `--listener robot_listener.RTListener:<args>` 注入。
-
-Listener 與測試在同一個 Robot process 中執行，靠下列環境變數通訊：
-- AUTOTEST_REDIS_URL   : Redis 連線
-- AUTOTEST_LOG_CHANNEL : pub/sub channel（task:{task_id}:logs）
-- AUTOTEST_RESULT_PATH : 寫入 step 結果 JSON 的路徑
+環境變數：
+- AUTOTEST_REDIS_URL    : Redis 連線
+- AUTOTEST_LOG_CHANNEL  : pub/sub channel（task:{task_id}:logs）
+- AUTOTEST_RESULT_PATH  : 寫入 step 結果 JSON 的路徑
+- AUTOTEST_REPORT_ID    : 用於決定 MinIO key 前綴（screenshots/<report_id>/...）
+- AUTOTEST_VIDEO_DIR    : Browser Library recordVideo 的 dir（容器內路徑）
+- AUTOTEST_OUTPUT_DIR   : Robot --outputdir，用來找 trace 檔
+- ENABLE_RECORDING      : "1" 才做 video/trace 處理；"0" 則跳過
 """
 from __future__ import annotations
 
+import glob
 import json
 import os
+import re
 import time
+import uuid
 from datetime import datetime
 from typing import Any
 
@@ -36,7 +45,10 @@ class RTListener:
         self._redis_url = os.environ.get("AUTOTEST_REDIS_URL", "")
         self._channel = os.environ.get("AUTOTEST_LOG_CHANNEL", "")
         self._result_path = os.environ.get("AUTOTEST_RESULT_PATH", "")
-        self._screenshot_dir_url = os.environ.get("AUTOTEST_SCREENSHOT_URL_PREFIX", "")
+        self._report_id = os.environ.get("AUTOTEST_REPORT_ID", "unknown")
+        self._video_dir = os.environ.get("AUTOTEST_VIDEO_DIR", "/work/videos")
+        self._output_dir = os.environ.get("AUTOTEST_OUTPUT_DIR", "")
+        self._enable_recording = os.environ.get("ENABLE_RECORDING", "1") not in ("0", "false", "False")
 
         try:
             self._r = redis.from_url(self._redis_url) if self._redis_url else None
@@ -50,11 +62,12 @@ class RTListener:
         self._results: list[dict[str, Any]] = []
         # 暫存每個 step 的累積資訊
         self._buffer: dict[int, dict[str, Any]] = {}
-        # 偵測 Take Screenshot 後的檔案路徑
-        self._last_screenshot_path: str | None = None
         # ── Trace / Video 計時 ─────────────────────────────────
         # 每個 test name 的錄影起始 wall time（time.time()），由 New Context 觸發
         self._test_recording_start: dict[str, float] = {}
+        # 每個 test name 的「進入順序」（int）— 用來把 ${OUTPUT_DIR}/browser/traces_full/
+        # 內按 mtime 排序的 trace.zip 與 test_name 對應
+        self._test_order: dict[str, int] = {}
         self._current_test_name: str | None = None
 
     # ── 工具 ──────────────────────────────────────────────
@@ -82,7 +95,8 @@ class RTListener:
                 "error": None,
                 "pre": None,
                 "post": None,
-                "_screenshots": [],
+                # 即時上傳後的 MinIO URL list（pre = 第一張，post = 最後一張）
+                "_screenshot_urls": [],
                 "_action_dur": 0,
             }
         return self._buffer[idx]
@@ -95,6 +109,8 @@ class RTListener:
         # 進入新 test：重置 step 游標，避免上一個 test 的尾段事件污染
         self._current_idx = None
         self._current_test_name = data.name
+        if data.name not in self._test_order:
+            self._test_order[data.name] = len(self._test_order)
         self._publish("INFO", f"  ▶ Test: {data.name}")
 
     def end_test(self, data, result):
@@ -156,18 +172,23 @@ class RTListener:
 
         buf = self._ensure_buf(self._current_idx)
 
-        # Take Screenshot 結束 → 用 result.message 或回傳值取得檔名
+        # Take Screenshot 結束 → 即時上傳到 MinIO，並把 URL 收集到 buf["_screenshot_urls"]
+        # Browser Library 19.x：`result.message` 不再是純檔名，可能是 "Screenshot saved to:
+        # /path/to/file.png" 之類的字串。為了穩健，採三段嘗試：
+        #   a) result.message 本身是檔案路徑 → 直接用
+        #   b) 從 result.message 內 regex 抓 .png/.jpeg/.webp 路徑
+        #   c) data.args 內找 filename=... 然後加副檔名探查存在的檔
         if "Take Screenshot" in kw_name:
-            shot = None
             try:
-                shot = result.message or ""
-                # Browser library 通常 message 為檔案絕對路徑
-                if shot and os.path.isfile(shot):
-                    buf["_screenshots"].append(shot)
+                shot_path = self._resolve_screenshot_path(result, data)
+                if shot_path:
+                    url = self._upload_screenshot(shot_path)
+                    if url:
+                        buf.setdefault("_screenshot_urls", []).append(url)
                 else:
-                    shot = None
-            except Exception:
-                pass
+                    self._publish("WARN", f"截圖路徑解析失敗: msg={getattr(result, 'message', '')!r}")
+            except Exception as e:
+                self._publish("WARN", f"截圖上傳失敗: {e}")
             return
 
         # ── 過濾掉非「真正 action」的 keyword ──────────────
@@ -225,15 +246,15 @@ class RTListener:
         pass
 
     def close(self):
-        # 把 buffer 整理成 list、解析 pre/post screenshot URL、計算錄影偏移
+        # 1) 把 buffer 內截圖 URL / video offset 整理出來（截圖已在 end_keyword 即時上傳）
         for idx in sorted(self._buffer.keys()):
             buf = self._buffer[idx]
-            shots: list[str] = buf.pop("_screenshots", [])
+            urls: list[str] = buf.pop("_screenshot_urls", [])
             buf["duration_ms"] = buf.pop("_action_dur", 0)
-            if shots:
-                buf["pre"] = self._to_url(shots[0])
-                if len(shots) >= 2:
-                    buf["post"] = self._to_url(shots[-1])
+            if urls:
+                buf["pre"] = urls[0]
+                if len(urls) >= 2:
+                    buf["post"] = urls[-1]
 
             # 錄影 offset：相對於該 test 的 New Context wall time（影片 0:00）
             test_name = buf.pop("_test_name", None)
@@ -249,20 +270,163 @@ class RTListener:
 
             self._results.append(buf)
 
-        # 寫入結果 JSON
+        # 2) 處理 video / trace（spawn + STORAGE_BACKEND=minio 時才有意義）
+        if self._enable_recording and self._is_minio_mode():
+            try:
+                self._process_videos_and_traces()
+            except Exception as e:
+                self._publish("WARN", f"video/trace 處理失敗: {e}")
+
+        # 3) 寫入結果 JSON（spawn 模式：寫到本地檔，由 robot_container.py 上傳到 MinIO）
         if self._result_path:
             try:
                 os.makedirs(os.path.dirname(self._result_path), exist_ok=True)
                 with open(self._result_path, "w", encoding="utf-8") as f:
                     json.dump(self._results, f, ensure_ascii=False)
-            except Exception:
-                pass
+            except Exception as e:
+                self._publish("ERROR", f"寫入 step_results.json 失敗: {e}")
 
         if self._r:
             try:
                 self._r.close()
             except Exception:
                 pass
+
+    # ── video/trace 處理 ─────────────────────────────────
+    def _is_minio_mode(self) -> bool:
+        try:
+            from app.config import settings  # type: ignore
+            return (settings.STORAGE_BACKEND or "local").lower() == "minio"
+        except Exception:
+            return False
+
+    def _process_videos_and_traces(self) -> None:
+        """
+        spawn 容器收尾：
+          - 找出每個 test 的完整 .webm 與 trace.zip
+          - 上傳到 MinIO，URL 寫入該 test 第一個被持久化 step 的 video_url / trace_url
+
+        不再做 ffmpeg 步驟切片（user 要求拿掉）。
+        """
+        test_names_sorted = sorted(self._test_order.keys(), key=self._test_order.get)
+        if not test_names_sorted:
+            return
+
+        video_files = self._list_videos()
+        trace_files = self._list_traces()
+        self._publish("INFO", f"[listener] found {len(video_files)} videos, {len(trace_files)} traces")
+
+        for i, test_name in enumerate(test_names_sorted):
+            video_path = video_files[i] if i < len(video_files) else None
+            trace_path = trace_files[i] if i < len(trace_files) else None
+
+            video_url = self._upload_video(video_path, test_name) if video_path else None
+            trace_url = self._upload_trace(trace_path, test_name) if trace_path else None
+
+            test_steps = [r for r in self._results if r.get("test_name") == test_name]
+            test_steps.sort(key=lambda r: r.get("step_index", 0))
+            anchor = next((r for r in test_steps if r.get("status") != "SKIPPED"), None)
+            if anchor:
+                if video_url:
+                    anchor["video_url"] = video_url
+                if trace_url:
+                    anchor["trace_url"] = trace_url
+
+    def _list_videos(self) -> list[str]:
+        if not os.path.isdir(self._video_dir):
+            return []
+        files = [
+            os.path.join(self._video_dir, fn)
+            for fn in os.listdir(self._video_dir)
+            if fn.lower().endswith(".webm")
+        ]
+        files.sort(key=lambda p: os.path.getmtime(p))
+        return files
+
+    def _list_traces(self) -> list[str]:
+        """
+        Browser Library 19.x 把 trace 寫到 ``${OUTPUT_DIR}`` 之下，實際路徑視 tracing 參數而定：
+          - tracing=True 時通常落在 ``${OUTPUT_DIR}/browser/traces/<test_name>.zip`` 或 traces_full
+          - tracing=Path("xxx.zip") 時落在 ``${OUTPUT_DIR}/xxx.zip``
+        為了盡量別漏抓，全 outputdir 遞迴 glob 所有 .zip 都收進來。
+        """
+        if not self._output_dir or not os.path.isdir(self._output_dir):
+            return []
+        candidates = glob.glob(os.path.join(self._output_dir, "**", "*.zip"), recursive=True)
+        candidates.sort(key=lambda p: os.path.getmtime(p))
+        return candidates
+
+    def _resolve_screenshot_path(self, result, data) -> str | None:
+        """嘗試多種方式找出 Take Screenshot 寫出的檔案路徑。"""
+        # a) result.message 本身是檔名
+        msg = (getattr(result, "message", "") or "").strip()
+        if msg and os.path.isfile(msg):
+            return msg
+
+        # b) message 內含路徑（19.x 會 log "Screenshot is taken to: /path/to/file.png" 之類）
+        m = re.search(r"(/\S+\.(?:png|jpe?g|webp))", msg, re.IGNORECASE)
+        if m and os.path.isfile(m.group(1)):
+            return m.group(1)
+
+        # c) data.args 找 filename= 並補副檔名探查
+        try:
+            for arg in (data.args or []):
+                if isinstance(arg, str) and arg.lower().startswith("filename="):
+                    base = arg.split("=", 1)[1]
+                    for ext in (".png", ".jpeg", ".jpg", ".webp"):
+                        candidate = base + ext
+                        if os.path.isfile(candidate):
+                            return candidate
+                    # 退而求其次：base 名稱前綴匹配（Browser Library 可能加 _1 / timestamp）
+                    parent = os.path.dirname(base) or "."
+                    bn = os.path.basename(base)
+                    if os.path.isdir(parent):
+                        matches = sorted(
+                            os.path.join(parent, fn) for fn in os.listdir(parent)
+                            if fn.startswith(bn) and fn.lower().endswith((".png", ".jpeg", ".jpg", ".webp"))
+                        )
+                        if matches:
+                            return matches[-1]
+        except Exception:
+            pass
+        return None
+
+    def _upload_screenshot(self, abs_path: str) -> str | None:
+        """即時把單張 .png 上傳到 MinIO；回傳 ``/results/...`` URL（或 None）。"""
+        try:
+            from app.services.storage_service import save_bytes  # type: ignore
+
+            with open(abs_path, "rb") as fh:
+                data = fh.read()
+            key = f"screenshots/{self._report_id}/{uuid.uuid4().hex}_{os.path.basename(abs_path)}"
+            return save_bytes(data, key, bucket="results", content_type="image/png")
+        except Exception as e:
+            self._publish("WARN", f"_upload_screenshot 失敗: {e}")
+            return None
+
+    def _upload_video(self, abs_path: str, test_name: str) -> str | None:
+        try:
+            from app.services.storage_service import save_bytes  # type: ignore
+
+            with open(abs_path, "rb") as fh:
+                data = fh.read()
+            key = f"videos/{self._report_id}/{test_name}.webm"
+            return save_bytes(data, key, bucket="results", content_type="video/webm")
+        except Exception as e:
+            self._publish("WARN", f"_upload_video 失敗: {e}")
+            return None
+
+    def _upload_trace(self, abs_path: str, test_name: str) -> str | None:
+        try:
+            from app.services.storage_service import save_bytes  # type: ignore
+
+            with open(abs_path, "rb") as fh:
+                data = fh.read()
+            key = f"traces/{self._report_id}/{test_name}.zip"
+            return save_bytes(data, key, bucket="results", content_type="application/zip")
+        except Exception as e:
+            self._publish("WARN", f"_upload_trace 失敗: {e}")
+            return None
 
     # ── 內部 ──────────────────────────────────────────────
     def _to_url(self, abs_path: str) -> str | None:

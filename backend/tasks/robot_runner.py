@@ -618,18 +618,18 @@ def _build_robot_file(
     lines.append("Setup Browser Session")
     lines.append(f"    New Browser    chromium    headless={'true' if headless else 'false'}")
     # ── New Context 一次帶齊：viewport / recordVideo / tracing ──
-    # robotframework-browser 18.x 沒有 Start/Stop Tracing keyword；
-    # tracing 改在 context 開啟時用 ``tracing=<filename>`` 啟用，
-    # context 關閉（auto_closing_level=TEST）時自動寫到 ``${OUTPUT_DIR}/<filename>``。
-    # ${TEST_NAME} 在 [Setup] 階段已可用，每個 DDT row 各自取得獨立檔名。
+    # robotframework-browser 19.x：
+    #   - tracing 參數型別改為 Union[bool, Path]；給 True 即啟用，trace 會寫到
+    #     ``${OUTPUT_DIR}/browser/traces_full/<random>.zip``，context 關閉時自動寫出
+    #   - 我們在 worker 端不依賴特定檔名，listener.close() 會 glob outputdir 找出 trace.zip
+    #     並依 test_name 對應上傳到 MinIO
     nc_args = ["viewport={'width': 1280, 'height': 720}"]
     if enable_recording and video_dir_p:
         nc_args.append(
             f"recordVideo={{'dir': '{video_dir_p}', 'size': {{'width': 1280, 'height': 720}}}}"
         )
     if enable_recording and trace_dir_p:
-        # 注意：value 中不可含路徑分隔符（Browser Library 把它當檔名用，會與 outputdir 拼接）
-        nc_args.append("tracing=${TEST_NAME}.zip")
+        nc_args.append("tracing=True")
     lines.append("    New Context    " + "    ".join(nc_args))
     lines.append("    New Page")
     # 預設所有 Browser Library 動作（Click / Fill / Wait For Elements State / ...）
@@ -725,155 +725,168 @@ def run_testcase(
     enable_recording: bool = True,
 ) -> list[CaseResult]:
     """
-    執行單一測試案例（含 DDT 多列）。
-    回傳每一輪 (DDT 列) 的 CaseResult；無 DDT 時長度為 1。
+    執行單一測試案例（含 DDT 多列）— **Spawn 容器模式**。
 
-    enable_recording=True 時：
-      - 啟動 Playwright Trace（trace.zip） 與 Video（.webm，每個案例/DDT 列一份）
-      - 執行結束後使用 ffmpeg 把完整影片切成「每步驟一份」短片（ffmpeg 不可用時跳過）
+    流程：
+      1. 在 worker process 內產生 .robot 文字
+      2. 把 .robot 上傳到 MinIO (``inputs/<task>/<case>.robot``)
+      3. 透過 docker SDK spawn 一個 ``ROBOT_RUNNER_IMAGE`` 容器
+         （預設 ``autotest-robot-runner:latest``，base = ppodgorsek/robot-framework）
+      4. 容器 entrypoint = ``robot_container.py``：拉 .robot → 跑 robot
+         → listener 即時把截圖／影片／trace 上傳到 MinIO → 寫 step_results.json 到 MinIO
+      5. worker 等容器結束、抓回 step_results.json、解析成 CaseResult
+
+    enable_recording=True 時 listener 會啟動 Trace + Video 並把產物 URL 寫入 step_records。
+    無論本地是否裝 robot，本函式都不在 worker process 內跑 robot subprocess。
     """
     if not steps:
         publish_log("ERROR", "  ⚠ 此案例 steps_json 為空")
         return [CaseResult(passed=False, steps=[], duration_ms=0)]
 
-    # ── 截圖目錄與工作區 ──────────────────────────────
-    screenshot_dir = os.path.abspath(os.path.join(settings.PIC_FOLDER, report_id))
-    os.makedirs(screenshot_dir, exist_ok=True)
-    # Trace / Video 目錄（位於 PIC_FOLDER/<report_id> 下，與截圖共享 /pics/ static mount）
-    trace_dir = os.path.abspath(os.path.join(settings.PIC_FOLDER, report_id, "traces"))
-    video_dir = os.path.abspath(os.path.join(settings.PIC_FOLDER, report_id, "videos"))
-    if enable_recording:
-        os.makedirs(trace_dir, exist_ok=True)
-        os.makedirs(video_dir, exist_ok=True)
-    workdir = tempfile.mkdtemp(prefix=f"rf_{case_tag}_")
-    robot_file = os.path.join(workdir, "test.robot")
-    output_dir = os.path.join(workdir, "out")
-    os.makedirs(output_dir, exist_ok=True)
-    result_json = os.path.join(workdir, "step_results.json")
+    if (settings.STORAGE_BACKEND or "local").lower() != "minio":
+        publish_log(
+            "ERROR",
+            "  💥 Spawn 模式需要 STORAGE_BACKEND=minio；目前是 local，請改 .env 後重啟",
+        )
+        return [CaseResult(passed=False, steps=[], duration_ms=0)]
 
-    # ── 產生 .robot ────────────────────────────────────
+    # ── 1) 產生 .robot 文字 ────────────────────────────
+    # spawn 模式下 video_dir / trace_dir 是「容器內」的暫存路徑（由 robot_container.py 決定），
+    # 不需要在 worker process 端真的建目錄。listener 會把產物存到 MinIO 而非本地檔系統。
     robot_text, _ = _build_robot_file(
         steps,
         ddt,
         case_tag,
-        screenshot_dir,
+        screenshot_dir="/work/screenshots",
         headless=headless,
         enable_recording=enable_recording,
-        video_dir=video_dir if enable_recording else None,
-        trace_dir=trace_dir if enable_recording else None,
+        video_dir="/work/videos" if enable_recording else None,
+        trace_dir="/work/traces" if enable_recording else None,
     )
-    with open(robot_file, "w", encoding="utf-8") as f:
-        f.write(robot_text)
-    publish_log("INFO", f"  📝 已生成 {os.path.basename(robot_file)} ({len(steps)} 步驟)")
 
-    # ── 構建環境變數（傳給 listener）──────────────────
-    env = os.environ.copy()
-    env["AUTOTEST_REDIS_URL"] = settings.REDIS_URL
-    env["AUTOTEST_LOG_CHANNEL"] = f"task:{_extract_task_id(publish_log) or report_id}:logs"
-    env["AUTOTEST_RESULT_PATH"] = result_json
-    env["AUTOTEST_SCREENSHOT_URL_PREFIX"] = f"{settings.BASE_URL}/pics/{report_id}"
-    if not headless:
-        env["AUTOTEST_HEADLESS"] = "0"
+    task_id = _extract_task_id(publish_log) or report_id
 
-    # ── subprocess 跑 robot ────────────────────────────
-    cmd = [
-        sys.executable, "-m", "robot",
-        "--listener", "tasks.robot_listener.RTListener",
-        "--outputdir", output_dir,
-        "--loglevel", "INFO",
-        robot_file,
-    ]
-
-    case_start = time.time()
+    # ── 2) 上傳 .robot 到 MinIO ────────────────────────
+    robot_key = f"inputs/{task_id}/{case_tag}.robot"
+    result_key = f"results-json/{task_id}/{case_tag}.json"
     try:
-        proc = subprocess.run(
-            cmd,
-            cwd=os.path.abspath(os.path.join(os.path.dirname(__file__), "..")),  # backend/
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=600,
-        )
-    except subprocess.TimeoutExpired:
-        publish_log("ERROR", "  ⏱ Robot 執行逾時 (600s)")
-        _safe_cleanup(workdir)
-        return [CaseResult(passed=False, steps=[], duration_ms=600_000)]
-    except FileNotFoundError as e:
-        publish_log("ERROR", f"  💥 找不到 robot 執行檔: {e}")
-        _safe_cleanup(workdir)
+        from app.services.storage_service import save_bytes  # type: ignore
+
+        save_bytes(robot_text.encode("utf-8"), robot_key, bucket="results", content_type="text/plain")
+        publish_log("INFO", f"  ⬆ .robot 上傳至 MinIO key={robot_key}")
+    except Exception as e:
+        publish_log("ERROR", f"  💥 .robot 上傳 MinIO 失敗: {e}")
         return [CaseResult(passed=False, steps=[], duration_ms=0)]
 
-    case_dur = int((time.time() - case_start) * 1000)
-    rc = proc.returncode
+    # ── 3) Spawn 容器 ─────────────────────────────────
+    image = os.environ.get("ROBOT_RUNNER_IMAGE", "autotest-robot-runner:latest")
+    network = os.environ.get("ROBOT_RUNNER_NETWORK", "autotest_v10_20260420_default")
+    container_env = {
+        "JOB_TASK_ID": task_id,
+        "JOB_REPORT_ID": report_id,
+        "JOB_CASE_TAG": case_tag,
+        "JOB_ROBOT_KEY": robot_key,
+        "JOB_RESULT_KEY": result_key,
+        "PLAYWRIGHT_HEADLESS": "1" if headless else "0",
+        "STORAGE_BACKEND": "minio",
+        "MINIO_ENDPOINT": settings.MINIO_ENDPOINT,
+        "MINIO_ACCESS_KEY": settings.MINIO_ACCESS_KEY,
+        "MINIO_SECRET_KEY": settings.MINIO_SECRET_KEY,
+        "REDIS_URL": settings.REDIS_URL,
+        "BASE_URL": settings.BASE_URL,
+        "AUTOTEST_TASK_ID": task_id,
+        "AUTOTEST_REPORT_ID": report_id,
+        "ENABLE_RECORDING": "1" if enable_recording else "0",
+    }
 
-    # ── 解析 listener 輸出的 step 結果 ────────────────
-    step_records: list[dict] = []
-    if os.path.isfile(result_json):
+    publish_log("INFO", f"  🐳 啟動容器 image={image} (network={network})")
+    case_start = time.time()
+    rc = -1
+    try:
+        import docker  # type: ignore
+
+        client = docker.from_env()
+        container = client.containers.run(
+            image=image,
+            environment=container_env,
+            network=network,
+            detach=True,
+            remove=False,  # auto_remove=True 會搶在 wait() 之前把容器砍掉拿不到 exit code
+            name=f"robot-{task_id[:8]}-{case_tag[:8]}",
+        )
+    except Exception as e:
+        publish_log("ERROR", f"  💥 docker run 失敗: {e}")
+        return [CaseResult(passed=False, steps=[], duration_ms=0)]
+
+    try:
+        wait_result = container.wait(timeout=600)
+        rc = wait_result.get("StatusCode", -1)
+    except Exception as e:
+        publish_log("ERROR", f"  ⏱ 容器逾時或 wait 失敗: {e}")
         try:
-            with open(result_json, "r", encoding="utf-8") as f:
-                step_records = json.load(f)
-        except Exception as e:
-            publish_log("ERROR", f"  ⚠ 解析 listener JSON 失敗: {e}")
+            container.kill()
+        except Exception:
+            pass
+    finally:
+        # 印出容器最後 30 行 stdout/stderr 方便除錯
+        try:
+            tail = container.logs(tail=30).decode("utf-8", errors="replace")
+            for line in tail.splitlines()[-30:]:
+                publish_log("INFO", f"  ┃ {line}")
+        except Exception:
+            pass
+        try:
+            container.remove(force=True)
+        except Exception:
+            pass
+
+    case_dur = int((time.time() - case_start) * 1000)
+    publish_log("INFO", f"  🏁 容器結束 rc={rc} ({case_dur}ms)")
+
+    # ── 5) 從 MinIO 抓 step_results.json ───────────────
+    step_records: list[dict] = []
+    try:
+        import boto3  # type: ignore
+
+        s3 = boto3.client(
+            "s3",
+            endpoint_url=settings.MINIO_ENDPOINT,
+            aws_access_key_id=settings.MINIO_ACCESS_KEY,
+            aws_secret_access_key=settings.MINIO_SECRET_KEY,
+            region_name="us-east-1",
+        )
+        obj = s3.get_object(Bucket="results", Key=result_key)
+        step_records = json.loads(obj["Body"].read().decode("utf-8"))
+    except Exception as e:
+        publish_log("ERROR", f"  💥 下載 step_results.json 失敗: {e}")
 
     if not step_records:
-        # listener 沒寫東西 → 表示 robot 啟動失敗
-        publish_log("ERROR", f"  💥 Robot 未產生結果（rc={rc}）")
-        if proc.stderr:
-            publish_log("ERROR", proc.stderr.strip()[:500])
-        _safe_cleanup(workdir)
         return [CaseResult(passed=False, steps=[], duration_ms=case_dur)]
 
-    # ── 把 step_records 依 DDT row 分組 ────────────────
+    # ── 6) 解析成 CaseResult（保留原本邏輯，但所有 URL 都來自 step_records）──
     rows = (ddt or {}).get("rows") or []
     n_rows = max(1, len(rows))
     n_steps = len(steps)
-
-    # 收集 trace.zip（test_name → 路徑）與 video（test_name → .webm 路徑）
-    trace_by_test: dict[str, str] = {}
-    video_by_test: dict[str, str] = {}
-    if enable_recording:
-        trace_by_test = _collect_traces(trace_dir, output_dir, n_rows, case_tag)
-        video_by_test = _collect_videos(video_dir, n_rows, case_tag)
 
     case_results: list[CaseResult] = []
     for row_i in range(n_rows):
         row_steps: list[StepResult] = []
         row_passed = True
         row_dur = 0
-        test_name = f"{case_tag}_row{row_i:02d}"
-
-        # case 級 trace / video URL
-        case_trace_url = (
-            _to_pics_url(trace_by_test[test_name], report_id)
-            if test_name in trace_by_test
-            else None
-        )
-        case_video_path = video_by_test.get(test_name)
-        case_video_url = (
-            _to_pics_url(case_video_path, report_id) if case_video_path else None
-        )
-
+        # 同一 row 的所有 step 都共享 case 級 trace_url / video_url（取第一個有值的）
+        case_trace_url: Optional[str] = None
+        case_video_url: Optional[str] = None
         for step_i in range(n_steps):
             global_idx = row_i * 1000 + step_i
             rec = next((r for r in step_records if r.get("step_index") == global_idx), None)
-
-            # 直接由預定檔名補回截圖 URL（listener 解析 result.message 並不可靠）
-            pre_url = (rec or {}).get("pre") or _resolve_screenshot_url(
-                screenshot_dir, f"{test_name}_s{step_i:02d}_pre", report_id
-            )
-            post_url = (rec or {}).get("post") or _resolve_screenshot_url(
-                screenshot_dir, f"{test_name}_s{step_i:02d}_post", report_id
-            )
-
             if rec is None:
-                # 該步驟未執行（前面失敗中止）
                 row_steps.append(
                     StepResult(
                         status="SKIPPED",
                         duration_ms=0,
                         error_message=None,
-                        pre_screenshot_url=pre_url,
-                        post_screenshot_url=post_url,
+                        pre_screenshot_url=None,
+                        post_screenshot_url=None,
                         target_highlight_json=None,
                     )
                 )
@@ -883,33 +896,21 @@ def run_testcase(
             if status != "PASSED":
                 row_passed = False
 
-            # ── 步驟切片影片（ffmpeg）──
-            step_video_url: Optional[str] = None
-            if enable_recording and case_video_path:
-                start_off = rec.get("video_offset_start_ms")
-                end_off = rec.get("video_offset_end_ms")
-                if isinstance(start_off, int) and isinstance(end_off, int) and end_off > start_off:
-                    clip_path = _ffmpeg_clip(
-                        case_video_path,
-                        os.path.join(
-                            video_dir,
-                            f"{test_name}_s{step_i:02d}.webm",
-                        ),
-                        start_off / 1000.0,
-                        max(0.5, (end_off - start_off) / 1000.0),
-                    )
-                    if clip_path:
-                        step_video_url = _to_pics_url(clip_path, report_id)
+            # 案例級 URL 由容器寫入 first-step record；若該欄位有值就 propagate 給整 row
+            if rec.get("trace_url") and not case_trace_url:
+                case_trace_url = rec["trace_url"]
+            if rec.get("video_url") and not case_video_url:
+                case_video_url = rec["video_url"]
 
             row_steps.append(
                 StepResult(
                     status=status,
                     duration_ms=rec.get("duration_ms", 0),
                     error_message=rec.get("error"),
-                    pre_screenshot_url=pre_url,
-                    post_screenshot_url=post_url,
+                    pre_screenshot_url=rec.get("pre"),
+                    post_screenshot_url=rec.get("post"),
                     target_highlight_json=None,
-                    step_video_url=step_video_url,
+                    step_video_url=rec.get("step_video_url"),
                 )
             )
         case_results.append(
@@ -922,7 +923,6 @@ def run_testcase(
             )
         )
 
-    _safe_cleanup(workdir)
     return case_results
 
 
