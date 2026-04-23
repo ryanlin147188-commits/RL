@@ -1,6 +1,8 @@
 # AutoTest v1.0
 
-企業級自動化測試平台。前端為單一 `index.html`（vanilla HTML/JS + TailwindCSS CDN，無 build step），由 nginx 直接掛載提供；後端採 FastAPI + Celery Worker（**Robot Framework** 執行引擎）+ 內建排程輪詢器 + MySQL + Redis；支援 Docker headless 執行與本機 `local_agent.py` headed 執行。
+企業級自動化測試平台。前端為單一 `index.html`（vanilla HTML/JS + TailwindCSS CDN，無 build step），由 nginx 直接掛載提供；後端採 FastAPI + Celery Worker（**orchestrator**）+ 內建排程輪詢器 + MySQL + Redis + MinIO。
+
+執行模型：每觸發一個 testcase，Celery worker 透過 Docker SDK 起一個**獨立的 `autotest-robot-runner` 容器**（base = `ppodgorsek/robot-framework`，含 Robot Framework 7.x、robotframework-browser 19.x、Playwright + chromium、ffmpeg），跑完 case 自毀，所有截圖 / 錄影 / Trace 即時上傳到 MinIO；整個 worker 不在自己 process 內跑 robot subprocess。本機 headed 模式（`local_agent.py`）保留作為除錯用途。
 
 ## 功能
 
@@ -18,7 +20,8 @@
   - SQL ：DatabaseLibrary
   - Mobile ：AppiumLibrary（需外接 Appium server）
 - **本機 Agent**：下載 `local_agent.py` 後可由本機直接認領 local 模式任務，視覺化觀察瀏覽器執行過程，並把每步 PRE / POST 截圖與耗時回寫到詳細報告
-- **Trace（軌跡追蹤）+ Video（錄影）**：執行時自動產生 Playwright `trace.zip` 與案例完整錄影（`.webm`），且每個步驟另存一段切片影片；報告詳細頁可直接下載、播放或於頁內嵌入式 Trace Viewer 檢視
+- **每案例 spawn 獨立容器**：Docker 模式下，每個 testcase 由 Celery worker 透過 docker SDK 啟動一個一次性的 `autotest-robot-runner` 容器執行（base = `ppodgorsek/robot-framework`），徹底與 worker 進程隔離；測試結束容器自毀
+- **Trace（軌跡追蹤）+ Video（錄影）**：執行時 Browser Library 19.x 在 Playwright context 同時開啟 trace 與 video；listener 即時把截圖／影片／trace 上傳到 MinIO，報告詳細頁可下載、播放、頁內嵌入式 Trace Viewer 檢視
 - WebSocket 即時執行日誌（編輯頁底部抽屜）
 - 執行報告儀表板（通過率、趨勢圖）與步驟時間軸詳細頁
 
@@ -27,13 +30,23 @@
 需要：Docker 24+ / Docker Compose v2
 
 ```powershell
-# 1. 複製 compose 用環境變數（目前 .env.example 僅含最基本三項）
-Copy-Item .env.example .env
+# 1. 建立 .env（必須有 STORAGE_BACKEND=minio，spawn 模式只走 MinIO）
+@"
+DB_PASSWORD=password
+DB_NAME=autotest_db
+BASE_URL=http://localhost
+STORAGE_BACKEND=minio
+MINIO_ROOT_USER=minioadmin
+MINIO_ROOT_PASSWORD=minioadmin
+"@ | Set-Content .env
 
-# 2. 一鍵啟動所有服務
+# 2. 建 spawn 容器用的 image（每觸發一個 testcase 都會起一個此 image 的容器）
+docker build -f backend/Dockerfile.runner -t autotest-robot-runner:latest backend/
+
+# 3. 一鍵啟動所有服務（含建 backend / celery image）
 docker compose up -d --build
 
-# 3. 開啟前端
+# 4. 開啟前端
 start http://localhost
 ```
 
@@ -41,21 +54,25 @@ start http://localhost
 
 | 服務 | 對外 | 說明 |
 |---|---|---|
-| frontend (nginx) | 80 | `index.html` 單頁介面 + 反代 /api、/ws、/pics、/results |
+| frontend (nginx) | 80 | `index.html` 單頁介面 + 反代 /api、/ws、/results |
 | backend (FastAPI) | 8000 | REST + WebSocket + 內建 scheduler loop（`/docs` 為 Swagger）|
 | mysql | 3306 | 啟動時自動匯入 `backend/migrations/init_schema.sql` |
 | redis | 6379 | Celery broker + WS pub/sub |
-| celery worker | — | 內含 Robot Framework + Browser Library + Chromium |
-| minio | 9000 | `pic` / `results` bucket（切換 `STORAGE_BACKEND=minio` 時使用） |
+| celery worker | — | **Orchestrator**：透過 docker SDK + 主機 `/var/run/docker.sock` 為每個 case 起一個 `autotest-robot-runner` 容器跑 Robot |
+| autotest-robot-runner | — | 短命容器（一個 case 一個），跑完自毀；image 由 `Dockerfile.runner` build |
+| minio | 9000 | `pic` / `results` bucket（spawn 模式所有產物存放處） |
 | minio console | 9001 | 物件儲存管理介面 |
 
 停止：`docker compose down`，連資料一起清：`docker compose down -v`
 
+> ⚠ **安全提醒**：celery 容器掛載了 host 的 `/var/run/docker.sock`，等同 root 權限。Demo / Dev 環境可接受；正式部署請改用 docker-socket-proxy 限制 API。
+
 補充：
 
 - backend 啟動時會自動 `create_all()`，並同時啟動排程背景輪詢；目前輪詢間隔是 30 秒。
-- `docker-compose.yml` 已將 backend 與 celery 的時區固定為 `Asia/Taipei`，排程時間與報表時間請以此為準。
+- `docker-compose.yml` 已將 backend / celery 與 mysql 的時區固定為 `Asia/Taipei`，排程時間與報表時間請以此為準。
 - 本機 headed 執行不包含在 Docker Compose 內；如需使用，請從 `/api/local-runner/agent` 下載 agent 腳本並在使用者電腦啟動。
+- `autotest-robot-runner` image 不會被 `docker compose up --build` 自動 build（不是 compose 服務），第一次部署或修改 `backend/tasks/robot_*.py` / `Dockerfile.runner` 後都要手動執行步驟 2。
 
 ## 本機開發（不用 Docker）
 
@@ -112,25 +129,27 @@ celery -A tasks.celery_app worker -l info           # T2 worker
 |---|---|---|
 | DB_HOST / DB_PORT / DB_USER / DB_PASSWORD / DB_NAME | localhost / 3306 / root / password / autotest_db | MySQL |
 | REDIS_URL | redis://localhost:6379/0 | Celery broker + WS |
-| PIC_FOLDER | ./PIC | 截圖目錄 |
-| BASE_URL | http://localhost:8000 | 對外可訪問的截圖 URL 前綴 |
+| PIC_FOLDER | ./PIC | 留作本機 / `local_agent.py` 模式上傳區暫存；spawn 模式下不使用 |
+| BASE_URL | http://localhost | 對外可訪問的 URL 前綴（截圖 / 影片 / Trace 都用此前綴拼接） |
 | RECORDER_HOST_ROOT | C:\Demo\autotest_v1.0_20260420 | 錄製一鍵 PowerShell 指令切換用的本機專案根目錄 |
-| STORAGE_BACKEND | local | 截圖與附件儲存方式：`local` 或 `minio` |
-| MINIO_ENDPOINT / MINIO_ACCESS_KEY / MINIO_SECRET_KEY | http://minio:9000 / minioadmin / minioadmin | 啟用 MinIO 儲存時使用 |
+| **STORAGE_BACKEND** | **minio** | spawn 模式必須是 `minio`；改 `local` 會在執行時報錯 |
+| MINIO_ENDPOINT / MINIO_ACCESS_KEY / MINIO_SECRET_KEY | http://minio:9000 / minioadmin / minioadmin | spawn 模式必填 |
 | APP_HOST / APP_PORT | 0.0.0.0 / 8000 | uvicorn |
 | DEBUG | True | uvicorn reload |
-| PLAYWRIGHT_HEADLESS | 1 | celery worker 環境變數，設 0 開有頭模式（僅本機） |
+| PLAYWRIGHT_HEADLESS | 1 | spawn 容器內是否使用 headless Chromium（headed 走 xvfb） |
 
-`.env`（給 docker-compose；`.env.example` 目前只預放前三項，其餘可自行追加）：
+`.env`（給 docker-compose 讀取；需自行建立）：
 
 | 變數 | 預設 | 說明 |
 |---|---|---|
 | DB_PASSWORD | password | MySQL root |
 | DB_NAME | autotest_db | DB 名稱 |
-| BASE_URL | http://localhost | 截圖 URL 前綴（透過 nginx 反代 /pics） |
-| STORAGE_BACKEND | local | Docker Compose 預設走本機檔案儲存；MinIO 服務仍會一併啟動供切換使用 |
+| BASE_URL | http://localhost | URL 前綴（透過 nginx 反代 /results） |
+| **STORAGE_BACKEND** | **minio** | spawn 模式必須是 `minio` |
 | MINIO_ROOT_USER / MINIO_ROOT_PASSWORD | minioadmin / minioadmin | MinIO 管理帳密 |
-| PLAYWRIGHT_HEADLESS | 1 | Celery 容器內是否使用 headless Chromium |
+| PLAYWRIGHT_HEADLESS | 1 | spawn 容器內是否使用 headless |
+| ROBOT_RUNNER_IMAGE | autotest-robot-runner:latest | spawn 用的 image tag；改成自己的 registry 也可以 |
+| ROBOT_RUNNER_NETWORK | autotest_v10_20260420_default | spawn 容器要附加的 docker network；必須能連到 `minio` 與 `redis` 服務名 |
 
 ## 測試案例資料模型
 
@@ -202,15 +221,21 @@ celery -A tasks.celery_app worker -l info           # T2 worker
 
 ```
 backend/
-  app/            FastAPI（routers / services / models / schemas / ws）
-    static/       local_agent.py 下載腳本
-  tasks/          Celery 任務 + Robot Framework runner / listener
-  migrations/     init_schema.sql
-  Dockerfile / Dockerfile.celery
-index.html        前端唯一入口（vanilla HTML/JS + TailwindCDN，由 nginx 直接掛載）
-nginx.conf        前端容器的 nginx 設定（反代 /api /ws /pics /results /pic）
-run_tests.py      Markdown -> Robot CLI runner
-tests/            Markdown / pytest / Robot 測試資產
+  app/                 FastAPI（routers / services / models / schemas / ws）
+    static/            local_agent.py 下載腳本
+  tasks/
+    execution_tasks.py Celery 任務入口
+    robot_runner.py    Orchestrator：產 .robot → 上傳 MinIO → docker SDK spawn 容器 → 抓回結果
+    robot_container.py spawn 容器 entrypoint：拉 .robot → 跑 robot → 上傳產物
+    robot_listener.py  Robot Framework Listener v3：即時上傳截圖 + 收集影片/Trace
+  migrations/          init_schema.sql
+  Dockerfile           backend (FastAPI) image
+  Dockerfile.celery    celery worker image（含 docker SDK；不含 Robot 執行環境）
+  Dockerfile.runner    spawn 容器 image（FROM ppodgorsek/robot-framework）
+index.html             前端唯一入口（vanilla HTML/JS + TailwindCDN，由 nginx 直接掛載）
+nginx.conf             前端容器的 nginx 設定（反代 /api /ws /results 並補 CORS）
+run_tests.py           Markdown -> Robot CLI runner（與平台分離的獨立工具）
+tests/                 Markdown / pytest / Robot 測試資產
 docker-compose.yml
 ```
 
@@ -218,8 +243,8 @@ docker-compose.yml
 
 ### 執行環境
 
-- `Docker`：由 Celery 容器執行，預設 headless；適合持續整合與無頭環境。
-- `本機`：由使用者電腦上的 `local_agent.py` 認領任務並開啟有頭 Chromium；適合除錯與示範。
+- `Docker`：Celery worker 為每個 testcase 動態 spawn 一個 `autotest-robot-runner` 容器跑 Robot Framework，預設 headless（容器內走 xvfb），跑完容器自毀。**所有產物（截圖 / 完整錄影 / trace.zip）即時上傳到 MinIO，僅以 URL 寫回 DB**。適合持續整合與無頭環境。
+- `本機`：由使用者電腦上的 `local_agent.py` 認領任務並開啟有頭 Chromium；適合除錯與示範。截圖透過 `/api/local-runner/upload-screenshot` 上傳，目前仍走 `local` 儲存路徑。
 - 單頁 UI 會把環境切換狀態存到瀏覽器 `localStorage`，手動執行與排程「立即」都會沿用這個預設。
 
 ### 本機 Agent
@@ -279,41 +304,42 @@ python run_tests.py -t "登入測試案例"
 
 ## Trace（軌跡追蹤）+ Video（錄影）
 
-執行時平台會在 Browser Library 的 Playwright context 裡同時開啟 Trace 與 Video 收集；
-產物統一放在 `PIC_FOLDER/<report_id>/` 之下並透過 `/pics/...` 對外服務：
+spawn 容器內 Browser Library 19.x 在 New Context 時帶入 `tracing=True` 與 `recordVideo`，listener 在執行過程中即時把截圖上傳到 MinIO，case 結束關閉 context 後 listener 再把完整 `.webm` 與 `trace.zip` 也上傳。所有產物統一存於 MinIO `results` bucket：
 
 ```
-PIC_FOLDER/<report_id>/
-├── *.png              ← 每步前後截圖（既有功能）
-├── traces/
-│   └── tc_xxxx_row00.zip      ← 每個案例 / DDT 列一份 Playwright trace
-└── videos/
-    ├── tc_xxxx_row00.webm     ← 案例完整錄影
-    └── tc_xxxx_row00_s00.webm ← 步驟切片（ffmpeg 由完整錄影切出）
-    ├── tc_xxxx_row00_s01.webm
-    └── ...
+results/
+├── inputs/<task_id>/<case_tag>.robot           ← worker 上傳的 .robot 輸入
+├── results-json/<task_id>/<case_tag>.json      ← spawn 容器跑完的 step 結果
+├── screenshots/<report_id>/<uuid>_<test>_sNN_pre.png    ← 每步前後截圖（即時上傳）
+├── screenshots/<report_id>/<uuid>_<test>_sNN_post.png
+├── videos/<report_id>/<test_name>.webm         ← 每個案例 / DDT 列一份完整錄影
+└── traces/<report_id>/<test_name>.zip          ← 每個案例 / DDT 列一份 Playwright trace
 ```
+
+對外存取走 nginx 反代：`http://localhost/results/<key>`（已開 CORS `*` 供 trace.playwright.dev 跨網域 fetch）。
 
 啟用 / 關閉：
 
 - 編輯頁的「執行」按鈕旁有齒輪設定，預設「啟用 Trace + Video」為開啟。
 - 也可直接呼叫 API：`POST /api/executions` body 加上 `"enable_recording": false` 即可關閉。
-- 關閉後不會產生 `trace.zip` 與 `.webm`，可大幅降低執行時間與磁碟占用。
+- 關閉後 listener 不處理 video / trace（截圖仍上傳），可降低執行時間與磁碟占用。
 
 報告頁呈現方式（執行報告 → 點報告 → 點任一步驟）：
 
-- 步驟切片影片 `<video>` 內嵌播放器（每個步驟各自一段）
-- 「完整錄影」按鈕：頁內 Modal 播放整個案例錄影
+- 「完整錄影」按鈕：頁內 Modal 播放整個案例錄影（同 case 所有步驟共用）
+- 「下載錄影」按鈕：直接下載 `.webm`
 - 「下載 Trace」按鈕：直接下載 `trace.zip`，可用 `playwright show-trace` 在本機開啟
-- 「Trace Viewer ↗」按鈕：新分頁載入 `https://trace.playwright.dev/?trace=<URL>`
+- 「Trace Viewer ↗」按鈕：新分頁載入 `https://trace.playwright.dev/?trace=<absolute_URL>`
 - 「嵌入檢視」按鈕：頁內 iframe 嵌入 Trace Viewer
-  - 需要 `trace.zip` 的 URL 對外可達且開啟 CORS（本平台 `/pics/` 預設已啟用 CORS `*`）
-  - 若是純內網部署，建議用「下載 Trace」+ `playwright show-trace` 離線檢視
+  - 已用 `proxy_hide_header` 移除 MinIO 自帶的 ACAO，避免重複 header 被瀏覽器拒絕
+  - 純內網部署無公開網址時，仍可用「下載 Trace」+ `playwright show-trace` 離線檢視
 
-依賴：
+> 步驟切片影片功能已移除（之前用 ffmpeg 切片，使用者反饋只要完整錄影即可）。如需回退，可參考 git 歷史 `92df467` 之前的版本。
 
-- 步驟切片需要 `ffmpeg`；`backend/Dockerfile.celery` 已加入 `apt-get install ffmpeg`。
-- 若以本機環境執行 Celery worker，請自行安裝 ffmpeg；找不到 ffmpeg 時會跳過切片，但仍保留完整錄影。
+依賴（已在 image 內）：
+
+- `ffmpeg`：仍保留在 `Dockerfile.celery` 與 `Dockerfile.runner`（部分 Browser Library 內部會用到）。
+- `boto3` / `redis` / `sqlalchemy`：在 `Dockerfile.runner` 內加裝，供 listener 直接連 MinIO 與 Redis。
 
 ## 錄製功能（WEB / API / APP）
 
@@ -354,9 +380,9 @@ PIC_FOLDER/<report_id>/
 - 排程 API：`http://localhost/api/schedules`、`POST /api/schedules/{id}/trigger-now`
 - 測試回合 API：`http://localhost/api/rounds`、`POST /api/rounds/{id}/execute`
 - 本機 Agent：`GET /api/local-runner/agent`、`POST /api/local-runner/claim`、`POST /api/local-runner/upload-screenshot`、`POST /api/local-runner/tasks/{task_id}/complete`
-- 截圖靜態檔：`http://localhost/pics/{key}`（local 模式）
-- Robot HTML 報表與附件：`http://localhost/results/{key}`（`STORAGE_BACKEND=minio` 時）
-- Playwright Trace Viewer：<https://trace.playwright.dev>（上傳 trace.zip 後離線分析）
+- 截圖 / 錄影 / Trace：`http://localhost/results/{key}`（spawn 模式，nginx → MinIO，已開 CORS）
+- 本機 Agent 上傳區（保留兼容）：`http://localhost/pics/{key}`
+- Playwright Trace Viewer：<https://trace.playwright.dev/?trace=>`<absolute_url>`（自動由前端產生）
 
 常用頁面：
 
