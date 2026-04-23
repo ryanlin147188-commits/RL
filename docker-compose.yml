@@ -136,9 +136,9 @@ services:
       - pic_data:/app/PIC
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
+    # 直接用官方 nginx image，無需自訂 Dockerfile / build step。
+    # 進入頁與 nginx 設定皆以唯讀 volume 掛載；要改檔重啟 frontend 容器即可生效。
+    image: nginx:1.27-alpine
     container_name: autotest-frontend
     restart: unless-stopped
     depends_on:
@@ -146,7 +146,7 @@ services:
     ports:
       - "80:80"
     volumes:
-      # 用根目錄的 index.html 取代 React build 的進入頁
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./index.html:/usr/share/nginx/html/index.html:ro
 
 volumes:

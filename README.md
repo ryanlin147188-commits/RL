@@ -1,6 +1,6 @@
 # AutoTest v1.0
 
-企業級自動化測試平台。預設以 nginx 提供根目錄 `index.html` 單頁介面，後端採 FastAPI + Celery Worker（**Robot Framework** 執行引擎）+ 內建排程輪詢器 + MySQL + Redis；支援 Docker headless 執行與本機 `local_agent.py` headed 執行。倉庫內同時保留 `frontend/` 的 React + Vite 專案供開發模式使用。
+企業級自動化測試平台。前端為單一 `index.html`（vanilla HTML/JS + TailwindCSS CDN，無 build step），由 nginx 直接掛載提供；後端採 FastAPI + Celery Worker（**Robot Framework** 執行引擎）+ 內建排程輪詢器 + MySQL + Redis；支援 Docker headless 執行與本機 `local_agent.py` headed 執行。
 
 ## 功能
 
@@ -18,6 +18,7 @@
   - SQL ：DatabaseLibrary
   - Mobile ：AppiumLibrary（需外接 Appium server）
 - **本機 Agent**：下載 `local_agent.py` 後可由本機直接認領 local 模式任務，視覺化觀察瀏覽器執行過程，並把每步 PRE / POST 截圖與耗時回寫到詳細報告
+- **Trace（軌跡追蹤）+ Video（錄影）**：執行時自動產生 Playwright `trace.zip` 與案例完整錄影（`.webm`），且每個步驟另存一段切片影片；報告詳細頁可直接下載、播放或於頁內嵌入式 Trace Viewer 檢視
 - WebSocket 即時執行日誌（編輯頁底部抽屜）
 - 執行報告儀表板（通過率、趨勢圖）與步驟時間軸詳細頁
 
@@ -40,7 +41,7 @@ start http://localhost
 
 | 服務 | 對外 | 說明 |
 |---|---|---|
-| frontend (nginx) | 80 | 單頁介面 + 反代 /api、/ws、/pics、/results |
+| frontend (nginx) | 80 | `index.html` 單頁介面 + 反代 /api、/ws、/pics、/results |
 | backend (FastAPI) | 8000 | REST + WebSocket + 內建 scheduler loop（`/docs` 為 Swagger）|
 | mysql | 3306 | 啟動時自動匯入 `backend/migrations/init_schema.sql` |
 | redis | 6379 | Celery broker + WS pub/sub |
@@ -90,20 +91,17 @@ DEBUG=True
 mysql -uroot -p < migrations/init_schema.sql
 # 或啟動後端時自動 create_all（lifespan 會跑 init_db()）
 
-# 三個終端機分開啟動
-python run.py                                       # T1 後端
+# 兩個終端機分開啟動（不使用 Docker Compose 時的最小組態）
+python run.py                                       # T1 後端 (http://localhost:8000)
 celery -A tasks.celery_app worker -l info           # T2 worker
-
-# React/Vite 開發前端（選用）
-cd ..\frontend
-npm install
-npm run dev                                         # T3 前端 (http://localhost:3000)
 ```
+
+直接用瀏覽器開 `index.html`（檔案 `file://...` 也可，但建議透過 nginx 反代以正確載入 `/api`、`/ws`、`/pics`）。
+最簡作法是用 Docker Compose 啟動 frontend 服務（`docker compose up -d frontend`），即可在 <http://localhost/> 使用單頁介面。
 
 說明：
 
-- `http://localhost/` 是 Docker Compose 預設對外頁面，實際由 nginx 載入根目錄的 `index.html`。
-- `http://localhost:3000/` 是 React/Vite 開發站，會透過 Vite proxy 轉發 `/api` 與 `/ws` 到後端。
+- `http://localhost/` 是 nginx（frontend 容器）對外的單頁介面，內容即專案根目錄的 `index.html`。
 - backend 啟動後會自動建立資料表並啟動排程輪詢，不需要另外再開 scheduler 行程。
 
 ## 環境變數
@@ -209,10 +207,8 @@ backend/
   tasks/          Celery 任務 + Robot Framework runner / listener
   migrations/     init_schema.sql
   Dockerfile / Dockerfile.celery
-frontend/
-  src/            React + Vite 開發版前端（http://localhost:3000）
-  Dockerfile / nginx.conf
-index.html        Docker Compose 預設首頁（目前實際交付 UI）
+index.html        前端唯一入口（vanilla HTML/JS + TailwindCDN，由 nginx 直接掛載）
+nginx.conf        前端容器的 nginx 設定（反代 /api /ws /pics /results /pic）
 run_tests.py      Markdown -> Robot CLI runner
 tests/            Markdown / pytest / Robot 測試資產
 docker-compose.yml
@@ -281,6 +277,44 @@ python run_tests.py -f tests/e2e/samples/integration_test.md
 python run_tests.py -t "登入測試案例"
 ```
 
+## Trace（軌跡追蹤）+ Video（錄影）
+
+執行時平台會在 Browser Library 的 Playwright context 裡同時開啟 Trace 與 Video 收集；
+產物統一放在 `PIC_FOLDER/<report_id>/` 之下並透過 `/pics/...` 對外服務：
+
+```
+PIC_FOLDER/<report_id>/
+├── *.png              ← 每步前後截圖（既有功能）
+├── traces/
+│   └── tc_xxxx_row00.zip      ← 每個案例 / DDT 列一份 Playwright trace
+└── videos/
+    ├── tc_xxxx_row00.webm     ← 案例完整錄影
+    └── tc_xxxx_row00_s00.webm ← 步驟切片（ffmpeg 由完整錄影切出）
+    ├── tc_xxxx_row00_s01.webm
+    └── ...
+```
+
+啟用 / 關閉：
+
+- 編輯頁的「執行」按鈕旁有齒輪設定，預設「啟用 Trace + Video」為開啟。
+- 也可直接呼叫 API：`POST /api/executions` body 加上 `"enable_recording": false` 即可關閉。
+- 關閉後不會產生 `trace.zip` 與 `.webm`，可大幅降低執行時間與磁碟占用。
+
+報告頁呈現方式（執行報告 → 點報告 → 點任一步驟）：
+
+- 步驟切片影片 `<video>` 內嵌播放器（每個步驟各自一段）
+- 「完整錄影」按鈕：頁內 Modal 播放整個案例錄影
+- 「下載 Trace」按鈕：直接下載 `trace.zip`，可用 `playwright show-trace` 在本機開啟
+- 「Trace Viewer ↗」按鈕：新分頁載入 `https://trace.playwright.dev/?trace=<URL>`
+- 「嵌入檢視」按鈕：頁內 iframe 嵌入 Trace Viewer
+  - 需要 `trace.zip` 的 URL 對外可達且開啟 CORS（本平台 `/pics/` 預設已啟用 CORS `*`）
+  - 若是純內網部署，建議用「下載 Trace」+ `playwright show-trace` 離線檢視
+
+依賴：
+
+- 步驟切片需要 `ffmpeg`；`backend/Dockerfile.celery` 已加入 `apt-get install ffmpeg`。
+- 若以本機環境執行 Celery worker，請自行安裝 ffmpeg；找不到 ffmpeg 時會跳過切片，但仍保留完整錄影。
+
 ## 錄製功能（WEB / API / APP）
 
 於首頁 TopNav 切換到「🎬 錄製」模式，目前提供三種來源：
@@ -326,5 +360,4 @@ python run_tests.py -t "登入測試案例"
 
 常用頁面：
 
-- `http://localhost/`：預設單頁介面；於頁面上方切換案例編輯 / 測試回合 / 執行報告 / 排程 / 錄製
-- `http://localhost:3000/`：React/Vite 開發前端（執行 `npm run dev` 時）
+- `http://localhost/`：單頁介面；於頁面上方切換案例編輯 / 測試回合 / 執行報告 / 排程 / 錄製

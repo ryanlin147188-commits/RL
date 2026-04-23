@@ -118,10 +118,11 @@ def parse_markdown(md_text: str) -> Dict[str, Any]:
         steps_json.append(
             {
                 "id": f"s{index:03d}",
-                # bdd/step_desc/operator ─ 給舊版 index.html 與 backend 使用
+                # 同時提供兩套欄位名稱（bdd/step_desc/operator 與 keyword/description/condition），
+                # 是因為早期匯出 MD 與當前 index.html 使用前者，部分歷史錄製腳本 / 既有測試
+                # 與某些步驟編輯器（含外部整合工具）使用後者。雙寫入可確保任一讀取端都能拿到值。
                 "bdd": bdd,
                 "step_desc": step_desc,
-                # keyword/description/condition ─ 給 React 前端 (frontend/src) 使用
                 "keyword": bdd,
                 "description": step_desc,
                 "action": action,
@@ -160,10 +161,9 @@ def _cell(value: Any) -> str:
     return s
 
 
-# React 前端 (frontend/src) 使用 keyword/description/condition
-# 舊 index.html 與 markdown_service 原生使用 bdd/step_desc/operator
-# render_markdown 需同時相容兩套欄位名稱，否則 React 儲存的步驟匯出 MD 會
-# 得到空白 BDD/步驟說明/比較條件欄位。
+# steps_json 同時存在兩套欄位名稱（bdd/step_desc/operator 與 keyword/description/condition），
+# 來源視寫入端而定。render_markdown 需同時相容兩套，否則任一寫入端產生的步驟匯出 MD
+# 都可能拿到空白 BDD / 步驟說明 / 比較條件欄位。
 _STEP_FIELD_ALIASES: List[Tuple[str, ...]] = [
     ("bdd", "keyword"),
     ("step_desc", "description", "desc"),
