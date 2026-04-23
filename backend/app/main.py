@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.database import init_db
-from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings, schedules, local_runner, test_rounds
+from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings, schedules, local_runner, test_rounds, project_settings, screenshot_baselines
 from app.services.schedule_service import scheduler_loop
 
 
@@ -60,6 +60,8 @@ app.include_router(recordings.router,      prefix="/api", tags=["E · 錄製"])
 app.include_router(schedules.router,       prefix="/api", tags=["F · 排程"])
 app.include_router(local_runner.router,    prefix="/api", tags=["G · 本機執行"])
 app.include_router(test_rounds.router,     prefix="/api", tags=["H · 測試回合"])
+app.include_router(project_settings.router, prefix="/api", tags=["I · 專案設定（環境變數 / 設備）"])
+app.include_router(screenshot_baselines.router, prefix="/api", tags=["J · Screenshot Diff Baseline"])
 
 
 @app.get("/", tags=["Health"])

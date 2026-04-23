@@ -237,9 +237,41 @@ class RTListener:
                 # 過濾 marker
                 if txt.startswith(_STEP_MARKER_PREFIX):
                     return
+                # SCREENSHOT_DIFF marker：assert_screenshot_lib 寫的、解析後寫進 step buf
+                if txt.startswith("SCREENSHOT_DIFF "):
+                    self._handle_screenshot_diff_marker(txt)
+                    return
                 self._publish("ERROR" if level in ("ERROR", "FAIL") else level, txt[:500])
         except Exception:
             pass
+
+    def _handle_screenshot_diff_marker(self, txt: str) -> None:
+        """解析 ``SCREENSHOT_DIFF step_uuid=... baseline=... actual=... diff=... pct=...``
+        並把 URL 與 diff% 寫入「目前 step」的 buffer。
+        """
+        if self._current_idx is None:
+            return
+        # 簡單 token=value 解析（value 不含空白）
+        parts = txt.split()
+        kv: dict[str, str] = {}
+        for p in parts[1:]:
+            if "=" in p:
+                k, _, v = p.partition("=")
+                kv[k] = v
+        buf = self._ensure_buf(self._current_idx)
+        if "baseline" in kv and kv["baseline"]:
+            buf["screenshot_baseline_url"] = kv["baseline"]
+        if "diff" in kv and kv["diff"]:
+            buf["screenshot_diff_url"] = kv["diff"]
+        if "actual" in kv and kv["actual"]:
+            # 也存一份「actual」URL 進 post（讓 report 顯示當下截圖）；
+            # 若該 step 之後還有 Take Screenshot 會覆蓋掉，這裡是 best-effort
+            buf.setdefault("_screenshot_urls", []).append(kv["actual"])
+        if "pct" in kv:
+            try:
+                buf["screenshot_diff_pct"] = float(kv["pct"])
+            except ValueError:
+                pass
 
     def message(self, msg):
         # Robot 系統訊息（Library import 等）暫不推送，避免噪音

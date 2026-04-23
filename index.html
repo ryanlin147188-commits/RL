@@ -512,34 +512,77 @@ driver.swipe(100, 800, 100, 200, 500)"
             </div>
 
             <!-- 視圖 5: 測試回合工作區 (Test Round) -->
-            <div id="testRoundWorkspace" class="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/50 hidden">
-                <section class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
-                    <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
-                        <h3 class="font-bold text-slate-700 flex items-center gap-2"><i class="fa-solid fa-layer-group text-purple-500"></i> 測試回合</h3>
-                        <div class="flex gap-2">
-                            <button type="button" onclick="openTestRoundModal()" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-medium flex items-center gap-1"><i class="fa-solid fa-plus"></i> 新增回合</button>
-                            <button type="button" onclick="refreshTestRoundList()" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-sm font-medium flex items-center gap-1"><i class="fa-solid fa-rotate"></i> 重新整理</button>
+            <!-- 改為左右兩欄：左 = 全專案環境變數 + 設備資訊；右 = 測試回合表 -->
+            <div id="testRoundWorkspace" class="flex-1 overflow-hidden bg-slate-50/50 hidden flex">
+
+                <!-- ── 左側：全專案設定（環境變數 + 設備資訊） ── -->
+                <aside class="w-[320px] shrink-0 border-r border-slate-200 bg-white overflow-y-auto p-4 space-y-4">
+                    <!-- 環境變數區塊 -->
+                    <section>
+                        <div class="flex items-center justify-between mb-2">
+                            <h4 class="font-bold text-slate-700 text-sm flex items-center gap-2">
+                                <i class="fa-solid fa-key text-emerald-500"></i> 環境變數
+                            </h4>
+                            <div class="flex gap-1">
+                                <button type="button" onclick="addEnvVarRow()" class="text-xs px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded" title="新增一列"><i class="fa-solid fa-plus"></i></button>
+                                <button type="button" onclick="saveEnvVars()" id="envVarsSaveBtn" class="text-xs px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded" title="儲存"><i class="fa-solid fa-floppy-disk"></i> 儲存</button>
+                            </div>
                         </div>
-                    </div>
-                    <p class="text-xs text-slate-500 mb-4"><i class="fa-solid fa-circle-info text-amber-500"></i> 測試回合 = 一組被命名的測試案例集合。「執行」時會把選中的全部案例彙總起來一次執行，並產生一份報告。</p>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-sm">
-                            <thead class="bg-slate-100 text-slate-600 text-xs uppercase tracking-wider">
-                                <tr>
-                                    <th class="p-2 text-left">回合名稱</th>
-                                    <th class="p-2 text-left">案例數</th>
-                                    <th class="p-2 text-left">環境</th>
-                                    <th class="p-2 text-left">說明</th>
-                                    <th class="p-2 text-left">建立時間</th>
-                                    <th class="p-2 text-left">操作</th>
-                                </tr>
-                            </thead>
-                            <tbody id="testRoundListBody" class="divide-y divide-slate-100">
-                                <tr><td colspan="6" class="p-4 text-center text-slate-400">載入中...</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
+                        <p class="text-[11px] text-slate-500 mb-2"><i class="fa-solid fa-circle-info text-amber-500"></i> 全專案共用；執行時自動注入成 Robot 變數。步驟欄位可寫 <code class="bg-slate-100 px-1 rounded">${BASE_URL}</code>。</p>
+                        <div id="envVarsList" class="space-y-1">
+                            <!-- by JS -->
+                        </div>
+                    </section>
+
+                    <!-- 設備資訊區塊 -->
+                    <section class="pt-3 border-t border-slate-200">
+                        <div class="flex items-center justify-between mb-2">
+                            <h4 class="font-bold text-slate-700 text-sm flex items-center gap-2">
+                                <i class="fa-solid fa-mobile-screen text-rose-500"></i> 設備資訊
+                            </h4>
+                            <div class="flex gap-1">
+                                <button type="button" onclick="addDeviceRow('ANDROID')" class="text-xs px-2 py-1 bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 rounded" title="新增 Android 設備"><i class="fa-brands fa-android"></i></button>
+                                <button type="button" onclick="addDeviceRow('IOS')" class="text-xs px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded" title="新增 iOS 設備"><i class="fa-brands fa-apple"></i></button>
+                                <button type="button" onclick="saveDevices()" id="devicesSaveBtn" class="text-xs px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded" title="儲存"><i class="fa-solid fa-floppy-disk"></i> 儲存</button>
+                            </div>
+                        </div>
+                        <p class="text-[11px] text-slate-500 mb-2"><i class="fa-solid fa-circle-info text-amber-500"></i> Android emulator / iOS simulator；執行時注入成 <code class="bg-slate-100 px-1 rounded">&{DEVICE_label}</code> dict。</p>
+                        <div id="devicesList" class="space-y-2">
+                            <!-- by JS -->
+                        </div>
+                    </section>
+                </aside>
+
+                <!-- ── 右側：測試回合表 ── -->
+                <div class="flex-1 overflow-y-auto p-6">
+                    <section class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
+                        <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                            <h3 class="font-bold text-slate-700 flex items-center gap-2"><i class="fa-solid fa-layer-group text-purple-500"></i> 測試回合</h3>
+                            <div class="flex gap-2">
+                                <button type="button" onclick="openTestRoundModal()" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-medium flex items-center gap-1"><i class="fa-solid fa-plus"></i> 新增回合</button>
+                                <button type="button" onclick="refreshTestRoundList()" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-sm font-medium flex items-center gap-1"><i class="fa-solid fa-rotate"></i> 重新整理</button>
+                            </div>
+                        </div>
+                        <p class="text-xs text-slate-500 mb-4"><i class="fa-solid fa-circle-info text-amber-500"></i> 測試回合 = 一組被命名的測試案例集合。「執行」時會把選中的全部案例彙總起來一次執行，並產生一份報告。</p>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm">
+                                <thead class="bg-slate-100 text-slate-600 text-xs uppercase tracking-wider">
+                                    <tr>
+                                        <th class="p-2 text-left">回合名稱</th>
+                                        <th class="p-2 text-left">案例數</th>
+                                        <th class="p-2 text-left">環境</th>
+                                        <th class="p-2 text-left">說明</th>
+                                        <th class="p-2 text-left">建立時間</th>
+                                        <th class="p-2 text-left">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="testRoundListBody" class="divide-y divide-slate-100">
+                                    <tr><td colspan="6" class="p-4 text-center text-slate-400">載入中...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                </div>
             </div>
 
             <!-- 視圖 1: 可滾動的編輯區 -->
@@ -850,6 +893,9 @@ driver.swipe(100, 800, 100, 200, 500)"
                                 </div>
                             </div>
 
+                            <!-- Screenshot Diff 區塊（AssertScreenshotMatch 才會顯示；含 baseline / actual / diff 三聯比對）-->
+                            <div id="screenshotDiffArea" class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm hidden"></div>
+
                             <!-- Trace（軌跡追蹤）+ Video（錄影）區塊（預設隱藏；該步驟有資料時才顯示）-->
                             <div id="traceVideoArea" class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm hidden">
                                 <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
@@ -946,6 +992,58 @@ driver.swipe(100, 800, 100, 200, 500)"
                 <button onclick="closeTraceViewer()" aria-label="關閉" class="text-slate-400 hover:text-red-500"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <iframe id="traceViewerIframe" title="Playwright Trace Viewer" class="flex-1 w-full border-0 rounded-b-lg"></iframe>
+        </div>
+    </div>
+
+    <!-- Screenshot Baseline Modal（設定 / 替換 / 刪除某個 AssertScreenshotMatch step 的 baseline）-->
+    <div id="baselineModal" class="fixed inset-0 bg-slate-900/70 hidden z-[60] flex items-center justify-center opacity-0 transition-opacity">
+        <div class="bg-white rounded-lg shadow-xl w-[640px] max-w-[95vw] max-h-[90vh] flex flex-col transform scale-95 transition-transform">
+            <div class="flex items-center justify-between p-3 border-b border-slate-200 shrink-0">
+                <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-camera text-purple-500"></i> 設定 Screenshot Baseline
+                </h3>
+                <button onclick="closeBaselineModal()" aria-label="關閉" class="text-slate-400 hover:text-red-500"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="p-4 space-y-3 overflow-y-auto">
+                <p class="text-xs text-slate-500">
+                    Baseline 是 <code>AssertScreenshotMatch</code> 比對的「基準圖」。
+                    執行時會用 Pillow 與當下截圖做像素 diff，超過容忍門檻 (%) 即 FAIL。
+                </p>
+                <div>
+                    <label for="baselineStepUuid" class="text-xs text-slate-600 block mb-1">Step UUID</label>
+                    <input id="baselineStepUuid" readonly aria-label="Step UUID（唯讀）" class="w-full text-xs font-mono px-2 py-1 border border-slate-200 rounded bg-slate-50" />
+                </div>
+                <div>
+                    <label for="baselineCurrentPreview" class="text-xs text-slate-600 block mb-1">當前 baseline</label>
+                    <div id="baselineCurrentPreview" class="border border-slate-200 rounded bg-slate-50 p-2 flex items-center justify-center min-h-[120px]">
+                        <span class="text-xs text-slate-400">載入中...</span>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label for="baselineThreshold" class="text-xs text-slate-600 block mb-1">容忍門檻（%）</label>
+                        <input id="baselineThreshold" type="number" step="0.1" min="0" value="1.0" aria-label="容忍門檻百分比" class="w-full text-xs px-2 py-1 border border-slate-300 rounded" />
+                    </div>
+                    <div>
+                        <label for="baselineFileInput" class="text-xs text-slate-600 block mb-1">上傳新基準圖</label>
+                        <input id="baselineFileInput" type="file" accept="image/png,image/jpeg,image/webp" aria-label="上傳新基準圖（PNG / JPEG / WebP）" class="w-full text-xs" />
+                    </div>
+                </div>
+                <p class="text-[11px] text-slate-500"><i class="fa-solid fa-circle-info text-amber-500"></i>
+                    若不上傳檔案，第一次執行時會自動把當下截圖存成 baseline；之後執行才會做比對。
+                </p>
+            </div>
+            <div class="p-3 border-t border-slate-200 flex justify-between gap-2 bg-slate-50 rounded-b-lg shrink-0">
+                <button onclick="deleteBaseline()" class="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded transition">
+                    <i class="fa-solid fa-trash"></i> 移除 baseline
+                </button>
+                <div class="flex gap-2">
+                    <button onclick="closeBaselineModal()" class="px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-200 rounded transition">取消</button>
+                    <button onclick="saveBaseline()" class="px-3 py-1.5 text-sm bg-purple-600 text-white hover:bg-purple-700 rounded shadow-sm transition">
+                        <i class="fa-solid fa-floppy-disk"></i> 儲存
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -1413,6 +1511,11 @@ driver.swipe(100, 800, 100, 200, 500)"
                             stepVideoUrl: s.step_video_url || null,
                             traceUrl: s.trace_url || anchor.trace_url || null,
                             videoUrl: s.video_url || anchor.video_url || null,
+                            // ── Screenshot Diff（綁 step UUID）──
+                            stepUuid: def.id || s.id || null,  // 用案例定義裡的 UUID 才是穩定 key
+                            screenshotBaselineUrl: s.screenshot_baseline_url || null,
+                            screenshotDiffUrl: s.screenshot_diff_url || null,
+                            screenshotDiffPct: (typeof s.screenshot_diff_pct === 'number') ? s.screenshot_diff_pct : null,
                         };
                     }),
                 };
@@ -1559,7 +1662,8 @@ driver.swipe(100, 800, 100, 200, 500)"
                 'AssertText', 'AssertValue', 'AssertVisible', 'AssertHidden',
                 'AssertChecked', 'AssertEnabled', 'AssertDisabled',
                 'AssertURL', 'AssertTitle', 'AssertCount', 'AssertAttribute',
-                'AssertImageLoaded', 'AssertBoundingBox'
+                'AssertImageLoaded', 'AssertBoundingBox',
+                'AssertScreenshotMatch'
             ],
             API: [
                 'Http.GET', 'Http.POST', 'Http.PUT', 'Http.PATCH', 'Http.DELETE',
@@ -1578,9 +1682,9 @@ driver.swipe(100, 800, 100, 200, 500)"
                 'Mobile.Wait', 'Mobile.Screenshot', 'Mobile.HideKeyboard',
                 'Mobile.AssertVisible', 'Mobile.AssertText', 'Mobile.AssertEnabled'
             ],
-            // E2E：跨領域端到端測試，同時允許 WEB + API 的動作
+            // E2E：跨領域端到端測試，包含 WEB + API + APP（Mobile）所有動作
             E2E: [
-                // Browser
+                // ── Browser（同 WEB 全部）──
                 'Navigate', 'Reload', 'GoBack', 'GoForward',
                 'Click', 'DoubleClick', 'RightClick', 'ClickAt', 'CanvasClick',
                 'Hover', 'Focus',
@@ -1593,12 +1697,28 @@ driver.swipe(100, 800, 100, 200, 500)"
                 'AssertChecked', 'AssertEnabled', 'AssertDisabled',
                 'AssertURL', 'AssertTitle', 'AssertCount', 'AssertAttribute',
                 'AssertImageLoaded', 'AssertBoundingBox',
-                // HTTP
+                'AssertScreenshotMatch',
+                // ── HTTP（同 API 全部）──
                 'Http.GET', 'Http.POST', 'Http.PUT', 'Http.PATCH', 'Http.DELETE',
-                'Http.SetHeader', 'Http.SetBaseURL', 'Http.ExtractJson', 'Http.SaveToken',
-                'Http.AssertStatus', 'Http.AssertJsonValue', 'Http.AssertBodyContains',
+                'Http.HEAD', 'Http.OPTIONS',
+                'Http.SetHeader', 'Http.SetBaseURL', 'Http.SetAuth',
+                'Http.ExtractJson', 'Http.SaveToken',
+                'Http.AssertStatus', 'Http.AssertJsonValue', 'Http.AssertHeader',
+                'Http.AssertBodyContains', 'Http.AssertResponseTime',
+                // ── Mobile（同 APP 全部；E2E 流程可能含 H5 + 原生 App 切換）──
+                'Mobile.Open', 'Mobile.Close',
+                'Mobile.Click', 'Mobile.Tap', 'Mobile.DoubleTap', 'Mobile.LongPress',
+                'Mobile.Input', 'Mobile.Clear',
+                'Mobile.Swipe', 'Mobile.SwipeUp', 'Mobile.SwipeDown', 'Mobile.SwipeLeft', 'Mobile.SwipeRight',
+                'Mobile.Press', 'Mobile.PressBack', 'Mobile.PressHome',
+                'Mobile.Wait', 'Mobile.Screenshot', 'Mobile.HideKeyboard',
+                'Mobile.AssertVisible', 'Mobile.AssertText', 'Mobile.AssertEnabled',
+                // ── DB（也納入，E2E 可能要驗證資料寫入）──
+                'Db.Connect', 'Db.Query', 'Db.Execute', 'Db.RowCount',
+                'Db.Insert', 'Db.Update', 'Db.Delete',
+                'Db.AssertRowExists', 'Db.AssertNoRow', 'Db.AssertValue',
             ],
-            // UI：純瀏覽器互動，基本上同 WEB
+            // UI：純瀏覽器互動 + Playwright screenshot diff
             UI: [
                 'Navigate', 'Reload', 'GoBack', 'GoForward',
                 'Click', 'DoubleClick', 'RightClick', 'ClickAt', 'CanvasClick',
@@ -1611,11 +1731,19 @@ driver.swipe(100, 800, 100, 200, 500)"
                 'AssertText', 'AssertValue', 'AssertVisible', 'AssertHidden',
                 'AssertChecked', 'AssertEnabled', 'AssertDisabled',
                 'AssertURL', 'AssertTitle', 'AssertCount', 'AssertAttribute',
-                'AssertImageLoaded', 'AssertBoundingBox'
+                'AssertImageLoaded', 'AssertBoundingBox',
+                // Playwright screenshot diff（locator 空 = 整頁；input/expected 為差異門檻 %）
+                'AssertScreenshotMatch'
             ],
             // DB：資料庫測試（對應 backend 的 DatabaseLibrary Db.*）
+            //   - Connect/Query/Execute/RowCount：原始 SQL，最大彈性
+            //   - Insert/Update/Delete：寫入類，與 Execute 行為一致但語意更直觀
+            //   - AssertRowExists/AssertNoRow/AssertValue：斷言，驗證寫入後的狀態
             DB: [
-                'Db.Connect', 'Db.Query', 'Db.Execute', 'Db.RowCount', 'Wait'
+                'Db.Connect', 'Db.Query', 'Db.Execute', 'Db.RowCount',
+                'Db.Insert', 'Db.Update', 'Db.Delete',
+                'Db.AssertRowExists', 'Db.AssertNoRow', 'Db.AssertValue',
+                'Wait'
             ],
         };
         const COMPARE_OPTIONS = [
@@ -1723,7 +1851,12 @@ driver.swipe(100, 800, 100, 200, 500)"
                             class="step-ta w-full border border-slate-200 rounded p-1 text-xs leading-snug focus:ring-1 focus:ring-blue-400 outline-none resize-y"
                             style="min-height:28px; white-space:pre-wrap; overflow-wrap:anywhere; word-break:break-word;">${esc(step.expected)}</textarea>
                     </td>
-                    <td class="p-2 text-center">
+                    <td class="p-2 text-center whitespace-nowrap">
+                        ${step.action === 'AssertScreenshotMatch' ? `
+                            <button onclick="openBaselineModal('${esc(step.id || '')}', ${idx})"
+                                aria-label="設定基準圖" title="設定 / 替換 baseline 圖"
+                                class="text-purple-500 hover:text-purple-700 transition mr-1"><i class="fa-solid fa-camera"></i></button>
+                        ` : ''}
                         <button onclick="deleteStep(${idx})" aria-label="刪除步驟" class="text-slate-300 hover:text-red-500 transition"><i class="fa-solid fa-xmark"></i></button>
                     </td>
                 `;
@@ -2563,6 +2696,73 @@ driver.swipe(100, 800, 100, 200, 500)"
 
             // ── Trace（軌跡追蹤）+ Video（錄影）──
             renderTraceVideo(step);
+
+            // ── Screenshot Diff 區塊（只在該 step 有 baseline / diff URL 時顯示）──
+            renderScreenshotDiff(step);
+        }
+
+        // 渲染「baseline | actual | diff」三聯比對；提供「把這次 actual 設為新 baseline」捷徑
+        function renderScreenshotDiff(step) {
+            const area = document.getElementById('screenshotDiffArea');
+            if (!area) return;
+            const baseline = step.screenshotBaselineUrl;
+            const actual = step.postScreenshotUrl || step.preScreenshotUrl; // fallback
+            const diff = step.screenshotDiffUrl;
+            const pct = step.screenshotDiffPct;
+            const hasAny = baseline || diff;
+            area.classList.toggle('hidden', !hasAny);
+            if (!hasAny) return;
+
+            const pctTxt = (pct == null) ? '—' : `${pct.toFixed(2)}%`;
+            const stepUuid = step.stepUuid || '';
+            const setAsBaselineBtn = (actual && stepUuid) ? `
+                <button onclick="setActualAsBaseline('${esc(stepUuid)}', '${esc(actual)}')"
+                    class="px-3 py-1.5 text-xs font-medium bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-700 rounded">
+                    <i class="fa-solid fa-camera"></i> 把當下 actual 設為新 baseline
+                </button>
+            ` : '';
+
+            area.innerHTML = `
+                <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                    <h4 class="font-bold text-slate-700 text-sm flex items-center gap-2">
+                        <i class="fa-solid fa-images text-purple-500"></i> Screenshot Diff
+                        <span class="text-xs font-normal text-slate-500">差異：${pctTxt}</span>
+                    </h4>
+                    ${setAsBaselineBtn}
+                </div>
+                <div class="grid grid-cols-3 gap-2">
+                    ${imgCell('Baseline', baseline)}
+                    ${imgCell('Actual', actual)}
+                    ${imgCell('Diff（紅框）', diff)}
+                </div>
+            `;
+        }
+        function imgCell(label, url) {
+            if (!url) {
+                return `<div class="border border-dashed border-slate-300 rounded bg-slate-50 p-3 flex flex-col items-center justify-center min-h-[160px]">
+                    <span class="text-[11px] text-slate-400 mb-1">${label}</span>
+                    <span class="text-xs text-slate-400">（無）</span>
+                </div>`;
+            }
+            return `<div class="border border-slate-200 rounded bg-white p-2">
+                <p class="text-[11px] text-slate-500 mb-1 text-center">${label}</p>
+                <img src="${url}" alt="${label}" class="w-full max-h-[280px] object-contain cursor-zoom-in" onclick="openImageLightbox(this.src)" />
+            </div>`;
+        }
+        async function setActualAsBaseline(stepUuid, sourceUrl) {
+            if (!stepUuid || !sourceUrl) return;
+            if (!confirm('把當下這張 actual 截圖設為新 baseline？下次執行起會以這張為比對基準。')) return;
+            try {
+                const res = await fetch(`/api/steps/${encodeURIComponent(stepUuid)}/baseline/copy-from`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ source_url: sourceUrl }),
+                });
+                if (!res.ok) throw new Error(await res.text());
+                showToast('已設為新 baseline，下次執行起生效', 'success');
+            } catch (e) {
+                showToast(`設定失敗：${e.message}`, 'error');
+            }
         }
 
         // 渲染步驟切片影片 + 案例完整錄影 / Trace 下載 / Trace Viewer 嵌入式檢視按鈕。
@@ -2669,6 +2869,88 @@ driver.swipe(100, 800, 100, 200, 500)"
             if (!m) return;
             m.classList.add('hidden', 'opacity-0');
             if (f) f.src = 'about:blank';
+        }
+
+        // ── Screenshot Baseline Modal ───────────────────
+        // 開啟編輯某個 step 的 baseline；step 必須有穩定的 UUID id
+        let _baselineCurrentStepUuid = null;
+        async function openBaselineModal(stepUuid, stepIdx) {
+            if (!stepUuid) {
+                showToast('此 step 還沒有 UUID；請先儲存案例後再試一次', 'error');
+                return;
+            }
+            _baselineCurrentStepUuid = stepUuid;
+            document.getElementById('baselineStepUuid').value = stepUuid;
+            const m = document.getElementById('baselineModal');
+            m.classList.remove('hidden');
+            requestAnimationFrame(() => m.classList.remove('opacity-0'));
+            // 拉現有 baseline
+            const preview = document.getElementById('baselineCurrentPreview');
+            preview.innerHTML = '<span class="text-xs text-slate-400">載入中...</span>';
+            document.getElementById('baselineThreshold').value = '1.0';
+            document.getElementById('baselineFileInput').value = '';
+            try {
+                const res = await fetch(`/api/steps/${encodeURIComponent(stepUuid)}/baseline`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data && data.baseline_url) {
+                        preview.innerHTML = `<img src="${data.baseline_url}" alt="baseline" style="max-width:100%; max-height:240px; border-radius:4px;" />`;
+                        document.getElementById('baselineThreshold').value = String(data.threshold_pct ?? 1.0);
+                    } else {
+                        preview.innerHTML = '<span class="text-xs text-slate-400 italic">尚無 baseline；執行時會 auto-save 當下截圖</span>';
+                    }
+                }
+            } catch (e) {
+                preview.innerHTML = `<span class="text-xs text-red-500">載入失敗：${e.message}</span>`;
+            }
+        }
+        function closeBaselineModal() {
+            const m = document.getElementById('baselineModal');
+            if (!m) return;
+            m.classList.add('hidden', 'opacity-0');
+            _baselineCurrentStepUuid = null;
+        }
+        async function saveBaseline() {
+            if (!_baselineCurrentStepUuid) return;
+            const file = document.getElementById('baselineFileInput').files[0];
+            const threshold = parseFloat(document.getElementById('baselineThreshold').value || '1.0');
+            if (!file) {
+                // 沒選檔 → 只更新 threshold（如果已有 baseline）
+                showToast('請選一張 baseline 圖（.png / .jpg / .webp）後再按儲存', 'error');
+                return;
+            }
+            const fd = new FormData();
+            fd.append('file', file);
+            fd.append('threshold_pct', String(threshold));
+            if (currentTestCase) fd.append('testcase_node_id', currentTestCase);
+            try {
+                const res = await fetch(`/api/steps/${encodeURIComponent(_baselineCurrentStepUuid)}/baseline`, {
+                    method: 'PUT',
+                    body: fd,
+                });
+                if (!res.ok) {
+                    const err = await res.text();
+                    throw new Error(err);
+                }
+                showToast('Baseline 已更新', 'success');
+                closeBaselineModal();
+            } catch (e) {
+                showToast(`儲存失敗：${e.message}`, 'error');
+            }
+        }
+        async function deleteBaseline() {
+            if (!_baselineCurrentStepUuid) return;
+            if (!confirm('確定移除此 step 的 baseline？下次執行會 auto-save 當下截圖當新 baseline。')) return;
+            try {
+                const res = await fetch(`/api/steps/${encodeURIComponent(_baselineCurrentStepUuid)}/baseline`, {
+                    method: 'DELETE',
+                });
+                if (!res.ok && res.status !== 204) throw new Error(await res.text());
+                showToast('Baseline 已移除', 'success');
+                closeBaselineModal();
+            } catch (e) {
+                showToast(`移除失敗：${e.message}`, 'error');
+            }
         }
 
         // ── 圖片燈箱（報告截圖點擊放大）────────────────────
@@ -3777,6 +4059,189 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('viewTag').textContent = 'Round';
             currentTestCase = null;
             refreshTestRoundList();
+            // 同時載入左側「環境變數 / 設備資訊」(全專案共用)
+            loadProjectSettings();
+        }
+
+        // ==================== 全專案設定（環境變數 / 設備資訊） ====================
+        // 兩個資源皆以「整批替換」(PUT) 模式：JS 維護 in-memory list，按「儲存」才 PUT 整包
+        let envVarsBuffer = [];   // [{name, value, description}, ...]
+        let devicesBuffer = [];   // [{label, platform, platform_version, device_name, avd_name, udid, automation_name, extra_caps_json}, ...]
+
+        async function loadProjectSettings() {
+            const pid = currentProjectId;
+            if (!pid) {
+                envVarsBuffer = [];
+                devicesBuffer = [];
+                renderEnvVarsList();
+                renderDevicesList();
+                return;
+            }
+            try {
+                const [ev, dv] = await Promise.all([
+                    apiFetch(`/api/projects/${pid}/env-vars`),
+                    apiFetch(`/api/projects/${pid}/devices`),
+                ]);
+                envVarsBuffer = (ev?.items || []).map(it => ({
+                    name: it.name || '',
+                    value: it.value || '',
+                    description: it.description || '',
+                }));
+                devicesBuffer = (dv?.items || []).map(it => ({
+                    label: it.label || '',
+                    platform: it.platform || 'ANDROID',
+                    platform_version: it.platform_version || '',
+                    device_name: it.device_name || '',
+                    avd_name: it.avd_name || '',
+                    udid: it.udid || '',
+                    automation_name: it.automation_name || '',
+                    extra_caps_json: it.extra_caps_json || null,
+                }));
+            } catch (e) {
+                envVarsBuffer = [];
+                devicesBuffer = [];
+                showToast(`載入專案設定失敗：${e.message}`, 'error');
+            }
+            renderEnvVarsList();
+            renderDevicesList();
+        }
+
+        function renderEnvVarsList() {
+            const c = document.getElementById('envVarsList');
+            if (!c) return;
+            if (envVarsBuffer.length === 0) {
+                c.innerHTML = '<p class="text-xs text-slate-400 italic py-2">尚無環境變數，按 <i class="fa-solid fa-plus"></i> 新增</p>';
+                return;
+            }
+            c.innerHTML = envVarsBuffer.map((v, i) => `
+                <div class="border border-slate-200 rounded p-2 bg-slate-50 space-y-1">
+                    <div class="flex gap-1">
+                        <input type="text" placeholder="NAME" value="${escapeAttr(v.name)}" oninput="envVarsBuffer[${i}].name=this.value" class="flex-1 text-xs px-2 py-1 border border-slate-300 rounded font-mono uppercase" />
+                        <button type="button" onclick="removeEnvVarRow(${i})" class="text-xs px-2 text-red-500 hover:bg-red-50 rounded" title="刪除"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <input type="text" placeholder="value" value="${escapeAttr(v.value)}" oninput="envVarsBuffer[${i}].value=this.value" class="w-full text-xs px-2 py-1 border border-slate-300 rounded" />
+                    <input type="text" placeholder="說明（選填）" value="${escapeAttr(v.description || '')}" oninput="envVarsBuffer[${i}].description=this.value" class="w-full text-[11px] px-2 py-0.5 border border-slate-200 rounded text-slate-500" />
+                </div>
+            `).join('');
+        }
+        function addEnvVarRow() {
+            envVarsBuffer.push({ name: '', value: '', description: '' });
+            renderEnvVarsList();
+        }
+        function removeEnvVarRow(i) {
+            envVarsBuffer.splice(i, 1);
+            renderEnvVarsList();
+        }
+        async function saveEnvVars() {
+            const pid = currentProjectId;
+            if (!pid) { showToast('請先選擇專案', 'error'); return; }
+            // 過濾掉空 name 的列
+            const items = envVarsBuffer.filter(v => (v.name || '').trim());
+            // 簡單檢查：name 只允許英數＋底線、不可數字開頭
+            for (const v of items) {
+                if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(v.name)) {
+                    showToast(`變數名稱不合法：${v.name}（限英數+底線、不可數字開頭）`, 'error');
+                    return;
+                }
+            }
+            try {
+                const res = await apiFetch(`/api/projects/${pid}/env-vars`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(items),
+                });
+                envVarsBuffer = (res.items || []).map(it => ({ name: it.name, value: it.value, description: it.description || '' }));
+                renderEnvVarsList();
+                showToast(`已儲存 ${items.length} 個環境變數`, 'success');
+            } catch (e) {
+                showToast(`儲存失敗：${e.message}`, 'error');
+            }
+        }
+
+        function renderDevicesList() {
+            const c = document.getElementById('devicesList');
+            if (!c) return;
+            if (devicesBuffer.length === 0) {
+                c.innerHTML = '<p class="text-xs text-slate-400 italic py-2">尚無設備，按上方圖示新增 Android / iOS 虛擬機</p>';
+                return;
+            }
+            c.innerHTML = devicesBuffer.map((d, i) => {
+                const isAndroid = d.platform === 'ANDROID';
+                const platIcon = isAndroid
+                    ? '<i class="fa-brands fa-android text-green-600"></i>'
+                    : '<i class="fa-brands fa-apple text-slate-700"></i>';
+                const platSpecific = isAndroid
+                    ? `<input type="text" placeholder="AVD 名稱（如 pixel_5_api_33）" value="${escapeAttr(d.avd_name || '')}" oninput="devicesBuffer[${i}].avd_name=this.value" class="w-full text-[11px] px-2 py-0.5 border border-slate-200 rounded" />`
+                    : `<input type="text" placeholder="UDID（Simulator UDID）" value="${escapeAttr(d.udid || '')}" oninput="devicesBuffer[${i}].udid=this.value" class="w-full text-[11px] px-2 py-0.5 border border-slate-200 rounded" />`;
+                return `
+                <div class="border border-slate-200 rounded p-2 bg-slate-50 space-y-1">
+                    <div class="flex gap-1 items-center">
+                        <span class="text-base">${platIcon}</span>
+                        <input type="text" placeholder="label（如 pixel5_emu）" value="${escapeAttr(d.label || '')}" oninput="devicesBuffer[${i}].label=this.value" class="flex-1 text-xs px-2 py-1 border border-slate-300 rounded font-mono" />
+                        <button type="button" onclick="removeDeviceRow(${i})" class="text-xs px-2 text-red-500 hover:bg-red-50 rounded" title="刪除"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <div class="flex gap-1">
+                        <input type="text" placeholder="OS 版本（如 13.0）" value="${escapeAttr(d.platform_version || '')}" oninput="devicesBuffer[${i}].platform_version=this.value" class="flex-1 text-[11px] px-2 py-0.5 border border-slate-200 rounded" />
+                        <input type="text" placeholder="Device Name" value="${escapeAttr(d.device_name || '')}" oninput="devicesBuffer[${i}].device_name=this.value" class="flex-1 text-[11px] px-2 py-0.5 border border-slate-200 rounded" />
+                    </div>
+                    ${platSpecific}
+                </div>
+                `;
+            }).join('');
+        }
+        function addDeviceRow(platform) {
+            devicesBuffer.push({
+                label: '',
+                platform: platform || 'ANDROID',
+                platform_version: '',
+                device_name: '',
+                avd_name: '',
+                udid: '',
+                automation_name: '',
+                extra_caps_json: null,
+            });
+            renderDevicesList();
+        }
+        function removeDeviceRow(i) {
+            devicesBuffer.splice(i, 1);
+            renderDevicesList();
+        }
+        async function saveDevices() {
+            const pid = currentProjectId;
+            if (!pid) { showToast('請先選擇專案', 'error'); return; }
+            const items = devicesBuffer.filter(d => (d.label || '').trim());
+            for (const d of items) {
+                if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(d.label)) {
+                    showToast(`設備 label 不合法：${d.label}（限英數+底線、不可數字開頭）`, 'error');
+                    return;
+                }
+            }
+            try {
+                const res = await apiFetch(`/api/projects/${pid}/devices`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(items),
+                });
+                devicesBuffer = (res.items || []).map(it => ({
+                    label: it.label,
+                    platform: it.platform,
+                    platform_version: it.platform_version || '',
+                    device_name: it.device_name || '',
+                    avd_name: it.avd_name || '',
+                    udid: it.udid || '',
+                    automation_name: it.automation_name || '',
+                    extra_caps_json: it.extra_caps_json || null,
+                }));
+                renderDevicesList();
+                showToast(`已儲存 ${items.length} 個設備`, 'success');
+            } catch (e) {
+                showToast(`儲存失敗：${e.message}`, 'error');
+            }
+        }
+
+        // 簡易 HTML attribute escape（給 oninput value 用）
+        function escapeAttr(s) {
+            return String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         }
 
         function setTestRoundSelection(ids) {

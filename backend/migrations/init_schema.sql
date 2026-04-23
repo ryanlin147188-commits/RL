@@ -165,6 +165,77 @@ ALTER TABLE execution_steps_log
     ADD COLUMN IF NOT EXISTS step_video_url VARCHAR(500) NULL
         COMMENT '該步驟的影片切片 (.webm) 對外 URL';
 
+-- ── Screenshot diff 欄位（升級情境補欄位）─────────────────────────────
+ALTER TABLE execution_steps_log
+    ADD COLUMN IF NOT EXISTS screenshot_baseline_url VARCHAR(500) NULL
+        COMMENT 'AssertScreenshotMatch 比對使用的 baseline URL';
+ALTER TABLE execution_steps_log
+    ADD COLUMN IF NOT EXISTS screenshot_diff_url VARCHAR(500) NULL
+        COMMENT 'diff > threshold 時生成的紅色覆蓋差異圖 URL';
+ALTER TABLE execution_steps_log
+    ADD COLUMN IF NOT EXISTS screenshot_diff_pct DOUBLE NULL
+        COMMENT '實際像素差異百分比（0.0 ~ 100.0）';
+
+-- ────────────────────────────────────────────────────────────
+-- 7. Screenshot baselines per step
+-- ────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS step_screenshot_baselines (
+    step_uuid         VARCHAR(36)  NOT NULL,
+    testcase_node_id  VARCHAR(36)      NULL,
+    baseline_url      TEXT         NOT NULL,
+    threshold_pct     DOUBLE       NOT NULL DEFAULT 1.0,
+    created_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
+                                            ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (step_uuid),
+    CONSTRAINT fk_baseline_node
+        FOREIGN KEY (testcase_node_id) REFERENCES tree_nodes(id) ON DELETE SET NULL,
+    INDEX idx_baseline_node (testcase_node_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- ────────────────────────────────────────────────────────────
+-- 6.5 全專案共用設定：環境變數 / 設備資訊
+-- 執行測試時會自動把這兩張表注入成 Robot Framework 的 suite variable，
+-- 環境變數 → ${VAR_NAME}；設備資訊 → &{DEVICE_<label>} dict（Appium capabilities）
+-- ────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS project_env_vars (
+    id           VARCHAR(36)  NOT NULL,
+    project_id   VARCHAR(36)  NOT NULL,
+    name         VARCHAR(100) NOT NULL,
+    value        TEXT         NOT NULL,
+    description  VARCHAR(500)     NULL,
+    created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
+                                       ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    CONSTRAINT fk_envvar_project
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+    CONSTRAINT uq_envvar_project_name UNIQUE (project_id, name),
+    INDEX idx_envvar_project (project_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS project_devices (
+    id                VARCHAR(36)  NOT NULL,
+    project_id        VARCHAR(36)  NOT NULL,
+    label             VARCHAR(100) NOT NULL,
+    platform          ENUM('ANDROID', 'IOS') NOT NULL,
+    platform_version  VARCHAR(20)      NULL,
+    device_name       VARCHAR(100)     NULL,
+    avd_name          VARCHAR(100)     NULL,
+    udid              VARCHAR(100)     NULL,
+    automation_name   VARCHAR(50)      NULL,
+    extra_caps_json   JSON             NULL,
+    created_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
+                                            ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    CONSTRAINT fk_device_project
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+    CONSTRAINT uq_device_project_label UNIQUE (project_id, label),
+    INDEX idx_device_project (project_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 
 -- ────────────────────────────────────────────────────────────
 -- 6. 錄製功能 recording_sessions

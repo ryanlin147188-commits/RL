@@ -98,6 +98,46 @@ def run_tests(
                     db.commit()
             return
 
+        # ── 載入專案層級設定（環境變數 / 設備）一次，所有 testcase 共用 ──
+        # 撈 report.project_id，再依 project_id 撈 project_env_vars + project_devices
+        project_env_vars: dict[str, str] = {}
+        project_devices: list[dict] = []
+        try:
+            from app.models.project_device import ProjectDevice
+            from app.models.project_env_var import ProjectEnvVar
+
+            with Session(engine) as db:
+                report = db.get(ExecutionReport, report_id)
+                if report and report.project_id:
+                    pid = report.project_id
+                    env_rows = db.query(ProjectEnvVar).filter(
+                        ProjectEnvVar.project_id == pid
+                    ).all()
+                    project_env_vars = {row.name: row.value for row in env_rows}
+
+                    dev_rows = db.query(ProjectDevice).filter(
+                        ProjectDevice.project_id == pid
+                    ).all()
+                    project_devices = [
+                        {
+                            "label": d.label,
+                            "platform": d.platform.value if hasattr(d.platform, "value") else str(d.platform),
+                            "platform_version": d.platform_version,
+                            "device_name": d.device_name,
+                            "avd_name": d.avd_name,
+                            "udid": d.udid,
+                            "automation_name": d.automation_name,
+                            "extra_caps_json": d.extra_caps_json or {},
+                        }
+                        for d in dev_rows
+                    ]
+            if project_env_vars:
+                publish_log("INFO", f"🔑 載入專案環境變數 {len(project_env_vars)} 筆")
+            if project_devices:
+                publish_log("INFO", f"📱 載入專案設備 {len(project_devices)} 筆")
+        except Exception as exc:  # noqa: BLE001
+            publish_log("WARN", f"⚠ 載入專案設定失敗（將以空清單繼續）: {exc}")
+
         passed_cases = 0
         failed_cases = 0
         start_ts = time.time()
@@ -133,6 +173,8 @@ def run_tests(
                     publish_log=publish_log,
                     headless=headless,
                     enable_recording=enable_recording,
+                    project_env_vars=project_env_vars,
+                    project_devices=project_devices,
                 )
             except Exception as exc:  # noqa: BLE001
                 publish_log("ERROR", f"💥 案例 {idx} 執行器異常: {exc}")
@@ -189,6 +231,9 @@ def run_tests(
                                 trace_url=round_res.trace_url if is_case_anchor else None,
                                 video_url=round_res.video_url if is_case_anchor else None,
                                 step_video_url=sr.step_video_url,
+                                screenshot_baseline_url=sr.screenshot_baseline_url,
+                                screenshot_diff_url=sr.screenshot_diff_url,
+                                screenshot_diff_pct=sr.screenshot_diff_pct,
                             )
                         )
                 db.commit()

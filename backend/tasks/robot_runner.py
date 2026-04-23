@@ -43,6 +43,10 @@ class StepResult:
     target_highlight_json: Optional[dict]  # 在 RF 模式下保留欄位但通常為 None
     # 該步驟錄影切片（.webm）對外 URL；未啟用 enable_recording 或 ffmpeg 不可用時為 None。
     step_video_url: Optional[str] = None
+    # ── Screenshot Diff 欄位（只 AssertScreenshotMatch step 才會有）──
+    screenshot_baseline_url: Optional[str] = None
+    screenshot_diff_url: Optional[str] = None
+    screenshot_diff_pct: Optional[float] = None
 
 
 @dataclass
@@ -365,6 +369,30 @@ def _translate_step(step: dict, ctx: dict) -> list[str]:
             line("Should Be True", f"abs(${{bb}}[\"height\"] - {eh}) <= {tol}"),
         )
 
+    # ── Screenshot Diff：AssertScreenshotMatch ─────────────────────
+    # 要求步驟必須有穩定的 ``id`` UUID（前端建立 step 時自動產生）。
+    # locator 給的話只截單一元素；空就截整頁。
+    # expected 為「百分比門檻」字串，可寫 "1.5" 或 "1.5%"；空白則用預設 1.0。
+    if action in ("assertscreenshotmatch", "screenshotmatch", "screenshotdiff"):
+        step_uuid = (step.get("id") or "").strip()
+        if not step_uuid:
+            return [line("Fail", "AssertScreenshotMatch 需要 step 必須有 id（UUID）；"
+                                 "請在前端編輯器重新拉一次此 step 以產生新 id")]
+        thresh_raw = (expected or "").strip().rstrip("%") or "1.0"
+        screenshot_filename = f"/tmp/assertshot_{step_uuid}"
+        if locator:
+            return out(
+                line("${cur_path}=", "Take Screenshot", f"filename={screenshot_filename}",
+                     f"selector={locator}"),
+                line("AssertScreenshot.Match", "${cur_path}", step_uuid, thresh_raw),
+            )
+        else:
+            return out(
+                line("${cur_path}=", "Take Screenshot", f"filename={screenshot_filename}",
+                     "fullPage=True"),
+                line("AssertScreenshot.Match", "${cur_path}", step_uuid, thresh_raw),
+            )
+
     # ── HTTP（RequestsLibrary）────────────────────────
     if raw_action.startswith("Http."):
         sub = raw_action.split(".", 1)[1]
@@ -491,6 +519,35 @@ def _translate_step(step: dict, ctx: dict) -> list[str]:
             line("Should Be Equal As Integers", "${cnt}", expected or "1"),
         ]
 
+    # ── 寫入語意明確化：Insert / Update / Delete ──
+    # 與 Db.Execute 行為相同（執行任意 SQL），但語意較直觀且支援 expected=affected_rows 驗證。
+    # DatabaseLibrary 的 Execute Sql String 不直接回傳 affected rows；要驗證影響筆數請另寫
+    # 配套的 Db.RowCount 或 Db.AssertRowExists 步驟（一個寫入 + 一個 SELECT 驗證）。
+    if raw_action in ("Db.Insert", "Db.Update", "Db.Delete"):
+        sql = value or locator
+        return [line("Execute Sql String", sql)]
+
+    # ── 斷言類 ──
+    if raw_action == "Db.AssertRowExists":
+        # input/locator = WHERE 過濾的 SELECT；至少 1 列才 PASS
+        # 例如：SELECT 1 FROM users WHERE email='a@b.com'
+        return [line("Check If Exists In Database", value or locator)]
+    if raw_action == "Db.AssertNoRow":
+        return [line("Check If Not Exists In Database", value or locator)]
+    if raw_action == "Db.AssertValue":
+        # input/locator = 取單一儲存格的 SELECT（建議 LIMIT 1）；
+        # expected = 期望值；compare 預設 Equals。
+        # 例如：locator="SELECT name FROM users WHERE id=1 LIMIT 1"  expected="Alice"
+        sql = value or locator
+        return [
+            line("${rows}=", "Query", sql),
+            line("Should Not Be Empty", "${rows}",
+                 f"AssertValue: Query 沒有回傳任何列，SQL={sql!r}"),
+            line("${actual}=", "Set Variable", "${rows}[0][0]"),
+            line("Log", "AssertValue actual=${actual}"),
+            compare_line("${actual}", compare or "Equals", expected),
+        ]
+
     # ── Mobile（AppiumLibrary）────────────────────────
     if raw_action == "Mobile.Open":
         # value 為 platformName / capabilities；locator 為 remote URL
@@ -566,6 +623,8 @@ def _build_robot_file(
     enable_recording: bool = True,
     video_dir: Optional[str] = None,
     trace_dir: Optional[str] = None,
+    project_env_vars: Optional[dict[str, str]] = None,
+    project_devices: Optional[list[dict]] = None,
 ) -> tuple[str, list[list[dict]]]:
     """
     回傳 (.robot 檔內容, 每個 test case 的 step 清單)。
@@ -601,6 +660,8 @@ def _build_robot_file(
     lines.append("Library    OperatingSystem")
     lines.append("Library    String")
     lines.append("Library    DateTime")
+    # ── Screenshot diff（自製 Python library；spawn 容器內已 COPY 進 /app/tasks/）──
+    lines.append("Library    tasks.assert_screenshot_lib    WITH NAME    AssertScreenshot")
     lines.append("")
     # 保留 tag：讓所有 test 在 keyword 失敗後仍繼續執行剩餘步驟
     # （測試最終狀態仍會是 FAIL，但不會中斷後續 step）
@@ -613,6 +674,42 @@ def _build_robot_file(
     lines.append("${HTTP_BASE_URL}    ${EMPTY}")
     lines.append("${HTTP_AUTH}    ${EMPTY}")
     lines.append("${HTTP_RESP}    ${None}")
+    # ── 全專案環境變數 ──
+    # 來自 project_env_vars 表；每筆 name → value 直接做為 suite-level scalar variable，
+    # 步驟編輯器內可寫 ${BASE_URL} / ${API_TOKEN} 等被 Robot 自動展開。
+    for k, v in (project_env_vars or {}).items():
+        # 只允許合法 Robot 變數名稱（[A-Za-z_][A-Za-z0-9_]*）；不合法的略過
+        if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", k):
+            continue
+        lines.append(f"${{{k}}}    {_rf_escape(v)}")
+    # ── 全專案設備資訊 ──
+    # 每個 device 注入成 ``&{DEVICE_<label>}`` 字典，包含 Appium capabilities；
+    # 例：${DEVICE_pixel5.platformName} / ${DEVICE_pixel5.deviceName}
+    for d in (project_devices or []):
+        label = d.get("label") or ""
+        if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", label):
+            continue
+        plat = (d.get("platform") or "").upper()
+        # automationName 沒給就依 platform 自動帶 default
+        auto_name = d.get("automation_name") or (
+            "UiAutomator2" if plat == "ANDROID" else "XCUITest" if plat == "IOS" else ""
+        )
+        kvs: list[tuple[str, str]] = [
+            ("platformName", "Android" if plat == "ANDROID" else "iOS" if plat == "IOS" else ""),
+            ("platformVersion", d.get("platform_version") or ""),
+            ("deviceName", d.get("device_name") or ""),
+            ("automationName", auto_name),
+        ]
+        if plat == "ANDROID" and d.get("avd_name"):
+            kvs.append(("avd", d["avd_name"]))
+        if plat == "IOS" and d.get("udid"):
+            kvs.append(("udid", d["udid"]))
+        for ck, cv in (d.get("extra_caps_json") or {}).items():
+            kvs.append((str(ck), str(cv)))
+        # 過濾掉空值，避免空字串覆蓋 Appium 預設值
+        kv_str = "    ".join(f"{ck}={_rf_escape(cv)}" for ck, cv in kvs if cv != "")
+        if kv_str:
+            lines.append(f"&{{DEVICE_{label}}}    {kv_str}")
     lines.append("")
     lines.append("*** Keywords ***")
     lines.append("Setup Browser Session")
@@ -723,6 +820,8 @@ def run_testcase(
     publish_log: Callable[[str, str], None],
     headless: bool = True,
     enable_recording: bool = True,
+    project_env_vars: Optional[dict[str, str]] = None,
+    project_devices: Optional[list[dict]] = None,
 ) -> list[CaseResult]:
     """
     執行單一測試案例（含 DDT 多列）— **Spawn 容器模式**。
@@ -762,6 +861,8 @@ def run_testcase(
         enable_recording=enable_recording,
         video_dir="/work/videos" if enable_recording else None,
         trace_dir="/work/traces" if enable_recording else None,
+        project_env_vars=project_env_vars,
+        project_devices=project_devices,
     )
 
     task_id = _extract_task_id(publish_log) or report_id
@@ -911,6 +1012,9 @@ def run_testcase(
                     post_screenshot_url=rec.get("post"),
                     target_highlight_json=None,
                     step_video_url=rec.get("step_video_url"),
+                    screenshot_baseline_url=rec.get("screenshot_baseline_url"),
+                    screenshot_diff_url=rec.get("screenshot_diff_url"),
+                    screenshot_diff_pct=rec.get("screenshot_diff_pct"),
                 )
             )
         case_results.append(

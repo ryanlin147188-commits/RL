@@ -67,6 +67,10 @@ class StepLogResponse(BaseModel):
     trace_url: Optional[str] = None
     video_url: Optional[str] = None
     step_video_url: Optional[str] = None
+    # Screenshot diff（只 AssertScreenshotMatch step 才有值）
+    screenshot_baseline_url: Optional[str] = None
+    screenshot_diff_url: Optional[str] = None
+    screenshot_diff_pct: Optional[float] = None
 
 
 # ── 報告清單（摘要）─────────────────────────────────────────

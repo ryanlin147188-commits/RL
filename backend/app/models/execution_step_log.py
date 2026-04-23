@@ -2,7 +2,7 @@ import enum
 import uuid
 from typing import Any, Optional
 
-from sqlalchemy import JSON, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Enum, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
@@ -52,6 +52,14 @@ class ExecutionStepLog(Base):
     video_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     # 該步驟切片錄影（.webm）對外 URL
     step_video_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+
+    # ── Screenshot Diff（僅 AssertScreenshotMatch step 才有值）──────────────
+    # 本次跑時參照的 baseline 圖 URL（與 step_screenshot_baselines.baseline_url 一致）
+    screenshot_baseline_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    # 紅色覆蓋的 diff 圖 URL；只有 diff% > threshold 才會生
+    screenshot_diff_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    # 實際像素差異百分比；不論 PASS / FAIL 都會記錄方便檢視
+    screenshot_diff_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
     report: Mapped["ExecutionReport"] = relationship(
         "ExecutionReport", back_populates="steps", lazy="noload"
