@@ -906,6 +906,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                                 <div>
                                     <label class="text-xs font-semibold text-slate-600 block mb-1">類型</label>
                                     <select id="dbCfgType" onchange="updateSelectedDbConfigField('type', this.value)"
+                                        aria-label="DB 類型" title="DB 類型"
                                         class="w-full text-xs px-2 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-indigo-400 outline-none bg-white">
                                         <option value="MYSQL">MySQL</option>
                                         <option value="POSTGRES">PostgreSQL</option>
@@ -1084,6 +1085,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                                 <div class="col-span-1">
                                     <label class="text-xs font-semibold text-slate-600 block mb-1">Method</label>
                                     <select id="mockMethod" onchange="updateSelectedMockField('method', this.value)"
+                                        aria-label="HTTP Method" title="HTTP Method"
                                         class="w-full text-xs font-mono px-2 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-amber-400 outline-none bg-white">
                                         <option>GET</option><option>POST</option><option>PUT</option>
                                         <option>PATCH</option><option>DELETE</option><option>HEAD</option><option>OPTIONS</option>
@@ -1431,9 +1433,10 @@ driver.swipe(100, 800, 100, 200, 500)"
                         <div id="stepDetailContent" class="max-w-4xl mx-auto space-y-6">
                             <!-- 步驟詳細資訊卡片 -->
                             <div class="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
-                                <div class="bg-slate-50 px-5 py-3 border-b border-slate-200 flex justify-between items-center">
+                                <div class="bg-slate-50 px-5 py-3 border-b border-slate-200 flex justify-between items-center flex-wrap gap-2">
                                     <h3 class="font-bold text-slate-800 text-lg flex items-center gap-2">
                                         <i class="fa-solid fa-code text-blue-500"></i> <span id="dtlStepName">輸入帳號密碼</span>
+                                        <span id="dtlStepKindBadge" class="ml-2 text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600">UI</span>
                                     </h3>
                                     <span id="dtlStepStatus" class="bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-bold">Passed</span>
                                 </div>
@@ -1519,13 +1522,14 @@ driver.swipe(100, 800, 100, 200, 500)"
                                 <div id="traceVideoEmpty" class="text-xs text-slate-400 hidden">本步驟未啟用 Trace + Video，或執行時被關閉。</div>
                             </div>
 
-                            <!-- API JSON 檢視區塊 (預設隱藏) -->
+                            <!-- API JSON 檢視區塊 (預設隱藏；Http.* 動作使用) -->
                             <div id="apiJsonArea" class="grid grid-cols-2 gap-6 hidden">
                                 <!-- Request JSON -->
                                 <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm flex flex-col">
                                     <div class="flex items-center gap-2 mb-3">
                                         <i class="fa-solid fa-arrow-right-to-bracket text-blue-500"></i>
                                         <h4 class="font-bold text-slate-700 text-sm">Request (請求負載)</h4>
+                                        <span id="dtlReqMeta" class="ml-auto text-[10px] font-mono text-slate-400"></span>
                                     </div>
                                     <pre class="bg-slate-900 text-green-400 p-4 rounded text-xs overflow-auto h-64 font-mono shadow-inner" id="dtlReqJson"></pre>
                                 </div>
@@ -1534,8 +1538,65 @@ driver.swipe(100, 800, 100, 200, 500)"
                                     <div class="flex items-center gap-2 mb-3">
                                         <i class="fa-solid fa-arrow-right-from-bracket text-purple-500"></i>
                                         <h4 class="font-bold text-slate-700 text-sm">Response (系統回應)</h4>
+                                        <span id="dtlResMeta" class="ml-auto text-[10px] font-mono text-slate-400"></span>
                                     </div>
                                     <pre class="bg-slate-900 text-blue-300 p-4 rounded text-xs overflow-auto h-64 font-mono shadow-inner" id="dtlResJson"></pre>
+                                </div>
+                            </div>
+
+                            <!-- APP 手機截圖區塊 (預設隱藏；Mobile.* 動作使用) -->
+                            <div id="appScreenshotArea" class="grid grid-cols-2 gap-6 hidden">
+                                <!-- 動作前：手機直式 -->
+                                <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm flex flex-col">
+                                    <div class="flex items-center gap-2 mb-3">
+                                        <i class="fa-solid fa-mobile-screen-button text-pink-500"></i>
+                                        <h4 class="font-bold text-slate-700 text-sm">動作前（Pre-Action）<span class="text-xs font-normal text-slate-400">Mobile</span></h4>
+                                    </div>
+                                    <div class="relative mx-auto border-[8px] border-slate-800 rounded-[28px] bg-slate-900 overflow-hidden shadow-lg" style="width:220px; height:460px;">
+                                        <div class="absolute top-1.5 left-1/2 -translate-x-1/2 w-16 h-2 bg-slate-700 rounded-full z-10"></div>
+                                        <div id="appPreScreenshotArea" class="w-full h-full bg-white flex items-center justify-center text-[11px] text-slate-400 overflow-hidden">
+                                            （無截圖）
+                                        </div>
+                                    </div>
+                                    <p class="text-xs text-slate-500 mt-2 text-center"><i class="fa-solid fa-crosshairs text-red-500 mr-1"></i> 手機直式截圖（Appium）</p>
+                                </div>
+                                <!-- 動作後：手機直式 -->
+                                <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm flex flex-col">
+                                    <div class="flex items-center gap-2 mb-3">
+                                        <i class="fa-solid fa-mobile-screen-button text-green-500"></i>
+                                        <h4 class="font-bold text-slate-700 text-sm">動作後（Post-Action）<span class="text-xs font-normal text-slate-400">Mobile</span></h4>
+                                    </div>
+                                    <div class="relative mx-auto border-[8px] border-slate-800 rounded-[28px] bg-slate-900 overflow-hidden shadow-lg" style="width:220px; height:460px;">
+                                        <div class="absolute top-1.5 left-1/2 -translate-x-1/2 w-16 h-2 bg-slate-700 rounded-full z-10"></div>
+                                        <div id="appPostScreenshotArea" class="w-full h-full bg-white flex items-center justify-center text-[11px] text-slate-400 overflow-hidden">
+                                            （無截圖）
+                                        </div>
+                                    </div>
+                                    <p class="text-xs text-slate-500 mt-2 text-center">操作完成後截取的畫面</p>
+                                </div>
+                            </div>
+
+                            <!-- DB 查詢 / 結果區塊 (預設隱藏；Db.* 動作使用) -->
+                            <div id="dbResultArea" class="hidden space-y-4">
+                                <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+                                    <div class="flex items-center gap-2 mb-2">
+                                        <i class="fa-solid fa-terminal text-indigo-500"></i>
+                                        <h4 class="font-bold text-slate-700 text-sm">SQL / Query</h4>
+                                        <span id="dtlDbConn" class="ml-auto text-[10px] font-mono text-slate-400"></span>
+                                    </div>
+                                    <pre class="bg-slate-900 text-indigo-300 p-4 rounded text-xs overflow-auto max-h-48 font-mono" id="dtlDbSql"></pre>
+                                </div>
+                                <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+                                    <div class="flex items-center gap-2 mb-2">
+                                        <i class="fa-solid fa-table text-indigo-500"></i>
+                                        <h4 class="font-bold text-slate-700 text-sm">查詢結果 / 影響列數</h4>
+                                        <span id="dtlDbRowCount" class="ml-auto text-[10px] font-mono text-slate-400"></span>
+                                    </div>
+                                    <div id="dtlDbTableWrap" class="overflow-auto max-h-96 text-xs"></div>
+                                </div>
+                                <div id="dtlDbAssertBox" class="bg-amber-50 border-l-4 border-amber-400 p-3 rounded hidden">
+                                    <p class="font-bold text-amber-700 text-xs mb-1">Assert：</p>
+                                    <p class="text-amber-800 text-xs font-mono" id="dtlDbAssertText"></p>
                                 </div>
                             </div>
                         </div>
@@ -2069,6 +2130,22 @@ driver.swipe(100, 800, 100, 200, 500)"
         }
 
         // 把後端 payload 轉為 showDetailReport 期望的格式（bdd/desc/action/...）
+        // 依 action 前綴推斷該步驟屬於哪種平台，用於決定詳細報告要呈現哪種 UI。
+        // 注意：E2E 案例可能混合多種動作，所以判斷要做在「step 層級」而非 case 層級。
+        function _detectStepKind(action) {
+            const a = String(action || '').trim();
+            if (/^Http\./i.test(a)) return 'API';
+            if (/^Mobile\./i.test(a)) return 'APP';
+            if (/^Db\./i.test(a)) return 'DB';
+            return 'UI';  // WEB / UI / 其他：預設以瀏覽器截圖呈現
+        }
+        const _STEP_KIND_BADGE = {
+            UI:  { label: 'UI',  cls: 'bg-blue-100 text-blue-700' },
+            API: { label: 'API', cls: 'bg-purple-100 text-purple-700' },
+            APP: { label: 'APP', cls: 'bg-pink-100 text-pink-700' },
+            DB:  { label: 'DB',  cls: 'bg-indigo-100 text-indigo-700' },
+        };
+
         function adaptReportPayload(summary, stepsResp, tcMap = {}) {
             const bucket = {}; // 依 testcase_node_id 分組
             for (const s of (stepsResp.steps || [])) {
@@ -2099,11 +2176,13 @@ driver.swipe(100, 800, 100, 200, 500)"
                         const descText = def.step_desc || def.description || def.desc || '';
                         const roundPrefix = roundIdx > 0 ? `[Row ${roundIdx + 1}] ` : '';
                         const anchor = caseAnchor[roundIdx] || {};
+                        const actionStr = def.action || '';
+                        const kind = _detectStepKind(actionStr);
                         return {
                             id: s.id || `s${i}`,
                             bdd,
                             desc: roundPrefix + (descText || `Step ${pos + 1}`),
-                            action: def.action || '',
+                            action: actionStr,
                             duration: `${((s.duration_ms || 0) / 1000).toFixed(2)}s`,
                             status: s.status === 'PASSED' ? 'Passed' : 'Failed',
                             loc: def.locator || def.loc || '',
@@ -2113,6 +2192,20 @@ driver.swipe(100, 800, 100, 200, 500)"
                             postState: s.status === 'FAILED' ? 'error' : 'empty',
                             preScreenshotUrl: s.pre_screenshot_url || null,
                             postScreenshotUrl: s.post_screenshot_url || null,
+                            // ── 步驟類型：UI / API / APP / DB（自動由 action 推斷；E2E 案例內同一案例可混合）──
+                            kind,
+                            isAPI: kind === 'API',
+                            // ── API (Http.*) payload（後端可填；未填時也會以 step.input 當預設）──
+                            reqJson: s.request_json || s.req_json || null,
+                            resJson: s.response_json || s.res_json || null,
+                            reqMeta: s.request_meta || null,   // { method, url, status }
+                            resMeta: s.response_meta || null,  // { status, duration_ms, size }
+                            // ── DB (Db.*) payload ──
+                            dbSql: s.db_sql || null,
+                            dbConn: s.db_conn || null,
+                            dbRows: s.db_rows || null,
+                            dbRowCount: (typeof s.db_row_count === 'number') ? s.db_row_count : null,
+                            dbAssert: s.db_assert || null,
                             // ── Trace / Video（軌跡追蹤 / 錄影）──
                             stepVideoUrl: s.step_video_url || null,
                             traceUrl: s.trace_url || anchor.trace_url || null,
@@ -3285,21 +3378,49 @@ driver.swipe(100, 800, 100, 200, 500)"
                 errorBox.classList.add('hidden');
             }
 
+            // 先決定步驟類型：UI / API / APP / DB。若 adapter 沒帶 kind，現場再推一次。
+            const kind = step.kind || _detectStepKind(step.action);
+            const kindInfo = _STEP_KIND_BADGE[kind] || _STEP_KIND_BADGE.UI;
+            const kindBadge = document.getElementById('dtlStepKindBadge');
+            if (kindBadge) {
+                kindBadge.textContent = kindInfo.label;
+                kindBadge.className = `ml-2 text-[11px] font-mono font-bold px-2 py-0.5 rounded ${kindInfo.cls}`;
+            }
+
+            // 四塊區域全部先隱藏，依 kind 打開對應那一塊
             const uiArea = document.getElementById('uiScreenshotArea');
             const apiArea = document.getElementById('apiJsonArea');
+            const appArea = document.getElementById('appScreenshotArea');
+            const dbArea = document.getElementById('dbResultArea');
+            uiArea?.classList.add('hidden');
+            apiArea?.classList.add('hidden');
+            appArea?.classList.add('hidden');
+            dbArea?.classList.add('hidden');
 
-            if (step.isAPI) {
-                uiArea.classList.add('hidden');
-                apiArea.classList.remove('hidden');
-                document.getElementById('dtlReqJson').textContent = step.reqJson ? JSON.stringify(step.reqJson, null, 2) : 'No Request Data';
-                document.getElementById('dtlResJson').textContent = step.resJson ? JSON.stringify(step.resJson, null, 2) : 'No Response Data';
+            if (kind === 'API') {
+                apiArea?.classList.remove('hidden');
+                document.getElementById('dtlReqJson').textContent = step.reqJson
+                    ? JSON.stringify(step.reqJson, null, 2)
+                    : (step.input ? `# 步驟 input：\n${step.input}` : 'No Request Data');
+                document.getElementById('dtlResJson').textContent = step.resJson
+                    ? JSON.stringify(step.resJson, null, 2)
+                    : 'No Response Data';
+                const reqMeta = step.reqMeta || {};
+                const resMeta = step.resMeta || {};
+                document.getElementById('dtlReqMeta').textContent =
+                    [reqMeta.method, reqMeta.url].filter(Boolean).join(' ') || step.action || '';
+                document.getElementById('dtlResMeta').textContent =
+                    [resMeta.status && `HTTP ${resMeta.status}`, resMeta.duration_ms != null && `${resMeta.duration_ms}ms`, resMeta.size && resMeta.size + 'B'].filter(Boolean).join(' · ') || '';
+            } else if (kind === 'APP') {
+                appArea?.classList.remove('hidden');
+                renderAppScreenshots(step);
+            } else if (kind === 'DB') {
+                dbArea?.classList.remove('hidden');
+                renderDbResult(step);
             } else {
-                uiArea.classList.remove('hidden');
-                apiArea.classList.add('hidden');
-
+                uiArea?.classList.remove('hidden');
                 // ── 動作前截圖（如有真實 URL 就貼圖，否則顯示 mock 佔位 UI）──
                 renderPreScreenshot(step);
-
                 // ── 動作後截圖 ────────────────────────────────────────
                 renderPostScreenshot(step);
             }
@@ -3309,6 +3430,67 @@ driver.swipe(100, 800, 100, 200, 500)"
 
             // ── Screenshot Diff 區塊（只在該 step 有 baseline / diff URL 時顯示）──
             renderScreenshotDiff(step);
+        }
+
+        // ── Mobile（Appium）直式手機截圖 ──
+        function renderAppScreenshots(step) {
+            const pre = document.getElementById('appPreScreenshotArea');
+            const post = document.getElementById('appPostScreenshotArea');
+            const emptyCell = `<div class="w-full h-full flex items-center justify-center text-[11px] text-slate-400">（無截圖）</div>`;
+            if (pre) {
+                pre.innerHTML = step.preScreenshotUrl
+                    ? `<img src="${step.preScreenshotUrl}" alt="Pre-action mobile screenshot"
+                           class="w-full h-full object-contain cursor-zoom-in bg-white"
+                           onclick="openImageLightbox(this.src)"
+                           onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'w-full h-full flex items-center justify-center text-[11px] text-slate-400',textContent:'（截圖載入失敗）'}))">`
+                    : emptyCell;
+            }
+            if (post) {
+                post.innerHTML = step.postScreenshotUrl
+                    ? `<img src="${step.postScreenshotUrl}" alt="Post-action mobile screenshot"
+                           class="w-full h-full object-contain cursor-zoom-in bg-white"
+                           onclick="openImageLightbox(this.src)"
+                           onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'w-full h-full flex items-center justify-center text-[11px] text-slate-400',textContent:'（截圖載入失敗）'}))">`
+                    : emptyCell;
+            }
+        }
+
+        // ── DB（DatabaseLibrary）SQL + 結果表 ──
+        function renderDbResult(step) {
+            const sql = step.dbSql || step.input || '-- 此步驟沒有附 SQL --';
+            document.getElementById('dtlDbSql').textContent = sql;
+            document.getElementById('dtlDbConn').textContent = step.dbConn
+                ? `連線：${step.dbConn}` : '';
+            const wrap = document.getElementById('dtlDbTableWrap');
+            const rowCountEl = document.getElementById('dtlDbRowCount');
+            const rows = Array.isArray(step.dbRows) ? step.dbRows : null;
+            if (rows && rows.length) {
+                const cols = Object.keys(rows[0] || {});
+                rowCountEl.textContent = `${rows.length} rows × ${cols.length} cols`;
+                wrap.innerHTML = `
+                    <table class="w-full text-xs border border-slate-200">
+                        <thead class="bg-slate-50 text-slate-600">
+                            <tr>${cols.map(c => `<th class="px-2 py-1.5 text-left border-b border-slate-200 font-semibold">${escapeHtml(c)}</th>`).join('')}</tr>
+                        </thead>
+                        <tbody class="font-mono">
+                            ${rows.map(r => `<tr class="border-b border-slate-100 hover:bg-slate-50">${cols.map(c => `<td class="px-2 py-1 align-top">${escapeHtml(r[c] == null ? '' : String(r[c]))}</td>`).join('')}</tr>`).join('')}
+                        </tbody>
+                    </table>`;
+            } else if (step.dbRowCount != null) {
+                rowCountEl.textContent = `影響 ${step.dbRowCount} 列`;
+                wrap.innerHTML = `<div class="p-3 text-slate-500 italic text-xs">無資料列回傳（寫入類指令）</div>`;
+            } else {
+                rowCountEl.textContent = '';
+                wrap.innerHTML = `<div class="p-3 text-slate-400 italic text-xs">此步驟尚未回傳資料。後端若有提供 <code class="bg-slate-100 px-1 rounded">db_sql / db_rows / db_row_count</code> 欄位會顯示於此。</div>`;
+            }
+            const assertBox = document.getElementById('dtlDbAssertBox');
+            const assertText = document.getElementById('dtlDbAssertText');
+            if (step.dbAssert) {
+                assertBox.classList.remove('hidden');
+                assertText.textContent = typeof step.dbAssert === 'string' ? step.dbAssert : JSON.stringify(step.dbAssert);
+            } else {
+                assertBox.classList.add('hidden');
+            }
         }
 
         // 渲染「baseline | actual | diff」三聯比對；提供「把這次 actual 設為新 baseline」捷徑
@@ -3826,25 +4008,30 @@ driver.swipe(100, 800, 100, 200, 500)"
             const sBg = isPass ? '#dcfce7' : '#fee2e2';
             const sIcon = isPass ? '✓' : '✗';
 
-            const screenshots = (!step.isAPI && (step.preScreenshotUrl || step.postScreenshotUrl)) ? `
+            const kind = step.kind || _detectStepKind(step.action);
+            const kindInfo = _STEP_KIND_BADGE[kind] || _STEP_KIND_BADGE.UI;
+            const showScreens = (kind === 'UI' || kind === 'APP') && (step.preScreenshotUrl || step.postScreenshotUrl);
+            const shotMaxH = kind === 'APP' ? 320 : 200;
+            const shotLabel = kind === 'APP' ? 'Mobile' : 'Pre';
+            const screenshots = showScreens ? `
                 <div style="display:flex; gap:10px; margin-top:10px;">
                     ${step.preScreenshotUrl ? `
                         <div style="flex:1; border:1px solid #e2e8f0; border-radius:4px; padding:6px;">
-                            <div style="font-size:10px; color:#64748b; margin-bottom:4px;">動作前 (Pre-Action)</div>
-                            <img src="${step.preScreenshotUrl}" style="max-width:100%; max-height:200px; display:block; margin:auto;" crossorigin="anonymous">
+                            <div style="font-size:10px; color:#64748b; margin-bottom:4px;">動作前 (${shotLabel}-Action)</div>
+                            <img src="${step.preScreenshotUrl}" style="max-width:100%; max-height:${shotMaxH}px; display:block; margin:auto;" crossorigin="anonymous">
                         </div>` : ''}
                     ${step.postScreenshotUrl ? `
                         <div style="flex:1; border:1px solid #e2e8f0; border-radius:4px; padding:6px;">
                             <div style="font-size:10px; color:#64748b; margin-bottom:4px;">動作後 (Post-Action)</div>
-                            <img src="${step.postScreenshotUrl}" style="max-width:100%; max-height:200px; display:block; margin:auto;" crossorigin="anonymous">
+                            <img src="${step.postScreenshotUrl}" style="max-width:100%; max-height:${shotMaxH}px; display:block; margin:auto;" crossorigin="anonymous">
                         </div>` : ''}
                 </div>` : '';
 
-            const apiBlock = step.isAPI ? `
+            const apiBlock = kind === 'API' ? `
                 <div style="margin-top:8px; display:flex; gap:10px;">
                     <div style="flex:1;">
                         <div style="font-size:10px; color:#64748b; margin-bottom:2px;">Request</div>
-                        <pre style="background:#0f172a; color:#86efac; padding:8px; border-radius:4px; font-size:10px; max-height:180px; overflow:hidden; white-space:pre-wrap; word-break:break-all;">${escapeHtml(step.reqJson ? JSON.stringify(step.reqJson, null, 2) : '—')}</pre>
+                        <pre style="background:#0f172a; color:#86efac; padding:8px; border-radius:4px; font-size:10px; max-height:180px; overflow:hidden; white-space:pre-wrap; word-break:break-all;">${escapeHtml(step.reqJson ? JSON.stringify(step.reqJson, null, 2) : (step.input || '—'))}</pre>
                     </div>
                     <div style="flex:1;">
                         <div style="font-size:10px; color:#64748b; margin-bottom:2px;">Response</div>
@@ -3852,17 +4039,45 @@ driver.swipe(100, 800, 100, 200, 500)"
                     </div>
                 </div>` : '';
 
+            const dbBlock = kind === 'DB' ? (() => {
+                const sql = step.dbSql || step.input || '';
+                const rows = Array.isArray(step.dbRows) ? step.dbRows : null;
+                let rowHtml = '';
+                if (rows && rows.length) {
+                    const cols = Object.keys(rows[0] || {});
+                    rowHtml = `<table style="width:100%; border-collapse:collapse; font-size:10px; margin-top:4px;">
+                        <thead><tr>${cols.map(c => `<th style="text-align:left; padding:4px 6px; border-bottom:1px solid #cbd5e1; background:#f1f5f9;">${escapeHtml(c)}</th>`).join('')}</tr></thead>
+                        <tbody>${rows.slice(0, 20).map(r => `<tr>${cols.map(c => `<td style="padding:3px 6px; border-bottom:1px solid #e2e8f0; font-family:monospace;">${escapeHtml(r[c] == null ? '' : String(r[c]))}</td>`).join('')}</tr>`).join('')}</tbody></table>
+                        ${rows.length > 20 ? `<div style="font-size:10px; color:#94a3b8; margin-top:3px;">…另有 ${rows.length - 20} 列（PDF 省略）</div>` : ''}`;
+                } else if (step.dbRowCount != null) {
+                    rowHtml = `<div style="font-size:11px; color:#64748b; margin-top:4px;">影響 ${step.dbRowCount} 列</div>`;
+                }
+                return `<div style="margin-top:8px;">
+                    <div style="font-size:10px; color:#64748b; margin-bottom:2px;">SQL / Query ${step.dbConn ? `· 連線：${escapeHtml(step.dbConn)}` : ''}</div>
+                    <pre style="background:#0f172a; color:#a5b4fc; padding:8px; border-radius:4px; font-size:10px; max-height:140px; overflow:hidden; white-space:pre-wrap; word-break:break-all;">${escapeHtml(sql || '—')}</pre>
+                    ${rowHtml}
+                </div>`;
+            })() : '';
+
             const errBlock = (!isPass && step.errorMsg) ? `
                 <div style="margin-top:8px; background:#fef2f2; border-left:3px solid #ef4444; padding:8px; border-radius:3px;">
                     <div style="font-size:10px; color:#991b1b; font-weight:700; margin-bottom:2px;">Error Message</div>
                     <div style="font-family:monospace; font-size:11px; color:#b91c1c; word-break:break-all;">${escapeHtml(step.errorMsg)}</div>
                 </div>` : '';
 
+            const kindBadgeColor = ({
+                UI:  { bg:'#dbeafe', fg:'#1d4ed8' },
+                API: { bg:'#ede9fe', fg:'#6d28d9' },
+                APP: { bg:'#fce7f3', fg:'#be185d' },
+                DB:  { bg:'#e0e7ff', fg:'#3730a3' },
+            })[kind] || { bg:'#f1f5f9', fg:'#475569' };
+
             return `
                 <div class="pdf-step" style="border:1px solid #e2e8f0; border-radius:6px; padding:12px; margin-bottom:10px; background:#ffffff; page-break-inside:avoid; box-sizing:border-box; overflow:hidden;">
                     <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px; min-width:0;">
                         <span style="display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; flex-shrink:0; border-radius:50%; background:${sBg}; color:${sColor}; font-weight:700; font-size:12px;">${sIcon}</span>
                         <span style="background:#f1f5f9; color:#475569; padding:1px 6px; border-radius:3px; font-size:10px; font-weight:700; flex-shrink:0;">${escapeHtml(step.bdd || '')}</span>
+                        <span style="background:${kindBadgeColor.bg}; color:${kindBadgeColor.fg}; padding:1px 6px; border-radius:3px; font-size:10px; font-weight:700; flex-shrink:0; font-family:monospace;">${kindInfo.label}</span>
                         <span style="font-weight:700; font-size:13px; flex:1; min-width:0; word-break:break-all; overflow-wrap:anywhere;">${num}. ${escapeHtml(step.desc || '')}</span>
                         <span style="background:${sBg}; color:${sColor}; padding:2px 8px; border-radius:3px; font-size:11px; font-weight:700; flex-shrink:0;">${escapeHtml(step.status || '')}</span>
                     </div>
@@ -3874,6 +4089,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                     </div>
                     ${errBlock}
                     ${apiBlock}
+                    ${dbBlock}
                     ${screenshots}
                 </div>`;
         }
