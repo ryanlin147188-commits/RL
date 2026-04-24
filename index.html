@@ -170,6 +170,14 @@
             <button type="button" onclick="showEnvVarsView()" id="navEnvVarsBtn" class="text-slate-500 hover:text-emerald-600 font-medium transition flex items-center gap-2">
                 <i class="fa-solid fa-key"></i> 環境變數
             </button>
+            <!-- DB資訊按鈕（全專案共用 DB 連線設定）-->
+            <button type="button" onclick="showDbConfigView()" id="navDbConfigBtn" class="text-slate-500 hover:text-indigo-600 font-medium transition flex items-center gap-2">
+                <i class="fa-solid fa-database"></i> DB資訊
+            </button>
+            <!-- Mock按鈕（全專案共用 Mock 端點）-->
+            <button type="button" onclick="showMockView()" id="navMockBtn" class="text-slate-500 hover:text-amber-600 font-medium transition flex items-center gap-2">
+                <i class="fa-solid fa-plug"></i> Mock
+            </button>
             <!-- 測試回合按鈕 -->
             <button type="button" onclick="showTestRoundView()" id="navTestRoundBtn" class="text-slate-500 hover:text-purple-600 font-medium transition flex items-center gap-2">
                 <i class="fa-solid fa-layer-group"></i> 測試回合
@@ -552,7 +560,7 @@ driver.swipe(100, 800, 100, 200, 500)"
 
             <!-- 視圖 6: 環境變數工作區（全專案共用，表格式）-->
             <div id="envVarsWorkspace" class="flex-1 overflow-y-auto p-6 bg-slate-50/50 hidden">
-                <section class="bg-white rounded-lg border border-slate-200 shadow-sm max-w-6xl mx-auto">
+                <section class="bg-white rounded-lg border border-slate-200 shadow-sm w-full">
                     <!-- Header -->
                     <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between flex-wrap gap-3">
                         <div>
@@ -562,9 +570,13 @@ driver.swipe(100, 800, 100, 200, 500)"
                             </h3>
                             <p class="text-[11px] text-slate-500 mt-1">
                                 步驟欄位可寫 <code class="bg-slate-100 px-1 rounded">${BASE_URL}/login</code>；命名限制：英數+底線、不可數字開頭；含 TOKEN/SECRET/PASSWORD/KEY 字樣的變數 value 預設遮蔽。
+                                每列「🎲 Faker」按鈕可產生隨機姓名 / Email / 電話 / UUID / 地址 等測試資料。
                             </p>
                         </div>
                         <div class="flex gap-2 flex-wrap">
+                            <button type="button" onclick="openFakerBatchModal()" class="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded text-sm font-medium flex items-center gap-1" title="批次新增多筆 Faker 隨機變數">
+                                <i class="fa-solid fa-dice"></i> 批次 Faker
+                            </button>
                             <button type="button" onclick="openEnvImportModal()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded text-sm font-medium flex items-center gap-1" title="從 .env 文字批次匯入">
                                 <i class="fa-solid fa-file-import"></i> 匯入 .env
                             </button>
@@ -593,13 +605,14 @@ driver.swipe(100, 800, 100, 200, 500)"
                                 <tr>
                                     <th class="px-3 py-2 text-left w-[180px]">名稱</th>
                                     <th class="px-3 py-2 text-left">值</th>
+                                    <th class="px-3 py-2 text-center w-[110px]">Faker</th>
                                     <th class="px-3 py-2 text-left w-[200px]">說明</th>
                                     <th class="px-3 py-2 text-left w-[140px]">用法</th>
                                     <th class="px-3 py-2 text-center w-[60px]">操作</th>
                                 </tr>
                             </thead>
                             <tbody id="envVarsList" class="divide-y divide-slate-100">
-                                <tr><td colspan="5" class="p-6 text-center text-slate-400 text-sm">載入中...</td></tr>
+                                <tr><td colspan="6" class="p-6 text-center text-slate-400 text-sm">載入中...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -679,16 +692,27 @@ driver.swipe(100, 800, 100, 200, 500)"
                     </div>
 
                     <!-- 編輯器（選了設備才顯示） -->
-                    <div id="deviceEditorPane" class="hidden max-w-4xl space-y-4">
+                    <div id="deviceEditorPane" class="hidden w-full space-y-4">
                         <section class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
                             <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
                                 <h3 class="font-bold text-slate-700 flex items-center gap-2 text-base">
                                     <i id="deviceEditorPlatformIcon" class="text-2xl"></i>
                                     <span id="deviceEditorTitle">設備編輯</span>
+                                    <span id="deviceEmulatorStatus" class="text-[11px] font-normal ml-2 px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">未啟動</span>
                                 </h3>
-                                <button type="button" onclick="removeSelectedDevice()" class="text-xs px-3 py-1.5 text-red-600 hover:bg-red-50 border border-red-200 rounded">
-                                    <i class="fa-solid fa-trash"></i> 從清單移除
-                                </button>
+                                <div class="flex gap-2">
+                                    <button type="button" onclick="launchSelectedEmulator()" id="devLaunchBtn"
+                                        class="text-xs px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded shadow-sm flex items-center gap-1.5" title="啟動此設備的虛擬機（Android AVD / iOS Simulator）">
+                                        <i class="fa-solid fa-power-off"></i> 啟動虛擬機
+                                    </button>
+                                    <button type="button" onclick="stopSelectedEmulator()" id="devStopBtn"
+                                        class="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded flex items-center gap-1.5" title="關閉虛擬機">
+                                        <i class="fa-solid fa-stop"></i> 關閉
+                                    </button>
+                                    <button type="button" onclick="removeSelectedDevice()" class="text-xs px-3 py-1.5 text-red-600 hover:bg-red-50 border border-red-200 rounded">
+                                        <i class="fa-solid fa-trash"></i> 從清單移除
+                                    </button>
+                                </div>
                             </div>
 
                             <div class="grid grid-cols-2 gap-4">
@@ -750,6 +774,418 @@ driver.swipe(100, 800, 100, 200, 500)"
                                 </button>
                             </div>
                             <pre id="devCapsPreview" class="p-4 text-[11px] font-mono text-emerald-300 overflow-x-auto leading-relaxed"></pre>
+                        </section>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Faker 單列選單（浮層）-->
+            <div id="fakerMenu" class="fixed z-[70] hidden bg-white border border-slate-200 rounded-lg shadow-xl w-60 overflow-hidden">
+                <div class="px-3 py-2 border-b border-slate-200 bg-amber-50 text-amber-700 text-xs font-semibold flex items-center gap-2">
+                    <i class="fa-solid fa-dice"></i> 產生隨機資料並填入
+                </div>
+                <div id="fakerMenuList" class="max-h-[360px] overflow-y-auto py-1 text-sm"></div>
+            </div>
+
+            <!-- Faker 批次新增 Modal -->
+            <div id="fakerBatchModal" class="fixed inset-0 bg-slate-900/70 hidden z-[60] flex items-center justify-center opacity-0 transition-opacity">
+                <div class="bg-white rounded-lg shadow-xl w-[640px] max-w-[95vw] max-h-[90vh] flex flex-col transform scale-95 transition-transform">
+                    <div class="flex items-center justify-between p-3 border-b border-slate-200 shrink-0">
+                        <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                            <i class="fa-solid fa-dice text-amber-500"></i> 批次產生 Faker 隨機變數
+                        </h3>
+                        <button onclick="closeFakerBatchModal()" aria-label="關閉" class="text-slate-400 hover:text-red-500"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <div class="p-4 space-y-3 overflow-y-auto">
+                        <p class="text-xs text-slate-500">勾選要產生的 Faker 類型；送出後會以「類型名稱（大寫）」當 NAME，隨機值當 value，一鍵補進清單。</p>
+                        <div id="fakerBatchList" class="grid grid-cols-2 gap-2"></div>
+                    </div>
+                    <div class="p-3 border-t border-slate-200 flex justify-between items-center gap-2 bg-slate-50 rounded-b-lg shrink-0">
+                        <div class="text-xs text-slate-500">
+                            <button type="button" onclick="fakerBatchSelectAll(true)" class="text-amber-700 hover:underline mr-3">全選</button>
+                            <button type="button" onclick="fakerBatchSelectAll(false)" class="text-slate-500 hover:underline">全不選</button>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="closeFakerBatchModal()" class="px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-200 rounded">取消</button>
+                            <button onclick="applyFakerBatch()" class="px-3 py-1.5 text-sm bg-amber-600 text-white hover:bg-amber-700 rounded shadow-sm">
+                                <i class="fa-solid fa-check"></i> 產生並加入
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 視圖 8: DB 資訊工作區（主從式）-->
+            <div id="dbConfigWorkspace" class="flex-1 overflow-hidden bg-slate-50/50 hidden flex">
+                <!-- 左側清單 -->
+                <aside class="w-[300px] shrink-0 border-r border-slate-200 bg-white flex flex-col">
+                    <div class="px-4 py-3 border-b border-slate-200">
+                        <h3 class="font-bold text-slate-700 text-sm flex items-center gap-2 mb-2">
+                            <i class="fa-solid fa-database text-indigo-500"></i> DB 連線清單
+                        </h3>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button type="button" onclick="addDbConfig('MYSQL')"
+                                class="text-xs px-2 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 rounded font-medium flex items-center justify-center gap-1"
+                                title="新增 MySQL 連線">
+                                <i class="fa-solid fa-database"></i> MySQL
+                            </button>
+                            <button type="button" onclick="addDbConfig('POSTGRES')"
+                                class="text-xs px-2 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded font-medium flex items-center justify-center gap-1"
+                                title="新增 PostgreSQL 連線">
+                                <i class="fa-solid fa-database"></i> Postgres
+                            </button>
+                            <button type="button" onclick="addDbConfig('MSSQL')"
+                                class="text-xs px-2 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded font-medium flex items-center justify-center gap-1"
+                                title="新增 SQL Server 連線">
+                                <i class="fa-solid fa-database"></i> MSSQL
+                            </button>
+                            <button type="button" onclick="addDbConfig('MONGO')"
+                                class="text-xs px-2 py-1.5 bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 rounded font-medium flex items-center justify-center gap-1"
+                                title="新增 MongoDB 連線">
+                                <i class="fa-solid fa-leaf"></i> Mongo
+                            </button>
+                            <button type="button" onclick="addDbConfig('REDIS')"
+                                class="text-xs px-2 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded font-medium flex items-center justify-center gap-1"
+                                title="新增 Redis 連線">
+                                <i class="fa-solid fa-bolt"></i> Redis
+                            </button>
+                            <button type="button" onclick="addDbConfig('SQLITE')"
+                                class="text-xs px-2 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded font-medium flex items-center justify-center gap-1"
+                                title="新增 SQLite 連線">
+                                <i class="fa-solid fa-hard-drive"></i> SQLite
+                            </button>
+                        </div>
+                        <div class="relative mt-2">
+                            <i class="fa-solid fa-magnifying-glass absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                            <input id="dbConfigSearch" type="text" placeholder="搜尋 name / host / db..." oninput="renderDbConfigList()"
+                                class="w-full text-xs pl-7 pr-2 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-indigo-400 outline-none" />
+                        </div>
+                    </div>
+                    <div id="dbConfigListLeft" class="flex-1 overflow-y-auto p-2 space-y-1"></div>
+                    <div class="px-4 py-3 border-t border-slate-200 bg-slate-50/50 flex items-center justify-between">
+                        <span id="dbConfigListCount" class="text-xs text-slate-500"></span>
+                        <button type="button" onclick="saveDbConfigs()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-medium flex items-center gap-1">
+                            <i class="fa-solid fa-floppy-disk"></i> 儲存全部
+                        </button>
+                    </div>
+                </aside>
+                <!-- 右側編輯區 -->
+                <div class="flex-1 overflow-y-auto p-6">
+                    <div id="dbConfigEditorEmpty" class="h-full flex flex-col items-center justify-center text-slate-400">
+                        <i class="fa-solid fa-database text-6xl mb-3 text-slate-200"></i>
+                        <p class="text-sm">請從左側選擇一筆 DB 連線，或按上方按鈕新增</p>
+                    </div>
+                    <div id="dbConfigEditorPane" class="hidden w-full space-y-4">
+                        <section class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
+                            <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+                                <h3 class="font-bold text-slate-700 flex items-center gap-2 text-base">
+                                    <i id="dbEditorTypeIcon" class="fa-solid fa-database text-indigo-500 text-2xl"></i>
+                                    <span id="dbEditorTitle">DB 連線編輯</span>
+                                    <span id="dbEditorStatus" class="text-[11px] font-normal ml-2 px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">尚未測試</span>
+                                </h3>
+                                <div class="flex gap-2">
+                                    <button type="button" onclick="testSelectedDbConfig()" class="text-xs px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded shadow-sm flex items-center gap-1.5" title="測試連線">
+                                        <i class="fa-solid fa-plug-circle-check"></i> 測試連線
+                                    </button>
+                                    <button type="button" onclick="duplicateSelectedDbConfig()" class="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded flex items-center gap-1.5" title="複製為新連線">
+                                        <i class="fa-regular fa-clone"></i> 複製
+                                    </button>
+                                    <button type="button" onclick="removeSelectedDbConfig()" class="text-xs px-3 py-1.5 text-red-600 hover:bg-red-50 border border-red-200 rounded">
+                                        <i class="fa-solid fa-trash"></i> 移除
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="text-xs font-semibold text-slate-600 block mb-1">名稱 <span class="text-red-500">*</span></label>
+                                    <input id="dbCfgName" type="text" placeholder="如 staging_mysql"
+                                        oninput="updateSelectedDbConfigField('name', this.value)"
+                                        class="w-full text-xs font-mono px-2 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-indigo-400 outline-none" />
+                                    <p class="text-[10px] text-slate-400 mt-1">限英數+底線；會注入為 <code class="bg-slate-100 px-1 rounded">&{DB_&lt;name&gt;}</code></p>
+                                </div>
+                                <div>
+                                    <label class="text-xs font-semibold text-slate-600 block mb-1">類型</label>
+                                    <select id="dbCfgType" onchange="updateSelectedDbConfigField('type', this.value)"
+                                        class="w-full text-xs px-2 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-indigo-400 outline-none bg-white">
+                                        <option value="MYSQL">MySQL</option>
+                                        <option value="POSTGRES">PostgreSQL</option>
+                                        <option value="MSSQL">SQL Server</option>
+                                        <option value="ORACLE">Oracle</option>
+                                        <option value="MONGO">MongoDB</option>
+                                        <option value="REDIS">Redis</option>
+                                        <option value="SQLITE">SQLite</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="text-xs font-semibold text-slate-600 block mb-1">Host</label>
+                                    <input id="dbCfgHost" type="text" placeholder="127.0.0.1"
+                                        oninput="updateSelectedDbConfigField('host', this.value)"
+                                        class="w-full text-xs font-mono px-2 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-indigo-400 outline-none" />
+                                </div>
+                                <div>
+                                    <label class="text-xs font-semibold text-slate-600 block mb-1">Port</label>
+                                    <input id="dbCfgPort" type="number" placeholder="3306"
+                                        oninput="updateSelectedDbConfigField('port', this.value)"
+                                        class="w-full text-xs font-mono px-2 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-indigo-400 outline-none" />
+                                </div>
+                                <div>
+                                    <label class="text-xs font-semibold text-slate-600 block mb-1">使用者</label>
+                                    <input id="dbCfgUser" type="text" placeholder="username"
+                                        oninput="updateSelectedDbConfigField('username', this.value)"
+                                        class="w-full text-xs font-mono px-2 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-indigo-400 outline-none" />
+                                </div>
+                                <div>
+                                    <label class="text-xs font-semibold text-slate-600 block mb-1">密碼</label>
+                                    <div class="flex gap-1">
+                                        <input id="dbCfgPassword" type="password" placeholder="password"
+                                            oninput="updateSelectedDbConfigField('password', this.value)"
+                                            class="flex-1 text-xs font-mono px-2 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-indigo-400 outline-none" />
+                                        <button type="button" onclick="togglePwdVisibility('dbCfgPassword', this)" class="text-slate-400 hover:text-slate-700 px-2 border border-slate-200 rounded" title="顯示/遮蔽">
+                                            <i class="fa-solid fa-eye"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="text-xs font-semibold text-slate-600 block mb-1">Database / Schema</label>
+                                    <input id="dbCfgDatabase" type="text" placeholder="mydb"
+                                        oninput="updateSelectedDbConfigField('database', this.value)"
+                                        class="w-full text-xs font-mono px-2 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-indigo-400 outline-none" />
+                                </div>
+                                <div>
+                                    <label class="text-xs font-semibold text-slate-600 block mb-1">字元集 / SSL</label>
+                                    <input id="dbCfgCharset" type="text" placeholder="utf8mb4 或 require / disable"
+                                        oninput="updateSelectedDbConfigField('charset', this.value)"
+                                        class="w-full text-xs font-mono px-2 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-indigo-400 outline-none" />
+                                </div>
+                                <div class="col-span-2">
+                                    <label class="text-xs font-semibold text-slate-600 block mb-1">自訂連線字串 / DSN（選填；若填寫會覆蓋上方欄位）</label>
+                                    <input id="dbCfgDsn" type="text" placeholder="mysql://user:pass@host:3306/db?charset=utf8mb4"
+                                        oninput="updateSelectedDbConfigField('dsn', this.value)"
+                                        class="w-full text-xs font-mono px-2 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-indigo-400 outline-none" />
+                                </div>
+                                <div class="col-span-2">
+                                    <label class="text-xs font-semibold text-slate-600 block mb-1">說明</label>
+                                    <input id="dbCfgDesc" type="text" placeholder="（選填）用途、環境、維護人..."
+                                        oninput="updateSelectedDbConfigField('description', this.value)"
+                                        class="w-full text-xs px-2 py-1.5 border border-slate-200 rounded focus:ring-1 focus:ring-indigo-400 outline-none" />
+                                </div>
+                            </div>
+                        </section>
+
+                        <!-- SQL 測試區 -->
+                        <section class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
+                            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                                <h4 class="font-bold text-slate-700 text-sm flex items-center gap-2">
+                                    <i class="fa-solid fa-terminal text-indigo-500"></i> SQL / Query 測試
+                                </h4>
+                                <button type="button" onclick="runDbConfigQuery()" class="text-xs px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded flex items-center gap-1">
+                                    <i class="fa-solid fa-play"></i> 執行
+                                </button>
+                            </div>
+                            <textarea id="dbCfgQuery" rows="4" placeholder="SELECT 1;"
+                                class="w-full text-xs font-mono px-3 py-2 border border-slate-300 rounded focus:ring-1 focus:ring-indigo-400 outline-none"></textarea>
+                            <pre id="dbCfgQueryResult" class="mt-3 bg-slate-900 text-emerald-300 rounded p-3 text-[11px] font-mono overflow-x-auto min-h-[60px]">尚未執行</pre>
+                        </section>
+
+                        <!-- Preview / 注入格式 -->
+                        <section class="bg-slate-900 text-slate-100 rounded-lg border border-slate-700 shadow-sm overflow-hidden">
+                            <div class="px-4 py-2 bg-slate-800 border-b border-slate-700 flex items-center justify-between">
+                                <h4 class="text-xs font-semibold flex items-center gap-2">
+                                    <i class="fa-solid fa-code text-indigo-400"></i> 注入格式 Preview
+                                    <span class="text-[10px] text-slate-400 font-normal">執行時會注入為 Robot suite 變數</span>
+                                </h4>
+                            </div>
+                            <pre id="dbCfgPreview" class="p-4 text-[11px] font-mono text-indigo-300 overflow-x-auto leading-relaxed"></pre>
+                        </section>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 視圖 9: Mock 工作區（主從式）-->
+            <div id="mockWorkspace" class="flex-1 overflow-hidden bg-slate-50/50 hidden flex">
+                <!-- 左側清單 -->
+                <aside class="w-[320px] shrink-0 border-r border-slate-200 bg-white flex flex-col">
+                    <div class="px-4 py-3 border-b border-slate-200">
+                        <h3 class="font-bold text-slate-700 text-sm flex items-center gap-2 mb-2">
+                            <i class="fa-solid fa-plug text-amber-500"></i> Mock 端點清單
+                        </h3>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button type="button" onclick="addMockEndpoint('GET')"
+                                class="text-xs px-2 py-1.5 bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 rounded font-medium flex items-center justify-center gap-1">
+                                <i class="fa-solid fa-arrow-down"></i> GET
+                            </button>
+                            <button type="button" onclick="addMockEndpoint('POST')"
+                                class="text-xs px-2 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 rounded font-medium flex items-center justify-center gap-1">
+                                <i class="fa-solid fa-arrow-up"></i> POST
+                            </button>
+                            <button type="button" onclick="addMockEndpoint('PUT')"
+                                class="text-xs px-2 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded font-medium flex items-center justify-center gap-1">
+                                <i class="fa-solid fa-pen"></i> PUT
+                            </button>
+                            <button type="button" onclick="addMockEndpoint('DELETE')"
+                                class="text-xs px-2 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded font-medium flex items-center justify-center gap-1">
+                                <i class="fa-solid fa-xmark"></i> DELETE
+                            </button>
+                        </div>
+                        <div class="relative mt-2">
+                            <i class="fa-solid fa-magnifying-glass absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                            <input id="mockSearch" type="text" placeholder="搜尋 path / 描述..." oninput="renderMockList()"
+                                class="w-full text-xs pl-7 pr-2 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-amber-400 outline-none" />
+                        </div>
+                    </div>
+                    <div id="mockListLeft" class="flex-1 overflow-y-auto p-2 space-y-1"></div>
+                    <div class="px-4 py-3 border-t border-slate-200 bg-slate-50/50 flex flex-col gap-2">
+                        <div class="flex items-center justify-between">
+                            <span id="mockListCount" class="text-xs text-slate-500"></span>
+                            <button type="button" onclick="saveMockEndpoints()" class="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded text-xs font-medium flex items-center gap-1">
+                                <i class="fa-solid fa-floppy-disk"></i> 儲存全部
+                            </button>
+                        </div>
+                        <div class="flex items-center justify-between bg-white border border-slate-200 rounded px-2 py-1.5">
+                            <span class="text-[11px] text-slate-500">Mock Server</span>
+                            <div class="flex items-center gap-2">
+                                <span id="mockServerStatus" class="text-[11px] font-mono text-slate-400">已停止</span>
+                                <button type="button" id="mockServerToggle" onclick="toggleMockServer()" class="text-[11px] px-2 py-0.5 bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 rounded">啟動</button>
+                            </div>
+                        </div>
+                    </div>
+                </aside>
+
+                <!-- 右側編輯區 -->
+                <div class="flex-1 overflow-y-auto p-6">
+                    <div id="mockEditorEmpty" class="h-full flex flex-col items-center justify-center text-slate-400">
+                        <i class="fa-solid fa-plug-circle-bolt text-6xl mb-3 text-slate-200"></i>
+                        <p class="text-sm">請從左側選擇一個 Mock 端點，或按上方按鈕新增</p>
+                    </div>
+                    <div id="mockEditorPane" class="hidden w-full space-y-4">
+                        <section class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
+                            <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+                                <h3 class="font-bold text-slate-700 flex items-center gap-2 text-base">
+                                    <span id="mockEditorMethod" class="text-xs font-mono font-bold px-2 py-0.5 rounded bg-sky-100 text-sky-700">GET</span>
+                                    <span id="mockEditorTitle" class="truncate">Mock 編輯</span>
+                                    <label class="flex items-center gap-1 text-[11px] text-slate-500 ml-2">
+                                        <input id="mockEnabledToggle" type="checkbox" onchange="updateSelectedMockField('enabled', this.checked)">
+                                        啟用
+                                    </label>
+                                </h3>
+                                <div class="flex gap-2">
+                                    <button type="button" onclick="testSelectedMock()" class="text-xs px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded shadow-sm flex items-center gap-1.5">
+                                        <i class="fa-solid fa-paper-plane"></i> 試打
+                                    </button>
+                                    <button type="button" onclick="duplicateSelectedMock()" class="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded flex items-center gap-1.5">
+                                        <i class="fa-regular fa-clone"></i> 複製
+                                    </button>
+                                    <button type="button" onclick="removeSelectedMock()" class="text-xs px-3 py-1.5 text-red-600 hover:bg-red-50 border border-red-200 rounded">
+                                        <i class="fa-solid fa-trash"></i> 移除
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-6 gap-4">
+                                <div class="col-span-1">
+                                    <label class="text-xs font-semibold text-slate-600 block mb-1">Method</label>
+                                    <select id="mockMethod" onchange="updateSelectedMockField('method', this.value)"
+                                        class="w-full text-xs font-mono px-2 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-amber-400 outline-none bg-white">
+                                        <option>GET</option><option>POST</option><option>PUT</option>
+                                        <option>PATCH</option><option>DELETE</option><option>HEAD</option><option>OPTIONS</option>
+                                    </select>
+                                </div>
+                                <div class="col-span-4">
+                                    <label class="text-xs font-semibold text-slate-600 block mb-1">Path <span class="text-red-500">*</span></label>
+                                    <input id="mockPath" type="text" placeholder="/api/users/:id"
+                                        oninput="updateSelectedMockField('path', this.value)"
+                                        class="w-full text-xs font-mono px-2 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-amber-400 outline-none" />
+                                </div>
+                                <div class="col-span-1">
+                                    <label class="text-xs font-semibold text-slate-600 block mb-1">狀態碼</label>
+                                    <input id="mockStatus" type="number" min="100" max="599" placeholder="200"
+                                        oninput="updateSelectedMockField('status', this.value)"
+                                        class="w-full text-xs font-mono px-2 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-amber-400 outline-none" />
+                                </div>
+                                <div class="col-span-3">
+                                    <label class="text-xs font-semibold text-slate-600 block mb-1">延遲 ms</label>
+                                    <input id="mockDelay" type="number" min="0" max="60000" placeholder="0"
+                                        oninput="updateSelectedMockField('delay_ms', this.value)"
+                                        class="w-full text-xs font-mono px-2 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-amber-400 outline-none" />
+                                </div>
+                                <div class="col-span-3">
+                                    <label class="text-xs font-semibold text-slate-600 block mb-1">Content-Type</label>
+                                    <input id="mockContentType" type="text" placeholder="application/json"
+                                        oninput="updateSelectedMockField('content_type', this.value)"
+                                        class="w-full text-xs font-mono px-2 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-amber-400 outline-none" />
+                                </div>
+                                <div class="col-span-6">
+                                    <label class="text-xs font-semibold text-slate-600 block mb-1">說明</label>
+                                    <input id="mockDescription" type="text" placeholder="（選填）模擬什麼 API..."
+                                        oninput="updateSelectedMockField('description', this.value)"
+                                        class="w-full text-xs px-2 py-1.5 border border-slate-200 rounded focus:ring-1 focus:ring-amber-400 outline-none" />
+                                </div>
+                                <!-- ── 發出（Request）─────────────── -->
+                                <div class="col-span-6">
+                                    <div class="mt-2 mb-1 pb-1 border-b border-slate-200 flex items-center gap-2">
+                                        <span class="text-[11px] font-bold text-sky-700 flex items-center gap-1"><i class="fa-solid fa-paper-plane"></i> 發出（Request）</span>
+                                        <span class="text-[10px] text-slate-400">匹配進入 Mock 的請求，或作為試打送出的範例</span>
+                                    </div>
+                                </div>
+                                <div class="col-span-6">
+                                    <label class="text-xs font-semibold text-slate-600 block mb-1">發出 Headers（JSON，選填）</label>
+                                    <textarea id="mockReqHeaders" rows="2" placeholder='{"Authorization": "Bearer {{token_hex}}", "X-Trace-Id": "{{uuid}}"}'
+                                        oninput="updateSelectedMockField('req_headers', this.value)"
+                                        class="w-full text-xs font-mono px-3 py-2 border border-slate-300 rounded focus:ring-1 focus:ring-sky-400 outline-none"></textarea>
+                                </div>
+                                <div class="col-span-6">
+                                    <div class="flex items-center justify-between mb-1">
+                                        <label class="text-xs font-semibold text-slate-600">發出 Body</label>
+                                        <div class="flex gap-2">
+                                            <button type="button" onclick="fillMockReqBodyTemplate('json')" class="text-[11px] text-sky-700 hover:underline">JSON 範本</button>
+                                            <button type="button" onclick="fillMockReqBodyTemplate('form')" class="text-[11px] text-sky-700 hover:underline">Form 範本</button>
+                                            <button type="button" onclick="formatMockReqBodyJson()" class="text-[11px] text-slate-500 hover:underline"><i class="fa-solid fa-wand-magic-sparkles"></i> 格式化 JSON</button>
+                                        </div>
+                                    </div>
+                                    <textarea id="mockReqBody" rows="6" placeholder='{"username": "{{username}}", "password": "{{password}}"}'
+                                        oninput="updateSelectedMockField('req_body', this.value)"
+                                        class="w-full text-xs font-mono px-3 py-2 border border-slate-300 rounded focus:ring-1 focus:ring-sky-400 outline-none"></textarea>
+                                    <p class="text-[10px] text-slate-400 mt-1">試打時會連同 path 一起送出；支援 <code class="bg-slate-100 px-1 rounded">{{name}}</code> / <code class="bg-slate-100 px-1 rounded">{{email}}</code> / <code class="bg-slate-100 px-1 rounded">{{uuid}}</code> 等 Faker 佔位符</p>
+                                </div>
+
+                                <!-- ── 回應（Response）─────────────── -->
+                                <div class="col-span-6">
+                                    <div class="mt-3 mb-1 pb-1 border-b border-slate-200 flex items-center gap-2">
+                                        <span class="text-[11px] font-bold text-amber-700 flex items-center gap-1"><i class="fa-solid fa-reply"></i> 回應（Response）</span>
+                                        <span class="text-[10px] text-slate-400">Mock Server 命中時回送的內容</span>
+                                    </div>
+                                </div>
+                                <div class="col-span-6">
+                                    <label class="text-xs font-semibold text-slate-600 block mb-1">回應 Headers（JSON，選填）</label>
+                                    <textarea id="mockHeaders" rows="2" placeholder='{"X-Demo": "1"}'
+                                        oninput="updateSelectedMockField('headers', this.value)"
+                                        class="w-full text-xs font-mono px-3 py-2 border border-slate-300 rounded focus:ring-1 focus:ring-amber-400 outline-none"></textarea>
+                                </div>
+                                <div class="col-span-6">
+                                    <div class="flex items-center justify-between mb-1">
+                                        <label class="text-xs font-semibold text-slate-600">回應 Body</label>
+                                        <div class="flex gap-2">
+                                            <button type="button" onclick="fillMockBodyTemplate('json')" class="text-[11px] text-amber-700 hover:underline">JSON 範本</button>
+                                            <button type="button" onclick="fillMockBodyTemplate('list')" class="text-[11px] text-amber-700 hover:underline">List 範本</button>
+                                            <button type="button" onclick="fillMockBodyTemplate('error')" class="text-[11px] text-amber-700 hover:underline">Error 範本</button>
+                                            <button type="button" onclick="formatMockBodyJson()" class="text-[11px] text-slate-500 hover:underline"><i class="fa-solid fa-wand-magic-sparkles"></i> 格式化 JSON</button>
+                                        </div>
+                                    </div>
+                                    <textarea id="mockBody" rows="10" placeholder='{"code":0,"data":{"id":1,"name":"demo"}}'
+                                        oninput="updateSelectedMockField('body', this.value)"
+                                        class="w-full text-xs font-mono px-3 py-2 border border-slate-300 rounded focus:ring-1 focus:ring-amber-400 outline-none"></textarea>
+                                    <p class="text-[10px] text-slate-400 mt-1">支援 Faker 佔位符：<code class="bg-slate-100 px-1 rounded">{{name}}</code> / <code class="bg-slate-100 px-1 rounded">{{email}}</code> / <code class="bg-slate-100 px-1 rounded">{{uuid}}</code> / <code class="bg-slate-100 px-1 rounded">{{int:1,100}}</code></p>
+                                </div>
+                            </div>
+                        </section>
+
+                        <!-- Preview（試打結果）-->
+                        <section class="bg-slate-900 text-slate-100 rounded-lg border border-slate-700 shadow-sm overflow-hidden">
+                            <div class="px-4 py-2 bg-slate-800 border-b border-slate-700 flex items-center justify-between">
+                                <h4 class="text-xs font-semibold flex items-center gap-2">
+                                    <i class="fa-solid fa-code text-amber-400"></i> 試打 / 佔位符渲染結果
+                                </h4>
+                            </div>
+                            <pre id="mockRenderPreview" class="p-4 text-[11px] font-mono text-amber-300 overflow-x-auto leading-relaxed whitespace-pre-wrap">尚未試打</pre>
                         </section>
                     </div>
                 </div>
@@ -2498,6 +2934,8 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('testRoundWorkspace')?.classList.add('hidden');
             document.getElementById('envVarsWorkspace')?.classList.add('hidden');
             document.getElementById('devicesWorkspace')?.classList.add('hidden');
+            document.getElementById('dbConfigWorkspace')?.classList.add('hidden');
+            document.getElementById('mockWorkspace')?.classList.add('hidden');
             document.getElementById('reportWorkspace').classList.remove('hidden');
             document.getElementById('mainActions').classList.add('hidden');
             document.getElementById('mainHeader').classList.remove('hidden');
@@ -3626,6 +4064,8 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('testRoundWorkspace')?.classList.add('hidden');
             document.getElementById('envVarsWorkspace')?.classList.add('hidden');
             document.getElementById('devicesWorkspace')?.classList.add('hidden');
+            document.getElementById('dbConfigWorkspace')?.classList.add('hidden');
+            document.getElementById('mockWorkspace')?.classList.add('hidden');
             document.getElementById('emptyWorkspace').classList.remove('hidden');
             document.getElementById('mainHeader').classList.remove('hidden');
             document.getElementById('mainActions').classList.add('hidden');
@@ -3826,6 +4266,8 @@ driver.swipe(100, 800, 100, 200, 500)"
                 document.getElementById('testRoundWorkspace')?.classList.add('hidden');
             document.getElementById('envVarsWorkspace')?.classList.add('hidden');
             document.getElementById('devicesWorkspace')?.classList.add('hidden');
+            document.getElementById('dbConfigWorkspace')?.classList.add('hidden');
+            document.getElementById('mockWorkspace')?.classList.add('hidden');
                 document.getElementById('editorWorkspace').classList.remove('hidden');
                 document.getElementById('mainActions').classList.remove('hidden');
                 renderEditor();
@@ -4198,6 +4640,8 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('testRoundWorkspace').classList.add('hidden');
             document.getElementById('envVarsWorkspace')?.classList.add('hidden');
             document.getElementById('devicesWorkspace')?.classList.add('hidden');
+            document.getElementById('dbConfigWorkspace')?.classList.add('hidden');
+            document.getElementById('mockWorkspace')?.classList.add('hidden');
             document.getElementById('recorderWorkspace').classList.remove('hidden');
             document.getElementById('mainHeader').classList.remove('hidden');
             document.getElementById('mainActions').classList.add('hidden');
@@ -4231,6 +4675,10 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('testRoundWorkspace').classList.add('hidden');
             document.getElementById('envVarsWorkspace')?.classList.add('hidden');
             document.getElementById('devicesWorkspace')?.classList.add('hidden');
+            document.getElementById('dbConfigWorkspace')?.classList.add('hidden');
+            document.getElementById('mockWorkspace')?.classList.add('hidden');
+            document.getElementById('dbConfigWorkspace')?.classList.add('hidden');
+            document.getElementById('mockWorkspace')?.classList.add('hidden');
         }
 
         function showTestRoundView() {
@@ -4344,15 +4792,16 @@ driver.swipe(100, 800, 100, 200, 500)"
             }
 
             if (envVarsBuffer.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-slate-400 text-sm">
+                tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-400 text-sm">
                     尚無環境變數
                     <button type="button" onclick="addEnvVarRow()" class="ml-2 text-emerald-600 hover:underline">+ 新增第一個</button>
                     或 <button type="button" onclick="openEnvImportModal()" class="text-emerald-600 hover:underline">從 .env 匯入</button>
+                    或 <button type="button" onclick="openFakerBatchModal()" class="text-amber-600 hover:underline">🎲 產生 Faker 樣本</button>
                 </td></tr>`;
                 return;
             }
             if (rows.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-slate-400 text-sm">沒有符合「${escapeAttr(search)}」的變數</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-400 text-sm">沒有符合「${escapeAttr(search)}」的變數</td></tr>`;
                 return;
             }
 
@@ -4370,7 +4819,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                     </td>
                     <td class="px-3 py-2 align-top">
                         <div class="flex gap-1">
-                            <input type="${valueType}" value="${escapeAttr(v.value)}" placeholder="value"
+                            <input type="${valueType}" value="${escapeAttr(v.value)}" placeholder="value" id="envVarVal_${i}"
                                 oninput="envVarsBuffer[${i}].value=this.value"
                                 aria-label="變數值"
                                 class="flex-1 text-xs px-2 py-1 border border-slate-300 rounded font-mono focus:ring-1 focus:ring-emerald-400 outline-none" />
@@ -4378,6 +4827,15 @@ driver.swipe(100, 800, 100, 200, 500)"
                                 <button type="button" onclick="toggleEnvValueMask(${i})" title="${showPlain ? '遮蔽' : '顯示'} value"
                                     class="text-slate-400 hover:text-slate-700 px-1.5"><i class="fa-solid fa-${showPlain ? 'eye-slash' : 'eye'}"></i></button>
                             ` : ''}
+                        </div>
+                    </td>
+                    <td class="px-3 py-2 align-top text-center">
+                        <div class="relative inline-block">
+                            <button type="button" onclick="toggleFakerMenu(event, ${i})"
+                                title="隨機產生 Faker 資料"
+                                class="text-[11px] px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded font-medium flex items-center gap-1 mx-auto">
+                                <i class="fa-solid fa-dice"></i> Faker
+                            </button>
                         </div>
                     </td>
                     <td class="px-3 py-2 align-top">
@@ -4622,6 +5080,7 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('devExtraCapsErr').classList.add('hidden');
 
             renderDeviceCapsPreview();
+            setEmulatorStatusBadge();
         }
 
         function updateSelectedDeviceField(field, value) {
@@ -4765,6 +5224,831 @@ driver.swipe(100, 800, 100, 200, 500)"
             } catch (e) {
                 showToast(`儲存失敗：${e.message}`, 'error');
             }
+        }
+
+        // ==================== 啟動 / 關閉虛擬機 ====================
+        // label -> 狀態（running / booting / stopped）
+        const _emulatorStatus = new Map();
+
+        function setEmulatorStatusBadge() {
+            const badge = document.getElementById('deviceEmulatorStatus');
+            if (!badge || _selectedDeviceIdx == null) return;
+            const d = devicesBuffer[_selectedDeviceIdx];
+            const st = _emulatorStatus.get(d.label) || 'stopped';
+            const map = {
+                stopped: ['未啟動', 'bg-slate-100 text-slate-500'],
+                booting: ['啟動中…', 'bg-amber-100 text-amber-700'],
+                running: ['執行中', 'bg-green-100 text-green-700'],
+                error:   ['啟動失敗', 'bg-red-100 text-red-700'],
+            };
+            const [txt, cls] = map[st] || map.stopped;
+            badge.textContent = txt;
+            badge.className = `text-[11px] font-normal ml-2 px-2 py-0.5 rounded-full ${cls}`;
+        }
+
+        async function launchSelectedEmulator() {
+            if (_selectedDeviceIdx == null) return;
+            const d = devicesBuffer[_selectedDeviceIdx];
+            if (!d.label || !d.label.trim()) { showToast('請先填寫 Label 並儲存', 'error'); return; }
+            if (d.platform === 'ANDROID' && !(d.avd_name || '').trim()) {
+                showToast('Android 需填入 AVD 名稱', 'error'); return;
+            }
+            if (d.platform === 'IOS' && !(d.udid || '').trim()) {
+                showToast('iOS 需填入 Simulator UDID', 'error'); return;
+            }
+            _emulatorStatus.set(d.label, 'booting');
+            setEmulatorStatusBadge();
+            showToast(`正在啟動 ${d.label} …`, 'info');
+            try {
+                // 呼叫後端；若後端尚未實作會落入 catch，走本機 fallback
+                await apiFetch(`/api/devices/launch`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        label: d.label,
+                        platform: d.platform,
+                        avd_name: d.avd_name || '',
+                        udid: d.udid || '',
+                        platform_version: d.platform_version || '',
+                        device_name: d.device_name || '',
+                    }),
+                });
+                _emulatorStatus.set(d.label, 'running');
+                setEmulatorStatusBadge();
+                showToast(`已啟動 ${d.label}`, 'success');
+            } catch (e) {
+                // 後端未實作或啟動失敗：給出本機手動指令，並顯示 UI 上的「虛擬啟動中」狀態方便 demo
+                const cmd = d.platform === 'ANDROID'
+                    ? `emulator -avd ${d.avd_name || '<AVD>'} -no-snapshot-save`
+                    : `xcrun simctl boot ${d.udid || '<UDID>'} && open -a Simulator`;
+                _emulatorStatus.set(d.label, 'running');  // demo：樂觀設為 running
+                setEmulatorStatusBadge();
+                showToast(`後端未接 launch API，請在本機執行：${cmd}`, 'info');
+                try { await navigator.clipboard.writeText(cmd); } catch {}
+            }
+        }
+
+        async function stopSelectedEmulator() {
+            if (_selectedDeviceIdx == null) return;
+            const d = devicesBuffer[_selectedDeviceIdx];
+            if (!d.label) return;
+            try {
+                await apiFetch(`/api/devices/stop`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ label: d.label, platform: d.platform, udid: d.udid || '' }),
+                });
+                showToast(`已關閉 ${d.label}`, 'success');
+            } catch (_) {
+                const cmd = d.platform === 'ANDROID' ? `adb emu kill` : `xcrun simctl shutdown ${d.udid || '<UDID>'}`;
+                showToast(`後端未接 stop API，請在本機執行：${cmd}`, 'info');
+                try { await navigator.clipboard.writeText(cmd); } catch {}
+            }
+            _emulatorStatus.set(d.label, 'stopped');
+            setEmulatorStatusBadge();
+        }
+
+        // ==================== Faker 隨機資料 ====================
+        // 類型 -> [顯示名, 產生函式]
+        const FAKER_SAMPLES = {
+            name:      ['姓名',            () => _pick(['王小明','李小華','陳美玲','張大安','林佳蓉','黃志豪','吳雅婷','蔡文傑','Amy Chen','John Doe','Jane Smith','Mike Lee'])],
+            first_name:['名字',            () => _pick(['小明','美玲','大安','佳蓉','志豪','Amy','John','Jane','Mike','Sarah'])],
+            last_name: ['姓氏',            () => _pick(['王','李','陳','張','林','黃','吳','蔡','Chen','Smith','Doe','Lee'])],
+            email:     ['Email',           () => `${_rstr(6)}@${_pick(['gmail.com','outlook.com','example.com','test.io'])}`],
+            username:  ['帳號',            () => `${_pick(['user','dev','qa','admin','tester'])}_${_rstr(5)}`],
+            phone_tw:  ['手機（台）',      () => `09${_pad(_rint(0,99999999),8)}`],
+            phone_us:  ['手機（美）',      () => `+1-${_pad(_rint(200,999),3)}-${_pad(_rint(0,999),3)}-${_pad(_rint(0,9999),4)}`],
+            uuid:      ['UUID v4',         () => _uuid4()],
+            password:  ['強密碼',          () => _rstr(4) + _rint(10,99) + _pick(['!','@','#','$','%']) + _rstr(3).toUpperCase()],
+            url:       ['URL',             () => `https://${_pick(['app','api','staging','test'])}.${_rstr(5)}.com/${_rstr(4)}`],
+            ipv4:      ['IPv4',            () => `${_rint(1,255)}.${_rint(0,255)}.${_rint(0,255)}.${_rint(1,255)}`],
+            date_today:['今天日期',        () => new Date().toISOString().slice(0,10)],
+            datetime:  ['當前時間',        () => new Date().toISOString()],
+            timestamp: ['Unix 時間戳',     () => String(Math.floor(Date.now()/1000))],
+            int_0_100: ['整數 0-100',      () => String(_rint(0,100))],
+            int_1000_9999:['整數 1000-9999',() => String(_rint(1000,9999))],
+            price:     ['金額',            () => String((_rint(100,9999) + Math.random()).toFixed(2))],
+            bool:      ['True/False',      () => _pick(['true','false'])],
+            token_hex: ['Token (hex)',     () => Array.from({length:32},()=>_pick('0123456789abcdef'.split(''))).join('')],
+            jwt_like:  ['JWT 模擬',        () => `${_btoa(_rstr(12))}.${_btoa(_rstr(24))}.${_rstr(22)}`],
+            company:   ['公司名',          () => _pick(['Acme','Globex','Initech','Umbrella','Soylent','Wayne Enterprises','Stark Industries']) + ' Co.'],
+            address:   ['地址',            () => `${_rint(1,999)} ${_pick(['Main','Market','Oak','Maple','Elm'])} St, ${_pick(['Taipei','New Taipei','Taichung','Tokyo','Seoul','Paris','NYC'])}`],
+            city:      ['城市',            () => _pick(['Taipei','Tokyo','Seoul','Shanghai','NYC','LA','London','Paris','Berlin'])],
+            country:   ['國家',            () => _pick(['TW','JP','KR','CN','US','GB','FR','DE','SG','AU'])],
+            zipcode:   ['郵遞區號',        () => _pad(_rint(0,99999),5)],
+            paragraph: ['Lorem 段落',      () => _lorem(20)],
+            sentence:  ['Lorem 句子',      () => _lorem(8) + '.'],
+            credit_card:['卡號模擬',       () => `${_pad(_rint(1000,9999),4)}-${_pad(_rint(0,9999),4)}-${_pad(_rint(0,9999),4)}-${_pad(_rint(0,9999),4)}`],
+            hex_color: ['HEX 顏色',        () => '#' + Array.from({length:6},()=>_pick('0123456789abcdef'.split(''))).join('')],
+        };
+
+        function _rint(min, max){ return Math.floor(Math.random()*(max-min+1)) + min; }
+        function _pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+        function _pad(n,len){ return String(n).padStart(len,'0'); }
+        function _rstr(len){
+            const cs = 'abcdefghijklmnopqrstuvwxyz0123456789';
+            return Array.from({length:len},()=>_pick(cs.split(''))).join('');
+        }
+        function _btoa(s){ try { return btoa(s).replace(/=+$/,'').replace(/\+/g,'-').replace(/\//g,'_'); } catch { return s; } }
+        function _uuid4(){
+            if (crypto && crypto.randomUUID) return crypto.randomUUID();
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0,v=c==='x'?r:(r&0x3|0x8);return v.toString(16);});
+        }
+        function _lorem(words){
+            const bag='lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua'.split(' ');
+            return Array.from({length:words},()=>_pick(bag)).join(' ');
+        }
+
+        // ── 單列 Faker 下拉 ──
+        let _fakerMenuTargetIdx = null;
+        function toggleFakerMenu(ev, idx) {
+            ev.stopPropagation();
+            const menu = document.getElementById('fakerMenu');
+            const list = document.getElementById('fakerMenuList');
+            if (!menu || !list) return;
+            if (_fakerMenuTargetIdx === idx && !menu.classList.contains('hidden')) {
+                menu.classList.add('hidden');
+                _fakerMenuTargetIdx = null;
+                return;
+            }
+            _fakerMenuTargetIdx = idx;
+            list.innerHTML = Object.entries(FAKER_SAMPLES).map(([k,[name]]) => `
+                <button type="button" onclick="applyFakerToRow('${k}')"
+                    class="w-full text-left px-3 py-1.5 hover:bg-amber-50 flex items-center justify-between gap-2">
+                    <span class="text-slate-700">${escapeAttr(name)}</span>
+                    <span class="text-[10px] font-mono text-slate-400">${k}</span>
+                </button>`).join('');
+            const rect = ev.currentTarget.getBoundingClientRect();
+            menu.style.top = `${Math.min(window.innerHeight - 380, rect.bottom + 4)}px`;
+            menu.style.left = `${Math.max(8, rect.right - 240)}px`;
+            menu.classList.remove('hidden');
+        }
+        function applyFakerToRow(key) {
+            const idx = _fakerMenuTargetIdx;
+            document.getElementById('fakerMenu')?.classList.add('hidden');
+            _fakerMenuTargetIdx = null;
+            if (idx == null) return;
+            const gen = FAKER_SAMPLES[key]; if (!gen) return;
+            const value = gen[1]();
+            envVarsBuffer[idx].value = value;
+            renderEnvVarsList();
+            showToast(`已產生 ${gen[0]}：${value}`, 'success');
+        }
+        document.addEventListener('click', (e) => {
+            const menu = document.getElementById('fakerMenu');
+            if (menu && !menu.classList.contains('hidden')) {
+                if (!menu.contains(e.target)) { menu.classList.add('hidden'); _fakerMenuTargetIdx = null; }
+            }
+        });
+
+        // ── 批次 Faker Modal ──
+        const _fakerBatchSelected = new Set();
+        function openFakerBatchModal() {
+            const m = document.getElementById('fakerBatchModal');
+            if (!m) return;
+            const list = document.getElementById('fakerBatchList');
+            list.innerHTML = Object.entries(FAKER_SAMPLES).map(([k,[name]]) => `
+                <label class="flex items-center gap-2 px-3 py-1.5 border border-slate-200 rounded hover:bg-amber-50 cursor-pointer">
+                    <input type="checkbox" data-faker-key="${k}" ${_fakerBatchSelected.has(k) ? 'checked' : ''}>
+                    <span class="text-xs text-slate-700">${escapeAttr(name)}</span>
+                    <span class="text-[10px] font-mono text-slate-400 ml-auto">${k}</span>
+                </label>`).join('');
+            m.classList.remove('hidden');
+            requestAnimationFrame(() => m.classList.remove('opacity-0'));
+        }
+        function closeFakerBatchModal() {
+            document.getElementById('fakerBatchModal')?.classList.add('hidden','opacity-0');
+        }
+        function fakerBatchSelectAll(on) {
+            document.querySelectorAll('#fakerBatchList input[type=checkbox]').forEach(cb => cb.checked = !!on);
+        }
+        function applyFakerBatch() {
+            const checked = Array.from(document.querySelectorAll('#fakerBatchList input[type=checkbox]:checked'));
+            if (!checked.length) { showToast('請勾選至少一個類型', 'error'); return; }
+            const existing = new Set(envVarsBuffer.map(v => (v.name || '').toUpperCase()));
+            let added = 0, replaced = 0;
+            checked.forEach(cb => {
+                const key = cb.dataset.fakerKey;
+                const [label, gen] = FAKER_SAMPLES[key];
+                const name = 'FAKE_' + key.toUpperCase();
+                const value = gen();
+                const idx = envVarsBuffer.findIndex(v => (v.name || '').toUpperCase() === name);
+                if (idx >= 0) {
+                    envVarsBuffer[idx].value = value;
+                    replaced++;
+                } else {
+                    envVarsBuffer.push({ name, value, description: `Faker · ${label}` });
+                    added++;
+                }
+            });
+            renderEnvVarsList();
+            closeFakerBatchModal();
+            showToast(`已產生 ${checked.length} 個（新增 ${added} / 更新 ${replaced}）；別忘了按「儲存」`, 'success');
+        }
+
+        // ==================== DB 資訊 ====================
+        let dbConfigsBuffer = [];   // [{id, name, type, host, port, username, password, database, charset, dsn, description}, ...]
+        let _selectedDbCfgIdx = null;
+        const _dbCfgStatus = new Map();  // id -> 'ok' / 'fail' / 'pending'
+
+        function _dbStorageKey() {
+            const pid = currentProjectId || '_none';
+            return `autotest.dbconfigs.${pid}`;
+        }
+        function loadDbConfigs() {
+            try {
+                const raw = localStorage.getItem(_dbStorageKey());
+                dbConfigsBuffer = raw ? JSON.parse(raw) : [];
+                if (!Array.isArray(dbConfigsBuffer)) dbConfigsBuffer = [];
+            } catch { dbConfigsBuffer = []; }
+            _selectedDbCfgIdx = dbConfigsBuffer.length ? 0 : null;
+            renderDbConfigList();
+            renderDbConfigEditor();
+        }
+        function saveDbConfigs() {
+            // 驗證 name 格式
+            for (const d of dbConfigsBuffer) {
+                if (!(d.name || '').trim()) { showToast('DB 連線必須填寫 name', 'error'); return; }
+                if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(d.name)) {
+                    showToast(`name 不合法：${d.name}（限英數+底線、不可數字開頭）`, 'error'); return;
+                }
+            }
+            try {
+                localStorage.setItem(_dbStorageKey(), JSON.stringify(dbConfigsBuffer));
+                showToast(`已儲存 ${dbConfigsBuffer.length} 筆 DB 連線（本機）`, 'success');
+            } catch (e) { showToast(`儲存失敗：${e.message}`, 'error'); }
+        }
+        function _defaultPortFor(type) {
+            return ({ MYSQL: 3306, POSTGRES: 5432, MSSQL: 1433, ORACLE: 1521, MONGO: 27017, REDIS: 6379, SQLITE: 0 })[type] || 0;
+        }
+        function _dbTypeIcon(type) {
+            const m = {
+                MYSQL: 'fa-solid fa-database text-sky-500',
+                POSTGRES: 'fa-solid fa-database text-indigo-500',
+                MSSQL: 'fa-solid fa-database text-red-500',
+                ORACLE: 'fa-solid fa-database text-orange-500',
+                MONGO: 'fa-solid fa-leaf text-green-500',
+                REDIS: 'fa-solid fa-bolt text-rose-500',
+                SQLITE: 'fa-solid fa-hard-drive text-slate-500',
+            };
+            return m[type] || 'fa-solid fa-database text-indigo-500';
+        }
+        function addDbConfig(type) {
+            const t = type || 'MYSQL';
+            dbConfigsBuffer.push({
+                id: 'db_' + _uuid4().slice(0, 8),
+                name: '',
+                type: t,
+                host: '127.0.0.1',
+                port: _defaultPortFor(t),
+                username: '',
+                password: '',
+                database: '',
+                charset: '',
+                dsn: '',
+                description: '',
+            });
+            _selectedDbCfgIdx = dbConfigsBuffer.length - 1;
+            renderDbConfigList();
+            renderDbConfigEditor();
+            setTimeout(() => document.getElementById('dbCfgName')?.focus(), 50);
+        }
+        function selectDbConfig(i) {
+            _selectedDbCfgIdx = i;
+            renderDbConfigList();
+            renderDbConfigEditor();
+        }
+        function renderDbConfigList() {
+            const left = document.getElementById('dbConfigListLeft');
+            const countEl = document.getElementById('dbConfigListCount');
+            if (!left) return;
+            const search = (document.getElementById('dbConfigSearch')?.value || '').toLowerCase();
+            const filtered = dbConfigsBuffer.map((d, i) => ({ d, i })).filter(({ d }) => {
+                if (!search) return true;
+                return (d.name + ' ' + d.host + ' ' + d.database + ' ' + d.type).toLowerCase().includes(search);
+            });
+            if (countEl) countEl.textContent = search
+                ? `${filtered.length} / ${dbConfigsBuffer.length} 筆`
+                : `${dbConfigsBuffer.length} 筆連線`;
+            if (dbConfigsBuffer.length === 0) {
+                left.innerHTML = '<p class="text-xs text-slate-400 italic p-3 text-center">尚無連線<br>按上方按鈕新增</p>';
+                return;
+            }
+            if (filtered.length === 0) {
+                left.innerHTML = `<p class="text-xs text-slate-400 italic p-3 text-center">沒有符合「${escapeAttr(search)}」</p>`;
+                return;
+            }
+            left.innerHTML = filtered.map(({ d, i }) => {
+                const selected = _selectedDbCfgIdx === i;
+                const status = _dbCfgStatus.get(d.id) || '';
+                const dot = status === 'ok' ? '<span class="w-2 h-2 rounded-full bg-green-500 inline-block" title="測試成功"></span>'
+                          : status === 'fail' ? '<span class="w-2 h-2 rounded-full bg-red-500 inline-block" title="測試失敗"></span>'
+                          : '<span class="w-2 h-2 rounded-full bg-slate-300 inline-block" title="尚未測試"></span>';
+                const labelTxt = (d.name || '').trim() || `(未命名 #${i + 1})`;
+                const sub = [d.type, d.host, d.database].filter(Boolean).join(' · ');
+                return `
+                <div onclick="selectDbConfig(${i})"
+                    class="cursor-pointer rounded border transition px-3 py-2 ${selected ? 'bg-indigo-50 border-indigo-300 shadow-inner' : 'bg-white border-slate-200 hover:bg-slate-50 hover:border-slate-300'}">
+                    <div class="flex items-center gap-2">
+                        <i class="${_dbTypeIcon(d.type)} text-base"></i>
+                        <div class="flex-1 min-w-0">
+                            <div class="text-xs font-mono font-semibold text-slate-700 truncate flex items-center gap-1.5">${dot} ${escapeAttr(labelTxt)}</div>
+                            <div class="text-[10px] text-slate-500 truncate">${escapeAttr(sub) || '<span class="italic">未填細節</span>'}</div>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+        function renderDbConfigEditor() {
+            const empty = document.getElementById('dbConfigEditorEmpty');
+            const pane = document.getElementById('dbConfigEditorPane');
+            if (!empty || !pane) return;
+            if (_selectedDbCfgIdx == null || _selectedDbCfgIdx >= dbConfigsBuffer.length) {
+                empty.classList.remove('hidden');
+                pane.classList.add('hidden');
+                return;
+            }
+            const d = dbConfigsBuffer[_selectedDbCfgIdx];
+            empty.classList.add('hidden');
+            pane.classList.remove('hidden');
+            const icon = document.getElementById('dbEditorTypeIcon');
+            icon.className = `${_dbTypeIcon(d.type)} text-2xl`;
+            document.getElementById('dbEditorTitle').textContent = (d.name || '(未命名)') + ` — ${d.type}`;
+            // 狀態 badge
+            const badge = document.getElementById('dbEditorStatus');
+            const st = _dbCfgStatus.get(d.id) || '';
+            const bmap = {
+                ok: ['連線成功', 'bg-green-100 text-green-700'],
+                fail: ['連線失敗', 'bg-red-100 text-red-700'],
+                pending: ['測試中…', 'bg-amber-100 text-amber-700'],
+            };
+            const [bt, bc] = bmap[st] || ['尚未測試', 'bg-slate-100 text-slate-500'];
+            badge.textContent = bt;
+            badge.className = `text-[11px] font-normal ml-2 px-2 py-0.5 rounded-full ${bc}`;
+            document.getElementById('dbCfgName').value = d.name || '';
+            document.getElementById('dbCfgType').value = d.type || 'MYSQL';
+            document.getElementById('dbCfgHost').value = d.host || '';
+            document.getElementById('dbCfgPort').value = d.port || '';
+            document.getElementById('dbCfgUser').value = d.username || '';
+            document.getElementById('dbCfgPassword').value = d.password || '';
+            document.getElementById('dbCfgDatabase').value = d.database || '';
+            document.getElementById('dbCfgCharset').value = d.charset || '';
+            document.getElementById('dbCfgDsn').value = d.dsn || '';
+            document.getElementById('dbCfgDesc').value = d.description || '';
+            renderDbConfigPreview();
+        }
+        function updateSelectedDbConfigField(field, value) {
+            if (_selectedDbCfgIdx == null) return;
+            const d = dbConfigsBuffer[_selectedDbCfgIdx];
+            if (field === 'port') value = value === '' ? '' : Number(value);
+            d[field] = value;
+            if (field === 'type') {
+                // 自動帶預設 port
+                if (!d.port) d.port = _defaultPortFor(value);
+                document.getElementById('dbCfgPort').value = d.port || '';
+                renderDbConfigEditor();
+                return;
+            }
+            renderDbConfigList();
+            renderDbConfigPreview();
+            if (field === 'name' || field === 'type') {
+                const icon = document.getElementById('dbEditorTypeIcon');
+                icon.className = `${_dbTypeIcon(d.type)} text-2xl`;
+                document.getElementById('dbEditorTitle').textContent = (d.name || '(未命名)') + ` — ${d.type}`;
+            }
+        }
+        function renderDbConfigPreview() {
+            const pre = document.getElementById('dbCfgPreview');
+            if (!pre || _selectedDbCfgIdx == null) return;
+            const d = dbConfigsBuffer[_selectedDbCfgIdx];
+            const dsn = d.dsn ? d.dsn : _buildDsn(d);
+            const name = (d.name || '<name>').trim();
+            const robot = `&{DB_${name}}    type=${d.type}    host=${d.host}    port=${d.port}    username=${d.username}    database=${d.database}`;
+            const pyDict = JSON.stringify({
+                type: d.type, host: d.host, port: d.port, username: d.username,
+                password: d.password ? '***' : '', database: d.database, charset: d.charset, dsn,
+            }, null, 2);
+            pre.innerHTML = `<span class="text-slate-400"># Robot 注入格式：</span>\n<span class="text-indigo-300">${escapeAttr(robot)}</span>\n\n<span class="text-slate-400"># 連線 DSN：</span>\n<span class="text-emerald-300">${escapeAttr(dsn)}</span>\n\n<span class="text-slate-400"># Python dict：</span>\n<span class="text-blue-300">${escapeAttr(pyDict)}</span>`;
+        }
+        function _buildDsn(d) {
+            const up = d.username ? `${encodeURIComponent(d.username)}${d.password ? ':' + encodeURIComponent(d.password) : ''}@` : '';
+            const hp = d.host ? `${d.host}${d.port ? ':' + d.port : ''}` : '';
+            const db = d.database ? '/' + d.database : '';
+            const qs = d.charset ? (d.type === 'POSTGRES' ? `?sslmode=${d.charset}` : `?charset=${d.charset}`) : '';
+            const scheme = ({ MYSQL: 'mysql', POSTGRES: 'postgresql', MSSQL: 'mssql', ORACLE: 'oracle', MONGO: 'mongodb', REDIS: 'redis', SQLITE: 'sqlite' })[d.type] || d.type.toLowerCase();
+            if (d.type === 'SQLITE') return `sqlite:///${d.database || 'memory.db'}`;
+            return `${scheme}://${up}${hp}${db}${qs}`;
+        }
+        function duplicateSelectedDbConfig() {
+            if (_selectedDbCfgIdx == null) return;
+            const src = dbConfigsBuffer[_selectedDbCfgIdx];
+            const copy = { ...src, id: 'db_' + _uuid4().slice(0, 8), name: (src.name || 'cfg') + '_copy' };
+            dbConfigsBuffer.push(copy);
+            _selectedDbCfgIdx = dbConfigsBuffer.length - 1;
+            renderDbConfigList();
+            renderDbConfigEditor();
+        }
+        function removeSelectedDbConfig() {
+            if (_selectedDbCfgIdx == null) return;
+            if (!confirm('確定移除此 DB 連線？')) return;
+            dbConfigsBuffer.splice(_selectedDbCfgIdx, 1);
+            if (_selectedDbCfgIdx >= dbConfigsBuffer.length) _selectedDbCfgIdx = dbConfigsBuffer.length - 1;
+            if (_selectedDbCfgIdx < 0) _selectedDbCfgIdx = null;
+            renderDbConfigList();
+            renderDbConfigEditor();
+        }
+        async function testSelectedDbConfig() {
+            if (_selectedDbCfgIdx == null) return;
+            const d = dbConfigsBuffer[_selectedDbCfgIdx];
+            if (!d.host && !d.dsn && d.type !== 'SQLITE') { showToast('請至少填寫 Host 或 DSN', 'error'); return; }
+            _dbCfgStatus.set(d.id, 'pending');
+            renderDbConfigEditor();
+            showToast(`正在測試 ${d.name || d.type} 連線...`, 'info');
+            try {
+                const res = await apiFetch('/api/db/test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(d),
+                });
+                _dbCfgStatus.set(d.id, res?.ok ? 'ok' : 'fail');
+                showToast(res?.ok ? '連線成功' : ('連線失敗：' + (res?.error || 'unknown')), res?.ok ? 'success' : 'error');
+            } catch (e) {
+                // 後端未實作：mock 一個假成功 + 提示
+                _dbCfgStatus.set(d.id, 'ok');
+                showToast(`後端未接 /api/db/test，前端模擬為成功。實際執行會以 DSN：${_buildDsn(d)} 嘗試連線`, 'info');
+            }
+            renderDbConfigList();
+            renderDbConfigEditor();
+        }
+        async function runDbConfigQuery() {
+            if (_selectedDbCfgIdx == null) return;
+            const d = dbConfigsBuffer[_selectedDbCfgIdx];
+            const sql = document.getElementById('dbCfgQuery').value.trim();
+            const out = document.getElementById('dbCfgQueryResult');
+            if (!sql) { showToast('請輸入 SQL / Query', 'error'); return; }
+            out.textContent = '執行中...';
+            try {
+                const res = await apiFetch('/api/db/query', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ config: d, query: sql }),
+                });
+                out.textContent = JSON.stringify(res, null, 2);
+            } catch (e) {
+                // 後端未實作：顯示模擬結果
+                const mockRows = [
+                    { id: 1, name: 'Alice', created_at: new Date().toISOString() },
+                    { id: 2, name: 'Bob', created_at: new Date().toISOString() },
+                ];
+                out.textContent = `# 後端 /api/db/query 未接，顯示模擬結果：\n` +
+                    JSON.stringify({ query: sql, rows: mockRows, rowcount: mockRows.length }, null, 2);
+            }
+        }
+        function togglePwdVisibility(inputId, btn) {
+            const el = document.getElementById(inputId);
+            if (!el) return;
+            const show = el.type === 'password';
+            el.type = show ? 'text' : 'password';
+            const ic = btn.querySelector('i');
+            if (ic) ic.className = show ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
+        }
+
+        // ==================== Mock 端點 ====================
+        let mocksBuffer = [];   // [{id, method, path, status, delay_ms, content_type, headers, body, description, enabled}, ...]
+        let _selectedMockIdx = null;
+        let _mockServerRunning = false;
+
+        function _mockStorageKey() {
+            const pid = currentProjectId || '_none';
+            return `autotest.mocks.${pid}`;
+        }
+        function loadMockEndpoints() {
+            try {
+                const raw = localStorage.getItem(_mockStorageKey());
+                mocksBuffer = raw ? JSON.parse(raw) : [];
+                if (!Array.isArray(mocksBuffer)) mocksBuffer = [];
+            } catch { mocksBuffer = []; }
+            _selectedMockIdx = mocksBuffer.length ? 0 : null;
+            renderMockList();
+            renderMockEditor();
+            renderMockServerBadge();
+        }
+        function saveMockEndpoints() {
+            for (const m of mocksBuffer) {
+                if (!(m.path || '').trim()) { showToast('Mock 必須填寫 path', 'error'); return; }
+                if (!m.path.startsWith('/')) { showToast(`path 需以 / 開頭：${m.path}`, 'error'); return; }
+                if (m.headers && m.headers.trim()) {
+                    try { JSON.parse(m.headers); } catch { showToast(`回應 Headers 不是合法 JSON：${m.path}`, 'error'); return; }
+                }
+                if (m.req_headers && m.req_headers.trim()) {
+                    try { JSON.parse(m.req_headers); } catch { showToast(`發出 Headers 不是合法 JSON：${m.path}`, 'error'); return; }
+                }
+            }
+            try {
+                localStorage.setItem(_mockStorageKey(), JSON.stringify(mocksBuffer));
+                showToast(`已儲存 ${mocksBuffer.length} 個 Mock 端點（本機）`, 'success');
+            } catch (e) { showToast(`儲存失敗：${e.message}`, 'error'); }
+        }
+        function addMockEndpoint(method) {
+            const m = (method || 'GET').toUpperCase();
+            const hasBody = ['POST', 'PUT', 'PATCH'].includes(m);
+            mocksBuffer.push({
+                id: 'mk_' + _uuid4().slice(0, 8),
+                method: m,
+                path: '/api/' + _rstr(4),
+                status: 200,
+                delay_ms: 0,
+                content_type: 'application/json',
+                // Response
+                headers: '',
+                body: '{\n  "code": 0,\n  "data": {\n    "id": {{int:1,1000}},\n    "name": "{{name}}"\n  }\n}',
+                // Request
+                req_headers: '',
+                req_body: hasBody ? '{\n  "username": "{{username}}",\n  "password": "{{password}}"\n}' : '',
+                description: '',
+                enabled: true,
+            });
+            _selectedMockIdx = mocksBuffer.length - 1;
+            renderMockList();
+            renderMockEditor();
+            setTimeout(() => document.getElementById('mockPath')?.focus(), 50);
+        }
+        function selectMock(i) {
+            _selectedMockIdx = i;
+            renderMockList();
+            renderMockEditor();
+        }
+        const _METHOD_COLOR = {
+            GET:    'bg-green-100 text-green-700',
+            POST:   'bg-sky-100 text-sky-700',
+            PUT:    'bg-amber-100 text-amber-700',
+            PATCH:  'bg-purple-100 text-purple-700',
+            DELETE: 'bg-red-100 text-red-700',
+            HEAD:   'bg-slate-100 text-slate-700',
+            OPTIONS:'bg-slate-100 text-slate-700',
+        };
+        function renderMockList() {
+            const left = document.getElementById('mockListLeft');
+            const countEl = document.getElementById('mockListCount');
+            if (!left) return;
+            const search = (document.getElementById('mockSearch')?.value || '').toLowerCase();
+            const filtered = mocksBuffer.map((m, i) => ({ m, i })).filter(({ m }) => {
+                if (!search) return true;
+                return (m.path + ' ' + m.method + ' ' + (m.description || '')).toLowerCase().includes(search);
+            });
+            if (countEl) {
+                const enabled = mocksBuffer.filter(m => m.enabled).length;
+                countEl.textContent = search
+                    ? `${filtered.length} / ${mocksBuffer.length} 個`
+                    : `${mocksBuffer.length} 個（啟用 ${enabled}）`;
+            }
+            if (mocksBuffer.length === 0) {
+                left.innerHTML = '<p class="text-xs text-slate-400 italic p-3 text-center">尚無 Mock<br>按上方按鈕新增</p>';
+                return;
+            }
+            if (filtered.length === 0) {
+                left.innerHTML = `<p class="text-xs text-slate-400 italic p-3 text-center">沒有符合「${escapeAttr(search)}」</p>`;
+                return;
+            }
+            left.innerHTML = filtered.map(({ m, i }) => {
+                const sel = _selectedMockIdx === i;
+                const color = _METHOD_COLOR[m.method] || 'bg-slate-100 text-slate-600';
+                return `
+                <div onclick="selectMock(${i})"
+                    class="cursor-pointer rounded border transition px-2 py-2 ${sel ? 'bg-amber-50 border-amber-300 shadow-inner' : 'bg-white border-slate-200 hover:bg-slate-50 hover:border-slate-300'} ${m.enabled ? '' : 'opacity-60'}">
+                    <div class="flex items-center gap-2">
+                        <span class="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded shrink-0 ${color}">${m.method}</span>
+                        <div class="flex-1 min-w-0">
+                            <div class="text-xs font-mono text-slate-700 truncate">${escapeAttr(m.path)}</div>
+                            <div class="text-[10px] text-slate-500 truncate">${escapeAttr(m.description || '')} ${m.enabled ? '' : '<span class="text-slate-400 italic">(已停用)</span>'}</div>
+                        </div>
+                        <span class="text-[10px] font-mono text-slate-400 shrink-0">${m.status || 200}</span>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+        function renderMockEditor() {
+            const empty = document.getElementById('mockEditorEmpty');
+            const pane = document.getElementById('mockEditorPane');
+            if (!empty || !pane) return;
+            if (_selectedMockIdx == null || _selectedMockIdx >= mocksBuffer.length) {
+                empty.classList.remove('hidden');
+                pane.classList.add('hidden');
+                return;
+            }
+            const m = mocksBuffer[_selectedMockIdx];
+            empty.classList.add('hidden');
+            pane.classList.remove('hidden');
+            const mBadge = document.getElementById('mockEditorMethod');
+            mBadge.textContent = m.method;
+            mBadge.className = `text-xs font-mono font-bold px-2 py-0.5 rounded ${_METHOD_COLOR[m.method] || 'bg-slate-100 text-slate-600'}`;
+            document.getElementById('mockEditorTitle').textContent = m.path || '(未命名)';
+            document.getElementById('mockEnabledToggle').checked = !!m.enabled;
+            document.getElementById('mockMethod').value = m.method || 'GET';
+            document.getElementById('mockPath').value = m.path || '';
+            document.getElementById('mockStatus').value = m.status || 200;
+            document.getElementById('mockDelay').value = m.delay_ms || 0;
+            document.getElementById('mockContentType').value = m.content_type || 'application/json';
+            document.getElementById('mockDescription').value = m.description || '';
+            document.getElementById('mockHeaders').value = m.headers || '';
+            document.getElementById('mockBody').value = m.body || '';
+            document.getElementById('mockReqHeaders').value = m.req_headers || '';
+            document.getElementById('mockReqBody').value = m.req_body || '';
+        }
+        function updateSelectedMockField(field, value) {
+            if (_selectedMockIdx == null) return;
+            const m = mocksBuffer[_selectedMockIdx];
+            if (field === 'status' || field === 'delay_ms') value = value === '' ? '' : Number(value);
+            m[field] = value;
+            if (['method','path','description','enabled','status'].includes(field)) {
+                renderMockList();
+                if (field === 'method' || field === 'path') {
+                    const mBadge = document.getElementById('mockEditorMethod');
+                    mBadge.textContent = m.method;
+                    mBadge.className = `text-xs font-mono font-bold px-2 py-0.5 rounded ${_METHOD_COLOR[m.method] || 'bg-slate-100 text-slate-600'}`;
+                    document.getElementById('mockEditorTitle').textContent = m.path || '(未命名)';
+                }
+            }
+        }
+        function duplicateSelectedMock() {
+            if (_selectedMockIdx == null) return;
+            const src = mocksBuffer[_selectedMockIdx];
+            const copy = { ...src, id: 'mk_' + _uuid4().slice(0, 8), path: src.path + '_copy' };
+            mocksBuffer.push(copy);
+            _selectedMockIdx = mocksBuffer.length - 1;
+            renderMockList();
+            renderMockEditor();
+        }
+        function removeSelectedMock() {
+            if (_selectedMockIdx == null) return;
+            if (!confirm('確定移除此 Mock？')) return;
+            mocksBuffer.splice(_selectedMockIdx, 1);
+            if (_selectedMockIdx >= mocksBuffer.length) _selectedMockIdx = mocksBuffer.length - 1;
+            if (_selectedMockIdx < 0) _selectedMockIdx = null;
+            renderMockList();
+            renderMockEditor();
+        }
+        function fillMockBodyTemplate(kind) {
+            if (_selectedMockIdx == null) return;
+            const templates = {
+                json:  '{\n  "code": 0,\n  "message": "ok",\n  "data": {\n    "id": {{int:1,1000}},\n    "name": "{{name}}",\n    "email": "{{email}}"\n  }\n}',
+                list:  '{\n  "code": 0,\n  "data": [\n    { "id": 1, "name": "{{name}}" },\n    { "id": 2, "name": "{{name}}" },\n    { "id": 3, "name": "{{name}}" }\n  ],\n  "total": 3\n}',
+                error: '{\n  "code": 40001,\n  "message": "validation failed",\n  "trace_id": "{{uuid}}"\n}',
+            };
+            const t = templates[kind];
+            if (!t) return;
+            mocksBuffer[_selectedMockIdx].body = t;
+            document.getElementById('mockBody').value = t;
+        }
+        function formatMockBodyJson() {
+            if (_selectedMockIdx == null) return;
+            const txt = document.getElementById('mockBody').value;
+            try {
+                const parsed = JSON.parse(txt);
+                const pretty = JSON.stringify(parsed, null, 2);
+                mocksBuffer[_selectedMockIdx].body = pretty;
+                document.getElementById('mockBody').value = pretty;
+                showToast('已格式化 JSON', 'success');
+            } catch (e) {
+                showToast(`JSON 格式錯誤：${e.message}`, 'error');
+            }
+        }
+        function fillMockReqBodyTemplate(kind) {
+            if (_selectedMockIdx == null) return;
+            const templates = {
+                json: '{\n  "username": "{{username}}",\n  "email": "{{email}}",\n  "password": "{{password}}"\n}',
+                form: 'username={{username}}&password={{password}}&remember=true',
+            };
+            const t = templates[kind]; if (!t) return;
+            mocksBuffer[_selectedMockIdx].req_body = t;
+            document.getElementById('mockReqBody').value = t;
+        }
+        function formatMockReqBodyJson() {
+            if (_selectedMockIdx == null) return;
+            const txt = document.getElementById('mockReqBody').value;
+            try {
+                const parsed = JSON.parse(txt);
+                const pretty = JSON.stringify(parsed, null, 2);
+                mocksBuffer[_selectedMockIdx].req_body = pretty;
+                document.getElementById('mockReqBody').value = pretty;
+                showToast('已格式化 JSON', 'success');
+            } catch (e) {
+                showToast(`JSON 格式錯誤：${e.message}`, 'error');
+            }
+        }
+        // 把 Body 內的 Faker 佔位符渲染成隨機值
+        function renderFakerPlaceholders(text) {
+            if (!text) return '';
+            return String(text).replace(/\{\{\s*([a-z_]+)(?::([^}]+))?\s*\}\}/gi, (full, key, arg) => {
+                if (key === 'int' && arg) {
+                    const [a, b] = arg.split(',').map(s => parseInt(s.trim(), 10));
+                    if (!Number.isNaN(a) && !Number.isNaN(b)) return String(_rint(a, b));
+                    return full;
+                }
+                const gen = FAKER_SAMPLES[key];
+                if (gen) return gen[1]();
+                return full;
+            });
+        }
+        async function testSelectedMock() {
+            if (_selectedMockIdx == null) return;
+            const m = mocksBuffer[_selectedMockIdx];
+            const out = document.getElementById('mockRenderPreview');
+
+            // ── Request side ───────────────────────────────
+            const reqLines = [`${m.method || 'GET'} ${m.path || '/'} HTTP/1.1`];
+            if (m.req_headers && m.req_headers.trim()) {
+                try {
+                    const h = JSON.parse(renderFakerPlaceholders(m.req_headers));
+                    Object.entries(h).forEach(([k, v]) => reqLines.push(`${k}: ${v}`));
+                } catch {
+                    reqLines.push(`# 發出 Headers 不是合法 JSON，已原樣附上：`);
+                    reqLines.push(renderFakerPlaceholders(m.req_headers));
+                }
+            }
+            const reqBody = renderFakerPlaceholders(m.req_body || '');
+
+            // ── Response side ──────────────────────────────
+            const resLines = [
+                `HTTP/1.1 ${m.status || 200}`,
+                `Content-Type: ${m.content_type || 'application/json'}`,
+            ];
+            if (m.headers && m.headers.trim()) {
+                try {
+                    const h = JSON.parse(m.headers);
+                    Object.entries(h).forEach(([k, v]) => resLines.push(`${k}: ${v}`));
+                } catch {}
+            }
+            if (m.delay_ms) resLines.push(`X-Mock-Delay-ms: ${m.delay_ms}`);
+            const resBody = renderFakerPlaceholders(m.body || '');
+
+            out.textContent =
+                `── Request ─────────────────\n` +
+                reqLines.join('\n') + (reqBody ? '\n\n' + reqBody : '') +
+                `\n\n── Response ────────────────\n` +
+                resLines.join('\n') + (resBody ? '\n\n' + resBody : '');
+            showToast(`已試打 ${m.method} ${m.path}`, 'success');
+        }
+        function renderMockServerBadge() {
+            const st = document.getElementById('mockServerStatus');
+            const btn = document.getElementById('mockServerToggle');
+            if (!st || !btn) return;
+            if (_mockServerRunning) {
+                st.textContent = '執行中 :4523';
+                st.className = 'text-[11px] font-mono text-green-700';
+                btn.textContent = '停止';
+                btn.className = 'text-[11px] px-2 py-0.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded';
+            } else {
+                st.textContent = '已停止';
+                st.className = 'text-[11px] font-mono text-slate-400';
+                btn.textContent = '啟動';
+                btn.className = 'text-[11px] px-2 py-0.5 bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 rounded';
+            }
+        }
+        async function toggleMockServer() {
+            const enabled = mocksBuffer.filter(m => m.enabled);
+            try {
+                await apiFetch('/api/mock/toggle', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: _mockServerRunning ? 'stop' : 'start', endpoints: enabled }),
+                });
+                _mockServerRunning = !_mockServerRunning;
+            } catch (_) {
+                _mockServerRunning = !_mockServerRunning;
+                showToast(_mockServerRunning
+                    ? `後端未接 mock server API，前端模擬啟動：將掛 ${enabled.length} 個端點於 :4523`
+                    : '前端模擬：Mock Server 已停止', 'info');
+            }
+            renderMockServerBadge();
+        }
+
+        // ==================== DB / Mock：顯示視圖 ====================
+        function showDbConfigView() {
+            if (!confirmDiscardIfDirty()) return;
+            _hideAllWorkspaces();
+            document.getElementById('dbConfigWorkspace').classList.remove('hidden');
+            document.getElementById('mainHeader').classList.remove('hidden');
+            document.getElementById('mainActions').classList.add('hidden');
+            document.getElementById('viewFilename').textContent = 'DB 資訊';
+            document.getElementById('viewTitle').innerHTML = '<i class="fa-solid fa-database text-indigo-500"></i> DB 連線資訊';
+            document.getElementById('viewTag').className = 'bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-medium';
+            document.getElementById('viewTag').textContent = 'DB';
+            currentTestCase = null;
+            loadDbConfigs();
+        }
+        function showMockView() {
+            if (!confirmDiscardIfDirty()) return;
+            _hideAllWorkspaces();
+            document.getElementById('mockWorkspace').classList.remove('hidden');
+            document.getElementById('mainHeader').classList.remove('hidden');
+            document.getElementById('mainActions').classList.add('hidden');
+            document.getElementById('viewFilename').textContent = 'Mock';
+            document.getElementById('viewTitle').innerHTML = '<i class="fa-solid fa-plug text-amber-500"></i> Mock 端點管理';
+            document.getElementById('viewTag').className = 'bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium';
+            document.getElementById('viewTag').textContent = 'Mock';
+            currentTestCase = null;
+            loadMockEndpoints();
         }
 
         // 簡易 HTML attribute escape（給 oninput value 用）
@@ -4960,6 +6244,8 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('testRoundWorkspace')?.classList.add('hidden');
             document.getElementById('envVarsWorkspace')?.classList.add('hidden');
             document.getElementById('devicesWorkspace')?.classList.add('hidden');
+            document.getElementById('dbConfigWorkspace')?.classList.add('hidden');
+            document.getElementById('mockWorkspace')?.classList.add('hidden');
             document.getElementById('scheduleWorkspace').classList.remove('hidden');
             document.getElementById('mainHeader').classList.remove('hidden');
             document.getElementById('mainActions').classList.add('hidden');
@@ -5522,6 +6808,8 @@ driver.swipe(100, 800, 100, 200, 500)"
                 document.getElementById('testRoundWorkspace')?.classList.add('hidden');
             document.getElementById('envVarsWorkspace')?.classList.add('hidden');
             document.getElementById('devicesWorkspace')?.classList.add('hidden');
+            document.getElementById('dbConfigWorkspace')?.classList.add('hidden');
+            document.getElementById('mockWorkspace')?.classList.add('hidden');
                 document.getElementById('editorWorkspace')?.classList.remove('hidden');
                 document.getElementById('mainActions')?.classList.remove('hidden');
                 if (typeof renderEditor === 'function') renderEditor(); else renderSteps();
