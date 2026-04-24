@@ -158,16 +158,22 @@
 
     <!-- 頂部導覽列 -->
     <header class="bg-white border-b border-slate-200 h-14 flex items-center justify-between px-6 shrink-0 z-10 shadow-sm relative">
-        <div class="flex items-center gap-3">
+        <!-- Logo 區：點擊回首頁 -->
+        <button type="button" id="navHomeBtn" onclick="showHomeView()" title="回首頁" aria-label="回首頁"
+            class="flex items-center gap-3 hover:opacity-80 transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 rounded">
             <div class="bg-blue-600 text-white p-1.5 rounded-md shadow-inner">
                 <i class="fa-solid fa-vial-circle-check"></i>
             </div>
             <h1 class="font-bold text-lg text-slate-700 tracking-tight">AutoTest <span class="text-xs text-slate-400 font-normal ml-2 border border-slate-200 px-1.5 py-0.5 rounded">v1.0</span></h1>
-        </div>
+        </button>
         <div class="flex items-center gap-6">
             <!-- 設備資訊按鈕（全專案共用 Android/iOS 虛擬機）-->
             <button type="button" onclick="showDevicesView()" id="navDevicesBtn" class="text-slate-500 hover:text-rose-600 font-medium transition flex items-center gap-2">
                 <i class="fa-solid fa-mobile-screen"></i> 設備資訊
+            </button>
+            <!-- 測試案例按鈕（瀏覽所有 TESTCASE，與左側目錄樹同步）-->
+            <button type="button" onclick="showTestCasesView()" id="navTestCasesBtn" class="text-slate-500 hover:text-blue-600 font-medium transition flex items-center gap-2">
+                <i class="fa-solid fa-list-check"></i> 測試案例
             </button>
             <!-- 環境變數按鈕（全專案共用 Robot suite vars）-->
             <button type="button" onclick="showEnvVarsView()" id="navEnvVarsBtn" class="text-slate-500 hover:text-emerald-600 font-medium transition flex items-center gap-2">
@@ -317,6 +323,7 @@
                                     <span class="block text-[11px] text-slate-500">產生 trace.zip / .webm；關閉可加快執行</span>
                                 </span>
                             </label>
+                            <!-- 「展開 DDT 每一列都執行」選項暫時隱藏（預設僅以第一列當變數來源跑一次；需要時請在此取消註解）
                             <label class="flex items-start gap-2 py-1 cursor-pointer">
                                 <input type="checkbox" id="optDdtExpand" class="mt-0.5">
                                 <span>
@@ -324,6 +331,8 @@
                                     <span class="block text-[11px] text-slate-500">預設僅以第一列當變數來源跑一次</span>
                                 </span>
                             </label>
+                            -->
+                            <p class="text-[11px] text-slate-400 mt-1 pt-1 border-t border-slate-100">DDT 預設僅以第一列當變數來源執行一次</p>
                         </div>
                     </div>
                 </div>
@@ -1631,6 +1640,173 @@ driver.swipe(100, 800, 100, 200, 500)"
                 <p class="text-lg">請從左側目錄選擇一個測試案例 (.md) 以開始編輯</p>
             </div>
 
+            <!-- 視圖：首頁 (點擊左上 AutoTest Logo 或 navHomeBtn 呼叫 showHomeView) -->
+            <div id="homeWorkspace" class="flex-1 overflow-y-auto p-8 bg-gradient-to-br from-slate-50 via-white to-blue-50/30 hidden">
+                <!-- Hero 區 -->
+                <section class="max-w-6xl mx-auto mb-8">
+                    <div class="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-8 text-white shadow-lg relative overflow-hidden">
+                        <div class="absolute -right-8 -top-8 w-48 h-48 bg-white/10 rounded-full"></div>
+                        <div class="absolute -right-20 top-20 w-64 h-64 bg-white/5 rounded-full"></div>
+                        <div class="relative z-10">
+                            <div class="flex items-center gap-2 text-xs uppercase tracking-widest opacity-80 mb-2">
+                                <i class="fa-solid fa-vial-circle-check"></i> AutoTest v1.0
+                            </div>
+                            <h2 class="text-3xl font-bold">自動化測試平台</h2>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 專案統計 -->
+                <section class="max-w-6xl mx-auto mb-8">
+                    <h3 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                        <i class="fa-solid fa-chart-simple text-blue-500"></i> 當前專案概況
+                    </h3>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+                            <div class="text-xs text-slate-500 mb-1"><i class="fa-regular fa-folder text-slate-400"></i> 專案</div>
+                            <div class="text-lg font-bold text-slate-800 truncate" id="homeStatProject">—</div>
+                        </div>
+                        <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+                            <div class="text-xs text-slate-500 mb-1"><i class="fa-regular fa-file-lines text-blue-500"></i> 測試案例</div>
+                            <div class="text-2xl font-bold text-blue-600" id="homeStatTestcases">0</div>
+                        </div>
+                        <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+                            <div class="text-xs text-slate-500 mb-1"><i class="fa-solid fa-cube text-purple-500"></i> 節點總數</div>
+                            <div class="text-2xl font-bold text-purple-600" id="homeStatNodes">0</div>
+                        </div>
+                        <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+                            <div class="text-xs text-slate-500 mb-1"><i class="fa-solid fa-layer-group text-emerald-500"></i> 測試回合</div>
+                            <div class="text-2xl font-bold text-emerald-600" id="homeStatRounds">0</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 功能卡片 -->
+                <section class="max-w-6xl mx-auto mb-8">
+                    <h3 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                        <i class="fa-solid fa-compass text-blue-500"></i> 快速導覽
+                    </h3>
+                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        <button onclick="showTestCasesView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300 transition group">
+                            <div class="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-list-check"></i></div>
+                            <div class="font-semibold text-slate-800 mb-0.5">測試案例</div>
+                            <div class="text-xs text-slate-500">瀏覽 / 編輯所有 TESTCASE</div>
+                        </button>
+                        <button onclick="showDevicesView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-rose-300 transition group">
+                            <div class="w-10 h-10 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-mobile-screen"></i></div>
+                            <div class="font-semibold text-slate-800 mb-0.5">設備資訊</div>
+                            <div class="text-xs text-slate-500">Android / iOS 虛擬機管理</div>
+                        </button>
+                        <button onclick="showEnvVarsView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-300 transition group">
+                            <div class="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-key"></i></div>
+                            <div class="font-semibold text-slate-800 mb-0.5">環境變數</div>
+                            <div class="text-xs text-slate-500">全專案共用 Robot suite vars</div>
+                        </button>
+                        <button onclick="showDbConfigView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-300 transition group">
+                            <div class="w-10 h-10 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-database"></i></div>
+                            <div class="font-semibold text-slate-800 mb-0.5">DB 資訊</div>
+                            <div class="text-xs text-slate-500">資料庫連線設定與 SQL 測試</div>
+                        </button>
+                        <button onclick="showMockView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-amber-300 transition group">
+                            <div class="w-10 h-10 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-plug"></i></div>
+                            <div class="font-semibold text-slate-800 mb-0.5">Mock</div>
+                            <div class="text-xs text-slate-500">REST Mock 端點管理</div>
+                        </button>
+                        <button onclick="showTestRoundView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-purple-300 transition group">
+                            <div class="w-10 h-10 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-layer-group"></i></div>
+                            <div class="font-semibold text-slate-800 mb-0.5">測試回合</div>
+                            <div class="text-xs text-slate-500">具名案例集合彙總執行</div>
+                        </button>
+                        <button onclick="showReportView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300 transition group">
+                            <div class="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-chart-pie"></i></div>
+                            <div class="font-semibold text-slate-800 mb-0.5">測試報告</div>
+                            <div class="text-xs text-slate-500">Dashboard / 歷史 / Trace 檢視</div>
+                        </button>
+                        <button onclick="showScheduleView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-300 transition group">
+                            <div class="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-calendar-days"></i></div>
+                            <div class="font-semibold text-slate-800 mb-0.5">排程</div>
+                            <div class="text-xs text-slate-500">單次 / 每天 / 每週 / 每月</div>
+                        </button>
+                        <button onclick="showRecorderView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-rose-300 transition group">
+                            <div class="w-10 h-10 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-video"></i></div>
+                            <div class="font-semibold text-slate-800 mb-0.5">錄製</div>
+                            <div class="text-xs text-slate-500">WEB / API / APP 三種來源</div>
+                        </button>
+                    </div>
+                </section>
+
+                <!-- 最近測試案例 -->
+                <section class="max-w-6xl mx-auto mb-8">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-sm font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                            <i class="fa-regular fa-clock text-blue-500"></i> 最近測試案例
+                        </h3>
+                        <button onclick="showTestCasesView()" class="text-xs text-blue-600 hover:underline">查看全部 <i class="fa-solid fa-chevron-right text-[10px]"></i></button>
+                    </div>
+                    <div id="homeRecentCases" class="bg-white rounded-xl border border-slate-200 shadow-sm divide-y divide-slate-100">
+                        <div class="p-6 text-center text-slate-400 text-sm">尚無測試案例，請先在左側目錄樹建立 Feature → Platform → Page → Scenario → TestCase。</div>
+                    </div>
+                </section>
+
+                <!-- 小提示 -->
+                <section class="max-w-6xl mx-auto mb-4">
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-xs text-blue-700 flex items-start gap-3">
+                        <i class="fa-solid fa-lightbulb text-blue-500 mt-0.5"></i>
+                        <div>
+                            <b>小提示：</b>左上角的「AutoTest」Logo 可隨時點擊回到本首頁。左側專案目錄樹永遠保留；右側工作區會依你點選的 TopNav 或樹節點切換。
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- 視圖：測試案例清單（與左側目錄樹同步） -->
+            <div id="testcasesWorkspace" class="flex-1 overflow-y-auto p-6 bg-slate-50/50 hidden">
+                <div class="max-w-6xl mx-auto">
+                    <!-- 工具列 -->
+                    <div class="bg-white rounded-lg border border-slate-200 shadow-sm p-4 mb-4">
+                        <div class="flex flex-wrap items-center gap-3">
+                            <div class="flex-1 min-w-[240px] relative">
+                                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+                                <input id="tcListSearch" type="search" oninput="renderTestCasesList()" placeholder="搜尋測試案例名稱、平台、頁面..."
+                                    class="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                            </div>
+                            <select id="tcListPlatform" onchange="renderTestCasesList()" aria-label="依平台過濾測試案例" title="依平台過濾測試案例" class="px-3 py-2 border border-slate-300 rounded-md text-sm bg-white">
+                                <option value="">全部平台</option>
+                                <option value="WEB">WEB</option>
+                                <option value="API">API</option>
+                                <option value="APP">APP</option>
+                                <option value="DB">DB</option>
+                                <option value="UI">UI</option>
+                                <option value="E2E">E2E</option>
+                            </select>
+                            <button onclick="renderTestCasesList()" class="px-3 py-2 border border-slate-300 rounded-md text-sm hover:bg-slate-50" title="同步左側目錄樹">
+                                <i class="fa-solid fa-rotate"></i> 重新整理
+                            </button>
+                            <div class="text-xs text-slate-500 ml-auto">
+                                共 <span id="tcListCount" class="font-bold text-slate-700">0</span> 筆
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 清單 -->
+                    <div class="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+                        <table class="w-full text-sm">
+                            <thead class="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs uppercase">
+                                <tr>
+                                    <th class="p-3 text-left w-16">#</th>
+                                    <th class="p-3 text-left">測試案例</th>
+                                    <th class="p-3 text-left w-28">平台</th>
+                                    <th class="p-3 text-left w-40">頁面</th>
+                                    <th class="p-3 text-left w-48">所在路徑</th>
+                                    <th class="p-3 text-center w-32">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tcListBody" class="divide-y divide-slate-100"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
             <!-- 執行終端機面板 -->
             <div id="terminalPanel" class="absolute bottom-0 left-0 right-0 h-64 bg-slate-900 border-t-4 border-green-500 transform translate-y-full transition-transform duration-300 ease-in-out flex flex-col z-20 shadow-2xl">
                 <div class="flex items-center justify-between px-4 py-2 bg-slate-800 border-b border-slate-700 shrink-0">
@@ -2471,7 +2647,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                 'Db.Connect', 'Db.Query', 'Db.Execute', 'Db.RowCount',
                 'Db.Insert', 'Db.Update', 'Db.Delete',
                 'Db.AssertRowExists', 'Db.AssertNoRow', 'Db.AssertValue',
-                'Wait'
             ],
         };
         const COMPARE_OPTIONS = [
@@ -3048,16 +3223,7 @@ driver.swipe(100, 800, 100, 200, 500)"
 
         function showReportView() {
             if (!confirmDiscardIfDirty()) return;
-            document.getElementById('editorWorkspace').classList.add('hidden');
-            document.getElementById('emptyWorkspace').classList.add('hidden');
-            document.getElementById('detailReportWorkspace').classList.add('hidden');
-            document.getElementById('recorderWorkspace')?.classList.add('hidden');
-            document.getElementById('scheduleWorkspace')?.classList.add('hidden');
-            document.getElementById('testRoundWorkspace')?.classList.add('hidden');
-            document.getElementById('envVarsWorkspace')?.classList.add('hidden');
-            document.getElementById('devicesWorkspace')?.classList.add('hidden');
-            document.getElementById('dbConfigWorkspace')?.classList.add('hidden');
-            document.getElementById('mockWorkspace')?.classList.add('hidden');
+            _hideAllWorkspaces();
             document.getElementById('reportWorkspace').classList.remove('hidden');
             document.getElementById('mainActions').classList.add('hidden');
             document.getElementById('mainHeader').classList.remove('hidden');
@@ -4374,16 +4540,7 @@ driver.swipe(100, 800, 100, 200, 500)"
         async function switchProject(pid) {
             currentProjectId = pid;
             currentTestCase = null;
-            document.getElementById('editorWorkspace').classList.add('hidden');
-            document.getElementById('reportWorkspace').classList.add('hidden');
-            document.getElementById('detailReportWorkspace').classList.add('hidden');
-            document.getElementById('recorderWorkspace')?.classList.add('hidden');
-            document.getElementById('scheduleWorkspace')?.classList.add('hidden');
-            document.getElementById('testRoundWorkspace')?.classList.add('hidden');
-            document.getElementById('envVarsWorkspace')?.classList.add('hidden');
-            document.getElementById('devicesWorkspace')?.classList.add('hidden');
-            document.getElementById('dbConfigWorkspace')?.classList.add('hidden');
-            document.getElementById('mockWorkspace')?.classList.add('hidden');
+            _hideAllWorkspaces();
             document.getElementById('emptyWorkspace').classList.remove('hidden');
             document.getElementById('mainHeader').classList.remove('hidden');
             document.getElementById('mainActions').classList.add('hidden');
@@ -4409,6 +4566,11 @@ driver.swipe(100, 800, 100, 200, 500)"
             renderTree(data, document.getElementById('treeContainer'));
             const clearBtn = document.getElementById('treeSearchClear');
             if (clearBtn) clearBtn.classList.toggle('hidden', !treeSearchKeyword);
+            // 與側邊欄同步：若測試案例清單 / 首頁目前顯示中，隨樹變動即時刷新
+            const tcWs = document.getElementById('testcasesWorkspace');
+            if (tcWs && !tcWs.classList.contains('hidden')) renderTestCasesList();
+            const homeWs = document.getElementById('homeWorkspace');
+            if (homeWs && !homeWs.classList.contains('hidden')) updateHomeStats();
         }
 
         // ---- 搜尋過濾 ----
@@ -4576,16 +4738,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 // 每切換案例重置 DDT 分頁與選取狀態
                 ddtCurrentPage = 1;
                 ddtSelectedIndices.clear();
-                document.getElementById('emptyWorkspace').classList.add('hidden');
-                document.getElementById('reportWorkspace').classList.add('hidden');
-                document.getElementById('detailReportWorkspace').classList.add('hidden');
-                document.getElementById('recorderWorkspace')?.classList.add('hidden');
-            document.getElementById('scheduleWorkspace')?.classList.add('hidden');
-                document.getElementById('testRoundWorkspace')?.classList.add('hidden');
-            document.getElementById('envVarsWorkspace')?.classList.add('hidden');
-            document.getElementById('devicesWorkspace')?.classList.add('hidden');
-            document.getElementById('dbConfigWorkspace')?.classList.add('hidden');
-            document.getElementById('mockWorkspace')?.classList.add('hidden');
+                _hideAllWorkspaces();
                 document.getElementById('editorWorkspace').classList.remove('hidden');
                 document.getElementById('mainHeader').classList.remove('hidden');  // 從詳細報告返回時 mainHeader 會被 showDetailReport 收起
                 document.getElementById('mainActions').classList.remove('hidden');
@@ -4932,7 +5085,10 @@ driver.swipe(100, 800, 100, 200, 500)"
 
         window.onload = () => {
             renderExecutionModeButton();
-            initProjects();
+            initProjects().then(() => {
+                // 首次載入預設進首頁（點左上 Logo 或呼叫 showHomeView 可隨時返回）
+                try { showHomeView(); } catch (_) { /* initProjects 若失敗仍顯示 emptyWorkspace */ }
+            }).catch(() => { /* 靜默：initProjects 錯誤有自己的 toast */ });
         };
 
         // 瀏覽器關閉 / 重新整理 / 切網址：有未儲存變更時跳原生確認框
@@ -4951,16 +5107,7 @@ driver.swipe(100, 800, 100, 200, 500)"
 
         function showRecorderView() {
             if (!confirmDiscardIfDirty()) return;
-            document.getElementById('editorWorkspace').classList.add('hidden');
-            document.getElementById('emptyWorkspace').classList.add('hidden');
-            document.getElementById('detailReportWorkspace').classList.add('hidden');
-            document.getElementById('reportWorkspace').classList.add('hidden');
-            document.getElementById('scheduleWorkspace').classList.add('hidden');
-            document.getElementById('testRoundWorkspace').classList.add('hidden');
-            document.getElementById('envVarsWorkspace')?.classList.add('hidden');
-            document.getElementById('devicesWorkspace')?.classList.add('hidden');
-            document.getElementById('dbConfigWorkspace')?.classList.add('hidden');
-            document.getElementById('mockWorkspace')?.classList.add('hidden');
+            _hideAllWorkspaces();
             document.getElementById('recorderWorkspace').classList.remove('hidden');
             document.getElementById('mainHeader').classList.remove('hidden');
             document.getElementById('mainActions').classList.add('hidden');
@@ -4996,9 +5143,170 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('devicesWorkspace')?.classList.add('hidden');
             document.getElementById('dbConfigWorkspace')?.classList.add('hidden');
             document.getElementById('mockWorkspace')?.classList.add('hidden');
-            document.getElementById('dbConfigWorkspace')?.classList.add('hidden');
-            document.getElementById('mockWorkspace')?.classList.add('hidden');
+            document.getElementById('homeWorkspace')?.classList.add('hidden');
+            document.getElementById('testcasesWorkspace')?.classList.add('hidden');
         }
+
+        // ==================== 首頁 (Home) ====================
+        // 點擊左上角 AutoTest Logo 或呼叫 showHomeView() 進入首頁
+        function showHomeView() {
+            if (!confirmDiscardIfDirty()) return;
+            _hideAllWorkspaces();
+            document.getElementById('homeWorkspace').classList.remove('hidden');
+            document.getElementById('mainHeader').classList.remove('hidden');
+            document.getElementById('mainActions').classList.add('hidden');
+            document.getElementById('viewFilename').textContent = '首頁';
+            document.getElementById('viewTitle').innerHTML = '<i class="fa-solid fa-house text-blue-500"></i> AutoTest 首頁';
+            document.getElementById('viewTag').className = 'bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium';
+            document.getElementById('viewTag').textContent = 'Home';
+            currentTestCase = null;
+            updateHomeStats();
+        }
+
+        // 更新首頁的專案統計資訊（從現有的記憶體狀態計算，無需 API）
+        function updateHomeStats() {
+            const projName = (currentProjectId && projectsData[currentProjectId] && projectsData[currentProjectId].name) || '—';
+            const projEl = document.getElementById('homeStatProject');
+            if (projEl) projEl.textContent = projName;
+
+            // 走訪 activeTreeData 計算節點 / 測試案例數
+            let totalNodes = 0, totalCases = 0;
+            (function walk(nodes) {
+                if (!nodes) return;
+                for (const n of nodes) {
+                    totalNodes++;
+                    if (n.level_type === 'TESTCASE' || n.isFile) totalCases++;
+                    if (n.children && n.children.length) walk(n.children);
+                }
+            })(activeTreeData || []);
+            const tcEl = document.getElementById('homeStatTestcases');
+            if (tcEl) tcEl.textContent = String(totalCases);
+            const ndEl = document.getElementById('homeStatNodes');
+            if (ndEl) ndEl.textContent = String(totalNodes);
+            const rdEl = document.getElementById('homeStatRounds');
+            if (rdEl) rdEl.textContent = String((Array.isArray(testRoundList) ? testRoundList.length : 0));
+
+            // 最近測試案例（取前 5 筆）
+            const recentBox = document.getElementById('homeRecentCases');
+            if (recentBox) {
+                const list = [];
+                (function walk2(nodes, path) {
+                    if (!nodes) return;
+                    for (const n of nodes) {
+                        if (n.level_type === 'TESTCASE' || n.isFile) {
+                            list.push({ id: n.id, title: n.title || n.name || n.id, path });
+                        }
+                        if (n.children && n.children.length) {
+                            walk2(n.children, path ? path + ' / ' + (n.title || n.name) : (n.title || n.name));
+                        }
+                    }
+                })(activeTreeData || [], '');
+                const top = list.slice(0, 5);
+                if (!top.length) {
+                    recentBox.innerHTML = '<div class="p-6 text-center text-slate-400 text-sm">尚無測試案例，請先在左側目錄樹建立 Feature → Platform → Page → Scenario → TestCase。</div>';
+                } else {
+                    recentBox.innerHTML = top.map(x =>
+                        '<button onclick="loadTestCase(\'' + String(x.id).replace(/'/g, "\\'") + '\')" class="w-full text-left p-4 hover:bg-blue-50/50 transition flex items-center gap-3">' +
+                        '<i class="fa-regular fa-file-lines text-blue-500"></i>' +
+                        '<div class="flex-1 min-w-0">' +
+                        '  <div class="text-sm font-semibold text-slate-800 truncate">' + escapeHtml(x.title) + '</div>' +
+                        '  <div class="text-xs text-slate-500 truncate">' + escapeHtml(x.path || '—') + '</div>' +
+                        '</div>' +
+                        '<i class="fa-solid fa-chevron-right text-slate-300 text-xs"></i>' +
+                        '</button>'
+                    ).join('');
+                }
+            }
+        }
+
+        // ==================== 測試案例清單（與側邊欄同步） ====================
+        function showTestCasesView() {
+            if (!confirmDiscardIfDirty()) return;
+            _hideAllWorkspaces();
+            document.getElementById('testcasesWorkspace').classList.remove('hidden');
+            document.getElementById('mainHeader').classList.remove('hidden');
+            document.getElementById('mainActions').classList.add('hidden');
+            document.getElementById('viewFilename').textContent = '測試案例';
+            document.getElementById('viewTitle').innerHTML = '<i class="fa-solid fa-list-check text-blue-500"></i> 測試案例清單';
+            document.getElementById('viewTag').className = 'bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium';
+            document.getElementById('viewTag').textContent = 'Cases';
+            currentTestCase = null;
+            renderTestCasesList();
+        }
+
+        // 依當前 activeTreeData 收集所有 TESTCASE 節點（含祖先鏈上的 PLATFORM / PAGE 名稱）
+        function collectTestCaseNodesWithAncestors() {
+            const out = [];
+            (function walk(nodes, ancestors) {
+                if (!nodes) return;
+                for (const n of nodes) {
+                    const chain = ancestors.concat([n]);
+                    if (n.level_type === 'TESTCASE' || n.isFile) {
+                        const platform = chain.find(a => a.level_type === 'PLATFORM');
+                        const page = chain.find(a => a.level_type === 'PAGE');
+                        const feature = chain.find(a => a.level_type === 'FEATURE');
+                        out.push({
+                            id: n.id,
+                            title: n.title || n.name || n.id,
+                            platform: platform ? (platform.name || platform.title) : '',
+                            page: page ? (page.name || page.title) : '',
+                            feature: feature ? (feature.name || feature.title) : '',
+                            path: chain.slice(0, -1).map(a => a.title || a.name).filter(Boolean).join(' / ')
+                        });
+                    }
+                    if (n.children && n.children.length) walk(n.children, chain);
+                }
+            })(activeTreeData || [], []);
+            return out;
+        }
+
+        function renderTestCasesList() {
+            const tbody = document.getElementById('tcListBody');
+            const cntEl = document.getElementById('tcListCount');
+            if (!tbody) return;
+            const kw = (document.getElementById('tcListSearch')?.value || '').trim().toLowerCase();
+            const platFilter = document.getElementById('tcListPlatform')?.value || '';
+            let rows = collectTestCaseNodesWithAncestors();
+            if (platFilter) rows = rows.filter(r => (r.platform || '').toUpperCase() === platFilter);
+            if (kw) {
+                rows = rows.filter(r =>
+                    (r.title || '').toLowerCase().includes(kw) ||
+                    (r.platform || '').toLowerCase().includes(kw) ||
+                    (r.page || '').toLowerCase().includes(kw) ||
+                    (r.path || '').toLowerCase().includes(kw)
+                );
+            }
+            if (cntEl) cntEl.textContent = String(rows.length);
+            if (!rows.length) {
+                tbody.innerHTML = '<tr><td colspan="6" class="p-8 text-center text-slate-400 text-sm">沒有符合條件的測試案例</td></tr>';
+                return;
+            }
+            const platColor = {
+                WEB: 'bg-blue-100 text-blue-700',
+                API: 'bg-amber-100 text-amber-700',
+                APP: 'bg-emerald-100 text-emerald-700',
+                DB: 'bg-indigo-100 text-indigo-700',
+                UI: 'bg-sky-100 text-sky-700',
+                E2E: 'bg-purple-100 text-purple-700'
+            };
+            tbody.innerHTML = rows.map((r, i) => {
+                const pKey = (r.platform || '').toUpperCase();
+                const badge = platColor[pKey] || 'bg-slate-100 text-slate-600';
+                const idEsc = String(r.id).replace(/'/g, "\\'");
+                return '<tr class="hover:bg-blue-50/40 transition">' +
+                    '<td class="p-3 text-xs text-slate-400 font-mono">' + (i + 1) + '</td>' +
+                    '<td class="p-3"><div class="font-semibold text-slate-800">' + escapeHtml(r.title) + '</div></td>' +
+                    '<td class="p-3"><span class="text-xs px-2 py-0.5 rounded font-medium ' + badge + '">' + escapeHtml(r.platform || '—') + '</span></td>' +
+                    '<td class="p-3 text-sm text-slate-600 truncate max-w-[180px]" title="' + escapeHtml(r.page) + '">' + escapeHtml(r.page || '—') + '</td>' +
+                    '<td class="p-3 text-xs text-slate-500 truncate max-w-[220px]" title="' + escapeHtml(r.path) + '">' + escapeHtml(r.path || '—') + '</td>' +
+                    '<td class="p-3 text-center">' +
+                    '  <button onclick="loadTestCase(\'' + idEsc + '\')" class="text-xs px-2.5 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition"><i class="fa-solid fa-pen-to-square"></i> 編輯</button>' +
+                    '</td>' +
+                    '</tr>';
+            }).join('');
+        }
+
+        // 首頁 / 測試案例清單使用既有的 escapeHtml()（定義於稍早）
 
         function showTestRoundView() {
             if (!confirmDiscardIfDirty()) return;
@@ -6555,16 +6863,7 @@ driver.swipe(100, 800, 100, 200, 500)"
 
         function showScheduleView() {
             if (!confirmDiscardIfDirty()) return;
-            document.getElementById('editorWorkspace').classList.add('hidden');
-            document.getElementById('emptyWorkspace').classList.add('hidden');
-            document.getElementById('detailReportWorkspace').classList.add('hidden');
-            document.getElementById('recorderWorkspace')?.classList.add('hidden');
-            document.getElementById('reportWorkspace').classList.add('hidden');
-            document.getElementById('testRoundWorkspace')?.classList.add('hidden');
-            document.getElementById('envVarsWorkspace')?.classList.add('hidden');
-            document.getElementById('devicesWorkspace')?.classList.add('hidden');
-            document.getElementById('dbConfigWorkspace')?.classList.add('hidden');
-            document.getElementById('mockWorkspace')?.classList.add('hidden');
+            _hideAllWorkspaces();
             document.getElementById('scheduleWorkspace').classList.remove('hidden');
             document.getElementById('mainHeader').classList.remove('hidden');
             document.getElementById('mainActions').classList.add('hidden');
@@ -7120,16 +7419,7 @@ driver.swipe(100, 800, 100, 200, 500)"
 
                 // 切到編輯器視圖讓使用者馬上看到結果
                 currentTestCase = targetId;
-                document.getElementById('emptyWorkspace')?.classList.add('hidden');
-                document.getElementById('reportWorkspace')?.classList.add('hidden');
-                document.getElementById('detailReportWorkspace')?.classList.add('hidden');
-                document.getElementById('recorderWorkspace')?.classList.add('hidden');
-            document.getElementById('scheduleWorkspace')?.classList.add('hidden');
-                document.getElementById('testRoundWorkspace')?.classList.add('hidden');
-            document.getElementById('envVarsWorkspace')?.classList.add('hidden');
-            document.getElementById('devicesWorkspace')?.classList.add('hidden');
-            document.getElementById('dbConfigWorkspace')?.classList.add('hidden');
-            document.getElementById('mockWorkspace')?.classList.add('hidden');
+                _hideAllWorkspaces();
                 document.getElementById('editorWorkspace')?.classList.remove('hidden');
                 document.getElementById('mainActions')?.classList.remove('hidden');
                 if (typeof renderEditor === 'function') renderEditor(); else renderSteps();
