@@ -33,7 +33,9 @@
 
 ## 快速啟動（推薦：Docker Compose）
 
-需要：Docker 24+ / Docker Compose v2
+需要：Docker 24+ / Docker Compose v2。**支援 Windows / macOS / Ubuntu / Linux 三平台部署**，指令會依 shell 不同而略有差異。
+
+### Windows (PowerShell)
 
 ```powershell
 # 1. 建立 .env（必須有 STORAGE_BACKEND=minio，spawn 模式只走 MinIO）
@@ -46,7 +48,7 @@ MINIO_ROOT_USER=minioadmin
 MINIO_ROOT_PASSWORD=minioadmin
 "@ | Set-Content .env
 
-# 2. 建 spawn 容器用的 image（每觸發一個 testcase 都會起一個此 image 的容器）
+# 2. 建 spawn 容器用的 image
 docker build -f backend/Dockerfile.runner -t autotest-robot-runner:latest backend/
 
 # 3. 一鍵啟動所有服務（含建 backend / celery image）
@@ -55,6 +57,34 @@ docker compose up -d --build
 # 4. 開啟前端
 start http://localhost
 ```
+
+### macOS / Ubuntu / Linux (bash / zsh)
+
+```bash
+# 1. 建立 .env
+cat > .env <<'EOF'
+DB_PASSWORD=password
+DB_NAME=autotest_db
+BASE_URL=http://localhost
+STORAGE_BACKEND=minio
+MINIO_ROOT_USER=minioadmin
+MINIO_ROOT_PASSWORD=minioadmin
+EOF
+
+# 2. 建 spawn 容器用的 image
+docker build -f backend/Dockerfile.runner -t autotest-robot-runner:latest backend/
+
+# 3. 一鍵啟動所有服務
+docker compose up -d --build
+
+# 4. 開啟前端
+#   macOS:
+open http://localhost
+#   Linux:
+xdg-open http://localhost
+```
+
+> 🍎 **Apple Silicon (M1/M2/M3) 提醒**：`ppodgorsek/robot-framework` 目前只提供 amd64 image，在 arm64 Mac 上會透過 Rosetta/QEMU 模擬執行，Chromium 啟動會比原生慢 2-4 倍。若需要長時間跑大量案例，建議改用 amd64 機器或自行建 arm64 base image。
 
 服務埠：
 
@@ -82,10 +112,11 @@ start http://localhost
 
 ## 本機開發（不用 Docker）
 
-需要：Python 3.11+、Node 20+、MySQL 8、Redis 7
+需要：Python 3.11+、Node 20+、MySQL 8、Redis 7。三平台皆可；差異僅在 venv 啟動指令。
+
+### Windows (PowerShell)
 
 ```powershell
-# 後端
 cd backend
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -119,6 +150,37 @@ python run.py                                       # T1 後端 (http://localhos
 celery -A tasks.celery_app worker -l info           # T2 worker
 ```
 
+### macOS / Ubuntu / Linux (bash / zsh)
+
+```bash
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+rfbrowser init
+
+cat > .env <<'EOF'
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=password
+DB_NAME=autotest_db
+REDIS_URL=redis://localhost:6379/0
+PIC_FOLDER=./PIC
+BASE_URL=http://localhost:8000
+STORAGE_BACKEND=local
+APP_HOST=0.0.0.0
+APP_PORT=8000
+DEBUG=True
+EOF
+
+mysql -uroot -p < migrations/init_schema.sql
+
+python run.py                                       # T1 後端
+celery -A tasks.celery_app worker -l info           # T2 worker
+```
+
 直接用瀏覽器開 `index.html`（檔案 `file://...` 也可，但建議透過 nginx 反代以正確載入 `/api`、`/ws`、`/pics`）。
 最簡作法是用 Docker Compose 啟動 frontend 服務（`docker compose up -d frontend`），即可在 <http://localhost/> 使用單頁介面。
 
@@ -137,7 +199,7 @@ celery -A tasks.celery_app worker -l info           # T2 worker
 | REDIS_URL | redis://localhost:6379/0 | Celery broker + WS |
 | PIC_FOLDER | ./PIC | 留作本機 / `local_agent.py` 模式上傳區暫存；spawn 模式下不使用 |
 | BASE_URL | http://localhost | 對外可訪問的 URL 前綴（截圖 / 影片 / Trace 都用此前綴拼接） |
-| RECORDER_HOST_ROOT | C:\Demo\autotest_v1.0_20260420 | 錄製一鍵 PowerShell 指令切換用的本機專案根目錄 |
+| RECORDER_HOST_ROOT | `.` | 錄製一鍵指令（PowerShell / bash）切換用的本機專案根目錄；預設 `.` = 使用者終端機當下所在目錄；需固定路徑時自行覆蓋（Windows：`C:/path/to/proj`、macOS/Linux：`/Users/you/proj` 或 `/home/you/proj`）|
 | **STORAGE_BACKEND** | **minio** | spawn 模式必須是 `minio`；改 `local` 會在執行時報錯 |
 | MINIO_ENDPOINT / MINIO_ACCESS_KEY / MINIO_SECRET_KEY | http://minio:9000 / minioadmin / minioadmin | spawn 模式必填 |
 | APP_HOST / APP_PORT | 0.0.0.0 / 8000 | uvicorn |
@@ -155,7 +217,7 @@ celery -A tasks.celery_app worker -l info           # T2 worker
 | MINIO_ROOT_USER / MINIO_ROOT_PASSWORD | minioadmin / minioadmin | MinIO 管理帳密 |
 | PLAYWRIGHT_HEADLESS | 1 | spawn 容器內是否使用 headless |
 | ROBOT_RUNNER_IMAGE | autotest-robot-runner:latest | spawn 用的 image tag；改成自己的 registry 也可以 |
-| ROBOT_RUNNER_NETWORK | autotest_v10_20260420_default | spawn 容器要附加的 docker network；必須能連到 `minio` 與 `redis` 服務名 |
+| ROBOT_RUNNER_NETWORK | autotest_default | spawn 容器要附加的 docker network；由 `docker-compose.yml` 的 `networks.default.name` 固定為 `autotest_default`，不再隨目錄名變動；必須能連到 `minio` / `redis` / `mysql` 服務名 |
 
 ## 測試案例資料模型
 
@@ -266,16 +328,16 @@ docker-compose.yml
 ### 本機 Agent
 
 1. 從 `GET /api/local-runner/agent` 下載 `local_agent.py`。
-2. 安裝一次性依賴：
+2. 安裝一次性依賴（三平台指令相同；macOS/Linux 若同時有 python2 則用 `python3` / `pip3`）：
 
-```powershell
+```bash
 pip install playwright requests
 playwright install chromium
 ```
 
 3. 啟動 agent：
 
-```powershell
+```bash
 python local_agent.py --server http://localhost
 ```
 
@@ -312,7 +374,7 @@ python local_agent.py --server http://localhost
 - 後端另外提供 `POST /api/testcases/{node_id}/import-md` 可把 Markdown 解析回測試案例內容；目前預設 UI 尚未提供匯入按鈕。
 - `run_tests.py` 會把 `tests/` 下的 Markdown 測試轉成 `.robot` 後執行：
 
-```powershell
+```bash
 python run_tests.py
 python run_tests.py -f tests/e2e/samples/integration_test.md
 python run_tests.py -t "登入測試案例"

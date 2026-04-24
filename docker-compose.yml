@@ -137,7 +137,9 @@ services:
       #   預設值會被 docker-compose build 時建立的 autotest-robot-runner（FROM ppodgorsek/robot-framework）取代
       # ROBOT_RUNNER_NETWORK：spawn 容器要附加的 docker network，必須能連到 minio / redis
       ROBOT_RUNNER_IMAGE: ${ROBOT_RUNNER_IMAGE:-autotest-robot-runner:latest}
-      ROBOT_RUNNER_NETWORK: ${ROBOT_RUNNER_NETWORK:-autotest_v10_20260420_default}
+      # 與下方 networks.default.name 保持一致；不再依賴 compose 自動由目錄名衍生的網段名稱
+      # （目錄名可能是 Windows 的 autotest_v1.0_20260420 或 Linux 的 autotest，不一致）
+      ROBOT_RUNNER_NETWORK: ${ROBOT_RUNNER_NETWORK:-autotest_default}
     volumes:
       - pic_data:/app/PIC
       # 把 host 的 docker daemon 開放給 celery worker 用（spawn 子容器時呼叫）
@@ -162,4 +164,10 @@ volumes:
   mysql_data:
   pic_data:
   minio_data:
+
+networks:
+  default:
+    # 固定 network 名稱，避免跨平台（Windows / macOS / Linux）因目錄名不同而產生不同的 default 網段
+    # spawn 容器要附加到這個 network 才能解析 minio / redis / mysql 服務名
+    name: autotest_default
 

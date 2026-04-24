@@ -49,4 +49,7 @@ class RecorderCommandResponse(BaseModel):
     npx_command: str
     pip_command: str
     rfbrowser_command: str
+    # Windows 一鍵（PowerShell）
     powershell_oneliner: str
+    # macOS / Linux 一鍵（bash / zsh）
+    bash_oneliner: str = ""

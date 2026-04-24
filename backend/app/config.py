@@ -16,8 +16,10 @@ class Settings(BaseSettings):
     PIC_FOLDER: str = "./PIC"
     BASE_URL: str = "http://localhost:8000"
 
-    # 錄製腳本在「使用者本機」執行時，預設切換到的專案根目錄（用於 record\<sid> 相對路徑基準）
-    RECORDER_HOST_ROOT: str = "C:\\Demo\\autotest_v1.0_20260420"
+    # 錄製腳本在「使用者本機」執行時，預設切換到的專案根目錄（用於 record/<sid> 相對路徑基準）
+    # 預設 "." = 使用者當前工作目錄；需要固定到特定路徑時再用環境變數覆蓋
+    # 跨平台：Windows 用 "C:/path/to/proj"、macOS/Linux 用 "/Users/you/proj" 或 "/home/you/proj"
+    RECORDER_HOST_ROOT: str = "."
 
     # 物件儲存：local | minio
     STORAGE_BACKEND: str = "local"

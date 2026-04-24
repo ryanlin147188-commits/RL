@@ -79,6 +79,7 @@ def _build_commands(session_id: str, target_url: str) -> RecorderCommandResponse
     # 注意：使用者在本機執行；輸出檔固定名稱便於上傳
     py = f"recorded_{session_id[:8]}.py"
     tz = f"trace_{session_id[:8]}.zip"
+    short = session_id[:8]
 
     # Playwright ≥ 1.35 才支援 codegen 的 --save-trace 旗標；較舊版本會回報
     # "unknown option '--save-trace=...'" 而無法啟動 codegen。因此 one-liner
@@ -97,15 +98,22 @@ def _build_commands(session_id: str, target_url: str) -> RecorderCommandResponse
     )
     rf_cmd = f'rfbrowser codegen "{target_url}" -o {py}'
 
-    # 完整一鍵流程 (PowerShell)：
+    host_root = (settings.RECORDER_HOST_ROOT or ".").strip()
+    # 預設 "." 表示「不要切目錄，沿用使用者終端機目前所在位置」
+    host_root_is_cwd = host_root in ("", ".", "./")
+
+    # ── Windows 一鍵（PowerShell）────────────────────────────
     # 1) 切到 <project_root>\record\<sid>\ 工作目錄（避免在系統目錄執行）
-    # 2) 先試 codegen --save-trace；若失敗 ($LASTEXITCODE != 0 且未產出 .py)
-    #    判定為 Playwright 版本過舊，退回不含 --save-trace 的版本。
-    # 3) curl 上傳；trace.zip 僅在確實存在時加入 -F 參數，避免 curl 因找不到
-    #    檔案而回傳 error 26。
+    # 2) 先試 codegen --save-trace；若失敗退回不含 --save-trace 的版本
+    # 3) curl 上傳；trace.zip 僅在確實存在時加入 -F 參數
+    ps_cd = (
+        ""
+        if host_root_is_cwd
+        else f'if (Test-Path "{host_root}") {{ Set-Location "{host_root}" }}; '
+    )
     ps_script = (
-        f'if (Test-Path "{settings.RECORDER_HOST_ROOT}") {{ Set-Location "{settings.RECORDER_HOST_ROOT}" }}; '
-        f'$wd = "record\\{session_id[:8]}"; '
+        f'{ps_cd}'
+        f'$wd = "record\\{short}"; '
         f'New-Item -ItemType Directory -Force -Path $wd | Out-Null; '
         f'Set-Location $wd; '
         # 強制 UTF-8 工作環境，避免 PS 5.1 預設 ANSI(cp950) 把中文/全形符號變成「?」
@@ -134,14 +142,44 @@ def _build_commands(session_id: str, target_url: str) -> RecorderCommandResponse
     # 包成 -EncodedCommand：CMD / PowerShell / Windows Terminal 都能直接貼上執行
     import base64 as _b64
     _b = _b64.b64encode(ps_script.encode("utf-16-le")).decode("ascii")
-    one_liner = f'powershell -NoProfile -ExecutionPolicy Bypass -EncodedCommand {_b}'
+    ps_one_liner = f'powershell -NoProfile -ExecutionPolicy Bypass -EncodedCommand {_b}'
+
+    # ── macOS / Linux 一鍵（bash / zsh）──────────────────────
+    # 用 POSIX sh 語法可同時在 bash/zsh 通吃。-e 讓 codegen 失敗時自動中止流程。
+    bash_cd = "" if host_root_is_cwd else f'[ -d "{host_root}" ] && cd "{host_root}"; '
+    bash_script = (
+        f'export PYTHONIOENCODING=utf-8; export PYTHONUTF8=1; '
+        f'{bash_cd}'
+        f'wd="record/{short}"; mkdir -p "$wd"; cd "$wd"; '
+        # ① 先試 --save-trace
+        f'{pip_cmd} || true; '
+        # ② 若沒產出 .py，退回無 trace 模式
+        f'if [ ! -f "{py}" ]; then '
+        f'  echo "[info] --save-trace 不可用，改以無 trace 模式重試"; '
+        f'  {pip_cmd_no_trace} || true; '
+        f'fi; '
+        f'if [ ! -f "{py}" ]; then '
+        f'  echo "[error] codegen 未產出 {py}，請確認 Playwright 已安裝" >&2; '
+        f'  exit 1; '
+        f'fi; '
+        # ③ curl 上傳；trace 存在才帶 -F trace=@...
+        f'args="-F script=@{py}"; '
+        f'if [ -f "{tz}" ]; then args="$args -F trace=@{tz}"; '
+        f'else echo "[info] 未產生 trace.zip，僅上傳 script"; fi; '
+        f'curl $args "{upload_url}"'
+    )
+    # 直接輸出 shell 指令序列；使用者貼進 bash / zsh 終端機即可執行
+    # 不用 bash -c '...' 包裝，避免 target_url 內含單引號時破壞外層引號
+    bash_one_liner = bash_script
+
     return RecorderCommandResponse(
         session_id=session_id,
         upload_url=upload_url,
         npx_command=npx_cmd,
         pip_command=pip_cmd,
         rfbrowser_command=rf_cmd,
-        powershell_oneliner=one_liner,
+        powershell_oneliner=ps_one_liner,
+        bash_oneliner=bash_one_liner,
     )
 
 

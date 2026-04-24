@@ -881,7 +881,7 @@ def run_testcase(
 
     # ── 3) Spawn 容器 ─────────────────────────────────
     image = os.environ.get("ROBOT_RUNNER_IMAGE", "autotest-robot-runner:latest")
-    network = os.environ.get("ROBOT_RUNNER_NETWORK", "autotest_v10_20260420_default")
+    network = os.environ.get("ROBOT_RUNNER_NETWORK", "autotest_default")
     container_env = {
         "JOB_TASK_ID": task_id,
         "JOB_REPORT_ID": report_id,

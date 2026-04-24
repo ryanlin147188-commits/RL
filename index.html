@@ -360,19 +360,34 @@
                     <div class="space-y-3">
                         <p class="text-xs text-slate-600 bg-amber-50 border border-amber-200 rounded p-3">
                             <i class="fa-solid fa-bolt text-amber-500"></i>
-                            <b>使用方式：</b>建立 session 後，下方的 PowerShell 指令已自動複製到剪貼簿。
-                            <b>直接在 PowerShell 視窗貼上 Enter</b> 即可開啟 Playwright 錄製器；操作完成後關閉視窗即會自動產生 trace.zip 並上傳至本系統。
+                            <b>使用方式：</b>建立 session 後，下方已備好 <b>Windows (PowerShell)</b> 與 <b>macOS / Linux (bash)</b> 兩種一鍵指令；
+                            依自己的作業系統複製對應那一欄，貼進終端機 Enter 即可開啟 Playwright 錄製器。
+                            操作完成後關閉視窗，會自動產生 trace.zip 並上傳至本系統。
                         </p>
                         <div>
-                            <div class="flex items-center justify-between mb-1"><span class="text-xs font-mono text-slate-500">PowerShell 完整指令（貼到 PowerShell 執行）</span><button type="button" onclick="recCopy('cmdPs')" class="text-xs text-blue-600 hover:underline"><i class="fa-solid fa-copy"></i> 複製</button></div>
-                            <textarea id="cmdPs" aria-label="PowerShell 一鍵錄製加上傳指令" readonly rows="5" class="w-full text-xs font-mono p-2 bg-slate-50 border border-slate-200 rounded"></textarea>
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-xs font-mono text-slate-500"><i class="fa-brands fa-windows text-blue-500"></i> Windows (PowerShell) — 一鍵指令</span>
+                                <button type="button" onclick="recCopy('cmdPs')" class="text-xs text-blue-600 hover:underline"><i class="fa-solid fa-copy"></i> 複製</button>
+                            </div>
+                            <textarea id="cmdPs" aria-label="Windows PowerShell 一鍵錄製加上傳指令" readonly rows="4" class="w-full text-xs font-mono p-2 bg-slate-50 border border-slate-200 rounded"></textarea>
+                        </div>
+                        <div>
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-xs font-mono text-slate-500"><i class="fa-brands fa-apple text-slate-700"></i><i class="fa-brands fa-linux text-slate-700 ml-1"></i> macOS / Ubuntu / Linux (bash / zsh) — 一鍵指令</span>
+                                <button type="button" onclick="recCopy('cmdBash')" class="text-xs text-blue-600 hover:underline"><i class="fa-solid fa-copy"></i> 複製</button>
+                            </div>
+                            <textarea id="cmdBash" aria-label="macOS / Linux bash 一鍵錄製加上傳指令" readonly rows="5" class="w-full text-xs font-mono p-2 bg-slate-50 border border-slate-200 rounded"></textarea>
                         </div>
                         <!-- 隱藏欄位：保留以維持 recCreateSession 既有寫入邏輯 -->
                         <textarea id="cmdNpx" class="hidden" aria-hidden="true"></textarea>
                         <textarea id="cmdPip" class="hidden" aria-hidden="true"></textarea>
                         <textarea id="cmdRfb" class="hidden" aria-hidden="true"></textarea>
                     </div>
-                    <p class="mt-3 text-xs text-slate-500"><i class="fa-solid fa-circle-info text-amber-500"></i> 第一次執行若出現「執行原則」警告：在 PowerShell 中執行 <code>Set-ExecutionPolicy -Scope CurrentUser RemoteSigned</code> 一次即可。RF Browser 已內建 playwright，無需額外安裝。</p>
+                    <p class="mt-3 text-xs text-slate-500"><i class="fa-solid fa-circle-info text-amber-500"></i>
+                        <b>Windows：</b>第一次若出現「執行原則」警告，在 PowerShell 中執行 <code>Set-ExecutionPolicy -Scope CurrentUser RemoteSigned</code> 一次即可。
+                        <b>macOS / Linux：</b>需已安裝 <code>python</code> 與 <code>curl</code>（大多數系統預設內建）；若沒裝 Playwright，第一次執行會自動從 pip 安裝。
+                        RF Browser 已內建 playwright，無需額外安裝。
+                    </p>
                 </section>
 
                 <!-- ③ 上傳結果 -->
@@ -6940,6 +6955,8 @@ driver.swipe(100, 800, 100, 200, 500)"
                 document.getElementById('cmdPip').value = data.commands.pip_command || '';
                 document.getElementById('cmdRfb').value = data.commands.rfbrowser_command || '';
                 document.getElementById('cmdPs').value = data.commands.powershell_oneliner || '';
+                const bashEl = document.getElementById('cmdBash');
+                if (bashEl) bashEl.value = data.commands.bash_oneliner || '';
                 document.getElementById('recCmdSection').classList.remove('hidden');
                 document.getElementById('recUploadSection').classList.remove('hidden');
                 document.getElementById('recPreviewSection').classList.add('hidden');
@@ -6947,11 +6964,10 @@ driver.swipe(100, 800, 100, 200, 500)"
                 document.getElementById('recScriptName').textContent = '尚未選擇';
                 document.getElementById('recTraceName').textContent = '尚未選擇';
                 recScriptFile = null; recTraceFile = null;
-                showToast('Session 已建立', 'success');
+                showToast('Session 已建立；請依作業系統複製 PowerShell 或 bash 指令', 'success');
                 recRefreshList();
-                // PowerShell 指令已顯示在頁面上（由 recRenderCommands 填入 #cmdPs），
-                // 使用者可直接按「複製」後貼到 PowerShell 執行。
-                // 已同步把指令複製到剪貼簿方便立即貼上
+                // 兩種指令都已顯示在頁面上；預設把 PowerShell 指令複製到剪貼簿（Windows 使用者佔多數）
+                // macOS / Linux 使用者按對應那欄的「複製」按鈕即可
                 try { navigator.clipboard.writeText(data.commands.powershell_oneliner || ''); } catch (e) { /* ignore */ }
             } catch (e) {
                 showToast('建立失敗：' + e.message, 'error');
@@ -7518,6 +7534,8 @@ driver.swipe(100, 800, 100, 200, 500)"
                     document.getElementById('cmdPip').value = c.pip_command || '';
                     document.getElementById('cmdRfb').value = c.rfbrowser_command || '';
                     document.getElementById('cmdPs').value = c.powershell_oneliner || '';
+                    const bashEl2 = document.getElementById('cmdBash');
+                    if (bashEl2) bashEl2.value = c.bash_oneliner || '';
                 }
                 document.getElementById('recUrl').value = s.target_url || '';
                 document.getElementById('recSessionInfo').innerHTML =
