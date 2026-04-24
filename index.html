@@ -14,6 +14,7 @@
     <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
     <script>
         tailwind.config = {
+            darkMode: 'class',   // 用 <html class="dark"> 切換，可配合 localStorage 持久化
             theme: {
                 extend: {
                     colors: {
@@ -24,6 +25,13 @@
                 }
             }
         }
+        // 載入時立即套用暗黑模式（避免切換時閃爍）
+        (function applyStoredTheme() {
+            try {
+                const t = localStorage.getItem('autotest.theme');
+                if (t === 'dark') document.documentElement.classList.add('dark');
+            } catch (_) {}
+        })();
     </script>
     <style>
         /* 自定義捲軸樣式 */
@@ -149,58 +157,322 @@
 
         /* 手機直式截圖框架（APP 步驟 detail report 用）*/
         .mobile-frame { width: 220px; height: 460px; }
+
+        /* ─────────────────────────────────────────────────────────
+           Dark Mode：targeted overrides（class-based，透過 <html class="dark">）
+           策略：以 CSS attribute selector 覆蓋常見的 bg-white / bg-stone-50 /
+                 border-stone / text-stone 等 tailwind utility，維持最小改動面。
+           ──────────────────────────────────────────────────────── */
+        html.dark body { background-color: #1c1917 !important; color: #e7e5e4; }
+        html.dark .bg-white { background-color: #292524 !important; }
+        html.dark .bg-stone-50,
+        html.dark .bg-stone-50\/50,
+        html.dark .bg-slate-50,
+        html.dark .bg-slate-50\/50 { background-color: #1c1917 !important; }
+        html.dark .bg-amber-50\/40,
+        html.dark .bg-amber-50\/30,
+        html.dark .bg-amber-50\/20,
+        html.dark .bg-amber-50\/60 { background-color: #292524 !important; }
+        html.dark .bg-slate-100 { background-color: #3a322b !important; }
+        html.dark .bg-stone-100 { background-color: #3a322b !important; }
+        /* 邊框色：淺色 → 深色 */
+        html.dark .border-amber-100,
+        html.dark .border-amber-200,
+        html.dark .border-stone-100,
+        html.dark .border-stone-200,
+        html.dark .border-stone-300,
+        html.dark .border-slate-200,
+        html.dark .border-slate-300 { border-color: #44403c !important; }
+        html.dark .divide-stone-100 > * + *,
+        html.dark .divide-slate-100 > * + * { border-color: #44403c !important; }
+        /* 文字色：深色字體 → 淺色 */
+        html.dark .text-stone-800,
+        html.dark .text-stone-700,
+        html.dark .text-slate-800,
+        html.dark .text-slate-700 { color: #e7e5e4 !important; }
+        html.dark .text-stone-600,
+        html.dark .text-slate-600,
+        html.dark .text-stone-500,
+        html.dark .text-slate-500 { color: #a8a29e !important; }
+        html.dark .text-stone-400,
+        html.dark .text-slate-400 { color: #78716c !important; }
+        /* 表單元件 */
+        html.dark input,
+        html.dark select,
+        html.dark textarea {
+            background-color: #292524 !important;
+            color: #e7e5e4 !important;
+            border-color: #44403c !important;
+        }
+        html.dark input::placeholder,
+        html.dark textarea::placeholder { color: #78716c; }
+        /* readonly inputs (disabled 樣式) */
+        html.dark input[readonly] { background-color: #1c1917 !important; }
+        /* 捲軸 */
+        html.dark ::-webkit-scrollbar-track { background: #1c1917; }
+        html.dark ::-webkit-scrollbar-thumb { background: #57534e; }
+        html.dark ::-webkit-scrollbar-thumb:hover { background: #78716c; }
+        /* 保留功能色徽章（藍/綠/紅/黃/紫等）不被反轉，維持視覺辨識 */
+        /* 保留漸層按鈕/Hero 不被反轉 */
+        html.dark .bg-gradient-to-r,
+        html.dark .bg-gradient-to-br,
+        html.dark .bg-gradient-to-l { background-color: transparent !important; }
     </style>
 </head>
-<body class="h-screen flex flex-col bg-slate-50 text-slate-800 font-sans overflow-hidden relative">
+<body class="h-screen flex flex-col bg-stone-50 text-stone-800 font-sans overflow-hidden relative">
 
-    <!-- Toast 提示容器 -->
-    <div id="toastContainer" class="fixed top-5 right-5 z-[100] flex flex-col gap-2 pointer-events-none"></div>
+    <!-- Toast 提示容器（z-[999] 確保永遠蓋在 Modal/Overlay 之上） -->
+    <div id="toastContainer" class="fixed top-5 right-5 z-[999] flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- ============================================================ -->
+    <!-- 認證覆蓋層（登入 / 註冊 / 忘記密碼）                            -->
+    <!-- 未登入時 authOverlay 顯示並蓋滿全屏；登入後 JS 隱藏它。        -->
+    <!-- ============================================================ -->
+    <div id="authOverlay" class="fixed inset-0 z-[200] hidden bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 flex items-center justify-center p-4">
+        <div class="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-amber-200/60 overflow-hidden">
+            <!-- Hero Header -->
+            <div class="bg-gradient-to-r from-amber-500 to-orange-500 px-8 py-6 text-white">
+                <div class="flex items-center gap-3 mb-2">
+                    <div class="bg-white/20 p-2 rounded-lg backdrop-blur">
+                        <i class="fa-solid fa-vial-circle-check text-xl"></i>
+                    </div>
+                    <div>
+                        <h1 class="font-bold text-xl tracking-tight">AutoTest</h1>
+                        <p class="text-xs opacity-90">自動化測試平台</p>
+                    </div>
+                </div>
+                <p id="authHeroSubtitle" class="text-sm opacity-90 mt-2">歡迎回來，請登入以繼續</p>
+            </div>
+
+            <!-- Tab 切換 -->
+            <div class="flex border-b border-stone-200 bg-stone-50/50">
+                <button type="button" id="authTabLogin" onclick="switchAuthTab('login')"
+                    class="flex-1 py-3 text-sm font-medium text-amber-600 border-b-2 border-amber-500 bg-white transition">
+                    <i class="fa-solid fa-right-to-bracket mr-1"></i> 登入
+                </button>
+                <button type="button" id="authTabRegister" onclick="switchAuthTab('register')"
+                    class="flex-1 py-3 text-sm font-medium text-stone-500 border-b-2 border-transparent hover:text-amber-600 transition">
+                    <i class="fa-solid fa-user-plus mr-1"></i> 註冊
+                </button>
+                <button type="button" id="authTabForgot" onclick="switchAuthTab('forgot')"
+                    class="flex-1 py-3 text-sm font-medium text-stone-500 border-b-2 border-transparent hover:text-amber-600 transition">
+                    <i class="fa-solid fa-key mr-1"></i> 忘記密碼
+                </button>
+            </div>
+
+            <!-- 登入表單 -->
+            <form id="authLoginForm" onsubmit="return authHandleLogin(event)" class="px-8 py-6 space-y-4">
+                <div>
+                    <label for="loginUsername" class="block text-xs font-semibold text-stone-600 mb-1.5">使用者名稱</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-user absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm"></i>
+                        <input type="text" id="loginUsername" required autocomplete="username" value="admin"
+                            class="w-full pl-9 pr-3 py-2.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition">
+                    </div>
+                </div>
+                <div>
+                    <label for="loginPassword" class="block text-xs font-semibold text-stone-600 mb-1.5">密碼</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-lock absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm"></i>
+                        <input type="password" id="loginPassword" required autocomplete="current-password" value="admin123"
+                            class="w-full pl-9 pr-10 py-2.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition">
+                        <button type="button" onclick="togglePasswordVisibility('loginPassword', this)" aria-label="顯示/隱藏密碼"
+                            class="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-stone-400 hover:text-amber-500 transition">
+                            <i class="fa-regular fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+                <label class="flex items-center gap-2 text-xs text-stone-600 cursor-pointer">
+                    <input type="checkbox" id="loginRemember" checked class="rounded border-stone-300 text-amber-500 focus:ring-amber-400">
+                    <span>記住我（保留登入狀態）</span>
+                </label>
+                <button type="submit" class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-lg font-semibold text-sm shadow-md transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-right-to-bracket"></i> 登入
+                </button>
+                <div class="text-[11px] text-stone-500 bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
+                    <i class="fa-solid fa-circle-info text-amber-500 mt-0.5"></i>
+                    <div>
+                        <b>預設帳號</b>：<code class="bg-white px-1.5 rounded border border-amber-200">admin</code> / <code class="bg-white px-1.5 rounded border border-amber-200">admin123</code>
+                    </div>
+                </div>
+            </form>
+
+            <!-- 註冊表單 -->
+            <form id="authRegisterForm" onsubmit="return authHandleRegister(event)" class="px-8 py-6 space-y-4 hidden">
+                <div>
+                    <label for="regUsername" class="block text-xs font-semibold text-stone-600 mb-1.5">使用者名稱 <span class="text-rose-500">*</span></label>
+                    <input type="text" id="regUsername" required pattern="[A-Za-z0-9_]{3,32}" title="3-32 字元，英數與底線"
+                        class="w-full px-3 py-2.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition">
+                    <p class="text-[10px] text-stone-500 mt-1">3-32 字元，限英數與底線</p>
+                </div>
+                <div>
+                    <label for="regEmail" class="block text-xs font-semibold text-stone-600 mb-1.5">Email</label>
+                    <input type="email" id="regEmail"
+                        class="w-full px-3 py-2.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition">
+                </div>
+                <div>
+                    <label for="regPassword" class="block text-xs font-semibold text-stone-600 mb-1.5">密碼 <span class="text-rose-500">*</span></label>
+                    <div class="relative">
+                        <input type="password" id="regPassword" required minlength="6"
+                            class="w-full pl-3 pr-10 py-2.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition">
+                        <button type="button" onclick="togglePasswordVisibility('regPassword', this)" aria-label="顯示/隱藏密碼"
+                            class="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-stone-400 hover:text-amber-500 transition">
+                            <i class="fa-regular fa-eye"></i>
+                        </button>
+                    </div>
+                    <p class="text-[10px] text-stone-500 mt-1">至少 6 字元</p>
+                </div>
+                <div>
+                    <label for="regPassword2" class="block text-xs font-semibold text-stone-600 mb-1.5">再次輸入密碼 <span class="text-rose-500">*</span></label>
+                    <div class="relative">
+                        <input type="password" id="regPassword2" required minlength="6"
+                            class="w-full pl-3 pr-10 py-2.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition">
+                        <button type="button" onclick="togglePasswordVisibility('regPassword2', this)" aria-label="顯示/隱藏密碼"
+                            class="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-stone-400 hover:text-amber-500 transition">
+                            <i class="fa-regular fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+                <button type="submit" class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-lg font-semibold text-sm shadow-md transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-user-plus"></i> 建立帳號
+                </button>
+            </form>
+
+            <!-- 忘記密碼表單（直接重設：需輸入帳號 + Email + 新密碼） -->
+            <form id="authForgotForm" onsubmit="return authHandleForgot(event)" class="px-8 py-6 space-y-4 hidden">
+                <p class="text-xs text-stone-600 bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
+                    <i class="fa-solid fa-circle-info text-amber-500 mt-0.5"></i>
+                    <span>請輸入你的 <b>使用者名稱</b>、<b>註冊 Email</b> 與 <b>新密碼</b>。兩者比對成功後即時重設密碼。</span>
+                </p>
+                <div>
+                    <label for="forgotUsername" class="block text-xs font-semibold text-stone-600 mb-1.5">使用者名稱</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-user absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm"></i>
+                        <input type="text" id="forgotUsername" required autocomplete="username"
+                            class="w-full pl-9 pr-3 py-2.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition">
+                    </div>
+                </div>
+                <div>
+                    <label for="forgotEmail" class="block text-xs font-semibold text-stone-600 mb-1.5">註冊 Email</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-envelope absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm"></i>
+                        <input type="email" id="forgotEmail" required autocomplete="email"
+                            class="w-full pl-9 pr-3 py-2.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition">
+                    </div>
+                </div>
+                <div>
+                    <label for="forgotNewPwd" class="block text-xs font-semibold text-stone-600 mb-1.5">新密碼</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-lock absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm"></i>
+                        <input type="password" id="forgotNewPwd" required minlength="6" autocomplete="new-password"
+                            class="w-full pl-9 pr-10 py-2.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition">
+                        <button type="button" onclick="togglePasswordVisibility('forgotNewPwd', this)" aria-label="顯示/隱藏密碼"
+                            class="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-stone-400 hover:text-amber-500 transition">
+                            <i class="fa-regular fa-eye"></i>
+                        </button>
+                    </div>
+                    <p class="text-[10px] text-stone-500 mt-1">至少 6 字元</p>
+                </div>
+                <div>
+                    <label for="forgotNewPwd2" class="block text-xs font-semibold text-stone-600 mb-1.5">再次輸入新密碼</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-lock absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm"></i>
+                        <input type="password" id="forgotNewPwd2" required minlength="6" autocomplete="new-password"
+                            class="w-full pl-9 pr-10 py-2.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition">
+                        <button type="button" onclick="togglePasswordVisibility('forgotNewPwd2', this)" aria-label="顯示/隱藏密碼"
+                            class="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-stone-400 hover:text-amber-500 transition">
+                            <i class="fa-regular fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+                <button type="submit" class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-lg font-semibold text-sm shadow-md transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-rotate"></i> 重設密碼
+                </button>
+            </form>
+        </div>
+    </div>
 
     <!-- 頂部導覽列 -->
-    <header class="bg-white border-b border-slate-200 h-14 flex items-center justify-between px-6 shrink-0 z-10 shadow-sm relative">
-        <!-- Logo 區：點擊回首頁 -->
-        <button type="button" id="navHomeBtn" onclick="showHomeView()" title="回首頁" aria-label="回首頁"
-            class="flex items-center gap-3 hover:opacity-80 transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 rounded">
-            <div class="bg-blue-600 text-white p-1.5 rounded-md shadow-inner">
-                <i class="fa-solid fa-vial-circle-check"></i>
-            </div>
-            <h1 class="font-bold text-lg text-slate-700 tracking-tight">AutoTest <span class="text-xs text-slate-400 font-normal ml-2 border border-slate-200 px-1.5 py-0.5 rounded">v1.0</span></h1>
-        </button>
-        <div class="flex items-center gap-6">
-            <!-- 設備資訊按鈕（全專案共用 Android/iOS 虛擬機）-->
-            <button type="button" onclick="showDevicesView()" id="navDevicesBtn" class="text-slate-500 hover:text-rose-600 font-medium transition flex items-center gap-2">
-                <i class="fa-solid fa-mobile-screen"></i> 設備資訊
+    <header class="bg-white border-b border-amber-100 h-14 flex items-center justify-between px-4 md:px-6 shrink-0 z-[100] shadow-sm relative">
+        <div class="flex items-center gap-2">
+            <!-- 手機版：側邊欄開關（hamburger）— 僅 < md 顯示 -->
+            <button type="button" id="sidebarMobileToggle" onclick="toggleMobileSidebar()"
+                class="md:hidden p-2 text-stone-600 hover:text-amber-600 hover:bg-amber-50 rounded transition"
+                aria-label="開啟側邊欄" title="開啟專案目錄">
+                <i class="fa-solid fa-bars text-lg"></i>
             </button>
-            <!-- 測試案例按鈕（瀏覽所有 TESTCASE，與左側目錄樹同步）-->
-            <button type="button" onclick="showTestCasesView()" id="navTestCasesBtn" class="text-slate-500 hover:text-blue-600 font-medium transition flex items-center gap-2">
-                <i class="fa-solid fa-list-check"></i> 測試案例
+            <!-- Logo 區：點擊回首頁 -->
+            <button type="button" id="navHomeBtn" onclick="showHomeView()" title="回首頁" aria-label="回首頁"
+                class="flex items-center gap-2 md:gap-3 hover:opacity-80 transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 rounded">
+                <div class="bg-blue-600 text-white p-1.5 rounded-md shadow-inner">
+                    <i class="fa-solid fa-vial-circle-check"></i>
+                </div>
+                <h1 class="font-bold text-base md:text-lg text-slate-700 tracking-tight whitespace-nowrap">AutoTest <span class="hidden sm:inline text-xs text-slate-400 font-normal ml-2 border border-slate-200 px-1.5 py-0.5 rounded">v1.0</span></h1>
             </button>
-            <!-- 環境變數按鈕（全專案共用 Robot suite vars）-->
-            <button type="button" onclick="showEnvVarsView()" id="navEnvVarsBtn" class="text-slate-500 hover:text-emerald-600 font-medium transition flex items-center gap-2">
-                <i class="fa-solid fa-key"></i> 環境變數
+        </div>
+        <!-- 桌面版橫向選單（md 以上顯示）；< md 改由使用者選單內建導覽
+             策略：每個 label 包在 <span class="hidden xl:inline">；md~xl 區間僅顯示 icon -->
+        <div class="hidden md:flex items-center gap-2 md:gap-3 xl:gap-5 flex-wrap">
+            <!-- 設備資訊 -->
+            <button type="button" onclick="showDevicesView()" id="navDevicesBtn" title="設備資訊"
+                class="text-slate-500 hover:text-rose-600 font-medium transition flex items-center gap-2">
+                <i class="fa-solid fa-mobile-screen"></i>
+                <span class="hidden xl:inline">設備資訊</span>
             </button>
-            <!-- DB資訊按鈕（全專案共用 DB 連線設定）-->
-            <button type="button" onclick="showDbConfigView()" id="navDbConfigBtn" class="text-slate-500 hover:text-indigo-600 font-medium transition flex items-center gap-2">
-                <i class="fa-solid fa-database"></i> DB資訊
+            <!-- 測試案例 -->
+            <button type="button" onclick="showTestCasesView()" id="navTestCasesBtn" title="測試案例"
+                class="text-slate-500 hover:text-blue-600 font-medium transition flex items-center gap-2">
+                <i class="fa-solid fa-list-check"></i>
+                <span class="hidden xl:inline">測試案例</span>
             </button>
-            <!-- Mock按鈕（全專案共用 Mock 端點）-->
-            <button type="button" onclick="showMockView()" id="navMockBtn" class="text-slate-500 hover:text-amber-600 font-medium transition flex items-center gap-2">
-                <i class="fa-solid fa-plug"></i> Mock
+            <!-- 環境變數 -->
+            <button type="button" onclick="showEnvVarsView()" id="navEnvVarsBtn" title="環境變數"
+                class="text-slate-500 hover:text-emerald-600 font-medium transition flex items-center gap-2">
+                <i class="fa-solid fa-key"></i>
+                <span class="hidden xl:inline">環境變數</span>
             </button>
-            <!-- 測試回合按鈕 -->
-            <button type="button" onclick="showTestRoundView()" id="navTestRoundBtn" class="text-slate-500 hover:text-purple-600 font-medium transition flex items-center gap-2">
-                <i class="fa-solid fa-layer-group"></i> 測試回合
+            <!-- DB 資訊 -->
+            <button type="button" onclick="showDbConfigView()" id="navDbConfigBtn" title="DB 資訊"
+                class="text-slate-500 hover:text-indigo-600 font-medium transition flex items-center gap-2">
+                <i class="fa-solid fa-database"></i>
+                <span class="hidden xl:inline">DB資訊</span>
             </button>
-            <!-- 測試報告按鈕 -->
-            <button type="button" onclick="showReportView()" id="navReportBtn" class="text-slate-500 hover:text-blue-600 font-medium transition flex items-center gap-2">
-                <i class="fa-solid fa-chart-pie"></i> 測試報告
+            <!-- Mock -->
+            <button type="button" onclick="showMockView()" id="navMockBtn" title="Mock 端點管理"
+                class="text-slate-500 hover:text-amber-600 font-medium transition flex items-center gap-2">
+                <i class="fa-solid fa-plug"></i>
+                <span class="hidden xl:inline">Mock</span>
             </button>
-            <!-- 環境切換按鈕（Docker / 本機） -->
+            <!-- 測試回合 -->
+            <button type="button" onclick="showTestRoundView()" id="navTestRoundBtn" title="測試回合"
+                class="text-slate-500 hover:text-purple-600 font-medium transition flex items-center gap-2">
+                <i class="fa-solid fa-layer-group"></i>
+                <span class="hidden xl:inline">測試回合</span>
+            </button>
+            <!-- 測試報告 -->
+            <button type="button" onclick="showReportView()" id="navReportBtn" title="測試報告"
+                class="text-slate-500 hover:text-blue-600 font-medium transition flex items-center gap-2">
+                <i class="fa-solid fa-chart-pie"></i>
+                <span class="hidden xl:inline">測試報告</span>
+            </button>
+            <!-- 測試排程 -->
+            <button onclick="showScheduleView()" id="navScheduleBtn" title="測試排程"
+                class="text-slate-500 hover:text-emerald-600 font-medium transition flex items-center gap-2">
+                <i class="fa-solid fa-calendar-days"></i>
+                <span class="hidden xl:inline">測試排程</span>
+            </button>
+            <!-- 測試錄製 -->
+            <button onclick="showRecorderView()" id="navRecorderBtn" title="測試錄製"
+                class="text-slate-500 hover:text-rose-600 font-medium transition flex items-center gap-2">
+                <i class="fa-solid fa-video"></i>
+                <span class="hidden xl:inline">測試錄製</span>
+            </button>
+            <!-- 環境切換（Docker / 本機） -->
             <div class="flex items-center gap-1">
                 <button type="button" id="envToggleBtn" onclick="toggleExecutionMode()" aria-label="切換執行環境" title="切換執行環境（點擊切換；本機模式 = 有頭瀏覽器，Docker 模式 = 無頭）"
-                    class="flex items-center gap-2 text-sm font-medium px-3 py-1 rounded border transition">
+                    class="flex items-center gap-2 text-sm font-medium px-3 py-1 rounded border transition whitespace-nowrap">
                     <i class="fa-solid fa-server"></i>
-                    <span>環境：</span>
+                    <span class="hidden xl:inline">環境：</span>
                     <span id="envToggleLabel" class="font-mono">Docker</span>
                 </button>
                 <button type="button" id="envLocalHelpBtn" onclick="openLocalAgentHelp()" aria-label="本機 Agent 使用說明"
@@ -208,36 +480,53 @@
                     <i class="fa-solid fa-circle-question"></i>
                 </button>
             </div>
-            <!-- 排程按鈕 -->
-            <button onclick="showScheduleView()" id="navScheduleBtn" class="text-slate-500 hover:text-emerald-600 font-medium transition flex items-center gap-2">
-                <i class="fa-solid fa-calendar-days"></i> 排程
-            </button>
-            <!-- 錄製按鈕 -->
-            <button onclick="showRecorderView()" id="navRecorderBtn" class="text-slate-500 hover:text-rose-600 font-medium transition flex items-center gap-2">
-                <i class="fa-solid fa-video"></i> 錄製
-            </button>
-            <div class="h-6 w-px bg-slate-200"></div>
-            <div class="flex items-center gap-2 cursor-pointer hover:bg-slate-50 p-1 rounded transition">
-                <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold border border-indigo-200 shadow-sm">
-                    QA
-                </div>
-                <span class="text-sm font-semibold text-slate-600">管理員</span>
-            </div>
+            <div class="h-6 w-px bg-stone-200"></div>
         </div>
+        <!-- 右側固定：使用者名稱 → 登出 → 暗黑模式（由左至右，三者之間用分隔線明確區分） -->
+        <div class="flex items-center gap-3 md:gap-4">
+            <!-- 使用者名稱（點擊直接進入使用者設定頁） -->
+            <button type="button" id="userMenuBtn" onclick="showUserSettingsView()" aria-label="使用者設定" title="點擊進入使用者設定"
+                class="flex items-center gap-2 cursor-pointer hover:bg-amber-50 p-1 rounded transition focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400">
+                <div id="userMenuAvatar" class="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white font-bold shadow-sm shrink-0">
+                    A
+                </div>
+                <span id="userMenuName" class="hidden sm:inline text-sm font-semibold text-stone-700">admin</span>
+            </button>
+            <!-- 分隔線 1 -->
+            <div class="h-6 w-px bg-stone-200"></div>
+            <!-- 登出按鈕 -->
+            <button type="button" onclick="authLogout()" title="登出" aria-label="登出"
+                class="flex items-center gap-1.5 px-3 h-9 rounded border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 transition text-sm font-medium">
+                <i class="fa-solid fa-right-from-bracket"></i>
+                <span class="hidden sm:inline">登出</span>
+            </button>
+            <!-- 分隔線 2 -->
+            <div class="h-6 w-px bg-stone-200"></div>
+            <!-- 暗黑模式切換（最右邊） -->
+            <button type="button" id="themeToggleBtn" onclick="toggleDarkMode()" title="切換暗黑模式" aria-label="切換暗黑模式"
+                class="w-9 h-9 flex items-center justify-center rounded-full border border-stone-200 hover:bg-amber-50 hover:border-amber-300 transition text-stone-600">
+                <i id="themeToggleIcon" class="fa-solid fa-moon text-sm"></i>
+            </button>
+        </div><!-- end 右側固定容器 -->
     </header>
 
     <!-- 主要內容區 -->
-    <div class="flex-1 flex overflow-hidden">
-        
-        <!-- 左側面板：專案切換與動態樹狀圖 -->
-        <aside id="sidebar" class="bg-slate-50 border-r border-slate-200 flex flex-col shrink-0 relative shadow-[2px_0_5px_rgba(0,0,0,0.02)] z-10">
+    <div class="flex-1 flex overflow-hidden relative">
+
+        <!-- 手機版：側邊欄背景遮罩（點擊可關閉；僅 < md 顯示） -->
+        <div id="sidebarBackdrop" onclick="closeMobileSidebar()" class="hidden md:hidden fixed inset-0 top-14 bg-black/40 z-[45]"></div>
+
+        <!-- 左側面板：專案切換與動態樹狀圖（< md 以 drawer 呈現，≥ md inline）
+             注意：drawer 從 top-14 開始（header 高度 h-14 = 56px），避免覆蓋到頂部導覽列 -->
+        <aside id="sidebar" class="bg-amber-50/40 border-r border-amber-100 flex flex-col shrink-0 shadow-[2px_0_5px_rgba(0,0,0,0.02)] z-50 fixed md:relative top-14 bottom-0 md:top-auto md:bottom-auto md:inset-y-0 left-0 transform -translate-x-full md:translate-x-0 transition-transform duration-300 w-[85vw] max-w-[360px] md:max-w-none md:w-auto">
             <div class="p-4 border-b border-slate-200 flex flex-col gap-3 bg-white z-10">
                 
-                <!-- 專案目錄 Header -->
+                <!-- 專案目錄 Header：右側為「新增專案」icon（對齊下方刪除專案欄位上方）-->
                 <div class="flex justify-between items-center mb-1">
-                    <h2 class="font-semibold text-sm text-slate-600 uppercase tracking-wider">專案目錄</h2>
-                    <button onclick="openNodeModal(event, 'root_project', 'add')" class="text-slate-400 hover:text-blue-600 transition" title="新增專案">
-                        <i class="fa-solid fa-folder-plus text-base"></i>
+                    <h2 class="font-semibold text-sm text-stone-600 uppercase tracking-wider">專案目錄</h2>
+                    <button type="button" onclick="openNodeModal(event, 'root_project', 'add')" title="新增專案" aria-label="新增專案"
+                        class="w-8 h-8 shrink-0 flex items-center justify-center bg-gradient-to-br from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-md shadow-sm hover:shadow transition">
+                        <i class="fa-solid fa-folder-plus text-sm"></i>
                     </button>
                 </div>
                 
@@ -265,32 +554,42 @@
                     </button>
                 </div>
 
-                <!-- 搜尋欄 -->
-                <div class="relative shadow-sm">
-                    <div class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
-                        <i class="fa-solid fa-magnifying-glass text-slate-400 text-xs"></i>
+                <!-- 搜尋欄 + 右側 2 顆 icon（全部展開 / 全部收合） -->
+                <div class="flex items-center gap-1.5">
+                    <div class="relative shadow-sm flex-1">
+                        <div class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
+                            <i class="fa-solid fa-magnifying-glass text-slate-400 text-xs"></i>
+                        </div>
+                        <input id="treeSearchInput" type="text" oninput="onTreeSearch(this.value)" placeholder="搜尋節點名稱…" aria-label="搜尋樹狀節點" class="w-full pl-8 pr-8 py-1.5 border border-slate-300 rounded-md text-xs text-slate-700 bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition">
+                        <button id="treeSearchClear" onclick="clearTreeSearch()" class="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-600 hidden" title="清除搜尋">
+                            <i class="fa-solid fa-xmark text-xs"></i>
+                        </button>
                     </div>
-                    <input id="treeSearchInput" type="text" oninput="onTreeSearch(this.value)" placeholder="搜尋節點名稱…" aria-label="搜尋樹狀節點" class="w-full pl-8 pr-8 py-1.5 border border-slate-300 rounded-md text-xs text-slate-700 bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition">
-                    <button id="treeSearchClear" onclick="clearTreeSearch()" class="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-600 hidden" title="清除搜尋">
-                        <i class="fa-solid fa-xmark text-xs"></i>
+                    <button type="button" onclick="expandAllTreeNodes()" title="全部展開" aria-label="全部展開"
+                        class="w-8 h-8 shrink-0 flex items-center justify-center bg-white text-amber-600 border border-stone-300 hover:bg-amber-50 hover:border-amber-300 rounded-md transition">
+                        <i class="fa-solid fa-angles-down text-sm"></i>
+                    </button>
+                    <button type="button" onclick="collapseAllTreeNodes()" title="全部收合" aria-label="全部收合"
+                        class="w-8 h-8 shrink-0 flex items-center justify-center bg-white text-amber-600 border border-stone-300 hover:bg-amber-50 hover:border-amber-300 rounded-md transition">
+                        <i class="fa-solid fa-angles-up text-sm"></i>
                     </button>
                 </div>
             </div>
             
             <!-- 動態渲染的樹狀容器 -->
-            <div id="treeContainer" class="flex-1 overflow-y-auto p-3 pb-20 text-sm bg-slate-50">
+            <div id="treeContainer" class="flex-1 overflow-y-auto p-3 pb-20 text-sm bg-amber-50/20">
                 <!-- 由 JavaScript 產生 -->
             </div>
         </aside>
 
         <!-- 側邊欄拖曳調整寬度 -->
-        <div id="sidebarResizer" class="w-1 cursor-col-resize bg-slate-200 hover:bg-blue-400 active:bg-blue-500 transition shrink-0 z-20" title="拖曳調整側邊欄寬度"></div>
+        <div id="sidebarResizer" class="w-1 cursor-col-resize bg-amber-100 hover:bg-amber-400 active:bg-amber-500 transition shrink-0 z-20" title="拖曳調整側邊欄寬度"></div>
 
         <!-- 右側主工作區 -->
         <main class="flex-1 flex flex-col bg-white overflow-hidden relative">
-            
+
             <!-- 工作區標題與操作列 (在測試報告視圖下會隱藏) -->
-            <div id="mainHeader" class="p-5 border-b border-slate-200 flex justify-between items-end shrink-0 bg-white z-10">
+            <div id="mainHeader" class="p-5 border-b border-amber-100 flex justify-between items-end shrink-0 bg-white z-10">
                 <div>
                     <div class="text-xs text-slate-400 mb-1 flex items-center gap-2">
                         <span id="viewTag" class="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-medium">系統</span>
@@ -1641,10 +1940,10 @@ driver.swipe(100, 800, 100, 200, 500)"
             </div>
 
             <!-- 視圖：首頁 (點擊左上 AutoTest Logo 或 navHomeBtn 呼叫 showHomeView) -->
-            <div id="homeWorkspace" class="flex-1 overflow-y-auto p-8 bg-gradient-to-br from-slate-50 via-white to-blue-50/30 hidden">
+            <div id="homeWorkspace" class="flex-1 overflow-y-auto p-8 bg-gradient-to-br from-amber-50/40 via-white to-rose-50/40 hidden">
                 <!-- Hero 區 -->
                 <section class="max-w-6xl mx-auto mb-8">
-                    <div class="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-8 text-white shadow-lg relative overflow-hidden">
+                    <div class="bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 rounded-2xl p-8 text-white shadow-lg relative overflow-hidden">
                         <div class="absolute -right-8 -top-8 w-48 h-48 bg-white/10 rounded-full"></div>
                         <div class="absolute -right-20 top-20 w-64 h-64 bg-white/5 rounded-full"></div>
                         <div class="relative z-10">
@@ -1677,6 +1976,60 @@ driver.swipe(100, 800, 100, 200, 500)"
                         <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
                             <div class="text-xs text-slate-500 mb-1"><i class="fa-solid fa-layer-group text-emerald-500"></i> 測試回合</div>
                             <div class="text-2xl font-bold text-emerald-600" id="homeStatRounds">0</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 系統狀態：Docker / CPU / RAM / Disk / Network；每 5 秒輪詢一次
+                     資料範圍：以 `autotest-*` 容器為範圍加總，代表 AutoTest 平台的資源使用量；
+                     Host 欄（若顯示）則為 Docker host 作業系統 / CPU 核心 / 記憶體總量的對照。 -->
+                <section class="max-w-6xl mx-auto mb-8">
+                    <h3 class="text-sm font-bold text-stone-500 uppercase tracking-wider mb-1 flex items-center gap-2 flex-wrap">
+                        <i class="fa-solid fa-server text-amber-500"></i> 系統狀態
+                        <span class="text-[10px] font-normal normal-case tracking-normal text-stone-400">（AutoTest 平台容器總用量）</span>
+                        <span id="sysStatusBadge" class="text-[10px] font-normal normal-case tracking-normal px-2 py-0.5 rounded-full bg-stone-100 text-stone-500">載入中…</span>
+                    </h3>
+                    <p id="sysHostInfo" class="text-[11px] text-stone-500 mb-3">—</p>
+                    <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+                        <!-- Docker -->
+                        <div class="bg-white rounded-xl p-4 border border-amber-100 shadow-sm">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-xs text-stone-500"><i class="fa-brands fa-docker text-indigo-500"></i> Docker</span>
+                                <span id="sysDockerBadge" class="text-[10px] px-2 py-0.5 rounded-full bg-stone-100 text-stone-500">—</span>
+                            </div>
+                            <div id="sysDockerVer" class="text-sm font-bold text-stone-700 truncate">—</div>
+                            <div class="text-[11px] text-stone-500 mt-1">
+                                容器：<span id="sysDockerContainers" class="font-mono text-stone-700">—</span>
+                                <span class="mx-1 text-stone-300">·</span>
+                                映像：<span id="sysDockerImages" class="font-mono text-stone-700">—</span>
+                            </div>
+                        </div>
+                        <!-- CPU -->
+                        <div class="bg-white rounded-xl p-4 border border-amber-100 shadow-sm">
+                            <div class="text-xs text-stone-500 mb-1"><i class="fa-solid fa-microchip text-amber-500"></i> CPU 使用率</div>
+                            <div class="text-2xl font-bold text-amber-600"><span id="sysCpuPct">—</span><span class="text-sm font-normal text-stone-400 ml-1">%</span></div>
+                            <div class="h-1.5 bg-stone-100 rounded mt-2 overflow-hidden"><div id="sysCpuBar" class="h-full w-0 bg-amber-500 transition-all"></div></div>
+                        </div>
+                        <!-- Memory（平台容器 / Host 總量）-->
+                        <div class="bg-white rounded-xl p-4 border border-amber-100 shadow-sm">
+                            <div class="text-xs text-stone-500 mb-1"><i class="fa-solid fa-memory text-orange-500"></i> 記憶體 <span class="text-[10px] text-stone-400">(平台/Host)</span></div>
+                            <div class="text-2xl font-bold text-orange-600"><span id="sysMemPct">—</span><span class="text-sm font-normal text-stone-400 ml-1">%</span></div>
+                            <div class="text-[11px] text-stone-500 mt-1"><span id="sysMemUsed">—</span> / <span id="sysMemTotal">—</span></div>
+                            <div class="h-1.5 bg-stone-100 rounded mt-1 overflow-hidden"><div id="sysMemBar" class="h-full w-0 bg-orange-500 transition-all"></div></div>
+                        </div>
+                        <!-- Disk -->
+                        <div class="bg-white rounded-xl p-4 border border-amber-100 shadow-sm">
+                            <div class="text-xs text-stone-500 mb-1"><i class="fa-solid fa-hard-drive text-rose-500"></i> 儲存空間</div>
+                            <div class="text-2xl font-bold text-rose-600"><span id="sysDiskPct">—</span><span class="text-sm font-normal text-stone-400 ml-1">%</span></div>
+                            <div class="text-[11px] text-stone-500 mt-1"><span id="sysDiskUsed">—</span> / <span id="sysDiskTotal">—</span></div>
+                            <div class="h-1.5 bg-stone-100 rounded mt-1 overflow-hidden"><div id="sysDiskBar" class="h-full w-0 bg-rose-500 transition-all"></div></div>
+                        </div>
+                        <!-- Network -->
+                        <div class="bg-white rounded-xl p-4 border border-amber-100 shadow-sm">
+                            <div class="text-xs text-stone-500 mb-1"><i class="fa-solid fa-network-wired text-sky-500"></i> 網路流量</div>
+                            <div class="text-xs text-stone-700 flex items-center gap-1"><i class="fa-solid fa-arrow-down text-emerald-500 text-[10px]"></i><span id="sysNetRx" class="font-mono font-bold">—</span> KB/s</div>
+                            <div class="text-xs text-stone-700 flex items-center gap-1"><i class="fa-solid fa-arrow-up text-indigo-500 text-[10px]"></i><span id="sysNetTx" class="font-mono font-bold">—</span> KB/s</div>
+                            <div class="text-[11px] text-stone-500 mt-1">累計：<span id="sysNetTotal" class="font-mono">—</span></div>
                         </div>
                     </div>
                 </section>
@@ -1724,27 +2077,27 @@ driver.swipe(100, 800, 100, 200, 500)"
                         </button>
                         <button onclick="showScheduleView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-300 transition group">
                             <div class="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-calendar-days"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5">排程</div>
+                            <div class="font-semibold text-slate-800 mb-0.5">測試排程</div>
                             <div class="text-xs text-slate-500">單次 / 每天 / 每週 / 每月</div>
                         </button>
                         <button onclick="showRecorderView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-rose-300 transition group">
                             <div class="w-10 h-10 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-video"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5">錄製</div>
+                            <div class="font-semibold text-slate-800 mb-0.5">測試錄製</div>
                             <div class="text-xs text-slate-500">WEB / API / APP 三種來源</div>
                         </button>
                     </div>
                 </section>
 
-                <!-- 最近測試案例 -->
+                <!-- 最近測試案例（預設顯示最近 10 筆） -->
                 <section class="max-w-6xl mx-auto mb-8">
                     <div class="flex items-center justify-between mb-3">
-                        <h3 class="text-sm font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                            <i class="fa-regular fa-clock text-blue-500"></i> 最近測試案例
+                        <h3 class="text-sm font-bold text-stone-500 uppercase tracking-wider flex items-center gap-2">
+                            <i class="fa-regular fa-clock text-amber-500"></i> 最近測試案例
+                            <span class="text-[11px] font-normal normal-case tracking-normal text-stone-400">（最多顯示 10 筆）</span>
                         </h3>
-                        <button onclick="showTestCasesView()" class="text-xs text-blue-600 hover:underline">查看全部 <i class="fa-solid fa-chevron-right text-[10px]"></i></button>
                     </div>
-                    <div id="homeRecentCases" class="bg-white rounded-xl border border-slate-200 shadow-sm divide-y divide-slate-100">
-                        <div class="p-6 text-center text-slate-400 text-sm">尚無測試案例，請先在左側目錄樹建立 Feature → Platform → Page → Scenario → TestCase。</div>
+                    <div id="homeRecentCases" class="bg-white rounded-xl border border-amber-100 shadow-sm divide-y divide-stone-100">
+                        <div class="p-6 text-center text-stone-400 text-sm">尚無測試案例，請先在左側目錄樹建立 Feature → Platform → Page → Scenario → TestCase。</div>
                     </div>
                 </section>
 
@@ -1760,17 +2113,17 @@ driver.swipe(100, 800, 100, 200, 500)"
             </div>
 
             <!-- 視圖：測試案例清單（與左側目錄樹同步） -->
-            <div id="testcasesWorkspace" class="flex-1 overflow-y-auto p-6 bg-slate-50/50 hidden">
+            <div id="testcasesWorkspace" class="flex-1 overflow-y-auto p-6 bg-amber-50/30 hidden">
                 <div class="max-w-6xl mx-auto">
                     <!-- 工具列 -->
-                    <div class="bg-white rounded-lg border border-slate-200 shadow-sm p-4 mb-4">
+                    <div class="bg-white rounded-lg border border-amber-100 shadow-sm p-4 mb-4">
                         <div class="flex flex-wrap items-center gap-3">
                             <div class="flex-1 min-w-[240px] relative">
-                                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
-                                <input id="tcListSearch" type="search" oninput="renderTestCasesList()" placeholder="搜尋測試案例名稱、平台、頁面..."
-                                    class="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm"></i>
+                                <input id="tcListSearch" type="search" oninput="renderTestCasesList()" placeholder="搜尋測試案例名稱、平台、頁面、所在路徑..."
+                                    class="w-full pl-9 pr-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400">
                             </div>
-                            <select id="tcListPlatform" onchange="renderTestCasesList()" aria-label="依平台過濾測試案例" title="依平台過濾測試案例" class="px-3 py-2 border border-slate-300 rounded-md text-sm bg-white">
+                            <select id="tcListPlatform" onchange="renderTestCasesList()" aria-label="依平台過濾測試案例" title="依平台過濾測試案例" class="px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
                                 <option value="">全部平台</option>
                                 <option value="WEB">WEB</option>
                                 <option value="API">API</option>
@@ -1779,31 +2132,265 @@ driver.swipe(100, 800, 100, 200, 500)"
                                 <option value="UI">UI</option>
                                 <option value="E2E">E2E</option>
                             </select>
-                            <button onclick="renderTestCasesList()" class="px-3 py-2 border border-slate-300 rounded-md text-sm hover:bg-slate-50" title="同步左側目錄樹">
+                            <button onclick="renderTestCasesList()" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50 transition" title="同步左側目錄樹">
                                 <i class="fa-solid fa-rotate"></i> 重新整理
                             </button>
-                            <div class="text-xs text-slate-500 ml-auto">
-                                共 <span id="tcListCount" class="font-bold text-slate-700">0</span> 筆
+                            <button id="tcBulkDeleteBtn" onclick="tcBulkDeleteSelected()" disabled
+                                class="px-3 py-2 bg-rose-500 hover:bg-rose-600 disabled:bg-stone-300 disabled:cursor-not-allowed text-white rounded-md text-sm font-semibold shadow-sm transition flex items-center gap-1.5" title="刪除已勾選的測試案例">
+                                <i class="fa-solid fa-trash"></i> 刪除 <span id="tcBulkDeleteCount">(0)</span>
+                            </button>
+                            <button onclick="openTcCreateModal()" class="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold shadow-sm transition flex items-center gap-1.5" title="新增測試案例">
+                                <i class="fa-solid fa-plus"></i> 新增案例
+                            </button>
+                            <div class="text-xs text-stone-500 ml-auto">
+                                共 <span id="tcListCount" class="font-bold text-stone-700">0</span> 筆
                             </div>
                         </div>
                     </div>
 
                     <!-- 清單 -->
-                    <div class="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
-                        <table class="w-full text-sm">
-                            <thead class="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs uppercase">
+                    <div class="bg-white rounded-lg border border-amber-100 shadow-sm overflow-hidden">
+                        <table class="w-full text-sm table-fixed">
+                            <thead class="bg-amber-50/60 border-b border-amber-100 text-stone-600 text-xs uppercase">
                                 <tr>
-                                    <th class="p-3 text-left w-16">#</th>
-                                    <th class="p-3 text-left">測試案例</th>
-                                    <th class="p-3 text-left w-28">平台</th>
-                                    <th class="p-3 text-left w-40">頁面</th>
-                                    <th class="p-3 text-left w-48">所在路徑</th>
-                                    <th class="p-3 text-center w-32">操作</th>
+                                    <th class="p-3 text-center w-12"><input type="checkbox" id="tcSelectAll" onchange="tcToggleSelectAll(this.checked)" aria-label="全選" title="全選本頁" class="accent-amber-500 cursor-pointer"></th>
+                                    <th class="p-3 text-left w-12">#</th>
+                                    <th class="p-3 text-left w-48">測試案例</th>
+                                    <th class="p-3 text-left w-20">平台</th>
+                                    <th class="p-3 text-left w-28">頁面</th>
+                                    <th class="p-3 text-left">所在路徑</th>
+                                    <th class="p-3 text-center w-72">操作</th>
                                 </tr>
                             </thead>
-                            <tbody id="tcListBody" class="divide-y divide-slate-100"></tbody>
+                            <tbody id="tcListBody" class="divide-y divide-stone-100"></tbody>
                         </table>
+                        <!-- 分頁列 -->
+                        <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-stone-100 bg-amber-50/30">
+                            <div class="flex items-center gap-2 text-xs text-stone-600">
+                                <label for="tcListPageSize">每頁顯示</label>
+                                <select id="tcListPageSize" onchange="tcChangePageSize(this.value)" aria-label="每頁顯示筆數"
+                                    class="px-2 py-1 border border-stone-300 rounded-md text-xs bg-white focus:outline-none focus:ring-2 focus:ring-amber-400">
+                                    <option value="10" selected>10</option>
+                                    <option value="20">20</option>
+                                    <option value="50">50</option>
+                                    <option value="100">100</option>
+                                    <option value="all">全部</option>
+                                </select>
+                                <span>筆</span>
+                                <span class="mx-2 text-stone-300">|</span>
+                                <span id="tcListPageInfo" class="text-stone-500">—</span>
+                            </div>
+                            <div class="flex items-center gap-1">
+                                <button id="tcListPagePrev" onclick="tcChangePage(-1)" class="px-3 py-1.5 border border-stone-300 rounded-md text-xs bg-white hover:bg-amber-50 disabled:opacity-40 disabled:cursor-not-allowed transition">
+                                    <i class="fa-solid fa-chevron-left"></i> 上一頁
+                                </button>
+                                <span id="tcListPageLabel" class="px-3 py-1.5 text-xs text-stone-600">第 1 / 1 頁</span>
+                                <button id="tcListPageNext" onclick="tcChangePage(1)" class="px-3 py-1.5 border border-stone-300 rounded-md text-xs bg-white hover:bg-amber-50 disabled:opacity-40 disabled:cursor-not-allowed transition">
+                                    下一頁 <i class="fa-solid fa-chevron-right"></i>
+                                </button>
+                            </div>
+                        </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- 新增 / 編輯 測試案例 Modal（供測試案例清單頁使用） -->
+            <div id="tcCreateModal" class="hidden fixed inset-0 z-[150] bg-black/40 flex items-center justify-center p-4">
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg border border-amber-200">
+                    <div class="px-6 py-4 border-b border-stone-200 bg-amber-50/60 flex items-center justify-between">
+                        <h3 id="tcCreateModalTitle" class="font-bold text-stone-800 text-base flex items-center gap-2">
+                            <i class="fa-solid fa-plus-circle text-amber-500"></i> 新增測試案例
+                        </h3>
+                        <button type="button" onclick="closeTcCreateModal()" aria-label="關閉"
+                            class="text-stone-400 hover:text-stone-700 transition"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <form onsubmit="return tcCreateSubmit(event)" class="p-6 space-y-4">
+                        <p id="tcCreateModalHint" class="text-xs text-stone-600 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                            請選擇此案例的父節點（SCENARIO 層），系統會在其下新增一個 TESTCASE。如果 SCENARIO 還不存在，請先到左側目錄樹建立 Feature → Platform → Page → Scenario 四層。
+                        </p>
+                        <div>
+                            <label for="tcCreateParent" class="block text-xs font-semibold text-stone-600 mb-1">父節點（SCENARIO）</label>
+                            <select id="tcCreateParent" required aria-label="選擇父節點"
+                                class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400">
+                                <option value="">— 請選擇 —</option>
+                            </select>
+                            <p class="text-[10px] text-stone-500 mt-1">下拉只列出當前專案的 SCENARIO 節點</p>
+                        </div>
+                        <div>
+                            <label for="tcCreateName" class="block text-xs font-semibold text-stone-600 mb-1">測試案例名稱</label>
+                            <input type="text" id="tcCreateName" required placeholder="例如：成功登入"
+                                class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+                            <p class="text-[10px] text-stone-500 mt-1">系統會自動加上 .md 副檔名；同一 SCENARIO 下名稱不可重複</p>
+                        </div>
+                        <div class="flex justify-end gap-2 pt-2">
+                            <button type="button" onclick="closeTcCreateModal()"
+                                class="px-4 py-2 border border-stone-300 rounded-md text-sm text-stone-600 hover:bg-stone-50 transition">
+                                取消
+                            </button>
+                            <button type="submit" id="tcCreateSubmitBtn"
+                                class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold shadow-sm transition flex items-center gap-2">
+                                <i class="fa-solid fa-plus"></i> <span id="tcCreateSubmitLabel">建立</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- 視圖：使用者設定 -->
+            <div id="userSettingsWorkspace" class="flex-1 overflow-y-auto p-6 bg-amber-50/30 hidden">
+                <div class="max-w-4xl mx-auto space-y-6">
+                    <!-- 帳戶資訊卡 -->
+                    <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-6">
+                        <h3 class="font-bold text-stone-700 text-base mb-4 flex items-center gap-2">
+                            <i class="fa-solid fa-user-circle text-amber-500"></i> 帳戶資訊
+                        </h3>
+                        <div class="flex items-center gap-5 mb-5">
+                            <div id="usAvatarLarge" class="w-16 h-16 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-2xl font-bold shadow-md">A</div>
+                            <div class="flex-1">
+                                <div id="usNameLarge" class="text-lg font-bold text-stone-800">admin</div>
+                                <div id="usEmailLarge" class="text-sm text-stone-500">admin@example.com</div>
+                                <div class="text-[11px] text-stone-400 mt-1">成員自 <span id="usCreatedAt">—</span></div>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label for="usUsername" class="block text-xs font-semibold text-stone-600 mb-1">使用者名稱</label>
+                                <input type="text" id="usUsername" readonly
+                                    class="w-full px-3 py-2 border border-stone-200 rounded-md text-sm bg-stone-50 text-stone-600">
+                                <p class="text-[10px] text-stone-400 mt-0.5">帳號建立後不可變更</p>
+                            </div>
+                            <div>
+                                <label for="usEmail" class="block text-xs font-semibold text-stone-600 mb-1">Email</label>
+                                <input type="email" id="usEmail"
+                                    class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400">
+                            </div>
+                            <div class="md:col-span-2">
+                                <label for="usDisplayName" class="block text-xs font-semibold text-stone-600 mb-1">顯示名稱</label>
+                                <input type="text" id="usDisplayName" placeholder="選填，會顯示在報告的「觸發者」欄位"
+                                    class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400">
+                            </div>
+                        </div>
+                        <div class="flex justify-end mt-5">
+                            <button type="button" onclick="saveUserProfile()"
+                                class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold shadow-sm transition flex items-center gap-2">
+                                <i class="fa-solid fa-floppy-disk"></i> 儲存帳戶資訊
+                            </button>
+                        </div>
+                    </section>
+
+                    <!-- 變更密碼卡 -->
+                    <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-6">
+                        <h3 class="font-bold text-stone-700 text-base mb-4 flex items-center gap-2">
+                            <i class="fa-solid fa-lock text-amber-500"></i> 變更密碼
+                        </h3>
+                        <form onsubmit="return changeUserPassword(event)" class="space-y-4">
+                            <div>
+                                <label for="usOldPwd" class="block text-xs font-semibold text-stone-600 mb-1">目前密碼</label>
+                                <div class="relative">
+                                    <input type="password" id="usOldPwd" required autocomplete="current-password"
+                                        class="w-full pl-3 pr-10 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400">
+                                    <button type="button" onclick="togglePasswordVisibility('usOldPwd', this)" aria-label="顯示/隱藏密碼"
+                                        class="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-stone-400 hover:text-amber-500 transition">
+                                        <i class="fa-regular fa-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label for="usNewPwd" class="block text-xs font-semibold text-stone-600 mb-1">新密碼</label>
+                                    <div class="relative">
+                                        <input type="password" id="usNewPwd" required minlength="6" autocomplete="new-password"
+                                            class="w-full pl-3 pr-10 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400">
+                                        <button type="button" onclick="togglePasswordVisibility('usNewPwd', this)" aria-label="顯示/隱藏密碼"
+                                            class="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-stone-400 hover:text-amber-500 transition">
+                                            <i class="fa-regular fa-eye"></i>
+                                        </button>
+                                    </div>
+                                    <p class="text-[10px] text-stone-400 mt-0.5">至少 6 字元</p>
+                                </div>
+                                <div>
+                                    <label for="usNewPwd2" class="block text-xs font-semibold text-stone-600 mb-1">再次輸入新密碼</label>
+                                    <div class="relative">
+                                        <input type="password" id="usNewPwd2" required minlength="6" autocomplete="new-password"
+                                            class="w-full pl-3 pr-10 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400">
+                                        <button type="button" onclick="togglePasswordVisibility('usNewPwd2', this)" aria-label="顯示/隱藏密碼"
+                                            class="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-stone-400 hover:text-amber-500 transition">
+                                            <i class="fa-regular fa-eye"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex justify-end">
+                                <button type="submit"
+                                    class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold shadow-sm transition flex items-center gap-2">
+                                    <i class="fa-solid fa-key"></i> 變更密碼
+                                </button>
+                            </div>
+                        </form>
+                    </section>
+
+                    <!-- 個人偏好卡 -->
+                    <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-6">
+                        <h3 class="font-bold text-stone-700 text-base mb-4 flex items-center gap-2">
+                            <i class="fa-solid fa-sliders text-amber-500"></i> 個人偏好
+                        </h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label for="usPrefDefaultExec" class="block text-xs font-semibold text-stone-600 mb-1">預設執行環境</label>
+                                <select id="usPrefDefaultExec" aria-label="預設執行環境"
+                                    class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400">
+                                    <option value="docker">Docker（容器內 headless；正式執行推薦）</option>
+                                    <option value="local">本機（有頭 Chromium；適合除錯與示範）</option>
+                                </select>
+                            </div>
+                            <label class="flex items-start gap-2 cursor-pointer">
+                                <input type="checkbox" id="usPrefAutoRefresh" class="mt-0.5 rounded border-stone-300 text-amber-500 focus:ring-amber-400">
+                                <span>
+                                    <span class="text-sm text-stone-700">停留在報告頁時自動每 5 秒刷新</span>
+                                    <span class="block text-[11px] text-stone-500">預設開啟；關閉後僅在手動或執行完成時刷新</span>
+                                </span>
+                            </label>
+                            <label class="flex items-start gap-2 cursor-pointer">
+                                <input type="checkbox" id="usPrefConfirmDiscard" class="mt-0.5 rounded border-stone-300 text-amber-500 focus:ring-amber-400">
+                                <span>
+                                    <span class="text-sm text-stone-700">切換案例前提示未儲存變更</span>
+                                    <span class="block text-[11px] text-stone-500">保護工作成果，避免誤切導致變更遺失</span>
+                                </span>
+                            </label>
+                            <div class="flex justify-end">
+                                <button type="button" onclick="saveUserPrefs()"
+                                    class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold shadow-sm transition flex items-center gap-2">
+                                    <i class="fa-solid fa-floppy-disk"></i> 儲存偏好
+                                </button>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- 登入資訊卡 -->
+                    <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-6">
+                        <h3 class="font-bold text-stone-700 text-base mb-4 flex items-center gap-2">
+                            <i class="fa-solid fa-shield-halved text-amber-500"></i> 登入資訊
+                        </h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                            <div class="bg-stone-50 rounded-lg p-3 border border-stone-100">
+                                <div class="text-[11px] text-stone-500 mb-0.5">最近登入時間</div>
+                                <div id="usLastLogin" class="font-mono text-stone-700">—</div>
+                            </div>
+                            <div class="bg-stone-50 rounded-lg p-3 border border-stone-100">
+                                <div class="text-[11px] text-stone-500 mb-0.5">登入次數（本地統計）</div>
+                                <div id="usLoginCount" class="font-mono text-stone-700">—</div>
+                            </div>
+                        </div>
+                        <div class="mt-5 pt-5 border-t border-stone-100 flex items-center justify-between">
+                            <div class="text-xs text-stone-500">
+                                <i class="fa-solid fa-circle-info text-amber-500"></i> 登出將會清除目前的 session，但不影響已儲存的測試資料。
+                            </div>
+                            <button type="button" onclick="authLogout()"
+                                class="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white rounded-md text-sm font-semibold shadow-sm transition flex items-center gap-2">
+                                <i class="fa-solid fa-right-from-bracket"></i> 登出
+                            </button>
+                        </div>
+                    </section>
                 </div>
             </div>
 
@@ -2176,7 +2763,10 @@ driver.swipe(100, 800, 100, 200, 500)"
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         node_id: currentTestCase,
-                        trigger_type: 'Manual',
+                        // 把觸發者填為目前登入使用者名稱；後端 trigger_type 欄位為 String，
+                        // 任何字串都可接受。報告顯示時：
+                        //   "Scheduled" → "自動排程"、"Manual"（舊資料）→ "手動執行"、其他 → 視為使用者名稱
+                        trigger_type: (authCurrentUsername() || 'Manual'),
                         execution_mode: execMode,
                         ddt_expand: opts.ddt_expand,
                         enable_recording: opts.enable_recording,
@@ -2441,6 +3031,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 status: (summary.status === 'PASSED') ? 'Passed' : 'Failed',
                 projectId: summary.project_id || null,
                 testCaseId: navCaseId,
+                trigger_type: summary.trigger_type || 'Manual',
                 cases: cases.length ? cases : [{ name: '—', steps: [] }],
             };
         }
@@ -3440,12 +4031,21 @@ driver.swipe(100, 800, 100, 200, 500)"
                 const platform = r.source_platform || fallback.platform;
                 const page = r.source_page || fallback.page;
                 const sourceLabel = caseTitle || '—';
-                const sourceBadge = levelType
-                    ? `<span class="ml-2 text-[10px] font-mono text-slate-400 bg-slate-50 border border-slate-200 rounded px-1">${escapeHtml(levelType)}</span>`
-                    : '';
-                const sourceTooltip = sourceId ? ` title="node_id=${escapeHtml(sourceId)}"` : '';
+                // 不再顯示 TESTCASE/PAGE 之類的層級徽章，也不掛 node_id tooltip（需求 #3）
+                const sourceBadge = '';
+                const sourceTooltip = '';
+                // 平台徽章：依平台別上色（需求 #2）
+                const _platColor = {
+                    WEB: 'bg-blue-100 text-blue-700 border-blue-200',
+                    API: 'bg-amber-100 text-amber-700 border-amber-200',
+                    APP: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+                    DB: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+                    UI: 'bg-sky-100 text-sky-700 border-sky-200',
+                    E2E: 'bg-purple-100 text-purple-700 border-purple-200',
+                };
+                const _platClass = _platColor[(platform || '').toUpperCase()] || 'bg-slate-100 text-slate-700 border-slate-200';
                 const platformCell = platform
-                    ? `<span class="text-xs font-mono text-slate-700 bg-slate-100 border border-slate-200 rounded px-1.5 py-0.5">${escapeHtml(platform)}</span>`
+                    ? `<span class="text-xs font-mono border rounded px-1.5 py-0.5 ${_platClass}">${escapeHtml(platform)}</span>`
                     : '<span class="text-slate-300 text-xs">—</span>';
                 const pageCell = page
                     ? `<span class="text-xs text-slate-700 truncate inline-block max-w-[180px]" title="${escapeHtml(page)}">${escapeHtml(page)}</span>`
@@ -3467,7 +4067,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                             </div>
                         </td>
                         <td class="p-3 text-slate-500 cursor-pointer" onclick="viewReport('${idEsc}')">
-                            ${escapeHtml(r.trigger_type || 'Manual')}
+                            ${escapeHtml(formatTriggerSource(r.trigger_type))}
                             ${r.execution_mode === 'local'
                                 ? '<span class="ml-2 inline-block bg-amber-50 text-amber-700 border border-amber-200 rounded px-1.5 py-0.5 text-[10px] font-mono"><i class="fa-solid fa-laptop mr-0.5"></i>本機</span>'
                                 : '<span class="ml-2 inline-block bg-indigo-50 text-indigo-700 border border-indigo-200 rounded px-1.5 py-0.5 text-[10px] font-mono"><i class="fa-brands fa-docker mr-0.5"></i>Docker</span>'}
@@ -3574,7 +4174,7 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('detailReportWorkspace').classList.remove('hidden');
 
             document.getElementById('detailReportTitle').innerText = report.title;
-            document.getElementById('detailReportMeta').innerText = `${report.time} | 觸發者: 自動化排程`;
+            document.getElementById('detailReportMeta').innerText = `${report.time} | 觸發者: ${formatTriggerSource(report.trigger_type)}`;
             document.getElementById('detailReportDuration').innerText = report.duration;
 
             const badge = document.getElementById('detailReportStatusBadge');
@@ -4243,7 +4843,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                     <div style="display:flex; justify-content:space-between; align-items:flex-start;">
                         <div>
                             <h1 style="font-size:22px; font-weight:700; margin:0 0 6px 0;">${escapeHtml(report.title || '執行報告')}</h1>
-                            <div style="font-size:12px; color:#64748b;">${escapeHtml(report.time || '')} ｜ 觸發者: 自動化排程</div>
+                            <div style="font-size:12px; color:#64748b;">${escapeHtml(report.time || '')} ｜ 觸發者: ${escapeHtml(formatTriggerSource(report.trigger_type))}</div>
                         </div>
                         <div style="text-align:right;">
                             <div style="font-size:11px; color:#94a3b8;">總耗時</div>
@@ -4417,7 +5017,8 @@ driver.swipe(100, 800, 100, 200, 500)"
                 id: serverNode.id,
                 name: serverNode.name,
                 level_type: lt,
-                expanded: true,
+                // 需求 #4：側邊欄預設全部折疊，使用者點擊 ▸ 才展開下一層
+                expanded: false,
                 isFile: false,
                 children,
             };
@@ -4540,15 +5141,13 @@ driver.swipe(100, 800, 100, 200, 500)"
         async function switchProject(pid) {
             currentProjectId = pid;
             currentTestCase = null;
-            _hideAllWorkspaces();
-            document.getElementById('emptyWorkspace').classList.remove('hidden');
-            document.getElementById('mainHeader').classList.remove('hidden');
-            document.getElementById('mainActions').classList.add('hidden');
-            document.getElementById('viewFilename').textContent = '請選擇專案與檔案';
-            document.getElementById('viewTitle').innerHTML = '<i class="fa-regular fa-file-lines text-slate-400"></i> 歡迎使用 AutoTest';
-            document.getElementById('viewTag').className = 'bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-medium';
-            document.getElementById('viewTag').textContent = '系統';
-            if (!pid) { activeTreeData = []; renderAllTree(); return; }
+            // 載入專案樹；載入完成後預設顯示「首頁」視圖
+            if (!pid) {
+                activeTreeData = [];
+                renderAllTree();
+                try { showHomeView(); } catch (_) { /* fallback */ }
+                return;
+            }
             try {
                 const tree = await apiFetch(`/api/projects/${pid}/tree`);
                 activeTreeData = tree.map(decorateNode);
@@ -4559,6 +5158,8 @@ driver.swipe(100, 800, 100, 200, 500)"
                 activeTreeData = [];
                 renderAllTree();
             }
+            // 切換專案時一律帶到首頁（顯示新專案統計 / 近期案例 / 系統狀態）
+            try { showHomeView(); } catch (_) { /* 若 home 元素缺失則安全略過 */ }
         }
 
         function renderAllTree() {
@@ -4603,6 +5204,77 @@ driver.swipe(100, 800, 100, 200, 500)"
             return out;
         }
 
+        // ==================== 暗黑模式切換 ====================
+        // 策略：<html class="dark"> + Tailwind darkMode:'class'
+        //       暗黑模式額外 CSS 在 <style> 區塊內定義（以 html.dark ... 覆蓋關鍵顏色）
+        function toggleDarkMode() {
+            const root = document.documentElement;
+            const wasDark = root.classList.contains('dark');
+            if (wasDark) root.classList.remove('dark');
+            else root.classList.add('dark');
+            try { localStorage.setItem('autotest.theme', wasDark ? 'light' : 'dark'); } catch (_) {}
+            _syncThemeIcon();
+        }
+        function _syncThemeIcon() {
+            const icon = document.getElementById('themeToggleIcon');
+            if (!icon) return;
+            const dark = document.documentElement.classList.contains('dark');
+            // 暗黑模式顯示太陽（代表點擊可切回亮），亮模式顯示月亮
+            icon.classList.remove('fa-moon', 'fa-sun');
+            icon.classList.add(dark ? 'fa-sun' : 'fa-moon');
+        }
+        // 頁面載入完成後同步一次 icon（css class 已由 <head> 的早期 script 套用）
+        document.addEventListener('DOMContentLoaded', _syncThemeIcon);
+
+        // RWD：手機版側邊欄 drawer 控制
+        function toggleMobileSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const backdrop = document.getElementById('sidebarBackdrop');
+            if (!sidebar) return;
+            const opened = !sidebar.classList.contains('-translate-x-full');
+            if (opened) closeMobileSidebar();
+            else openMobileSidebar();
+        }
+        function openMobileSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const backdrop = document.getElementById('sidebarBackdrop');
+            if (sidebar) sidebar.classList.remove('-translate-x-full');
+            if (backdrop) backdrop.classList.remove('hidden');
+        }
+        function closeMobileSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const backdrop = document.getElementById('sidebarBackdrop');
+            // 僅在手機寬度下加回 -translate-x-full；桌面版 lg:translate-x-0 保持原樣
+            if (sidebar) sidebar.classList.add('-translate-x-full');
+            if (backdrop) backdrop.classList.add('hidden');
+        }
+        // 視窗變大回桌面尺寸時自動清掉手機狀態，避免殘留 drawer 位置
+        // 注意：md 斷點 = 768px（與 CSS 的 md:translate-x-0 / md:hidden 對齊）
+        window.addEventListener('resize', () => {
+            if (window.innerWidth >= 768) {
+                const backdrop = document.getElementById('sidebarBackdrop');
+                if (backdrop) backdrop.classList.add('hidden');
+                // sidebar 本身 md:translate-x-0 會蓋過 -translate-x-full
+            }
+        });
+
+        // 一鍵展開 / 收合所有樹節點
+        function _setExpandedAll(nodes, val) {
+            if (!Array.isArray(nodes)) return;
+            for (const n of nodes) {
+                if (!n.isFile) n.expanded = val;
+                if (n.children && n.children.length) _setExpandedAll(n.children, val);
+            }
+        }
+        function expandAllTreeNodes() {
+            _setExpandedAll(activeTreeData || [], true);
+            renderAllTree();
+        }
+        function collapseAllTreeNodes() {
+            _setExpandedAll(activeTreeData || [], false);
+            renderAllTree();
+        }
+
         function findNodeInfo(nodes, id, parent = null, index = -1, currentLevel = 1) {
             for (let i = 0; i < nodes.length; i++) {
                 if (nodes[i].id === id) return { node: nodes[i], parent: parent, index: i, siblings: nodes, level: currentLevel };
@@ -4612,6 +5284,23 @@ driver.swipe(100, 800, 100, 200, 500)"
                 }
             }
             return null;
+        }
+
+        // 檢查「某個節點下的直接子節點」是否已有相同名稱（需求 #6：避免側邊欄重複）
+        //   parentId === null → 比對 activeTreeData 頂層（FEATURE 層）
+        //   excludeId        → 編輯情境：排除自己，才能重新儲存同名
+        function _siblingNameExists(parentId, name, excludeId = null) {
+            if (!name) return false;
+            let siblings = null;
+            if (parentId === null || parentId === undefined || parentId === 'root_feature') {
+                siblings = activeTreeData || [];
+            } else {
+                const info = findNodeInfo(activeTreeData || [], parentId);
+                siblings = (info && info.node && info.node.children) ? info.node.children : [];
+            }
+            const normalize = (s) => String(s || '').trim().toLowerCase();
+            const target = normalize(name);
+            return siblings.some(n => n.id !== excludeId && normalize(n.title || n.name) === target);
         }
 
         function renderTree(nodes, container) {
@@ -4718,6 +5407,8 @@ driver.swipe(100, 800, 100, 200, 500)"
         async function loadTestCase(id) {
             // 切換案例前先檢查當前案例是否有未儲存變更
             if (currentTestCase && currentTestCase !== id && !confirmDiscardIfDirty()) return;
+            // RWD：手機版（< md）選案例後自動收起側邊欄，讓使用者看到編輯器
+            if (typeof closeMobileSidebar === 'function' && window.innerWidth < 768) closeMobileSidebar();
             try {
                 const tc = await apiFetch(`/api/testcases/${encodeURIComponent(id)}`);
                 const info = findNodeInfo(activeTreeData, id);
@@ -4850,6 +5541,9 @@ driver.swipe(100, 800, 100, 200, 500)"
                     if (targetNodeId === 'root_feature') {
                         if (!currentProjectId) return showToast('請先選擇專案', 'error');
                         if (!nameInput) return showToast('請輸入功能名稱', 'error');
+                        if (_siblingNameExists(null, nameInput)) {
+                            return showToast(`已有相同名稱的功能：「${nameInput}」`, 'error');
+                        }
                         await apiFetch('/api/nodes', {
                             method: 'POST', headers: {'Content-Type': 'application/json'},
                             body: JSON.stringify({ project_id: currentProjectId, parent_id: null, name: nameInput })
@@ -4861,6 +5555,9 @@ driver.swipe(100, 800, 100, 200, 500)"
                         let name = nameInput;
                         if (info.level === 1 || info.level === 3) name = selectValue;
                         if (!name) return showToast('請輸入名稱', 'error');
+                        if (_siblingNameExists(targetNodeId, name)) {
+                            return showToast(`此節點下已有相同名稱：「${name}」`, 'error');
+                        }
                         await apiFetch('/api/nodes', {
                             method: 'POST', headers: {'Content-Type': 'application/json'},
                             body: JSON.stringify({ project_id: currentProjectId, parent_id: targetNodeId, name: name })
@@ -4876,6 +5573,12 @@ driver.swipe(100, 800, 100, 200, 500)"
                 }
             } else if (currentModalAction === 'edit') {
                 if (!nameInput) return showToast('請輸入名稱', 'error');
+                // 需求 #6：重新命名時若同層已存在相同名稱（排除自己）也要擋下
+                const _info = findNodeInfo(activeTreeData, targetNodeId);
+                const _parentId = _info && _info.parent ? _info.parent.id : null;
+                if (_siblingNameExists(_parentId, nameInput, targetNodeId)) {
+                    return showToast(`同層級已有相同名稱：「${nameInput}」`, 'error');
+                }
                 try {
                     await apiFetch(`/api/nodes/${encodeURIComponent(targetNodeId)}`, {
                         method: 'PATCH', headers: {'Content-Type': 'application/json'},
@@ -5084,12 +5787,361 @@ driver.swipe(100, 800, 100, 200, 500)"
         }
 
         window.onload = () => {
+            // 第一步：檢查登入狀態。未登入 → 顯示認證覆蓋層並停止初始化。
+            authBootstrap();
+            if (!authIsLoggedIn()) {
+                authShowOverlay();
+                return;
+            }
+            // 已登入 → 正常初始化平台
             renderExecutionModeButton();
+            updateUserMenuUI();
             initProjects().then(() => {
-                // 首次載入預設進首頁（點左上 Logo 或呼叫 showHomeView 可隨時返回）
                 try { showHomeView(); } catch (_) { /* initProjects 若失敗仍顯示 emptyWorkspace */ }
             }).catch(() => { /* 靜默：initProjects 錯誤有自己的 toast */ });
         };
+
+        // ==================== 使用者認證（Client-Side Demo） ====================
+        // 注意：此為 Demo 等級的前端認證，實際正式環境應由後端簽發 JWT / session。
+        // 資料全部存 localStorage：
+        //   autotest.auth.users   → 使用者清單（含明文密碼；僅 demo 用）
+        //   autotest.auth.session → 目前登入的 session（username + loginAt + loginCount）
+        //   autotest.auth.prefs.<username> → 個人偏好
+        const AUTH_KEYS = {
+            users: 'autotest.auth.users',
+            session: 'autotest.auth.session',
+            prefs: (u) => `autotest.auth.prefs.${u}`,
+        };
+
+        function authBootstrap() {
+            // 首次啟動時，若 users 清單為空則自動種入 admin / admin123
+            try {
+                const raw = localStorage.getItem(AUTH_KEYS.users);
+                const users = raw ? JSON.parse(raw) : [];
+                if (!Array.isArray(users) || users.length === 0) {
+                    const defaultUser = {
+                        username: 'admin',
+                        password: 'admin123',
+                        email: 'admin@example.com',
+                        displayName: '系統管理員',
+                        createdAt: new Date().toISOString(),
+                    };
+                    localStorage.setItem(AUTH_KEYS.users, JSON.stringify([defaultUser]));
+                }
+            } catch (_) { /* 忽略 localStorage 讀寫錯誤 */ }
+        }
+
+        function _authReadUsers() {
+            try { return JSON.parse(localStorage.getItem(AUTH_KEYS.users) || '[]'); }
+            catch (_) { return []; }
+        }
+        function _authWriteUsers(list) {
+            try { localStorage.setItem(AUTH_KEYS.users, JSON.stringify(list)); } catch (_) { }
+        }
+        function _authReadSession() {
+            try { return JSON.parse(localStorage.getItem(AUTH_KEYS.session) || 'null'); }
+            catch (_) { return null; }
+        }
+        function _authWriteSession(s) {
+            try {
+                if (s) localStorage.setItem(AUTH_KEYS.session, JSON.stringify(s));
+                else localStorage.removeItem(AUTH_KEYS.session);
+            } catch (_) { }
+        }
+
+        function authIsLoggedIn() {
+            const s = _authReadSession();
+            return !!(s && s.username);
+        }
+        function authCurrentUsername() {
+            const s = _authReadSession();
+            return s ? s.username : null;
+        }
+        function authCurrentUser() {
+            const uname = authCurrentUsername();
+            if (!uname) return null;
+            return _authReadUsers().find(u => u.username === uname) || null;
+        }
+
+        function authShowOverlay() {
+            document.getElementById('authOverlay').classList.remove('hidden');
+        }
+        function authHideOverlay() {
+            document.getElementById('authOverlay').classList.add('hidden');
+        }
+
+        function switchAuthTab(tab) {
+            const tabs = ['login', 'register', 'forgot'];
+            tabs.forEach(t => {
+                const btn = document.getElementById('authTab' + t.charAt(0).toUpperCase() + t.slice(1));
+                const form = document.getElementById('auth' + t.charAt(0).toUpperCase() + t.slice(1) + 'Form');
+                if (t === tab) {
+                    btn.className = 'flex-1 py-3 text-sm font-medium text-amber-600 border-b-2 border-amber-500 bg-white transition';
+                    form.classList.remove('hidden');
+                } else {
+                    btn.className = 'flex-1 py-3 text-sm font-medium text-stone-500 border-b-2 border-transparent hover:text-amber-600 transition';
+                    form.classList.add('hidden');
+                }
+            });
+            const subtitle = document.getElementById('authHeroSubtitle');
+            if (subtitle) {
+                if (tab === 'login') subtitle.textContent = '歡迎回來，請登入以繼續';
+                else if (tab === 'register') subtitle.textContent = '建立新帳號，立即開始自動化測試';
+                else subtitle.textContent = '沒關係，我們來幫你重設密碼';
+            }
+        }
+
+        function authHandleLogin(ev) {
+            ev.preventDefault();
+            const uname = document.getElementById('loginUsername').value.trim();
+            const pwd = document.getElementById('loginPassword').value;
+            const users = _authReadUsers();
+            const match = users.find(u => u.username === uname && u.password === pwd);
+            if (!match) {
+                showToast('帳號或密碼錯誤', 'error');
+                return false;
+            }
+            // 寫入 session
+            const now = new Date().toISOString();
+            const prev = _authReadSession();
+            const prevCount = (prev && prev.username === uname) ? (prev.loginCount || 0) : 0;
+            _authWriteSession({ username: uname, loginAt: now, loginCount: prevCount + 1 });
+            showToast(`歡迎回來，${match.displayName || uname}`, 'success');
+            authHideOverlay();
+            // 觸發正式初始化
+            renderExecutionModeButton();
+            updateUserMenuUI();
+            initProjects().then(() => {
+                try { showHomeView(); } catch (_) { }
+            }).catch(() => { });
+            return false;
+        }
+
+        function authHandleRegister(ev) {
+            ev.preventDefault();
+            const uname = document.getElementById('regUsername').value.trim();
+            const email = document.getElementById('regEmail').value.trim();
+            const pwd = document.getElementById('regPassword').value;
+            const pwd2 = document.getElementById('regPassword2').value;
+            if (!/^[A-Za-z0-9_]{3,32}$/.test(uname)) {
+                showToast('使用者名稱格式不符（3-32 字元，英數底線）', 'error');
+                return false;
+            }
+            if (pwd !== pwd2) {
+                showToast('兩次密碼輸入不一致', 'error');
+                return false;
+            }
+            const users = _authReadUsers();
+            if (users.some(u => u.username === uname)) {
+                showToast('此使用者名稱已被使用', 'error');
+                return false;
+            }
+            users.push({
+                username: uname,
+                password: pwd,
+                email: email || `${uname}@example.com`,
+                displayName: uname,
+                createdAt: new Date().toISOString(),
+            });
+            _authWriteUsers(users);
+            showToast('帳號建立成功，請登入', 'success');
+            switchAuthTab('login');
+            document.getElementById('loginUsername').value = uname;
+            document.getElementById('loginPassword').value = '';
+            document.getElementById('loginPassword').focus();
+            return false;
+        }
+
+        function authHandleForgot(ev) {
+            ev.preventDefault();
+            const uname = document.getElementById('forgotUsername').value.trim();
+            const email = document.getElementById('forgotEmail').value.trim().toLowerCase();
+            const newPwd = document.getElementById('forgotNewPwd').value;
+            const newPwd2 = document.getElementById('forgotNewPwd2').value;
+            if (newPwd !== newPwd2) {
+                showToast('兩次新密碼不一致', 'error');
+                return false;
+            }
+            if (newPwd.length < 6) {
+                showToast('新密碼至少需 6 字元', 'error');
+                return false;
+            }
+            const users = _authReadUsers();
+            const idx = users.findIndex(u => u.username === uname && (u.email || '').toLowerCase() === email);
+            if (idx < 0) {
+                showToast('使用者名稱與 Email 不相符，請確認後再試', 'error');
+                return false;
+            }
+            users[idx].password = newPwd;
+            _authWriteUsers(users);
+            showToast('密碼已重設，請用新密碼登入', 'success');
+            // 自動切回登入分頁並代入帳號
+            switchAuthTab('login');
+            document.getElementById('loginUsername').value = uname;
+            document.getElementById('loginPassword').value = '';
+            document.getElementById('loginPassword').focus();
+            // 清空忘記密碼表單
+            document.getElementById('forgotUsername').value = '';
+            document.getElementById('forgotEmail').value = '';
+            document.getElementById('forgotNewPwd').value = '';
+            document.getElementById('forgotNewPwd2').value = '';
+            return false;
+        }
+
+        // 顯示/隱藏密碼（input id + 觸發按鈕；會切換按鈕圖示）
+        function togglePasswordVisibility(inputId, btn) {
+            const input = document.getElementById(inputId);
+            if (!input) return;
+            const icon = btn && btn.querySelector('i');
+            if (input.type === 'password') {
+                input.type = 'text';
+                if (icon) { icon.classList.remove('fa-eye'); icon.classList.add('fa-eye-slash'); }
+            } else {
+                input.type = 'password';
+                if (icon) { icon.classList.remove('fa-eye-slash'); icon.classList.add('fa-eye'); }
+            }
+        }
+
+        function authLogout() {
+            if (!confirm('確定要登出嗎？')) return;
+            _authWriteSession(null);
+            showToast('已登出', 'success');
+            // 重新整理頁面以清空所有狀態
+            setTimeout(() => { window.location.reload(); }, 600);
+        }
+
+        // ==================== 使用者選單（右上角）====================
+        // 新設計：點使用者名稱 → 直接進「使用者設定」頁；不再有下拉
+        // 保留 toggleUserMenu / closeUserMenu 以維持舊呼叫端相容（no-op）
+        function toggleUserMenu(ev) {
+            ev && ev.stopPropagation();
+            if (typeof showUserSettingsView === 'function') showUserSettingsView();
+        }
+        function closeUserMenu() { /* no-op, kept for backward compat */ }
+
+        function updateUserMenuUI() {
+            const u = authCurrentUser();
+            if (!u) return;
+            const display = u.displayName || u.username;
+            const initial = (display || u.username || '?').charAt(0).toUpperCase();
+            const avatar = document.getElementById('userMenuAvatar');
+            const name = document.getElementById('userMenuName');
+            if (avatar) avatar.textContent = initial;
+            if (name) name.textContent = display;
+        }
+
+        // ==================== 使用者設定頁 ====================
+        function showUserSettingsView() {
+            if (typeof confirmDiscardIfDirty === 'function' && !confirmDiscardIfDirty()) return;
+            _hideAllWorkspaces();
+            document.getElementById('userSettingsWorkspace').classList.remove('hidden');
+            document.getElementById('mainHeader').classList.remove('hidden');
+            document.getElementById('mainActions').classList.add('hidden');
+            document.getElementById('viewFilename').textContent = '使用者設定';
+            document.getElementById('viewTitle').innerHTML = '<i class="fa-solid fa-user-gear text-amber-500"></i> 使用者設定';
+            document.getElementById('viewTag').className = 'bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium';
+            document.getElementById('viewTag').textContent = 'Account';
+            currentTestCase = null;
+            loadUserSettingsView();
+        }
+
+        function loadUserSettingsView() {
+            const u = authCurrentUser();
+            const s = _authReadSession();
+            if (!u) return;
+            const initial = (u.displayName || u.username || '?').charAt(0).toUpperCase();
+            document.getElementById('usAvatarLarge').textContent = initial;
+            document.getElementById('usNameLarge').textContent = u.displayName || u.username;
+            document.getElementById('usEmailLarge').textContent = u.email || '';
+            document.getElementById('usCreatedAt').textContent = u.createdAt ? u.createdAt.slice(0, 10) : '—';
+            document.getElementById('usUsername').value = u.username || '';
+            document.getElementById('usEmail').value = u.email || '';
+            document.getElementById('usDisplayName').value = u.displayName || '';
+            document.getElementById('usLastLogin').textContent = s && s.loginAt ? s.loginAt.replace('T', ' ').slice(0, 19) : '—';
+            document.getElementById('usLoginCount').textContent = s && s.loginCount ? String(s.loginCount) : '1';
+            // 偏好
+            const prefs = _loadUserPrefs();
+            document.getElementById('usPrefDefaultExec').value = prefs.defaultExec || 'docker';
+            document.getElementById('usPrefAutoRefresh').checked = prefs.autoRefresh !== false;
+            document.getElementById('usPrefConfirmDiscard').checked = prefs.confirmDiscard !== false;
+        }
+
+        function _loadUserPrefs() {
+            const u = authCurrentUsername();
+            if (!u) return {};
+            try { return JSON.parse(localStorage.getItem(AUTH_KEYS.prefs(u)) || '{}'); }
+            catch (_) { return {}; }
+        }
+        function _saveUserPrefs(prefs) {
+            const u = authCurrentUsername();
+            if (!u) return;
+            try { localStorage.setItem(AUTH_KEYS.prefs(u), JSON.stringify(prefs)); } catch (_) { }
+        }
+
+        function saveUserProfile() {
+            const uname = authCurrentUsername();
+            const users = _authReadUsers();
+            const idx = users.findIndex(x => x.username === uname);
+            if (idx < 0) { showToast('找不到使用者', 'error'); return; }
+            users[idx].email = document.getElementById('usEmail').value.trim() || users[idx].email;
+            users[idx].displayName = document.getElementById('usDisplayName').value.trim() || uname;
+            _authWriteUsers(users);
+            showToast('帳戶資訊已更新', 'success');
+            updateUserMenuUI();
+            loadUserSettingsView();
+        }
+
+        function changeUserPassword(ev) {
+            ev.preventDefault();
+            const oldPwd = document.getElementById('usOldPwd').value;
+            const newPwd = document.getElementById('usNewPwd').value;
+            const newPwd2 = document.getElementById('usNewPwd2').value;
+            const uname = authCurrentUsername();
+            const users = _authReadUsers();
+            const idx = users.findIndex(x => x.username === uname);
+            if (idx < 0 || users[idx].password !== oldPwd) {
+                showToast('目前密碼不正確', 'error');
+                return false;
+            }
+            if (newPwd !== newPwd2) {
+                showToast('兩次新密碼不一致', 'error');
+                return false;
+            }
+            if (newPwd.length < 6) {
+                showToast('新密碼至少需 6 字元', 'error');
+                return false;
+            }
+            users[idx].password = newPwd;
+            _authWriteUsers(users);
+            document.getElementById('usOldPwd').value = '';
+            document.getElementById('usNewPwd').value = '';
+            document.getElementById('usNewPwd2').value = '';
+            showToast('密碼已變更', 'success');
+            return false;
+        }
+
+        function saveUserPrefs() {
+            const prefs = {
+                defaultExec: document.getElementById('usPrefDefaultExec').value,
+                autoRefresh: document.getElementById('usPrefAutoRefresh').checked,
+                confirmDiscard: document.getElementById('usPrefConfirmDiscard').checked,
+            };
+            _saveUserPrefs(prefs);
+            showToast('個人偏好已儲存', 'success');
+        }
+
+        // ==================== 觸發來源顯示格式化 ====================
+        // 規則：
+        //   "Scheduled" → "自動排程"
+        //   "Manual"   → "手動執行"（舊資料；新資料會直接存使用者名稱）
+        //   其他字串   → 視為使用者名稱直接顯示
+        //   空 / null  → "—"
+        function formatTriggerSource(val) {
+            if (!val) return '—';
+            if (val === 'Scheduled') return '自動排程';
+            if (val === 'Manual') return '手動執行';
+            return val;
+        }
 
         // 瀏覽器關閉 / 重新整理 / 切網址：有未儲存變更時跳原生確認框
         window.addEventListener('beforeunload', (e) => {
@@ -5145,6 +6197,7 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('mockWorkspace')?.classList.add('hidden');
             document.getElementById('homeWorkspace')?.classList.add('hidden');
             document.getElementById('testcasesWorkspace')?.classList.add('hidden');
+            document.getElementById('userSettingsWorkspace')?.classList.add('hidden');
         }
 
         // ==================== 首頁 (Home) ====================
@@ -5156,14 +6209,112 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('mainHeader').classList.remove('hidden');
             document.getElementById('mainActions').classList.add('hidden');
             document.getElementById('viewFilename').textContent = '首頁';
-            document.getElementById('viewTitle').innerHTML = '<i class="fa-solid fa-house text-blue-500"></i> AutoTest 首頁';
-            document.getElementById('viewTag').className = 'bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium';
+            document.getElementById('viewTitle').innerHTML = '<i class="fa-solid fa-house text-amber-500"></i> AutoTest 首頁';
+            document.getElementById('viewTag').className = 'bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium';
             document.getElementById('viewTag').textContent = 'Home';
             currentTestCase = null;
             updateHomeStats();
+            startSystemStatusPolling();
         }
 
         // 更新首頁的專案統計資訊（從現有的記憶體狀態計算，無需 API）
+        // ==================== 首頁系統狀態（/api/system/status 輪詢） ====================
+        let _sysStatusTimer = null;
+
+        function _fmtBytes(mb) {
+            if (mb == null) return '—';
+            if (mb >= 1024) return (mb / 1024).toFixed(1) + ' GB';
+            return Math.round(mb) + ' MB';
+        }
+        function _setBarColor(el, pct) {
+            if (!el) return;
+            el.style.width = Math.max(0, Math.min(100, pct || 0)) + '%';
+        }
+
+        async function refreshSystemStatus() {
+            try {
+                const res = await fetch('/api/system/status');
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const s = await res.json();
+                // Badge
+                const badge = document.getElementById('sysStatusBadge');
+                if (badge) {
+                    badge.textContent = '已更新 ' + new Date().toLocaleTimeString('zh-TW', { hour12: false });
+                    badge.className = 'text-[10px] font-normal normal-case tracking-normal px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700';
+                }
+                // Host 資訊（OS / cores / total memory）
+                const host = s.host || {};
+                const hostEl = document.getElementById('sysHostInfo');
+                if (hostEl) {
+                    const hostParts = [];
+                    if (host.os) hostParts.push(host.os);
+                    if (host.cores) hostParts.push(host.cores + ' cores');
+                    if (host.total_mem_mb) hostParts.push((host.total_mem_mb / 1024).toFixed(1) + ' GB RAM');
+                    const platInfo = (s.platform && s.platform.container_count) ? `共 ${s.platform.container_count} 個平台容器` : '';
+                    hostEl.textContent = `Host：${hostParts.join(' · ') || '—'}${platInfo ? '　|　' + platInfo : ''}`;
+                }
+                // Docker
+                const d = s.docker || {};
+                const dBadge = document.getElementById('sysDockerBadge');
+                if (dBadge) {
+                    if (d.status === 'running') {
+                        dBadge.textContent = '執行中';
+                        dBadge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700';
+                    } else {
+                        dBadge.textContent = '未知';
+                        dBadge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-stone-100 text-stone-500';
+                    }
+                }
+                document.getElementById('sysDockerVer').textContent = d.version ? ('v' + d.version) : '—';
+                document.getElementById('sysDockerContainers').textContent =
+                    (d.containers_running != null && d.containers_total != null) ? (d.containers_running + ' / ' + d.containers_total) : '—';
+                document.getElementById('sysDockerImages').textContent = d.images != null ? String(d.images) : '—';
+                // CPU
+                const cpuPct = s.cpu && s.cpu.percent != null ? s.cpu.percent : null;
+                document.getElementById('sysCpuPct').textContent = cpuPct != null ? cpuPct.toFixed(1) : '—';
+                _setBarColor(document.getElementById('sysCpuBar'), cpuPct);
+                // Memory
+                const m = s.memory || {};
+                document.getElementById('sysMemPct').textContent = m.percent != null ? m.percent.toFixed(1) : '—';
+                document.getElementById('sysMemUsed').textContent = _fmtBytes(m.used_mb);
+                document.getElementById('sysMemTotal').textContent = _fmtBytes(m.total_mb);
+                _setBarColor(document.getElementById('sysMemBar'), m.percent);
+                // Disk
+                const dk = s.disk || {};
+                document.getElementById('sysDiskPct').textContent = dk.percent != null ? dk.percent.toFixed(1) : '—';
+                document.getElementById('sysDiskUsed').textContent = dk.used_gb != null ? (dk.used_gb + ' GB') : '—';
+                document.getElementById('sysDiskTotal').textContent = dk.total_gb != null ? (dk.total_gb + ' GB') : '—';
+                _setBarColor(document.getElementById('sysDiskBar'), dk.percent);
+                // Network
+                const n = s.network || {};
+                document.getElementById('sysNetRx').textContent = n.rx_rate_kbps != null ? n.rx_rate_kbps.toFixed(1) : '—';
+                document.getElementById('sysNetTx').textContent = n.tx_rate_kbps != null ? n.tx_rate_kbps.toFixed(1) : '—';
+                const totalStr = (n.rx_total_mb != null && n.tx_total_mb != null)
+                    ? ('↓' + n.rx_total_mb + ' / ↑' + n.tx_total_mb + ' MB') : '—';
+                document.getElementById('sysNetTotal').textContent = totalStr;
+            } catch (e) {
+                const badge = document.getElementById('sysStatusBadge');
+                if (badge) {
+                    badge.textContent = '連線失敗';
+                    badge.className = 'text-[10px] font-normal normal-case tracking-normal px-2 py-0.5 rounded-full bg-rose-100 text-rose-700';
+                }
+            }
+        }
+
+        // 只在首頁可見時輪詢；切到其他頁面停下來
+        function startSystemStatusPolling() {
+            stopSystemStatusPolling();
+            refreshSystemStatus();
+            _sysStatusTimer = setInterval(() => {
+                const homeWs = document.getElementById('homeWorkspace');
+                if (homeWs && !homeWs.classList.contains('hidden')) refreshSystemStatus();
+                else stopSystemStatusPolling();
+            }, 5000);
+        }
+        function stopSystemStatusPolling() {
+            if (_sysStatusTimer) { clearInterval(_sysStatusTimer); _sysStatusTimer = null; }
+        }
+
         function updateHomeStats() {
             const projName = (currentProjectId && projectsData[currentProjectId] && projectsData[currentProjectId].name) || '—';
             const projEl = document.getElementById('homeStatProject');
@@ -5190,24 +6341,26 @@ driver.swipe(100, 800, 100, 200, 500)"
             const recentBox = document.getElementById('homeRecentCases');
             if (recentBox) {
                 const list = [];
+                const _stripMd = (s) => String(s || '').replace(/\.md$/i, '');
                 (function walk2(nodes, path) {
                     if (!nodes) return;
                     for (const n of nodes) {
                         if (n.level_type === 'TESTCASE' || n.isFile) {
-                            list.push({ id: n.id, title: n.title || n.name || n.id, path });
+                            // 需求 #2：首頁最近測試案例也隱藏 .md 副檔名
+                            list.push({ id: n.id, title: _stripMd(n.title || n.name || n.id), path });
                         }
                         if (n.children && n.children.length) {
                             walk2(n.children, path ? path + ' / ' + (n.title || n.name) : (n.title || n.name));
                         }
                     }
                 })(activeTreeData || [], '');
-                const top = list.slice(0, 5);
+                const top = list.slice(0, 10);
                 if (!top.length) {
-                    recentBox.innerHTML = '<div class="p-6 text-center text-slate-400 text-sm">尚無測試案例，請先在左側目錄樹建立 Feature → Platform → Page → Scenario → TestCase。</div>';
+                    recentBox.innerHTML = '<div class="p-6 text-center text-stone-400 text-sm">尚無測試案例，請先在左側目錄樹建立 Feature → Platform → Page → Scenario → TestCase。</div>';
                 } else {
                     recentBox.innerHTML = top.map(x =>
-                        '<button onclick="loadTestCase(\'' + String(x.id).replace(/'/g, "\\'") + '\')" class="w-full text-left p-4 hover:bg-blue-50/50 transition flex items-center gap-3">' +
-                        '<i class="fa-regular fa-file-lines text-blue-500"></i>' +
+                        '<button onclick="loadTestCase(\'' + String(x.id).replace(/'/g, "\\'") + '\')" class="w-full text-left p-4 hover:bg-amber-50/60 transition flex items-center gap-3">' +
+                        '<i class="fa-regular fa-file-lines text-amber-500"></i>' +
                         '<div class="flex-1 min-w-0">' +
                         '  <div class="text-sm font-semibold text-slate-800 truncate">' + escapeHtml(x.title) + '</div>' +
                         '  <div class="text-xs text-slate-500 truncate">' + escapeHtml(x.path || '—') + '</div>' +
@@ -5231,12 +6384,16 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('viewTag').className = 'bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium';
             document.getElementById('viewTag').textContent = 'Cases';
             currentTestCase = null;
+            // 進入清單時清空勾選，避免跨頁殘留造成誤刪
+            if (typeof tcListState !== 'undefined' && tcListState.selected) tcListState.selected.clear();
             renderTestCasesList();
         }
 
         // 依當前 activeTreeData 收集所有 TESTCASE 節點（含祖先鏈上的 PLATFORM / PAGE 名稱）
         function collectTestCaseNodesWithAncestors() {
             const out = [];
+            // 需求 #2：測試案例清單顯示時移除 .md 副檔名（副檔名仍保留在實際 node.name / node.title）
+            const stripMd = (s) => String(s || '').replace(/\.md$/i, '');
             (function walk(nodes, ancestors) {
                 if (!nodes) return;
                 for (const n of nodes) {
@@ -5247,7 +6404,8 @@ driver.swipe(100, 800, 100, 200, 500)"
                         const feature = chain.find(a => a.level_type === 'FEATURE');
                         out.push({
                             id: n.id,
-                            title: n.title || n.name || n.id,
+                            title: stripMd(n.title || n.name || n.id),
+                            rawTitle: n.title || n.name || n.id,  // 保留原始含 .md 的名稱，供重新命名時使用
                             platform: platform ? (platform.name || platform.title) : '',
                             page: page ? (page.name || page.title) : '',
                             feature: feature ? (feature.name || feature.title) : '',
@@ -5289,21 +6447,220 @@ driver.swipe(100, 800, 100, 200, 500)"
                 UI: 'bg-sky-100 text-sky-700',
                 E2E: 'bg-purple-100 text-purple-700'
             };
-            tbody.innerHTML = rows.map((r, i) => {
+            // 分頁切片
+            const pageSize = tcListState.pageSize === 'all' ? rows.length : Number(tcListState.pageSize || 10);
+            const totalPages = Math.max(1, Math.ceil(rows.length / Math.max(1, pageSize)));
+            if (tcListState.page > totalPages) tcListState.page = totalPages;
+            if (tcListState.page < 1) tcListState.page = 1;
+            const startIdx = (tcListState.page - 1) * pageSize;
+            const pageRows = tcListState.pageSize === 'all' ? rows : rows.slice(startIdx, startIdx + pageSize);
+
+            // 清掉已不在當前結果中的勾選（避免殘留）
+            const currentIds = new Set(rows.map(r => r.id));
+            tcListState.selected.forEach(id => { if (!currentIds.has(id)) tcListState.selected.delete(id); });
+
+            tbody.innerHTML = pageRows.map((r, localIdx) => {
+                const i = startIdx + localIdx;
                 const pKey = (r.platform || '').toUpperCase();
-                const badge = platColor[pKey] || 'bg-slate-100 text-slate-600';
+                const badge = platColor[pKey] || 'bg-stone-100 text-stone-600';
                 const idEsc = String(r.id).replace(/'/g, "\\'");
-                return '<tr class="hover:bg-blue-50/40 transition">' +
-                    '<td class="p-3 text-xs text-slate-400 font-mono">' + (i + 1) + '</td>' +
-                    '<td class="p-3"><div class="font-semibold text-slate-800">' + escapeHtml(r.title) + '</div></td>' +
+                const titleEsc = String(r.title || '').replace(/'/g, "\\'");
+                const checked = tcListState.selected.has(r.id) ? 'checked' : '';
+                return '<tr class="hover:bg-amber-50/40 transition align-top">' +
+                    '<td class="p-3 text-center"><input type="checkbox" class="tc-row-check accent-amber-500 cursor-pointer" value="' + idEsc + '" ' + checked + ' onchange="tcToggleRow(\'' + idEsc + '\', this.checked)"></td>' +
+                    '<td class="p-3 text-xs text-stone-400 font-mono">' + (i + 1) + '</td>' +
+                    '<td class="p-3"><div class="font-semibold text-stone-800 break-all">' + escapeHtml(r.title) + '</div></td>' +
                     '<td class="p-3"><span class="text-xs px-2 py-0.5 rounded font-medium ' + badge + '">' + escapeHtml(r.platform || '—') + '</span></td>' +
-                    '<td class="p-3 text-sm text-slate-600 truncate max-w-[180px]" title="' + escapeHtml(r.page) + '">' + escapeHtml(r.page || '—') + '</td>' +
-                    '<td class="p-3 text-xs text-slate-500 truncate max-w-[220px]" title="' + escapeHtml(r.path) + '">' + escapeHtml(r.path || '—') + '</td>' +
-                    '<td class="p-3 text-center">' +
-                    '  <button onclick="loadTestCase(\'' + idEsc + '\')" class="text-xs px-2.5 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition"><i class="fa-solid fa-pen-to-square"></i> 編輯</button>' +
+                    '<td class="p-3 text-sm text-stone-600 break-all">' + escapeHtml(r.page || '—') + '</td>' +
+                    '<td class="p-3 text-xs text-stone-500 whitespace-normal break-all leading-relaxed">' + escapeHtml(r.path || '—') + '</td>' +
+                    // 按鈕樣式與「排程」「測試回合」頁面一致：淺底+邊框+圖示+文字
+                    '<td class="p-3 text-center whitespace-nowrap space-x-1">' +
+                    '  <button onclick="loadTestCase(\'' + idEsc + '\')" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded transition"><i class="fa-solid fa-pen"></i> 編輯</button>' +
+                    '  <button onclick="tcRenameFromList(\'' + idEsc + '\',\'' + titleEsc + '\')" class="text-xs px-2 py-1 bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 rounded transition"><i class="fa-solid fa-i-cursor"></i> 重新命名</button>' +
+                    '  <button onclick="tcDeleteFromList(\'' + idEsc + '\',\'' + titleEsc + '\')" class="text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded transition"><i class="fa-solid fa-trash"></i> 刪除</button>' +
                     '</td>' +
                     '</tr>';
             }).join('');
+
+            // 分頁 UI 狀態
+            const pageInfo = document.getElementById('tcListPageInfo');
+            const pageLabel = document.getElementById('tcListPageLabel');
+            const prevBtn = document.getElementById('tcListPagePrev');
+            const nextBtn = document.getElementById('tcListPageNext');
+            if (pageInfo) {
+                if (rows.length === 0) pageInfo.textContent = '0 筆';
+                else if (tcListState.pageSize === 'all') pageInfo.textContent = `顯示全部 ${rows.length} 筆`;
+                else pageInfo.textContent = `第 ${startIdx + 1}–${Math.min(startIdx + pageSize, rows.length)} / 共 ${rows.length} 筆`;
+            }
+            if (pageLabel) pageLabel.textContent = `第 ${tcListState.page} / ${totalPages} 頁`;
+            if (prevBtn) prevBtn.disabled = tcListState.page <= 1 || tcListState.pageSize === 'all';
+            if (nextBtn) nextBtn.disabled = tcListState.page >= totalPages || tcListState.pageSize === 'all';
+
+            // 更新「批量刪除」按鈕狀態 / 全選 checkbox 狀態
+            tcUpdateBulkDeleteUI(pageRows);
+        }
+
+        // ==================== 測試案例清單：選取 / 分頁 狀態 ====================
+        const tcListState = {
+            page: 1,
+            pageSize: 10,             // 10 / 20 / 50 / 100 / 'all'
+            selected: new Set(),      // 勾選的 node_id
+        };
+
+        function tcChangePage(delta) {
+            tcListState.page = (tcListState.page || 1) + delta;
+            if (tcListState.page < 1) tcListState.page = 1;
+            renderTestCasesList();
+        }
+        function tcChangePageSize(sz) {
+            tcListState.pageSize = (sz === 'all') ? 'all' : Number(sz);
+            tcListState.page = 1;
+            renderTestCasesList();
+        }
+
+        function tcToggleRow(id, checked) {
+            if (checked) tcListState.selected.add(id);
+            else tcListState.selected.delete(id);
+            tcUpdateBulkDeleteUI();
+        }
+        function tcToggleSelectAll(checked) {
+            // 只勾選當前「已渲染」（本頁）的列；避免一次選到未顯示的列
+            const rows = Array.from(document.querySelectorAll('.tc-row-check'));
+            rows.forEach(cb => {
+                cb.checked = checked;
+                const id = cb.value;
+                if (checked) tcListState.selected.add(id);
+                else tcListState.selected.delete(id);
+            });
+            tcUpdateBulkDeleteUI();
+        }
+        function tcUpdateBulkDeleteUI() {
+            const btn = document.getElementById('tcBulkDeleteBtn');
+            const lbl = document.getElementById('tcBulkDeleteCount');
+            const n = tcListState.selected.size;
+            if (btn) btn.disabled = n === 0;
+            if (lbl) lbl.textContent = `(${n})`;
+            // 同步全選 checkbox 的 indeterminate / checked
+            const selAll = document.getElementById('tcSelectAll');
+            if (selAll) {
+                const rows = Array.from(document.querySelectorAll('.tc-row-check'));
+                const visible = rows.length;
+                const checkedVisible = rows.filter(cb => cb.checked).length;
+                selAll.checked = visible > 0 && checkedVisible === visible;
+                selAll.indeterminate = checkedVisible > 0 && checkedVisible < visible;
+            }
+        }
+        async function tcBulkDeleteSelected() {
+            const ids = Array.from(tcListState.selected);
+            if (!ids.length) return;
+            if (!confirm(`確定要刪除已勾選的 ${ids.length} 筆測試案例？此動作無法復原。`)) return;
+            let ok = 0, fail = 0;
+            for (const id of ids) {
+                try {
+                    await apiFetch(`/api/nodes/${encodeURIComponent(id)}`, { method: 'DELETE' });
+                    ok++;
+                } catch (e) { fail++; }
+            }
+            tcListState.selected.clear();
+            showToast(`已刪除 ${ok} 筆${fail ? `，失敗 ${fail} 筆` : ''}`, fail ? 'error' : 'success');
+            await switchProject(currentProjectId);
+            showTestCasesView();
+        }
+
+        // ========== 測試案例清單 CRUD（與側邊欄同步） ==========
+        // 新增 Modal：打開時動態填入當前專案的 SCENARIO 節點作為下拉選項
+        function openTcCreateModal() {
+            if (!currentProjectId) { showToast('請先選擇專案', 'error'); return; }
+            const sel = document.getElementById('tcCreateParent');
+            const scenarios = [];
+            (function walk(nodes, path) {
+                if (!nodes) return;
+                for (const n of nodes) {
+                    const nextPath = path ? path + ' / ' + (n.title || n.name) : (n.title || n.name);
+                    if (n.level_type === 'SCENARIO') scenarios.push({ id: n.id, label: nextPath });
+                    if (n.children && n.children.length) walk(n.children, nextPath);
+                }
+            })(activeTreeData || [], '');
+            if (sel) {
+                sel.innerHTML = '<option value="">— 請選擇 —</option>' +
+                    scenarios.map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.label)}</option>`).join('');
+            }
+            document.getElementById('tcCreateName').value = '';
+            document.getElementById('tcCreateModalTitle').innerHTML = '<i class="fa-solid fa-plus-circle text-amber-500"></i> 新增測試案例';
+            document.getElementById('tcCreateSubmitLabel').textContent = '建立';
+            document.getElementById('tcCreateModal').classList.remove('hidden');
+            setTimeout(() => document.getElementById('tcCreateName').focus(), 50);
+        }
+        function closeTcCreateModal() {
+            document.getElementById('tcCreateModal').classList.add('hidden');
+        }
+        async function tcCreateSubmit(ev) {
+            ev.preventDefault();
+            const parentId = document.getElementById('tcCreateParent').value;
+            let name = document.getElementById('tcCreateName').value.trim();
+            if (!parentId) { showToast('請選擇父節點（SCENARIO）', 'error'); return false; }
+            if (!name) { showToast('請輸入測試案例名稱', 'error'); return false; }
+            if (!/\.md$/i.test(name)) name = name + '.md';
+            if (_siblingNameExists(parentId, name)) {
+                showToast(`此 SCENARIO 下已有同名案例：「${name}」`, 'error');
+                return false;
+            }
+            try {
+                await apiFetch('/api/nodes', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ project_id: currentProjectId, parent_id: parentId, name: name })
+                });
+                showToast('測試案例已建立', 'success');
+                closeTcCreateModal();
+                await switchProject(currentProjectId);
+                showTestCasesView();
+            } catch (e) {
+                showToast(`建立失敗：${e.message}`, 'error');
+            }
+            return false;
+        }
+
+        async function tcRenameFromList(id, currentTitle) {
+            const info = findNodeInfo(activeTreeData, id);
+            if (!info) { showToast('找不到此測試案例', 'error'); return; }
+            const parentId = info.parent ? info.parent.id : null;
+            // currentTitle 已是去除 .md 後的名稱；prompt 也讓使用者看乾淨名稱
+            let newName = prompt('重新命名測試案例', currentTitle);
+            if (newName === null) return;
+            newName = newName.trim();
+            if (!newName) { showToast('名稱不可為空', 'error'); return; }
+            if (!/\.md$/i.test(newName)) newName = newName + '.md';
+            // 比較時也要比對有 .md 的完整名稱（後端儲存格式）
+            const currentFull = (info.node.title || info.node.name || '');
+            if (newName === currentFull) return;
+            if (_siblingNameExists(parentId, newName, id)) {
+                showToast(`同層級已有相同名稱：「${newName.replace(/\.md$/i, '')}」`, 'error');
+                return;
+            }
+            try {
+                await apiFetch(`/api/nodes/${encodeURIComponent(id)}`, {
+                    method: 'PATCH', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ name: newName })
+                });
+                showToast('名稱已更新', 'success');
+                await switchProject(currentProjectId);
+                showTestCasesView();
+            } catch (e) {
+                showToast(`更新失敗：${e.message}`, 'error');
+            }
+        }
+
+        async function tcDeleteFromList(id, title) {
+            const displayTitle = String(title || '').replace(/\.md$/i, '');
+            if (!confirm(`確定要刪除測試案例「${displayTitle}」？此動作無法復原。`)) return;
+            try {
+                await apiFetch(`/api/nodes/${encodeURIComponent(id)}`, { method: 'DELETE' });
+                showToast('測試案例已刪除', 'success');
+                await switchProject(currentProjectId);
+                showTestCasesView();
+            } catch (e) {
+                showToast(`刪除失敗：${e.message}`, 'error');
+            }
         }
 
         // 首頁 / 測試案例清單使用既有的 escapeHtml()（定義於稍早）

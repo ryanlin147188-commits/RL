@@ -4,7 +4,10 @@ services:
     container_name: autotest-mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-password}
+      # 預設帳密統一為 admin / admin123（首次啟動時建立；既有 volume 沿用原設定）
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-admin123}
+      MYSQL_USER: ${DB_USER:-admin}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-admin123}
       MYSQL_DATABASE: ${DB_NAME:-autotest_db}
       TZ: Asia/Taipei
     command:
@@ -17,7 +20,7 @@ services:
       - "3306:3306"
     healthcheck:
       test:
-        ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${DB_PASSWORD:-password}"]
+        ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u${DB_USER:-admin}", "-p${DB_PASSWORD:-admin123}"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -41,8 +44,9 @@ services:
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      # 預設帳密統一為 admin / admin123（MinIO 密碼至少 8 字元；admin123 剛好 8 字元）
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-admin123}
     volumes:
       - minio_data:/data
     ports:
@@ -62,7 +66,7 @@ services:
         condition: service_healthy
     entrypoint: >
       /bin/sh -c "
-      mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-minioadmin};
+      mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-admin} ${MINIO_ROOT_PASSWORD:-admin123};
       mc mb -p local/pic || true;
       mc mb -p local/results || true;
       mc anonymous set download local/pic;
@@ -87,21 +91,24 @@ services:
       TZ: Asia/Taipei
       DB_HOST: mysql
       DB_PORT: 3306
-      DB_USER: root
-      DB_PASSWORD: ${DB_PASSWORD:-password}
+      DB_USER: ${DB_USER:-admin}
+      DB_PASSWORD: ${DB_PASSWORD:-admin123}
       DB_NAME: ${DB_NAME:-autotest_db}
       REDIS_URL: redis://redis:6379/0
       PIC_FOLDER: /app/PIC
       BASE_URL: ${BASE_URL:-http://localhost}
       STORAGE_BACKEND: ${STORAGE_BACKEND:-local}
       MINIO_ENDPOINT: http://minio:9000
-      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-admin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-admin123}
       APP_HOST: 0.0.0.0
       APP_PORT: 8000
       DEBUG: "False"
     volumes:
       - pic_data:/app/PIC
+      # 掛入 docker socket，讓 /api/system/status 能查詢 Docker 狀態（唯讀即可）
+      # ⚠ 這等同 root 權限；正式部署請改用 docker-socket-proxy
+      - /var/run/docker.sock:/var/run/docker.sock
     ports:
       - "8000:8000"
 
@@ -120,16 +127,16 @@ services:
       TZ: Asia/Taipei
       DB_HOST: mysql
       DB_PORT: 3306
-      DB_USER: root
-      DB_PASSWORD: ${DB_PASSWORD:-password}
+      DB_USER: ${DB_USER:-admin}
+      DB_PASSWORD: ${DB_PASSWORD:-admin123}
       DB_NAME: ${DB_NAME:-autotest_db}
       REDIS_URL: redis://redis:6379/0
       PIC_FOLDER: /app/PIC
       BASE_URL: ${BASE_URL:-http://localhost}
       STORAGE_BACKEND: ${STORAGE_BACKEND:-local}
       MINIO_ENDPOINT: http://minio:9000
-      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-admin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-admin123}
       # 容器內預設用 headless；如需 headed demo，改成 "0" 並確保 Xvfb 已啟動
       PLAYWRIGHT_HEADLESS: ${PLAYWRIGHT_HEADLESS:-1}
       # ── Spawn 模式（execution_mode=docker）─────────────────────
