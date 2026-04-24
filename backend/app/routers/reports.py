@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.execution_report import ExecutionReport, ReportStatus
 from app.models.execution_step_log import ExecutionStepLog
+from app.models.tree_node import TreeNode
 from app.schemas.dashboard import ChartDataPoint, ChartsResponse, MetricsResponse
 from app.schemas.execution_report import (
     PaginatedResponse,
@@ -182,11 +183,28 @@ async def list_reports(
         agg: dict[str, dict[str, int]] = {}
         for rid, st, cnt in step_rows:
             agg.setdefault(rid, {})[str(st.value if hasattr(st, "value") else st)] = int(cnt)
+
+        # 批次查「這次執行的觸發節點 title」：source_node_id → TreeNode.name。
+        # 報告分頁通常只有 10-20 筆，單次 IN 查詢即可。
+        src_ids = {r.source_node_id for r in items if r.source_node_id}
+        node_name_map: dict[str, str] = {}
+        if src_ids:
+            nodes = (
+                await db.execute(
+                    select(TreeNode.id, TreeNode.name).where(TreeNode.id.in_(src_ids))
+                )
+            ).all()
+            node_name_map = {nid: nm for nid, nm in nodes}
+
+        # 若 source_node_id 指向 TESTCASE 節點，亦回傳案例標題；若指向 FEATURE / PAGE 等中繼層級，
+        # 前端會一樣顯示；實際 source 可能是被 testcase 以外的層級觸發（例如整個 PAGE 跑）。
         for r in items:
             d = ReportListItem.model_validate(r).model_dump()
             stats = agg.get(r.id, {})
             d["passed_steps"] = stats.get("PASSED", 0)
             d["failed_steps"] = stats.get("FAILED", 0)
+            if r.source_node_id and r.source_node_id in node_name_map:
+                d["source_title"] = node_name_map[r.source_node_id]
             item_dicts.append(d)
     return PaginatedResponse(
         total=total,

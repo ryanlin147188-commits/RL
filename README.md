@@ -10,7 +10,7 @@
 - 視覺化 ATDD / BDD 步驟編輯與 Data-Driven Testing（DDT）
 - 測試案例記錄「驗收準則 (AC) + 前置動作 (Pre-Setup) + BDD 步驟 + DDT 資料」四區塊
 - **多來源錄製 / 轉換**：WEB 可用 Playwright codegen；API 可貼 cURL；APP 可貼 Appium Python 腳本轉成步驟
-- TopNav 提供五種工作模式：案例編輯、測試回合、執行報告、排程、錄製
+- TopNav 提供 7 個導覽入口：設備資訊、環境變數、DB 資訊、Mock、測試回合、測試報告、排程、錄製
 - 全站可切換兩種執行環境：Docker（容器內 headless）與本機 Agent（本機 headed Chromium）
 - **自動化排程**：支援單次、每天、每週、每月四種觸發規則，UI 可多選多筆 `.md` 測試案例後一起排程
 - **測試回合**：可把多筆 `.md` 測試案例儲存成命名集合，一鍵彙總執行並產生單一報告
@@ -22,11 +22,14 @@
 - **本機 Agent**：下載 `local_agent.py` 後可由本機直接認領 local 模式任務，視覺化觀察瀏覽器執行過程，並把每步 PRE / POST 截圖與耗時回寫到詳細報告
 - **每案例 spawn 獨立容器**：Docker 模式下，每個 testcase 由 Celery worker 透過 docker SDK 啟動一個一次性的 `autotest-robot-runner` 容器執行（base = `ppodgorsek/robot-framework`），徹底與 worker 進程隔離；測試結束容器自毀
 - **Trace（軌跡追蹤）+ Video（錄影）**：執行時 Browser Library 19.x 在 Playwright context 同時開啟 trace 與 video；listener 即時把截圖／影片／trace 上傳到 MinIO，報告詳細頁可下載、播放、頁內嵌入式 Trace Viewer 檢視
-- **全專案環境變數 + Android/iOS 設備資訊**：在「測試回合」頁左側 sidebar 維護；執行時自動注入成 Robot suite variable（`${BASE_URL}` / `&{DEVICE_pixel5_emu}`），測試步驟可直接引用
+- **全專案環境變數 + Android/iOS 設備資訊**：TopNav「環境變數」/「設備資訊」各自一頁，環境變數支援 🎲 Faker 單列/批次產生（姓名、Email、UUID、phone、token、日期等 28 種），設備資訊頁可按「啟動虛擬機」直接起 AVD / iOS Simulator；執行時自動注入成 Robot suite variable（`${BASE_URL}` / `&{DEVICE_pixel5_emu}`），測試步驟可直接引用
+- **DB 資訊與 Mock 端點管理**：TopNav「DB 資訊」維護多組 MySQL / PostgreSQL / MSSQL / Oracle / Mongo / Redis / SQLite 連線（含測試連線與 SQL 測試區）；「Mock」維護 REST 端點（可同時編輯「發出 Headers/Body」與「回應 Headers/Body」、支援 `{{name}}` / `{{uuid}}` / `{{int:1,100}}` 等 Faker 佔位符、JSON/List/Error 範本一鍵套用、附 Mock Server 啟停控制）。資料依專案存於瀏覽器 `localStorage`
 - **Screenshot Diff（Playwright 風格 UI 前後比對）**：步驟 action 選 `AssertScreenshotMatch` 即啟用；首次跑自動把當下截圖存為 baseline，之後跑用 Pillow + numpy 像素 diff，超過容忍 % 即 FAIL 並產出紅色覆蓋差異圖，報告頁顯示 baseline / actual / diff 三聯比對與「設為新 baseline」捷徑
 - **資料庫測試（DatabaseLibrary）增強**：除了原生 `Db.Connect/Query/Execute/RowCount`，新增 `Db.Insert/Update/Delete` 寫入語意明確化、以及 `Db.AssertRowExists/AssertNoRow/AssertValue` 三組斷言，方便驗證 INSERT/UPDATE 後的資料庫狀態
 - WebSocket 即時執行日誌（編輯頁底部抽屜）
 - 執行報告儀表板（通過率、趨勢圖）與步驟時間軸詳細頁
+- **詳細報告依步驟類型分面板**：每個步驟依 action 前綴自動判斷為 UI / API / APP / DB（E2E 案例同一份報告內可混合），呈現不同面板：UI 顯示瀏覽器 pre/post 截圖、API 顯示 Request/Response JSON、APP 顯示手機直式框架內的 Appium 截圖、DB 顯示 SQL 與結果列；PDF 匯出沿用同樣分類呈現
+- **最近執行紀錄新增「測試案例 / 目標」欄**：顯示觸發該次執行的節點 title（TESTCASE / PAGE / FEATURE / 測試回合）與 level badge；`/api/reports` 端點會補上 `source_node_id` 與 `source_title`；RUNNING 紀錄每 3 秒自動輪詢刷新，執行完成後也會主動刷一次儀表板
 
 ## 快速啟動（推薦：Docker Compose）
 
@@ -353,6 +356,68 @@ ${API_TOKEN}    eyJhbGciOi...
 
 PUT 是「整批替換」（delete-then-insert），前端不用維護局部 diff。
 
+### Faker 隨機變數（環境變數頁）
+
+環境變數表每列右側有 🎲 **Faker** 按鈕，點開後可選：
+
+| 類別 | key | 範例 |
+|---|---|---|
+| 個資 | `name` / `first_name` / `last_name` / `username` | `王小明` / `John` |
+| 聯絡 | `email` / `phone_tw` / `phone_us` / `address` / `city` | `abc1f2@gmail.com` / `0912345678` |
+| 身分 | `uuid` / `token_hex` / `jwt_like` / `password` | — |
+| 數值 | `int_0_100` / `int_1000_9999` / `price` / `bool` | — |
+| 時間 | `date_today` / `datetime` / `timestamp` | — |
+| 文字 | `paragraph` / `sentence` / `company` / `country` / `zipcode` / `credit_card` / `hex_color` / `url` / `ipv4` | — |
+
+頁首「🎲 批次 Faker」按鈕可一次勾選多種類型，批次以 `FAKE_<KEY>` 為 NAME 加到清單（同名會覆蓋 value）。產生後記得按「儲存」。
+
+### 設備資訊頁：啟動虛擬機
+
+設備編輯右上方有「🟢 啟動虛擬機 / ⏹ 關閉」兩顆按鈕：
+
+- 後端若有實作 `POST /api/devices/launch` / `/api/devices/stop` 就直接打 API 並回報狀態
+- 沒實作時前端會把對應本機指令（`emulator -avd ...` / `xcrun simctl boot ...`）複製到剪貼簿並以 Toast 提示
+- 狀態 badge：未啟動 / 啟動中… / 執行中 / 啟動失敗
+
+---
+
+## DB 資訊（全專案共用連線設定）
+
+TopNav「🗄 DB 資訊」提供多組資料庫連線設定；左側主從式清單，右側是每筆連線的編輯器與 SQL 測試區。
+
+- 支援 type：MySQL / PostgreSQL / MSSQL / Oracle / MongoDB / Redis / SQLite
+- 欄位：name（限英數+底線）、type、host、port（切換 type 會自動帶預設 port）、username、password、database、charset/SSL、自訂 DSN、說明
+- 「🔌 測試連線」：打 `POST /api/db/test`（未實作時前端模擬為成功並顯示擬定的 DSN）
+- 「SQL / Query 測試區」：輸入任意 SQL → 「執行」打 `POST /api/db/query`，結果 JSON 顯示在下方 terminal；未實作時回傳前端模擬 rows
+- Preview 面板同時顯示 Robot 注入格式（`&{DB_<name>}`）、連線 DSN、Python dict
+- 資料存 `localStorage[autotest.dbconfigs.<projectId>]`（本機儲存，尚未同步到後端 DB）
+
+---
+
+## Mock 端點管理
+
+TopNav「🔌 Mock」提供輕量的 Mock REST 端點設定；左側主從式清單（method 色塊 + 啟用狀態），右側為單一端點的編輯器。
+
+欄位：
+- Method（GET / POST / PUT / PATCH / DELETE / HEAD / OPTIONS）、Path、狀態碼、延遲 ms、Content-Type、啟用 checkbox、說明
+- **發出（Request）**：發出 Headers（JSON，選填）、發出 Body（選填，JSON / Form 範本一鍵套）
+- **回應（Response）**：回應 Headers（JSON，選填）、回應 Body（JSON / List / Error 範本、JSON 格式化按鈕）
+
+Faker 佔位符支援（在 Headers 或 Body 內）：
+
+```
+{{name}} / {{email}} / {{uuid}} / {{token_hex}} / {{phone_tw}} / {{date_today}}
+{{int:1,100}}        ← 自訂範圍整數
+```
+
+「🛰 試打」按鈕會渲染所有佔位符後，以分段格式顯示完整的 Request 與 Response 內容。
+
+「Mock Server 啟動 / 停止」：
+- 打 `POST /api/mock/toggle` body = `{action: 'start'|'stop', endpoints: [...]}`
+- 後端若未實作，前端會以模擬狀態標示為「執行中 :4523 / 已停止」
+
+資料存 `localStorage[autotest.mocks.<projectId>]`（本機儲存；後端真正的 mock server 尚未內建）。
+
 ---
 
 ## Screenshot Diff（Playwright 風格 UI 前後比對）
@@ -477,6 +542,9 @@ results/
 - 全專案環境變數：`GET / PUT /api/projects/{id}/env-vars`
 - 全專案設備資訊：`GET / PUT /api/projects/{id}/devices`
 - Screenshot baseline：`GET / PUT / DELETE /api/steps/{step_uuid}/baseline`、`POST .../baseline/copy-from`
+- DB 連線測試 / 查詢（預留，後端尚未實作）：`POST /api/db/test`、`POST /api/db/query`
+- Mock Server 啟停（預留）：`POST /api/mock/toggle`
+- 虛擬機啟停（預留）：`POST /api/devices/launch`、`POST /api/devices/stop`
 
 常用頁面：
 

@@ -90,6 +90,10 @@ class ReportListItem(BaseModel):
     # step-level 統計（不存於 ExecutionReport，由清單端點動態聚合）
     passed_steps: int = 0
     failed_steps: int = 0
+    # 觸發執行的節點 id（前端用來顯示「這次是在跑哪個測試案例」）
+    source_node_id: Optional[str] = None
+    # 由清單端點動態補上：source_node_id 對應的節點 title（單筆）或逗號串接的 titles（測試回合）
+    source_title: Optional[str] = None
     enable_recording: bool = True
     created_at: datetime
 
