@@ -184,27 +184,68 @@ async def list_reports(
         for rid, st, cnt in step_rows:
             agg.setdefault(rid, {})[str(st.value if hasattr(st, "value") else st)] = int(cnt)
 
-        # 批次查「這次執行的觸發節點 title」：source_node_id → TreeNode.name。
-        # 報告分頁通常只有 10-20 筆，單次 IN 查詢即可。
+        # 批次查「這次執行的觸發節點 title」與其祖先鏈（PAGE / PLATFORM）。
+        # 實作：先把所有 source_node_id 相關的 tree_nodes 都抓回來（含 parent_id / level_type），
+        # 再以字典在記憶體裡往上走鏈。報告分頁通常只有 10-20 筆，深度 ≤ 5，負擔可忽略。
         src_ids = {r.source_node_id for r in items if r.source_node_id}
-        node_name_map: dict[str, str] = {}
+        node_meta: dict[str, dict] = {}  # id -> {name, level, parent_id}
         if src_ids:
-            nodes = (
-                await db.execute(
-                    select(TreeNode.id, TreeNode.name).where(TreeNode.id.in_(src_ids))
-                )
-            ).all()
-            node_name_map = {nid: nm for nid, nm in nodes}
+            # 先抓 source 節點本身，再把所有 parent 抓回來（因為 tree 最多 5 層，最多 5 輪）
+            pending = set(src_ids)
+            seen: set[str] = set()
+            for _ in range(6):
+                todo = pending - seen
+                if not todo:
+                    break
+                rows = (
+                    await db.execute(
+                        select(
+                            TreeNode.id,
+                            TreeNode.name,
+                            TreeNode.level_type,
+                            TreeNode.parent_id,
+                        ).where(TreeNode.id.in_(todo))
+                    )
+                ).all()
+                for nid, name, lv, pid in rows:
+                    node_meta[nid] = {
+                        "name": name,
+                        "level": lv.value if hasattr(lv, "value") else str(lv),
+                        "parent_id": pid,
+                    }
+                    seen.add(nid)
+                    if pid:
+                        pending.add(pid)
 
-        # 若 source_node_id 指向 TESTCASE 節點，亦回傳案例標題；若指向 FEATURE / PAGE 等中繼層級，
-        # 前端會一樣顯示；實際 source 可能是被 testcase 以外的層級觸發（例如整個 PAGE 跑）。
+        def _resolve_ancestry(nid: str | None):
+            """回傳 (self_title, platform_name, page_name)；缺值以空字串代替"""
+            if not nid or nid not in node_meta:
+                return "", "", ""
+            chain: list[dict] = []
+            cur = nid
+            for _ in range(6):
+                if not cur or cur not in node_meta:
+                    break
+                m = node_meta[cur]
+                chain.append(m)
+                cur = m["parent_id"]
+            self_name = chain[0]["name"] if chain else ""
+            plat_name = next((m["name"] for m in chain if m["level"] == "PLATFORM"), "")
+            page_name = next((m["name"] for m in chain if m["level"] == "PAGE"), "")
+            return self_name, plat_name, page_name
+
         for r in items:
             d = ReportListItem.model_validate(r).model_dump()
             stats = agg.get(r.id, {})
             d["passed_steps"] = stats.get("PASSED", 0)
             d["failed_steps"] = stats.get("FAILED", 0)
-            if r.source_node_id and r.source_node_id in node_name_map:
-                d["source_title"] = node_name_map[r.source_node_id]
+            self_title, plat_name, page_name = _resolve_ancestry(r.source_node_id)
+            if self_title:
+                d["source_title"] = self_title
+            if plat_name:
+                d["source_platform"] = plat_name
+            if page_name:
+                d["source_page"] = page_name
             item_dicts.append(d)
     return PaginatedResponse(
         total=total,

@@ -92,8 +92,11 @@ class ReportListItem(BaseModel):
     failed_steps: int = 0
     # 觸發執行的節點 id（前端用來顯示「這次是在跑哪個測試案例」）
     source_node_id: Optional[str] = None
-    # 由清單端點動態補上：source_node_id 對應的節點 title（單筆）或逗號串接的 titles（測試回合）
+    # 由清單端點動態補上：source_node_id 對應的節點 title（該節點本身）與祖先鏈 PLATFORM / PAGE name。
+    # 用途：報告清單直接顯示「平台 / 頁面 / 測試案例」三欄，不需前端再去樹狀查詢。
     source_title: Optional[str] = None
+    source_platform: Optional[str] = None
+    source_page: Optional[str] = None
     enable_recording: bool = True
     created_at: datetime
 

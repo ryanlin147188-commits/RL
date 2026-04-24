@@ -29,7 +29,7 @@
 - WebSocket 即時執行日誌（編輯頁底部抽屜）
 - 執行報告儀表板（通過率、趨勢圖）與步驟時間軸詳細頁
 - **詳細報告依步驟類型分面板**：每個步驟依 action 前綴自動判斷為 UI / API / APP / DB（E2E 案例同一份報告內可混合），呈現不同面板：UI 顯示瀏覽器 pre/post 截圖、API 顯示 Request/Response JSON、APP 顯示手機直式框架內的 Appium 截圖、DB 顯示 SQL 與結果列；PDF 匯出沿用同樣分類呈現
-- **最近執行紀錄新增「測試案例 / 目標」欄**：顯示觸發該次執行的節點 title（TESTCASE / PAGE / FEATURE / 測試回合）與 level badge；`/api/reports` 端點會補上 `source_node_id` 與 `source_title`；RUNNING 紀錄每 3 秒自動輪詢刷新，執行完成後也會主動刷一次儀表板
+- **最近執行紀錄三個識別欄位**：平台 / 頁面 / 測試案例 三欄直接顯示觸發執行節點的祖先鏈名稱（PLATFORM / PAGE / self），`/api/reports` 補上 `source_node_id` / `source_title` / `source_platform` / `source_page`；RUNNING 紀錄每 5 秒自動輪詢刷新，執行完成時 WebSocket `done` 事件也會觸發一次主動刷新；前端對「前端已知正在跑的任務」會強制顯示 RUNNING 徽章，避免 status 欄短暫空缺時誤判為 FAIL
 
 ## 快速啟動（推薦：Docker Compose）
 
