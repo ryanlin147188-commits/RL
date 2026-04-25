@@ -64,7 +64,7 @@ function Initialize-EnvFile {
     if (-not (Test-Path '.env')) {
         Write-Info "未偵測到 .env，以預設值建立..."
         $envContent = @'
-# AutoTest 部署設定 — MySQL / MinIO 預設帳密統一為 admin / admin123
+# AutoTest 部署設定 — PostgreSQL / Valkey / SeaweedFS 預設帳密 admin / admin123
 DB_USER=admin
 DB_PASSWORD=admin123
 DB_NAME=autotest_db
@@ -123,29 +123,15 @@ function Wait-ForReady {
     Write-Warn "等待 ${maxWait}s 後仍沒回應；請檢查 'docker compose logs frontend backend'。"
 }
 
-# 確保 MySQL admin 使用者存在（升級既有 volume 時需要）
-# PowerShell 把 -p 參數傳進 mysql 時，使用陣列 + splat 語法避免引號衝突。
-function Initialize-MysqlAdmin {
-    Write-Step "確保 MySQL admin 使用者存在"
-    $ok = $false
-    # SQL 字串以單引號包起來；內含的單引號用雙寫轉義（PS 與 SQL 均支援）。
-    $s1 = 'CREATE USER IF NOT EXISTS ''admin''@''%'' IDENTIFIED BY ''admin123'';'
-    $s2 = 'ALTER USER ''admin''@''%'' IDENTIFIED BY ''admin123'';'
-    $s3 = 'GRANT ALL PRIVILEGES ON *.* TO ''admin''@''%'' WITH GRANT OPTION;'
-    $s4 = 'FLUSH PRIVILEGES;'
-    $createSql = "$s1 $s2 $s3 $s4"
-    foreach ($rootPwd in @('admin123', 'password')) {
-        $pingArgs = @('exec', 'autotest-mysql', 'mysql', '-uroot', "-p$rootPwd", '-e', 'SELECT 1;')
-        docker @pingArgs 2>$null | Out-Null
-        if ($LASTEXITCODE -eq 0) {
-            $createArgs = @('exec', 'autotest-mysql', 'mysql', '-uroot', "-p$rootPwd", '-e', $createSql)
-            docker @createArgs 2>$null | Out-Null
-            $ok = $true
-            break
-        }
-    }
-    if ($ok) { Write-Success "admin 使用者已就緒" }
-    else { Write-Warn "無法連進 MySQL；若這是第一次啟動可忽略（init 時會自動建立）" }
+# 驗證 PostgreSQL 連線（POSTGRES_USER/POSTGRES_PASSWORD 由 image 在首次啟動建立）
+function Initialize-PostgresAdmin {
+    Write-Step "驗證 PostgreSQL 連線（admin / admin123）"
+    $dbName = if ($env:DB_NAME) { $env:DB_NAME } else { 'autotest_db' }
+    # 注意：$args 是 PowerShell 自動變數，用 $cmdArgs 避免衝突
+    $cmdArgs = @('exec', 'autotest-postgres', 'pg_isready', '-U', 'admin', '-d', $dbName)
+    docker @cmdArgs 2>$null | Out-Null
+    if ($LASTEXITCODE -eq 0) { Write-Success "PostgreSQL 接受連線" }
+    else { Write-Warn "尚無法連 PostgreSQL；若仍在啟動中可忽略，或檢查 docker logs autotest-postgres" }
 }
 
 # ── 開啟瀏覽器 ───────────────────────────────────────────────────────
@@ -161,7 +147,8 @@ function Show-Banner {
     Write-Host '  🌐 開啟： '   -NoNewline; Write-Host 'http://localhost/' -ForegroundColor Cyan
     Write-Host '  🔑 登入： '   -NoNewline; Write-Host 'admin / admin123'   -ForegroundColor Cyan
     Write-Host '  📘 API ： '   -NoNewline; Write-Host 'http://localhost:8000/docs' -ForegroundColor Cyan -NoNewline; Write-Host '  (Swagger UI)'
-    Write-Host '  🗄  MinIO：'  -NoNewline; Write-Host 'http://localhost:9001/'  -ForegroundColor Cyan -NoNewline; Write-Host '      (admin / admin123)'
+    Write-Host '  🗄  SeaweedFS Master：' -NoNewline; Write-Host 'http://localhost:9333/' -ForegroundColor Cyan -NoNewline; Write-Host '   (status / cluster info)'
+    Write-Host '  🗄  SeaweedFS S3 API：'  -NoNewline; Write-Host 'http://localhost:8333/' -ForegroundColor Cyan -NoNewline; Write-Host '   (admin / admin123)'
     Write-Host ''
     Write-Host '  常用指令：'
     Write-Host '    .\deploy.ps1 -Status   看容器狀態'
@@ -181,7 +168,7 @@ if ($Stop) {
 }
 if ($Reset) {
     Test-DockerEnvironment; Test-ProjectDir
-    Write-Warn '此動作會刪除所有 MySQL / MinIO volumes，測試資料、報告、截圖都會消失！'
+    Write-Warn '此動作會刪除所有 PostgreSQL / SeaweedFS volumes，測試資料、報告、截圖都會消失！'
     $yn = Read-Host '確定要繼續嗎？[y/N]'
     if ($yn -notmatch '^[Yy]$') { Write-Info '已取消。'; exit 0 }
     docker compose down -v
@@ -206,6 +193,6 @@ Initialize-EnvFile
 New-RunnerImage
 Start-ComposeStack
 Wait-ForReady
-Initialize-MysqlAdmin
+Initialize-PostgresAdmin
 Show-Banner
 Open-Browser

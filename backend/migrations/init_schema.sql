@@ -1,14 +1,33 @@
 -- ============================================================
--- AutoTest v1.0  Database Schema  (MySQL 8.0+)
--- 使用 utf8mb4 支援完整 Unicode（含 Emoji）
--- JSON 欄位需要 MySQL 5.7.8+；建議 8.0+
+-- AutoTest v1.0  Database Schema  (PostgreSQL 14+)
+-- 全 UTF-8（PostgreSQL 預設 UNICODE）；JSONB 為原生型別。
 -- ============================================================
 
-CREATE DATABASE IF NOT EXISTS autotest_db
-    CHARACTER SET utf8mb4
-    COLLATE utf8mb4_unicode_ci;
+-- ── ENUM 型別（必須先建立才能在欄位上使用）──────────────
+DO $$ BEGIN
+    CREATE TYPE tree_level_type AS ENUM (
+        'FEATURE', 'PLATFORM', 'PAGE', 'SCENARIO', 'TESTCASE'
+    );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-USE autotest_db;
+DO $$ BEGIN
+    CREATE TYPE execution_status AS ENUM ('RUNNING', 'PASSED', 'FAILED');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+    CREATE TYPE device_platform AS ENUM ('ANDROID', 'IOS');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+
+-- ── 共用：updated_at 自動更新 trigger 函式 ──────────────
+CREATE OR REPLACE FUNCTION set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 
 -- ────────────────────────────────────────────────────────────
 -- 1. 專案表 projects
@@ -16,272 +35,244 @@ USE autotest_db;
 CREATE TABLE IF NOT EXISTS projects (
     id         VARCHAR(36)  NOT NULL,
     name       VARCHAR(200) NOT NULL,
-    created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
-                                     ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    INDEX idx_projects_name (name)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    created_at TIMESTAMP    NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP    NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (id)
+);
+CREATE INDEX IF NOT EXISTS idx_projects_name ON projects (name);
+
+DROP TRIGGER IF EXISTS trg_projects_updated_at ON projects;
+CREATE TRIGGER trg_projects_updated_at BEFORE UPDATE ON projects
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 
 -- ────────────────────────────────────────────────────────────
 -- 2. 目錄樹節點表 tree_nodes  (Adjacency List 模型)
--- level_type 嚴格遵守 5 層級：
---   (根) → FEATURE → PLATFORM → PAGE → SCENARIO → TESTCASE
 -- ────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS tree_nodes (
-    id          VARCHAR(36)   NOT NULL,
-    project_id  VARCHAR(36)   NOT NULL,
-    parent_id   VARCHAR(36)       NULL,
-    level_type  ENUM(
-                    'FEATURE',
-                    'PLATFORM',
-                    'PAGE',
-                    'SCENARIO',
-                    'TESTCASE'
-                )             NOT NULL,
-    name        VARCHAR(300)  NOT NULL,
-    sort_order  INT           NOT NULL DEFAULT 0,
+    id          VARCHAR(36)        NOT NULL,
+    project_id  VARCHAR(36)        NOT NULL,
+    parent_id   VARCHAR(36),
+    level_type  tree_level_type    NOT NULL,
+    name        VARCHAR(300)       NOT NULL,
+    sort_order  INTEGER            NOT NULL DEFAULT 0,
     PRIMARY KEY (id),
     CONSTRAINT fk_tree_project
         FOREIGN KEY (project_id) REFERENCES projects(id)   ON DELETE CASCADE,
     CONSTRAINT fk_tree_parent
-        FOREIGN KEY (parent_id)  REFERENCES tree_nodes(id) ON DELETE CASCADE,
-    INDEX idx_tree_project (project_id),
-    INDEX idx_tree_parent  (parent_id),
-    INDEX idx_tree_sort    (project_id, sort_order)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        FOREIGN KEY (parent_id)  REFERENCES tree_nodes(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_tree_project ON tree_nodes (project_id);
+CREATE INDEX IF NOT EXISTS idx_tree_parent  ON tree_nodes (parent_id);
+CREATE INDEX IF NOT EXISTS idx_tree_sort    ON tree_nodes (project_id, sort_order);
 
 
 -- ────────────────────────────────────────────────────────────
 -- 3. 測試案例內容表 testcase_contents
---    1 對 1 對應 tree_nodes（level_type = 'TESTCASE'）
---    steps_json 格式：[{"id":"...","keyword":"Given","action":"...",...}]
---    ddt_json   格式：{"headers":["$Acct","$Pwd"],"rows":[["admin","1234"]]}
 -- ────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS testcase_contents (
     node_id    VARCHAR(36) NOT NULL,
-    ac_text    TEXT            NULL COMMENT '驗收準則 (ATDD)',
-    setup_text TEXT            NULL COMMENT '前置動作 (Pre-Setup)',
-    steps_json JSON            NULL COMMENT 'BDD 步驟陣列',
-    ddt_json   JSON            NULL COMMENT 'Data-Driven 表格',
+    ac_text    TEXT,
+    setup_text TEXT,
+    steps_json JSONB,
+    ddt_json   JSONB,
     PRIMARY KEY (node_id),
     CONSTRAINT fk_tc_node
         FOREIGN KEY (node_id) REFERENCES tree_nodes(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+);
+COMMENT ON COLUMN testcase_contents.ac_text    IS '驗收準則 (ATDD)';
+COMMENT ON COLUMN testcase_contents.setup_text IS '前置動作 (Pre-Setup)';
+COMMENT ON COLUMN testcase_contents.steps_json IS 'BDD 步驟陣列';
+COMMENT ON COLUMN testcase_contents.ddt_json   IS 'Data-Driven 表格';
 
 
 -- ────────────────────────────────────────────────────────────
 -- 4. 執行報告總表 execution_reports
 -- ────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS execution_reports (
-    id           VARCHAR(36) NOT NULL,
-    task_id      VARCHAR(36)     NULL COMMENT 'Celery task_id，用於 GET /executions/{task_id}/status 查詢',
-    project_id   VARCHAR(36) NOT NULL,
-    trigger_type VARCHAR(50) NOT NULL DEFAULT 'Manual'
-                             COMMENT 'Manual | CI/CD Scheduled',
-    status       ENUM('RUNNING','PASSED','FAILED')
-                             NOT NULL DEFAULT 'RUNNING',
-    duration_ms  INT         NOT NULL DEFAULT 0,
-    total_cases  INT         NOT NULL DEFAULT 0,
-    passed_cases INT         NOT NULL DEFAULT 0,
-    failed_cases INT         NOT NULL DEFAULT 0,
-    created_at   DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    id               VARCHAR(36)      NOT NULL,
+    task_id          VARCHAR(36),
+    project_id       VARCHAR(36)      NOT NULL,
+    trigger_type     VARCHAR(50)      NOT NULL DEFAULT 'Manual',
+    status           execution_status NOT NULL DEFAULT 'RUNNING',
+    duration_ms      INTEGER          NOT NULL DEFAULT 0,
+    total_cases      INTEGER          NOT NULL DEFAULT 0,
+    passed_cases     INTEGER          NOT NULL DEFAULT 0,
+    failed_cases     INTEGER          NOT NULL DEFAULT 0,
+    enable_recording SMALLINT         NOT NULL DEFAULT 1,
+    created_at       TIMESTAMP        NOT NULL DEFAULT NOW(),
     PRIMARY KEY (id),
     CONSTRAINT fk_report_project
-        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
-    INDEX idx_report_project (project_id),
-    INDEX idx_report_task_id (task_id),
-    INDEX idx_report_status  (status),
-    INDEX idx_report_created (created_at DESC)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_report_project ON execution_reports (project_id);
+CREATE INDEX IF NOT EXISTS idx_report_task_id ON execution_reports (task_id);
+CREATE INDEX IF NOT EXISTS idx_report_status  ON execution_reports (status);
+CREATE INDEX IF NOT EXISTS idx_report_created ON execution_reports (created_at DESC);
 
-
--- ── 如果 execution_reports 已存在（升級情境），補充 task_id 欄位 ──
--- （新資料庫可直接忽略此段）
-ALTER TABLE execution_reports
-    ADD COLUMN IF NOT EXISTS task_id VARCHAR(36) NULL
-        COMMENT 'Celery task_id，用於 GET /api/v1/executions/{task_id}/status 查詢'
-    AFTER id;
-
-ALTER TABLE execution_reports
-    ADD INDEX IF NOT EXISTS idx_report_task_id (task_id);
-
--- ── enable_recording 欄位（控制是否收集 Trace + Video）─────────────────
-ALTER TABLE execution_reports
-    ADD COLUMN IF NOT EXISTS enable_recording TINYINT(1) NOT NULL DEFAULT 1
-        COMMENT '是否啟用 Trace/Video 收集；0=關閉、1=啟用';
+COMMENT ON COLUMN execution_reports.task_id          IS 'Celery task_id';
+COMMENT ON COLUMN execution_reports.trigger_type     IS 'Manual | Scheduled | <username>';
+COMMENT ON COLUMN execution_reports.enable_recording IS '0=關閉、1=啟用 Trace+Video';
 
 
 -- ────────────────────────────────────────────────────────────
 -- 5. 執行步驟詳細表 execution_steps_log
---    testcase_node_id 刪除時設為 NULL（保留歷史截圖紀錄）
 -- ────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS execution_steps_log (
-    id                   VARCHAR(36) NOT NULL,
-    report_id            VARCHAR(36) NOT NULL,
-    testcase_node_id     VARCHAR(36)     NULL,
-    step_index           INT         NOT NULL DEFAULT 0,
-    status               ENUM('RUNNING','PASSED','FAILED')
-                                     NOT NULL DEFAULT 'RUNNING',
-    duration_ms          INT         NOT NULL DEFAULT 0,
-    error_message        TEXT            NULL,
+    id                      VARCHAR(36)      NOT NULL,
+    report_id               VARCHAR(36)      NOT NULL,
+    testcase_node_id        VARCHAR(36),
+    step_index              INTEGER          NOT NULL DEFAULT 0,
+    status                  execution_status NOT NULL DEFAULT 'RUNNING',
+    duration_ms             INTEGER          NOT NULL DEFAULT 0,
+    error_message           TEXT,
 
-    -- UI 截圖欄位（圖片存 PIC 資料夾，此欄只存路徑字串）
-    pre_screenshot_url   VARCHAR(500)    NULL COMMENT '執行前截圖 URL',
-    post_screenshot_url  VARCHAR(500)    NULL COMMENT '執行後截圖 URL',
-    target_highlight_json JSON           NULL
-        COMMENT '紅框座標 {"top":"35%","left":"25%","width":"50%","height":"10%"}',
+    -- UI 截圖欄位
+    pre_screenshot_url      VARCHAR(500),
+    post_screenshot_url     VARCHAR(500),
+    target_highlight_json   JSONB,
 
     -- API 測試欄位
-    req_payload_json     JSON            NULL COMMENT 'HTTP 請求內容',
-    res_payload_json     JSON            NULL COMMENT 'HTTP 回應內容',
+    req_payload_json        JSONB,
+    res_payload_json        JSONB,
 
     -- Trace（軌跡追蹤）/ Video（錄影）欄位
-    -- 案例級欄位（trace_url / video_url）僅在每個 case/DDT round 的「第一個步驟」填入；
-    -- step_video_url 是該步驟的影片切片（每個步驟各一）。未啟用 enable_recording 時皆為 NULL。
-    trace_url            VARCHAR(500)    NULL COMMENT 'Playwright trace.zip 對外 URL',
-    video_url            VARCHAR(500)    NULL COMMENT '案例完整錄影 (.webm) 對外 URL',
-    step_video_url       VARCHAR(500)    NULL COMMENT '該步驟的影片切片 (.webm) 對外 URL',
+    trace_url               VARCHAR(500),
+    video_url               VARCHAR(500),
+    step_video_url          VARCHAR(500),
+
+    -- Screenshot diff 欄位
+    screenshot_baseline_url VARCHAR(500),
+    screenshot_diff_url     VARCHAR(500),
+    screenshot_diff_pct     DOUBLE PRECISION,
 
     PRIMARY KEY (id),
     CONSTRAINT fk_step_report
         FOREIGN KEY (report_id)        REFERENCES execution_reports(id) ON DELETE CASCADE,
     CONSTRAINT fk_step_node
-        FOREIGN KEY (testcase_node_id) REFERENCES tree_nodes(id)        ON DELETE SET NULL,
-    INDEX idx_step_report (report_id),
-    INDEX idx_step_node   (testcase_node_id),
-    INDEX idx_step_status (status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        FOREIGN KEY (testcase_node_id) REFERENCES tree_nodes(id)        ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_step_report ON execution_steps_log (report_id);
+CREATE INDEX IF NOT EXISTS idx_step_node   ON execution_steps_log (testcase_node_id);
+CREATE INDEX IF NOT EXISTS idx_step_status ON execution_steps_log (status);
 
--- ── trace / video 欄位（升級情境補欄位）───────────────────────────────
-ALTER TABLE execution_steps_log
-    ADD COLUMN IF NOT EXISTS trace_url VARCHAR(500) NULL
-        COMMENT 'Playwright trace.zip 對外 URL';
-ALTER TABLE execution_steps_log
-    ADD COLUMN IF NOT EXISTS video_url VARCHAR(500) NULL
-        COMMENT '案例完整錄影 (.webm) 對外 URL';
-ALTER TABLE execution_steps_log
-    ADD COLUMN IF NOT EXISTS step_video_url VARCHAR(500) NULL
-        COMMENT '該步驟的影片切片 (.webm) 對外 URL';
-
--- ── Screenshot diff 欄位（升級情境補欄位）─────────────────────────────
-ALTER TABLE execution_steps_log
-    ADD COLUMN IF NOT EXISTS screenshot_baseline_url VARCHAR(500) NULL
-        COMMENT 'AssertScreenshotMatch 比對使用的 baseline URL';
-ALTER TABLE execution_steps_log
-    ADD COLUMN IF NOT EXISTS screenshot_diff_url VARCHAR(500) NULL
-        COMMENT 'diff > threshold 時生成的紅色覆蓋差異圖 URL';
-ALTER TABLE execution_steps_log
-    ADD COLUMN IF NOT EXISTS screenshot_diff_pct DOUBLE NULL
-        COMMENT '實際像素差異百分比（0.0 ~ 100.0）';
 
 -- ────────────────────────────────────────────────────────────
--- 7. Screenshot baselines per step
+-- 6. Screenshot baselines per step
 -- ────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS step_screenshot_baselines (
-    step_uuid         VARCHAR(36)  NOT NULL,
-    testcase_node_id  VARCHAR(36)      NULL,
-    baseline_url      TEXT         NOT NULL,
-    threshold_pct     DOUBLE       NOT NULL DEFAULT 1.0,
-    created_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
-                                            ON UPDATE CURRENT_TIMESTAMP,
+    step_uuid         VARCHAR(36)      NOT NULL,
+    testcase_node_id  VARCHAR(36),
+    baseline_url      TEXT             NOT NULL,
+    threshold_pct     DOUBLE PRECISION NOT NULL DEFAULT 1.0,
+    created_at        TIMESTAMP        NOT NULL DEFAULT NOW(),
+    updated_at        TIMESTAMP        NOT NULL DEFAULT NOW(),
     PRIMARY KEY (step_uuid),
     CONSTRAINT fk_baseline_node
-        FOREIGN KEY (testcase_node_id) REFERENCES tree_nodes(id) ON DELETE SET NULL,
-    INDEX idx_baseline_node (testcase_node_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        FOREIGN KEY (testcase_node_id) REFERENCES tree_nodes(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_baseline_node ON step_screenshot_baselines (testcase_node_id);
+
+DROP TRIGGER IF EXISTS trg_baseline_updated_at ON step_screenshot_baselines;
+CREATE TRIGGER trg_baseline_updated_at BEFORE UPDATE ON step_screenshot_baselines
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 
 -- ────────────────────────────────────────────────────────────
--- 6.5 全專案共用設定：環境變數 / 設備資訊
--- 執行測試時會自動把這兩張表注入成 Robot Framework 的 suite variable，
--- 環境變數 → ${VAR_NAME}；設備資訊 → &{DEVICE_<label>} dict（Appium capabilities）
+-- 7. 全專案共用設定：環境變數 / 設備資訊
 -- ────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS project_env_vars (
     id           VARCHAR(36)  NOT NULL,
     project_id   VARCHAR(36)  NOT NULL,
     name         VARCHAR(100) NOT NULL,
     value        TEXT         NOT NULL,
-    description  VARCHAR(500)     NULL,
-    created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
-                                       ON UPDATE CURRENT_TIMESTAMP,
+    description  VARCHAR(500),
+    created_at   TIMESTAMP    NOT NULL DEFAULT NOW(),
+    updated_at   TIMESTAMP    NOT NULL DEFAULT NOW(),
     PRIMARY KEY (id),
     CONSTRAINT fk_envvar_project
         FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
-    CONSTRAINT uq_envvar_project_name UNIQUE (project_id, name),
-    INDEX idx_envvar_project (project_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    CONSTRAINT uq_envvar_project_name UNIQUE (project_id, name)
+);
+CREATE INDEX IF NOT EXISTS idx_envvar_project ON project_env_vars (project_id);
+
+DROP TRIGGER IF EXISTS trg_envvar_updated_at ON project_env_vars;
+CREATE TRIGGER trg_envvar_updated_at BEFORE UPDATE ON project_env_vars
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
 
 CREATE TABLE IF NOT EXISTS project_devices (
-    id                VARCHAR(36)  NOT NULL,
-    project_id        VARCHAR(36)  NOT NULL,
-    label             VARCHAR(100) NOT NULL,
-    platform          ENUM('ANDROID', 'IOS') NOT NULL,
-    platform_version  VARCHAR(20)      NULL,
-    device_name       VARCHAR(100)     NULL,
-    avd_name          VARCHAR(100)     NULL,
-    udid              VARCHAR(100)     NULL,
-    automation_name   VARCHAR(50)      NULL,
-    extra_caps_json   JSON             NULL,
-    created_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
-                                            ON UPDATE CURRENT_TIMESTAMP,
+    id                VARCHAR(36)     NOT NULL,
+    project_id        VARCHAR(36)     NOT NULL,
+    label             VARCHAR(100)    NOT NULL,
+    platform          device_platform NOT NULL,
+    platform_version  VARCHAR(20),
+    device_name       VARCHAR(100),
+    avd_name          VARCHAR(100),
+    udid              VARCHAR(100),
+    automation_name   VARCHAR(50),
+    extra_caps_json   JSONB,
+    created_at        TIMESTAMP       NOT NULL DEFAULT NOW(),
+    updated_at        TIMESTAMP       NOT NULL DEFAULT NOW(),
     PRIMARY KEY (id),
     CONSTRAINT fk_device_project
         FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
-    CONSTRAINT uq_device_project_label UNIQUE (project_id, label),
-    INDEX idx_device_project (project_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    CONSTRAINT uq_device_project_label UNIQUE (project_id, label)
+);
+CREATE INDEX IF NOT EXISTS idx_device_project ON project_devices (project_id);
+
+DROP TRIGGER IF EXISTS trg_device_updated_at ON project_devices;
+CREATE TRIGGER trg_device_updated_at BEFORE UPDATE ON project_devices
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 
 -- ────────────────────────────────────────────────────────────
--- 6. 錄製功能 recording_sessions
+-- 8. 錄製功能 recording_sessions
 -- ────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS recording_sessions (
     id          VARCHAR(36) NOT NULL,
-    project_id  VARCHAR(36)     NULL,
+    project_id  VARCHAR(36),
     target_url  TEXT        NOT NULL,
-    status      VARCHAR(16) NOT NULL DEFAULT 'PENDING'
-                            COMMENT 'PENDING | UPLOADED',
-    script_text MEDIUMTEXT      NULL COMMENT 'codegen 產生的 .py 內容',
-    trace_path  VARCHAR(500)    NULL COMMENT '相對 PIC_FOLDER：recordings/<id>/trace.zip',
-    created_at  DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at  DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP
-                            ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    INDEX idx_rec_project (project_id),
-    INDEX idx_rec_status  (status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    status      VARCHAR(16) NOT NULL DEFAULT 'PENDING',
+    script_text TEXT,
+    trace_path  VARCHAR(500),
+    created_at  TIMESTAMP   NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMP   NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (id)
+);
+CREATE INDEX IF NOT EXISTS idx_rec_project ON recording_sessions (project_id);
+CREATE INDEX IF NOT EXISTS idx_rec_status  ON recording_sessions (status);
+
+DROP TRIGGER IF EXISTS trg_rec_updated_at ON recording_sessions;
+CREATE TRIGGER trg_rec_updated_at BEFORE UPDATE ON recording_sessions
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 
 -- ────────────────────────────────────────────────────────────
--- 驗證用種子資料（可選）
+-- 驗證用種子資料（可選；ON CONFLICT DO NOTHING 避免重複）
 -- ────────────────────────────────────────────────────────────
-INSERT IGNORE INTO projects (id, name) VALUES
+INSERT INTO projects (id, name) VALUES
     ('proj-aoi-001', 'AOI 測試專案'),
-    ('proj-web-002', 'Web 前端測試專案');
+    ('proj-web-002', 'Web 前端測試專案')
+ON CONFLICT (id) DO NOTHING;
 
-INSERT IGNORE INTO tree_nodes (id, project_id, parent_id, level_type, name, sort_order) VALUES
+INSERT INTO tree_nodes (id, project_id, parent_id, level_type, name, sort_order) VALUES
     ('node-f-001', 'proj-aoi-001', NULL,        'FEATURE',  '登入功能',       1),
     ('node-p-001', 'proj-aoi-001', 'node-f-001','PLATFORM', 'Web Chrome',     1),
     ('node-g-001', 'proj-aoi-001', 'node-p-001','PAGE',     '登入頁面',       1),
     ('node-s-001', 'proj-aoi-001', 'node-g-001','SCENARIO', '正常登入情境',   1),
-    ('node-t-001', 'proj-aoi-001', 'node-s-001','TESTCASE', 'TC-001 帳號密碼登入', 1);
+    ('node-t-001', 'proj-aoi-001', 'node-s-001','TESTCASE', 'TC-001 帳號密碼登入', 1)
+ON CONFLICT (id) DO NOTHING;
 
-INSERT IGNORE INTO testcase_contents (node_id, ac_text, steps_json, ddt_json) VALUES (
+INSERT INTO testcase_contents (node_id, ac_text, steps_json, ddt_json) VALUES (
     'node-t-001',
     '給定一個已啟用帳號，當輸入正確帳號密碼，則應成功進入系統首頁',
-    JSON_ARRAY(
-        JSON_OBJECT('id','s1','keyword','Given','action','開啟登入頁面','target','https://example.com/login','value','','expected','','status','','notes',''),
-        JSON_OBJECT('id','s2','keyword','When', 'action','輸入帳號',     'target','#username',               'value','$Acct','expected','','status','','notes',''),
-        JSON_OBJECT('id','s3','keyword','And',  'action','輸入密碼',     'target','#password',               'value','$Pwd', 'expected','','status','','notes',''),
-        JSON_OBJECT('id','s4','keyword','Then', 'action','應看到首頁標題','target','h1.title',               'value','','expected','歡迎回來','status','','notes','')
-    ),
-    JSON_OBJECT(
-        'headers', JSON_ARRAY('$Acct','$Pwd'),
-        'rows',    JSON_ARRAY(JSON_ARRAY('admin','admin123'), JSON_ARRAY('tester','test456'))
-    )
-);
+    '[
+        {"id":"s1","keyword":"Given","action":"開啟登入頁面","target":"https://example.com/login","value":"","expected":"","status":"","notes":""},
+        {"id":"s2","keyword":"When","action":"輸入帳號","target":"#username","value":"$Acct","expected":"","status":"","notes":""},
+        {"id":"s3","keyword":"And","action":"輸入密碼","target":"#password","value":"$Pwd","expected":"","status":"","notes":""},
+        {"id":"s4","keyword":"Then","action":"應看到首頁標題","target":"h1.title","value":"","expected":"歡迎回來","status":"","notes":""}
+    ]'::jsonb,
+    '{"headers":["$Acct","$Pwd"],"rows":[["admin","admin123"],["tester","test456"]]}'::jsonb
+)
+ON CONFLICT (node_id) DO NOTHING;

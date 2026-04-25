@@ -2,14 +2,15 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    # 資料庫
+    # 資料庫（PostgreSQL）— 預設 port 5432
     DB_HOST: str = "localhost"
-    DB_PORT: int = 3306
-    DB_USER: str = "root"
-    DB_PASSWORD: str = "password"
+    DB_PORT: int = 5432
+    DB_USER: str = "admin"
+    DB_PASSWORD: str = "admin123"
     DB_NAME: str = "autotest_db"
 
-    # Redis
+    # 快取 / Celery broker（Valkey；wire-protocol 與 Redis 100% 相容）
+    # URL scheme 沿用 redis:// 因為 redis-py / celery 都認得
     REDIS_URL: str = "redis://localhost:6379/0"
 
     # 截圖存放目錄
@@ -21,11 +22,12 @@ class Settings(BaseSettings):
     # 跨平台：Windows 用 "C:/path/to/proj"、macOS/Linux 用 "/Users/you/proj" 或 "/home/you/proj"
     RECORDER_HOST_ROOT: str = "."
 
-    # 物件儲存：local | minio
+    # 物件儲存：local | minio（後端用 SeaweedFS S3 API；env 名稱沿用 MINIO_* 為相容性）
+    # SeaweedFS 預設 S3 port 8333；服務名稱 seaweedfs
     STORAGE_BACKEND: str = "local"
-    MINIO_ENDPOINT: str = "http://minio:9000"
-    MINIO_ACCESS_KEY: str = "minioadmin"
-    MINIO_SECRET_KEY: str = "minioadmin"
+    MINIO_ENDPOINT: str = "http://seaweedfs:8333"
+    MINIO_ACCESS_KEY: str = "admin"
+    MINIO_SECRET_KEY: str = "admin123"
 
     # 應用程式
     APP_HOST: str = "0.0.0.0"
@@ -34,18 +36,18 @@ class Settings(BaseSettings):
 
     @property
     def DATABASE_URL(self) -> str:
-        """Async URL 供 FastAPI / SQLAlchemy asyncio 使用"""
+        """Async URL 供 FastAPI / SQLAlchemy asyncio 使用（PostgreSQL via asyncpg）"""
         return (
-            f"mysql+aiomysql://{self.DB_USER}:{self.DB_PASSWORD}"
-            f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}?charset=utf8mb4"
+            f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD}"
+            f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
         )
 
     @property
     def SYNC_DATABASE_URL(self) -> str:
-        """Sync URL 供 Celery Worker 使用"""
+        """Sync URL 供 Celery Worker 使用（PostgreSQL via psycopg v3）"""
         return (
-            f"mysql+pymysql://{self.DB_USER}:{self.DB_PASSWORD}"
-            f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}?charset=utf8mb4"
+            f"postgresql+psycopg://{self.DB_USER}:{self.DB_PASSWORD}"
+            f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
         )
 
     @property

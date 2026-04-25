@@ -8,7 +8,8 @@
 # ffmpeg、Node.js）
 #
 # 我們在這層加上：
-#   - boto3：listener 即時把截圖 / Trace / 影片上傳到 MinIO
+#   - boto3：listener 即時把截圖 / Trace / 影片上傳到 SeaweedFS S3
+#   - psycopg2-binary：robotframework-databaselibrary 跑 PostgreSQL 測試時需要的 driver
 #   - tasks/ 目錄：robot_listener.py + 容器 entrypoint robot_container.py
 #   - app/ 目錄子集：listener / runtime 會用到的 storage_service、config 等
 
@@ -21,16 +22,16 @@ USER root
 RUN dnf install -y xorg-x11-server-Xvfb procps-ng \
     && dnf clean all
 
-# boto3：上傳到 MinIO（S3 相容 API）
-# redis：listener 用 pub/sub 把 log 推到 redis，由 backend WS endpoint 中繼到前端
+# boto3：上傳到 SeaweedFS S3（S3 相容 API；env 變數沿用 MINIO_* 命名）
+# redis：listener 用 pub/sub 把 log 推到 Valkey，由 backend WS endpoint 中繼到前端
+# psycopg2-binary：DatabaseLibrary 連 PostgreSQL 測試用
 # pydantic-settings：app.config 需要
-# aiofiles + fastapi：app.services.storage_service import 鏈上會用到（spawn 內只跑 save_bytes
-#   走 sync 分支，但 module 本身的 top-level import 還是會執行）
+# aiofiles + fastapi：app.services.storage_service import 鏈上會用到
 # Pillow + numpy：tasks.assert_screenshot_lib 的像素 diff 用
 RUN pip3 install --no-cache-dir \
         boto3==1.35.36 \
         redis==5.1.1 \
-        pymysql==1.1.1 \
+        psycopg2-binary==2.9.10 \
         sqlalchemy==2.0.35 \
         pydantic-settings==2.5.2 \
         aiofiles==24.1.0 \
