@@ -1,0 +1,58 @@
+# APISIX standalone 路由定義
+# 修改此檔後 APISIX 會自動 reload；無需重啟容器。
+# 結尾必須有 #END 標記。
+
+upstreams:
+  - id: backend_api
+    type: roundrobin
+    nodes:
+      "backend:8000": 1
+    timeout:
+      connect: 10
+      send: 30
+      read: 60
+
+  - id: frontend_web
+    type: roundrobin
+    nodes:
+      "frontend:80": 1
+
+routes:
+  # /api/* → FastAPI backend；含 request-id 與 cors，並提供基本限流
+  - id: api_routes
+    uri: /api/*
+    upstream_id: backend_api
+    plugins:
+      request-id:
+        include_in_response: true
+      cors:
+        allow_origins: "*"
+        allow_methods: "GET,POST,PUT,PATCH,DELETE,HEAD,OPTIONS"
+        allow_headers: "*"
+        max_age: 3600
+      limit-req:
+        rate: 200          # 200 req/s（突發允許）
+        burst: 100
+        rejected_code: 429
+        key: remote_addr
+
+  # WebSocket /ws/* → backend
+  - id: ws_routes
+    uri: /ws/*
+    upstream_id: backend_api
+    enable_websocket: true
+
+  # 健康檢查端點：APISIX 直接回 200，不打 backend
+  - id: gateway_health
+    uri: /healthz
+    plugins:
+      response-rewrite:
+        status_code: 200
+        body: "ok"
+
+  # 預設靜態頁面 → nginx frontend（讓 9080 也能直接用）
+  - id: web_routes
+    uri: /*
+    upstream_id: frontend_web
+
+#END

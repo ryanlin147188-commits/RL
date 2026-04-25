@@ -166,10 +166,63 @@ services:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./index.html:/usr/share/nginx/html/index.html:ro
 
+  # ── Apache APISIX：API 閘道器（Apache 2.0；standalone YAML 模式，不需 etcd）──
+  apisix:
+    image: apache/apisix:3.11.0-debian
+    container_name: autotest-apisix
+    restart: unless-stopped
+    depends_on:
+      - backend
+    volumes:
+      - ./apisix/config.yaml:/usr/local/apisix/conf/config.yaml:ro
+      - ./apisix/apisix.yaml:/usr/local/apisix/conf/apisix.yaml:ro
+    ports:
+      - "9080:9080"   # gateway 對外 port
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:9080/healthz | grep -q ok || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  # ── VictoriaLogs：日誌儲存與面板（Apache 2.0；自帶 vmui） ──
+  victoria-logs:
+    image: victoriametrics/victoria-logs:v1.50.0
+    container_name: autotest-victoria-logs
+    restart: unless-stopped
+    command:
+      - "-storageDataPath=/victoria-logs-data"
+      - "-retentionPeriod=30d"
+      - "-httpListenAddr=:9428"
+    volumes:
+      - victoria_logs_data:/victoria-logs-data
+    ports:
+      - "9428:9428"   # HTTP API + vmui 面板（http://localhost:9428/select/vmui/）
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://127.0.0.1:9428/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Fluent Bit：日誌採集端（Apache 2.0；推 Docker 容器 log 給 VictoriaLogs） ──
+  fluent-bit:
+    image: fluent/fluent-bit:3.2
+    container_name: autotest-fluent-bit
+    restart: unless-stopped
+    depends_on:
+      victoria-logs:
+        condition: service_healthy
+    volumes:
+      - ./fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
+      - ./fluent-bit/parsers.conf:/fluent-bit/etc/parsers.conf:ro
+      # 讀取 host 上 docker daemon 寫的容器 log（json-file driver）
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+
 volumes:
   postgres_data:
   pic_data:
   seaweedfs_data:
+  victoria_logs_data:
 
 networks:
   default:

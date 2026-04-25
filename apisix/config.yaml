@@ -1,0 +1,26 @@
+# Apache APISIX 主設定（standalone 模式 — 不需 etcd）
+# 使用 YAML 設定檔做為唯一的路由 / upstream 來源。
+# 詳見 https://apisix.apache.org/docs/apisix/deployment-modes/
+
+deployment:
+  role: data_plane
+  role_data_plane:
+    config_provider: yaml
+
+apisix:
+  enable_admin: false              # standalone 模式不啟用 admin API
+  enable_dev_mode: false
+  node_listen: 9080                # gateway 對外 port
+
+nginx_config:
+  error_log_level: warn
+
+plugins:
+  - prometheus                     # 預設啟用 Prometheus 指標
+  - real-ip
+  - response-rewrite
+  - proxy-rewrite
+  - request-id
+  - limit-req
+  - limit-count
+  - cors

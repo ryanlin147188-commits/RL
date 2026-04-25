@@ -97,6 +97,9 @@
 | seaweedfs | `chrislusf/seaweedfs:3.80` | **Apache 2.0** | ✅ |
 | seaweedfs-init | `amazon/aws-cli:2.18.5` | Apache 2.0 | ✅ |
 | frontend | `nginx:1.27-alpine` | BSD-2-Clause（nginx）+ MIT（Alpine 套件群） | ✅ |
+| apisix | `apache/apisix:3.11.0-debian` | **Apache 2.0** | ✅ |
+| victoria-logs | `victoriametrics/victoria-logs:v1.50.0` | **Apache 2.0** | ✅ |
+| fluent-bit | `fluent/fluent-bit:3.2` | **Apache 2.0** | ✅ |
 
 ### 2.5 Backend / Celery Container Base Images
 
@@ -190,7 +193,7 @@
 - [ ] 大型企業內部開發若用 Docker Desktop 須訂閱；個人 / 小團隊免費
 - [ ] **正式商用前由法務 review** 本文件 + 實際使用情境
 
-### 已採用的「乾淨」資料層（v1.0 預設）
+### 已採用的「乾淨」資料層 + 平台層（v1.0 預設）
 
 整個 stack 已改為 100% Apache 2.0 / BSD-3 / PostgreSQL License / MIT，無任何 Copyleft 風險：
 
@@ -199,7 +202,10 @@
 | 關聯式資料庫 | **PostgreSQL 16-alpine** | PostgreSQL License（類 MIT） |
 | 快取 / Celery broker | **Valkey 8-alpine** | BSD-3-Clause |
 | 物件儲存（S3 相容） | **SeaweedFS 3.80** | Apache 2.0 |
-| HTTP server | **nginx 1.27-alpine** | BSD-2-Clause |
+| HTTP server / 靜態頁 | **nginx 1.27-alpine** | BSD-2-Clause |
+| API 閘道器 | **Apache APISIX 3.11** | Apache 2.0 |
+| 日誌採集 | **Fluent Bit 3.2** | Apache 2.0 |
+| 日誌儲存 + 面板（vmui） | **VictoriaLogs 1.6** | Apache 2.0 |
 
 ---
 
