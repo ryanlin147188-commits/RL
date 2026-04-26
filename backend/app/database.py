@@ -54,6 +54,22 @@ async def init_db() -> None:
             "ALTER TABLE projects ADD COLUMN IF NOT EXISTS target_date VARCHAR(20)",
             "ALTER TABLE projects ADD COLUMN IF NOT EXISTS tags VARCHAR(300)",
             "ALTER TABLE defects ADD COLUMN IF NOT EXISTS attachments_json JSON",
+            # Multi-tenancy：每個資源加 organization_id（FK 在 ORM 上，這裡只補欄位）
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS organization_id VARCHAR(36)",
+            "ALTER TABLE projects ADD COLUMN IF NOT EXISTS organization_id VARCHAR(36)",
+            "ALTER TABLE roles ADD COLUMN IF NOT EXISTS organization_id VARCHAR(36)",
+            "ALTER TABLE email_configs ADD COLUMN IF NOT EXISTS organization_id VARCHAR(36)",
+            "ALTER TABLE ai_token_configs ADD COLUMN IF NOT EXISTS organization_id VARCHAR(36)",
+            "ALTER TABLE todo_items ADD COLUMN IF NOT EXISTS organization_id VARCHAR(36)",
+            # 拿掉 roles.name 的 unique 約束（同名 role 在不同 org 內可重複）
+            "ALTER TABLE roles DROP CONSTRAINT IF EXISTS roles_name_key",
+            # 索引
+            "CREATE INDEX IF NOT EXISTS ix_users_org ON users (organization_id)",
+            "CREATE INDEX IF NOT EXISTS ix_projects_org ON projects (organization_id)",
+            "CREATE INDEX IF NOT EXISTS ix_roles_org ON roles (organization_id)",
+            "CREATE INDEX IF NOT EXISTS ix_email_configs_org ON email_configs (organization_id)",
+            "CREATE INDEX IF NOT EXISTS ix_ai_token_configs_org ON ai_token_configs (organization_id)",
+            "CREATE INDEX IF NOT EXISTS ix_todo_items_org ON todo_items (organization_id)",
         ):
             try:
                 await conn.execute(text(stmt))

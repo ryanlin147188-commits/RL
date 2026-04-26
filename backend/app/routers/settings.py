@@ -7,11 +7,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import asc, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.dependencies import get_current_user
 from app.database import get_db
 from app.models.ai_token_config import AiProvider, AiTokenConfig
 from app.models.email_config import EmailConfig
 from app.models.notification_preference import NotificationPreference
 from app.models.role import Role
+from app.models.user import User
 from app.schemas.settings import (
     AiTokenConfigCreate,
     AiTokenConfigResponse,
@@ -85,24 +87,50 @@ async def list_notification_catalogue():
     return {"items": _NOTIFICATION_EVENT_CATALOGUE}
 
 
-# ─── Role CRUD ─────────────────────────────────────────────────────────
+# ─── Role CRUD（org-scoped） ──────────────────────────────────────────
+# 同名 role 在不同 org 內可重複；使用者只看得到「自己 org 的 role」+「全域系統 role（org_id=NULL）」
+
+def _role_visibility_filter(stmt, user: User):
+    if user.is_superuser:
+        return stmt
+    return stmt.where(
+        (Role.organization_id == user.organization_id)
+        | (Role.organization_id.is_(None) & Role.is_system.is_(True))
+    )
+
 
 @router.get("/settings/roles", response_model=list[RoleResponse], tags=["S · 設定"])
-async def list_roles(db: AsyncSession = Depends(get_db)):
-    rows = (await db.execute(select(Role).order_by(asc(Role.name)))).scalars().all()
+async def list_roles(
+    user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+):
+    stmt = select(Role).order_by(asc(Role.name))
+    stmt = _role_visibility_filter(stmt, user)
+    rows = (await db.execute(stmt)).scalars().all()
     return list(rows)
 
 
 @router.post(
     "/settings/roles", response_model=RoleResponse, status_code=201, tags=["S · 設定"]
 )
-async def create_role(payload: RoleCreate, db: AsyncSession = Depends(get_db)):
-    # 確保名稱唯一
-    existing = (await db.execute(select(Role).where(Role.name == payload.name))).scalar_one_or_none()
+async def create_role(
+    payload: RoleCreate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    # 同 org 內名稱不可重複
+    existing = (
+        await db.execute(
+            select(Role).where(
+                Role.name == payload.name,
+                Role.organization_id == user.organization_id,
+            )
+        )
+    ).scalar_one_or_none()
     if existing:
-        raise HTTPException(409, f"角色名稱「{payload.name}」已存在")
+        raise HTTPException(409, f"角色名稱「{payload.name}」在本組織內已存在")
     role = Role(
         name=payload.name,
+        organization_id=user.organization_id,
         description=payload.description,
         permissions_json=list(payload.permissions_json or []),
         is_system=False,
@@ -116,15 +144,29 @@ async def create_role(payload: RoleCreate, db: AsyncSession = Depends(get_db)):
 @router.put(
     "/settings/roles/{role_id}", response_model=RoleResponse, tags=["S · 設定"]
 )
-async def update_role(role_id: str, payload: RoleUpdate, db: AsyncSession = Depends(get_db)):
+async def update_role(
+    role_id: str,
+    payload: RoleUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     r = await db.get(Role, role_id)
     if not r:
+        raise HTTPException(404, "Role not found")
+    # org 防護：非 superuser 只能改自己 org 的 role
+    if not user.is_superuser and r.organization_id != user.organization_id:
         raise HTTPException(404, "Role not found")
     data = payload.model_dump(exclude_unset=True)
     if "name" in data and data["name"] and data["name"] != r.name:
         if r.is_system:
             raise HTTPException(400, "系統角色名稱不可修改")
-        dup = (await db.execute(select(Role).where(Role.name == data["name"]))).scalar_one_or_none()
+        dup = (
+            await db.execute(
+                select(Role).where(
+                    Role.name == data["name"], Role.organization_id == r.organization_id
+                )
+            )
+        ).scalar_one_or_none()
         if dup:
             raise HTTPException(409, f"角色名稱「{data['name']}」已存在")
     for k, v in data.items():
@@ -136,9 +178,15 @@ async def update_role(role_id: str, payload: RoleUpdate, db: AsyncSession = Depe
 
 
 @router.delete("/settings/roles/{role_id}", status_code=204, tags=["S · 設定"])
-async def delete_role(role_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_role(
+    role_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     r = await db.get(Role, role_id)
     if not r:
+        raise HTTPException(404, "Role not found")
+    if not user.is_superuser and r.organization_id != user.organization_id:
         raise HTTPException(404, "Role not found")
     if r.is_system:
         raise HTTPException(400, "系統角色不可刪除")
@@ -198,25 +246,37 @@ async def update_notification_pref(
     return pref
 
 
-# ─── EmailConfig ──────────────────────────────────────────────────────
+# ─── EmailConfig（每個 org 一份） ──────────────────────────────────────
 
-@router.get("/settings/email", response_model=EmailConfigResponse, tags=["S · 設定"])
-async def get_email_config(db: AsyncSession = Depends(get_db)):
-    cfg = await db.get(EmailConfig, "default")
-    if not cfg:
-        cfg = EmailConfig(id="default")
-        db.add(cfg)
-        await db.flush()
-        await db.refresh(cfg)
+async def _get_or_create_email_for_org(db: AsyncSession, org_id: Optional[str]) -> EmailConfig:
+    """以 organization_id 為主鍵尋找；找不到就建一筆。"""
+    stmt = select(EmailConfig).where(EmailConfig.organization_id == org_id)
+    cfg = (await db.execute(stmt)).scalar_one_or_none()
+    if cfg:
+        return cfg
+    # 用 org_id 作為主鍵（避免 collision；若 org_id 為 None 用 "default" 字串）
+    cfg = EmailConfig(id=org_id or "default", organization_id=org_id)
+    db.add(cfg)
+    await db.flush()
+    await db.refresh(cfg)
     return cfg
 
 
+@router.get("/settings/email", response_model=EmailConfigResponse, tags=["S · 設定"])
+async def get_email_config(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return await _get_or_create_email_for_org(db, user.organization_id)
+
+
 @router.put("/settings/email", response_model=EmailConfigResponse, tags=["S · 設定"])
-async def update_email_config(payload: EmailConfigUpdate, db: AsyncSession = Depends(get_db)):
-    cfg = await db.get(EmailConfig, "default")
-    if not cfg:
-        cfg = EmailConfig(id="default")
-        db.add(cfg)
+async def update_email_config(
+    payload: EmailConfigUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    cfg = await _get_or_create_email_for_org(db, user.organization_id)
     data = payload.model_dump(exclude_unset=True)
     for k, v in data.items():
         setattr(cfg, k, v)
@@ -227,14 +287,30 @@ async def update_email_config(payload: EmailConfigUpdate, db: AsyncSession = Dep
 
 # ─── AiTokenConfig ────────────────────────────────────────────────────
 
+def _ai_org_filter(stmt, user: User):
+    if user.is_superuser:
+        return stmt
+    return stmt.where(AiTokenConfig.organization_id == user.organization_id)
+
+
+def _check_ai_token_or_404(t: Optional[AiTokenConfig], user: User) -> AiTokenConfig:
+    if not t:
+        raise HTTPException(404, "AI token not found")
+    if not user.is_superuser and t.organization_id != user.organization_id:
+        raise HTTPException(404, "AI token not found")
+    return t
+
+
 @router.get(
     "/settings/ai-tokens", response_model=list[AiTokenConfigResponse], tags=["S · 設定"]
 )
 async def list_ai_tokens(
     provider: Optional[str] = Query(None),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     stmt = select(AiTokenConfig).order_by(asc(AiTokenConfig.provider), asc(AiTokenConfig.name))
+    stmt = _ai_org_filter(stmt, user)
     if provider:
         stmt = stmt.where(AiTokenConfig.provider == AiProvider(provider))
     rows = (await db.execute(stmt)).scalars().all()
@@ -247,13 +323,18 @@ async def list_ai_tokens(
     status_code=201,
     tags=["S · 設定"],
 )
-async def create_ai_token(payload: AiTokenConfigCreate, db: AsyncSession = Depends(get_db)):
+async def create_ai_token(
+    payload: AiTokenConfigCreate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     try:
         provider_enum = AiProvider(payload.provider)
     except ValueError:
         raise HTTPException(400, f"未知的 provider：{payload.provider}")
     token = AiTokenConfig(
         name=payload.name,
+        organization_id=user.organization_id,
         provider=provider_enum,
         api_key=payload.api_key,
         base_url=payload.base_url,
@@ -265,10 +346,14 @@ async def create_ai_token(payload: AiTokenConfigCreate, db: AsyncSession = Depen
     db.add(token)
     await db.flush()
     if token.is_default:
-        # 同 provider 內只能有一個 default
+        # 同 org + 同 provider 內只能有一個 default
         await db.execute(
             update(AiTokenConfig)
-            .where(AiTokenConfig.provider == provider_enum, AiTokenConfig.id != token.id)
+            .where(
+                AiTokenConfig.organization_id == user.organization_id,
+                AiTokenConfig.provider == provider_enum,
+                AiTokenConfig.id != token.id,
+            )
             .values(is_default=False)
         )
     await db.flush()
@@ -282,11 +367,12 @@ async def create_ai_token(payload: AiTokenConfigCreate, db: AsyncSession = Depen
     tags=["S · 設定"],
 )
 async def update_ai_token(
-    token_id: str, payload: AiTokenConfigUpdate, db: AsyncSession = Depends(get_db)
+    token_id: str,
+    payload: AiTokenConfigUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    t = await db.get(AiTokenConfig, token_id)
-    if not t:
-        raise HTTPException(404, "AI token not found")
+    t = _check_ai_token_or_404(await db.get(AiTokenConfig, token_id), user)
     data = payload.model_dump(exclude_unset=True)
     if "provider" in data and data["provider"] is not None:
         try:
@@ -299,7 +385,11 @@ async def update_ai_token(
     if t.is_default:
         await db.execute(
             update(AiTokenConfig)
-            .where(AiTokenConfig.provider == t.provider, AiTokenConfig.id != t.id)
+            .where(
+                AiTokenConfig.organization_id == t.organization_id,
+                AiTokenConfig.provider == t.provider,
+                AiTokenConfig.id != t.id,
+            )
             .values(is_default=False)
         )
         await db.flush()
@@ -310,9 +400,11 @@ async def update_ai_token(
 @router.delete(
     "/settings/ai-tokens/{token_id}", status_code=204, tags=["S · 設定"]
 )
-async def delete_ai_token(token_id: str, db: AsyncSession = Depends(get_db)):
-    t = await db.get(AiTokenConfig, token_id)
-    if not t:
-        raise HTTPException(404, "AI token not found")
+async def delete_ai_token(
+    token_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    t = _check_ai_token_or_404(await db.get(AiTokenConfig, token_id), user)
     await db.delete(t)
     await db.flush()

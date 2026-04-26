@@ -27,6 +27,7 @@ class UserResponse(BaseModel):
     display_name: Optional[str] = None
     email: Optional[str] = None
     role_id: Optional[str] = None
+    organization_id: Optional[str] = None
     is_active: bool = True
     is_superuser: bool = False
     last_login_at: Optional[datetime] = None
@@ -41,6 +42,7 @@ class UserCreateRequest(BaseModel):
     display_name: Optional[str] = None
     email: Optional[str] = None
     role_id: Optional[str] = None
+    organization_id: Optional[str] = None
     is_superuser: bool = False
 
 

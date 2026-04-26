@@ -26,6 +26,9 @@ class User(Base):
     role_id: Mapped[Optional[str]] = mapped_column(
         String(36), ForeignKey("roles.id", ondelete="SET NULL"), nullable=True
     )
+    organization_id: Mapped[Optional[str]] = mapped_column(
+        String(36), ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True, index=True,
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     is_superuser: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)

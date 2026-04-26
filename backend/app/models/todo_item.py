@@ -32,6 +32,9 @@ class TodoItem(Base):
     id: Mapped[str] = mapped_column(
         String(36), primary_key=True, default=lambda: str(uuid.uuid4())
     )
+    organization_id: Mapped[Optional[str]] = mapped_column(
+        String(36), ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True, index=True,
+    )
     # 專案關聯：可空 → 跨專案 / 個人 todo
     project_id: Mapped[Optional[str]] = mapped_column(
         String(36), ForeignKey("projects.id", ondelete="CASCADE"), nullable=True

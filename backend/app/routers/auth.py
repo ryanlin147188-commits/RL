@@ -44,8 +44,10 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=401, detail="帳號或密碼錯誤")
     user.last_login_at = datetime.utcnow()
     await db.flush()
+    # 把 organization_id 塞進 JWT，避免每個 request 都要 lookup user
+    extra = {"org_id": user.organization_id, "is_superuser": user.is_superuser}
     return TokenResponse(
-        access_token=create_access_token(user.username),
+        access_token=create_access_token(user.username, extra=extra),
         refresh_token=create_refresh_token(user.username),
         expires_in=ACCESS_TOKEN_TTL_MINUTES * 60,
     )
@@ -67,8 +69,9 @@ async def refresh_token(payload: RefreshRequest, db: AsyncSession = Depends(get_
     ).scalar_one_or_none()
     if not user or not user.is_active:
         raise HTTPException(401, "使用者不存在或已停用")
+    extra = {"org_id": user.organization_id, "is_superuser": user.is_superuser}
     return TokenResponse(
-        access_token=create_access_token(user.username),
+        access_token=create_access_token(user.username, extra=extra),
         refresh_token=create_refresh_token(user.username),
         expires_in=ACCESS_TOKEN_TTL_MINUTES * 60,
     )
@@ -136,6 +139,8 @@ async def create_user(
         email=payload.email,
         password_hash=hash_password(payload.password),
         role_id=payload.role_id,
+        # 沒指定 → 跟建立者同 org（普通 admin 不能跨 org 開使用者）
+        organization_id=payload.organization_id or user.organization_id,
         is_superuser=payload.is_superuser,
     )
     db.add(new_user)

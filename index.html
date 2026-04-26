@@ -2458,6 +2458,8 @@ driver.swipe(100, 800, 100, 200, 500)"
                         <button id="setTabNotif"    onclick="settingsSwitchTab('notif')"    class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-bell"></i> 通知設定</button>
                         <button id="setTabEmail"    onclick="settingsSwitchTab('email')"    class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-envelope"></i> 電子郵件</button>
                         <button id="setTabAi"       onclick="settingsSwitchTab('ai')"       class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-robot"></i> AI Token</button>
+                        <button id="setTabOrgs"     onclick="settingsSwitchTab('orgs')"     class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-building"></i> 組織</button>
+                        <button id="setTabAudit"    onclick="settingsSwitchTab('audit')"    class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-clipboard-check"></i> 審計紀錄</button>
                     </div>
 
                     <!-- ─── Pane 1: 使用者設定（保留原本內容） ─── -->
@@ -2709,6 +2711,84 @@ driver.swipe(100, 800, 100, 200, 500)"
                             </div>
                         </section>
                     </div>
+
+                    <!-- ─── Pane 7: 組織管理（superuser-only） ─── -->
+                    <div id="setPaneOrgs" class="hidden space-y-4">
+                        <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-4">
+                            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                                <h3 class="font-bold text-stone-700 text-base flex items-center gap-2"><i class="fa-solid fa-building text-amber-500"></i> 組織管理</h3>
+                                <div class="flex items-center gap-2">
+                                    <button onclick="renderOrgsList()" class="text-xs px-2.5 py-1.5 border border-stone-300 rounded hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
+                                    <button onclick="openOrgModal()" class="text-xs px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold"><i class="fa-solid fa-plus"></i> 新增組織</button>
+                                </div>
+                            </div>
+                            <p class="text-xs text-stone-500 mb-3">每個「組織」都是一個獨立租戶；專案 / 角色 / SMTP / AI Token / 待辦都以組織為邊界互相隔離。<b>僅 superuser 可看到此分頁</b>。</p>
+                            <div id="orgsListWrap" class="overflow-hidden border border-stone-100 rounded-md">
+                                <table class="w-full text-sm">
+                                    <thead class="bg-amber-50/60 text-stone-600 text-xs uppercase">
+                                        <tr><th class="p-3 text-left">名稱</th><th class="p-3 w-32 font-mono">slug</th><th class="p-3 w-24">方案</th><th class="p-3 text-left">說明</th><th class="p-3 w-28 text-center">操作</th></tr>
+                                    </thead>
+                                    <tbody id="orgsListBody" class="divide-y divide-stone-100"></tbody>
+                                </table>
+                            </div>
+                        </section>
+                    </div>
+
+                    <!-- ─── Pane 8: 審計紀錄（superuser-only） ─── -->
+                    <div id="setPaneAudit" class="hidden space-y-4">
+                        <section class="grid grid-cols-2 md:grid-cols-5 gap-3">
+                            <div class="bg-white rounded-xl p-3 border border-amber-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-solid fa-database"></i> 總筆數</div><div class="text-2xl font-bold text-stone-700" id="auditKpiTotal">—</div></div>
+                            <div class="bg-white rounded-xl p-3 border border-amber-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-solid fa-circle-check text-emerald-500"></i> 2xx/3xx</div><div class="text-2xl font-bold text-emerald-700" id="auditKpiOk">—</div></div>
+                            <div class="bg-white rounded-xl p-3 border border-amber-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-solid fa-triangle-exclamation text-amber-600"></i> 4xx</div><div class="text-2xl font-bold text-amber-700" id="auditKpi4xx">—</div></div>
+                            <div class="bg-white rounded-xl p-3 border border-amber-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-solid fa-fire text-rose-500"></i> 5xx</div><div class="text-2xl font-bold text-rose-700" id="auditKpi5xx">—</div></div>
+                            <div class="bg-white rounded-xl p-3 border border-amber-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-regular fa-clock text-blue-500"></i> 24 小時</div><div class="text-2xl font-bold text-blue-700" id="auditKpi24h">—</div></div>
+                        </section>
+                        <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-4">
+                            <div class="flex items-center gap-2 mb-3 flex-wrap">
+                                <h3 class="font-bold text-stone-700 text-base flex items-center gap-2"><i class="fa-solid fa-clipboard-check text-amber-500"></i> 審計紀錄</h3>
+                                <input id="auditFilterUser" type="text" placeholder="使用者" class="text-xs px-2 py-1 border border-stone-300 rounded">
+                                <input id="auditFilterEntity" type="text" placeholder="實體 (如 projects)" class="text-xs px-2 py-1 border border-stone-300 rounded">
+                                <select id="auditFilterMethod" class="text-xs px-2 py-1 border border-stone-300 rounded bg-white">
+                                    <option value="">全部 method</option>
+                                    <option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option>
+                                </select>
+                                <button onclick="loadAuditLogs()" class="text-xs px-2.5 py-1 border border-stone-300 rounded hover:bg-amber-50"><i class="fa-solid fa-magnifying-glass"></i> 套用</button>
+                                <button onclick="loadAuditLogs(true)" class="text-xs px-2.5 py-1 border border-stone-300 rounded hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
+                                <span class="ml-auto text-[11px] text-stone-500">最近 100 筆，依時間倒序</span>
+                            </div>
+                            <div class="overflow-hidden border border-stone-100 rounded-md">
+                                <table class="w-full text-xs">
+                                    <thead class="bg-amber-50/60 text-stone-600 uppercase text-[10px]">
+                                        <tr><th class="p-2 w-44 text-left">時間</th><th class="p-2 w-20 text-left">使用者</th><th class="p-2 w-16">Method</th><th class="p-2 w-16 text-center">Status</th><th class="p-2 text-left">Path</th><th class="p-2 w-20 text-right">耗時 ms</th></tr>
+                                    </thead>
+                                    <tbody id="auditLogsBody" class="divide-y divide-stone-100 font-mono"></tbody>
+                                </table>
+                            </div>
+                        </section>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Organization Modal -->
+            <div id="orgModal" class="hidden fixed inset-0 z-[150] bg-black/40 flex items-center justify-center p-4">
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-md border border-amber-200">
+                    <div class="px-6 py-4 border-b border-stone-200 bg-amber-50/60 flex items-center justify-between">
+                        <h3 id="orgModalTitle" class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-building text-amber-500"></i> 新增組織</h3>
+                        <button type="button" onclick="closeOrgModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <form onsubmit="return orgSubmit(event)" class="p-6 space-y-3">
+                        <div><label for="orgName" class="block text-xs font-semibold text-stone-600 mb-1">組織名稱 *</label><input type="text" id="orgName" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                        <div><label for="orgSlug" class="block text-xs font-semibold text-stone-600 mb-1">slug *（小寫英數底線連字號；建立後不可更改）</label><input type="text" id="orgSlug" required pattern="[a-z0-9][a-z0-9_-]{1,58}" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm font-mono"></div>
+                        <div><label for="orgPlan" class="block text-xs font-semibold text-stone-600 mb-1">方案</label>
+                            <select id="orgPlan" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
+                                <option value="free" selected>free</option>
+                                <option value="pro">pro</option>
+                                <option value="enterprise">enterprise</option>
+                            </select>
+                        </div>
+                        <div><label for="orgDesc" class="block text-xs font-semibold text-stone-600 mb-1">說明</label><textarea id="orgDesc" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
+                        <div class="flex justify-end gap-2 pt-2"><button type="button" onclick="closeOrgModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button><button type="submit" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button></div>
+                    </form>
                 </div>
             </div>
 
@@ -12462,8 +12542,8 @@ gantt
             } catch (e) { showToast('刪除失敗：' + e.message, 'error'); }
         }
 
-        // ─── 設定（Settings）── 6 個 tab：使用者 / 權限 / 角色 / 通知 / 電子郵件 / AI Token
-        const _SETTINGS_TABS = ['user','perms','roles','notif','email','ai'];
+        // ─── 設定（Settings）── 8 個 tab
+        const _SETTINGS_TABS = ['user','perms','roles','notif','email','ai','orgs','audit'];
         const _SETTINGS_TAB_BTN_ON  = 'px-3 py-1.5 text-sm font-medium rounded text-amber-700 bg-amber-50 border border-amber-300';
         const _SETTINGS_TAB_BTN_OFF = 'px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50';
         function settingsSwitchTab(name) {
@@ -12485,6 +12565,8 @@ gantt
             else if (name === 'notif') loadNotificationPrefs();
             else if (name === 'email') loadEmailConfig();
             else if (name === 'ai') renderAiTokensList();
+            else if (name === 'orgs') renderOrgsList();
+            else if (name === 'audit') loadAuditLogs(true);
         }
 
         // ─── 權限清單（唯讀） ─────────────────────────────────────────
@@ -12796,6 +12878,153 @@ gantt
                 if (!r.ok && r.status !== 204) throw new Error('HTTP '+r.status);
                 showToast('已刪除', 'success'); renderAiTokensList();
             } catch (e) { showToast('刪除失敗：'+e.message, 'error'); }
+        }
+
+        // ─── 組織管理（superuser-only） ──────────────────────────────────
+        let _orgsCache = [];
+        let _editingOrgId = null;
+
+        async function renderOrgsList() {
+            const body = document.getElementById('orgsListBody');
+            if (!body) return;
+            body.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-stone-400">載入中…</td></tr>';
+            try {
+                const r = await fetch('/api/organizations');
+                if (r.status === 403) {
+                    body.innerHTML = '<tr><td colspan="5" class="p-6 text-center text-stone-400">需要 superuser 權限才能查看組織</td></tr>';
+                    return;
+                }
+                if (!r.ok) throw new Error('HTTP '+r.status);
+                _orgsCache = await r.json();
+                if (!_orgsCache.length) {
+                    body.innerHTML = '<tr><td colspan="5" class="p-6 text-center text-stone-400">尚無組織</td></tr>';
+                    return;
+                }
+                body.innerHTML = _orgsCache.map(o => `<tr class="hover:bg-amber-50/30">
+                    <td class="p-3 font-semibold text-stone-800">${_esc(o.name)}</td>
+                    <td class="p-3 font-mono text-xs text-stone-500">${_esc(o.slug)}</td>
+                    <td class="p-3"><span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">${_esc(o.plan || 'free')}</span></td>
+                    <td class="p-3 text-xs text-stone-600">${_esc(o.description || '—')}</td>
+                    <td class="p-3 text-center whitespace-nowrap space-x-1">
+                        <button onclick="openOrgModal('${_esc(o.id)}')" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded"><i class="fa-solid fa-pen"></i></button>
+                        ${o.slug === 'default' ? '' : `<button onclick="deleteOrg('${_esc(o.id)}','${_esc(o.name)}')" class="text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded"><i class="fa-solid fa-trash"></i></button>`}
+                    </td>
+                </tr>`).join('');
+            } catch (e) {
+                body.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-red-500">載入失敗：${_esc(e.message)}</td></tr>`;
+            }
+        }
+
+        function openOrgModal(id) {
+            _editingOrgId = id || null;
+            const o = id ? _orgsCache.find(x => x.id === id) : null;
+            document.getElementById('orgModalTitle').innerHTML = o
+                ? `<i class="fa-solid fa-building text-amber-500"></i> 編輯組織 ${_esc(o.name)}`
+                : '<i class="fa-solid fa-building text-amber-500"></i> 新增組織';
+            document.getElementById('orgName').value = o?.name || '';
+            const slugEl = document.getElementById('orgSlug');
+            slugEl.value = o?.slug || '';
+            slugEl.readOnly = !!o;   // slug 建立後不可改
+            document.getElementById('orgPlan').value = o?.plan || 'free';
+            document.getElementById('orgDesc').value = o?.description || '';
+            document.getElementById('orgModal').classList.remove('hidden');
+        }
+        function closeOrgModal() { document.getElementById('orgModal').classList.add('hidden'); _editingOrgId = null; }
+
+        async function orgSubmit(ev) {
+            ev.preventDefault();
+            const payload = {
+                name: document.getElementById('orgName').value.trim(),
+                slug: document.getElementById('orgSlug').value.trim().toLowerCase(),
+                plan: document.getElementById('orgPlan').value,
+                description: document.getElementById('orgDesc').value.trim() || null,
+            };
+            try {
+                let r;
+                if (_editingOrgId) {
+                    // 編輯時不送 slug（後端不允許更改）
+                    const { slug, ...editPayload } = payload;
+                    r = await fetch('/api/organizations/'+_editingOrgId, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(editPayload) });
+                } else {
+                    r = await fetch('/api/organizations', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+                }
+                if (!r.ok) {
+                    let detail = 'HTTP '+r.status;
+                    try { detail = (await r.json()).detail || detail; } catch (_) {}
+                    throw new Error(detail);
+                }
+                showToast(_editingOrgId ? '已更新' : '已建立', 'success');
+                closeOrgModal();
+                renderOrgsList();
+            } catch (e) { showToast('儲存失敗：'+e.message, 'error'); }
+            return false;
+        }
+
+        async function deleteOrg(id, name) {
+            if (!confirm(`確定刪除組織「${name}」？此動作會把該組織下所有資料（專案 / 角色 / SMTP / AI Token）都標記為孤兒（organization_id 設為 NULL）。`)) return;
+            try {
+                const r = await fetch('/api/organizations/'+id, { method:'DELETE' });
+                if (!r.ok && r.status !== 204) {
+                    let detail = 'HTTP '+r.status;
+                    try { detail = (await r.json()).detail || detail; } catch (_) {}
+                    throw new Error(detail);
+                }
+                showToast('已刪除', 'success'); renderOrgsList();
+            } catch (e) { showToast('刪除失敗：'+e.message, 'error'); }
+        }
+
+        // ─── 審計紀錄（superuser-only） ────────────────────────────────
+        async function loadAuditLogs(refreshStats) {
+            const body = document.getElementById('auditLogsBody');
+            if (!body) return;
+            body.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-stone-400">載入中…</td></tr>';
+            const params = new URLSearchParams({ limit: '100' });
+            const u = document.getElementById('auditFilterUser')?.value.trim();
+            const e = document.getElementById('auditFilterEntity')?.value.trim();
+            const m = document.getElementById('auditFilterMethod')?.value;
+            if (u) params.set('username', u);
+            if (e) params.set('entity_type', e);
+            if (m) params.set('method', m);
+            try {
+                const [r, s] = await Promise.all([
+                    fetch('/api/audit-logs?' + params),
+                    refreshStats ? fetch('/api/audit-logs/stats') : Promise.resolve(null),
+                ]);
+                if (r.status === 403) {
+                    body.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-stone-400">需要 superuser 權限才能查看審計紀錄</td></tr>';
+                    return;
+                }
+                if (!r.ok) throw new Error('HTTP '+r.status);
+                const rows = await r.json();
+                if (s && s.ok) {
+                    const stats = await s.json();
+                    document.getElementById('auditKpiTotal').textContent = stats.total ?? '—';
+                    document.getElementById('auditKpiOk').textContent = stats.success_2xx_3xx ?? '—';
+                    document.getElementById('auditKpi4xx').textContent = stats.client_error_4xx ?? '—';
+                    document.getElementById('auditKpi5xx').textContent = stats.server_error_5xx ?? '—';
+                    document.getElementById('auditKpi24h').textContent = stats.last_24h ?? '—';
+                }
+                if (!rows.length) {
+                    body.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-stone-400">沒有符合條件的紀錄</td></tr>';
+                    return;
+                }
+                body.innerHTML = rows.map(rec => {
+                    const stCls = rec.status_code < 400 ? 'bg-emerald-50 text-emerald-700'
+                        : rec.status_code < 500 ? 'bg-amber-50 text-amber-700'
+                        : 'bg-rose-50 text-rose-700';
+                    const methodCls = {GET:'text-stone-500', POST:'text-emerald-700', PUT:'text-blue-700', PATCH:'text-blue-700', DELETE:'text-rose-700'}[rec.method] || 'text-stone-700';
+                    return `<tr class="hover:bg-amber-50/30">
+                        <td class="p-2 text-stone-500">${_esc((rec.created_at||'').replace('T',' ').slice(0,19))}</td>
+                        <td class="p-2">${_esc(rec.username||'—')}</td>
+                        <td class="p-2 font-bold ${methodCls}">${_esc(rec.method)}</td>
+                        <td class="p-2 text-center"><span class="text-[10px] px-1.5 py-0.5 rounded ${stCls}">${rec.status_code}</span></td>
+                        <td class="p-2 text-stone-700 break-all">${_esc(rec.path)}${rec.entity_id ? `<span class="ml-1 text-[10px] text-stone-400">id=${_esc(rec.entity_id.slice(0,8))}…</span>` : ''}</td>
+                        <td class="p-2 text-right text-stone-500">${rec.duration_ms||0}</td>
+                    </tr>`;
+                }).join('');
+            } catch (err) {
+                body.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-red-500">載入失敗：${_esc(err.message)}</td></tr>`;
+            }
         }
 
         // ─── AI 從需求生成測試案例 ──────────────────────────────────────

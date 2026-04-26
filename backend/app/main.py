@@ -8,14 +8,16 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.database import init_db
-from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings, schedules, local_runner, test_rounds, project_settings, screenshot_baselines, system, defects, test_milestones, test_plans, requirements, test_data_sets, test_documents, wbs_items, settings as app_settings, todos, auth, ai
+from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings, schedules, local_runner, test_rounds, project_settings, screenshot_baselines, system, defects, test_milestones, test_plans, requirements, test_data_sets, test_documents, wbs_items, settings as app_settings, todos, auth, ai, audit_logs, organizations
 # 確保新增 model 在 init_db() 前已 import 註冊到 Base.metadata
 from app.models import (  # noqa: F401
     Defect, TestMilestone, TestPlan, Requirement, RequirementTestcaseLink,
     TestDataSet, TestDocument, WbsItem,
     Role, NotificationPreference, EmailConfig, AiTokenConfig, TodoItem, User,
+    Organization, AuditLog,
 )
 from app.middleware import AuthMiddleware
+from app.audit import AuditMiddleware
 from app.services.schedule_service import scheduler_loop
 
 
@@ -82,6 +84,44 @@ async def _seed_default_roles() -> None:
         await session.commit()
 
 
+async def _seed_default_org_and_backfill() -> None:
+    """確保 Default Organization 存在；把所有 organization_id IS NULL 的既有資料掛上去。
+
+    一次性 backfill：適合升級到多租戶版本的舊資料庫。
+    """
+    from sqlalchemy import select, update, text
+    from app.database import AsyncSessionLocal
+
+    async with AsyncSessionLocal() as session:
+        org = (
+            await session.execute(select(Organization).where(Organization.slug == "default"))
+        ).scalar_one_or_none()
+        if not org:
+            org = Organization(
+                slug="default",
+                name="Default Organization",
+                description="自動建立的預設組織；未指定 organization_id 的所有資料會歸屬於此",
+                plan="free",
+            )
+            session.add(org)
+            await session.flush()
+
+        # 把現有 NULL 的資料一次補上 default org id
+        for tbl in (
+            "users", "projects", "roles", "email_configs",
+            "ai_token_configs", "todo_items", "audit_logs",
+        ):
+            try:
+                await session.execute(
+                    text(f"UPDATE {tbl} SET organization_id = :oid WHERE organization_id IS NULL"),
+                    {"oid": org.id},
+                )
+            except Exception:
+                # 表還不存在或欄位還沒 ALTER 上去
+                pass
+        await session.commit()
+
+
 async def _seed_default_admin() -> None:
     """確保 admin/admin123 預設帳號存在（is_superuser=True）；只在沒任何 user 時建立。"""
     from sqlalchemy import select, func
@@ -98,12 +138,17 @@ async def _seed_default_admin() -> None:
         admin_role = (
             await session.execute(select(Role).where(Role.name == "Admin"))
         ).scalar_one_or_none()
+        # 預設組織
+        default_org = (
+            await session.execute(select(Organization).where(Organization.slug == "default"))
+        ).scalar_one_or_none()
         admin = User(
             username="admin",
             display_name="系統管理員",
             email="admin@example.com",
             password_hash=hash_password("admin123"),
             role_id=admin_role.id if admin_role else None,
+            organization_id=default_org.id if default_org else None,
             is_superuser=True,
             is_active=True,
         )
@@ -121,6 +166,11 @@ async def lifespan(app: FastAPI):
     except Exception as e:  # 不要因為 seed 失敗而擋住服務啟動
         import logging
         logging.getLogger(__name__).warning("seed default roles failed: %s", e)
+    try:
+        await _seed_default_org_and_backfill()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("seed default org / backfill failed: %s", e)
     try:
         await _seed_default_admin()
     except Exception as e:
@@ -153,6 +203,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Audit log middleware：要在 Auth 之前 add（add 順序與執行順序相反，
+# 所以 dispatch 順序為 Auth → Audit → handler）；確保 Audit 能看到 user_payload
+app.add_middleware(AuditMiddleware)
 # Auth middleware：在 CORS 之後加，確保 OPTIONS 預檢已被 CORS 處理
 app.add_middleware(AuthMiddleware)
 
@@ -186,6 +239,8 @@ app.include_router(app_settings.router,    prefix="/api", tags=["S · 設定"])
 app.include_router(todos.router,           prefix="/api", tags=["T · 待辦"])
 app.include_router(auth.router,            prefix="/api", tags=["U · 認證"])
 app.include_router(ai.router,              prefix="/api", tags=["V · AI"])
+app.include_router(audit_logs.router,      prefix="/api", tags=["W · 審計"])
+app.include_router(organizations.router,   prefix="/api", tags=["X · 組織"])
 
 
 @app.get("/", tags=["Health"])

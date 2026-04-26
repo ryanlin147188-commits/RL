@@ -51,7 +51,8 @@ async def generate_testcases_from_req(
         raise HTTPException(404, "需求不存在")
     try:
         result = await generate_testcases_from_requirement(
-            db, req, n=payload.n, provider=payload.provider
+            db, req, n=payload.n, provider=payload.provider,
+            organization_id=user.organization_id,
         )
     except RuntimeError as e:
         raise HTTPException(400, str(e))

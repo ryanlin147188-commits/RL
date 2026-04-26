@@ -152,8 +152,12 @@ async def _call_google(
 
 # ── Token 選擇 ──────────────────────────────────────────────────────
 
-async def pick_token(db: AsyncSession, preferred_provider: Optional[str] = None) -> AiTokenConfig:
-    """選一個可用 token：
+async def pick_token(
+    db: AsyncSession,
+    preferred_provider: Optional[str] = None,
+    organization_id: Optional[str] = None,
+) -> AiTokenConfig:
+    """選一個可用 token（按 org 過濾）：
     1) 若指定 provider，優先用該 provider 內 default 且 enabled 的；其次任何 enabled
     2) 若沒指定 provider，挑全系統第一個 default + enabled，再退而求其次
     """
@@ -162,6 +166,8 @@ async def pick_token(db: AsyncSession, preferred_provider: Optional[str] = None)
         .where(AiTokenConfig.enabled.is_(True))
         .order_by(AiTokenConfig.is_default.desc(), asc(AiTokenConfig.created_at))
     )
+    if organization_id is not None:
+        stmt = stmt.where(AiTokenConfig.organization_id == organization_id)
     if preferred_provider:
         try:
             prov_enum = AiProvider(preferred_provider)
@@ -212,9 +218,10 @@ async def generate_testcases_from_requirement(
     *,
     n: int = 3,
     provider: Optional[str] = None,
+    organization_id: Optional[str] = None,
 ) -> dict[str, Any]:
     n = max(1, min(int(n or 3), 10))
-    token = await pick_token(db, preferred_provider=provider)
+    token = await pick_token(db, preferred_provider=provider, organization_id=organization_id)
     system = _SYSTEM_PROMPT
     user = _user_prompt(requirement, n)
     base_url = token.base_url or _default_base_url(token.provider)

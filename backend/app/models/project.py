@@ -13,7 +13,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, String, Text
+from sqlalchemy import DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
@@ -26,6 +26,9 @@ class Project(Base):
         String(36), primary_key=True, default=lambda: str(uuid.uuid4())
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
+    organization_id: Mapped[Optional[str]] = mapped_column(
+        String(36), ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True, index=True,
+    )
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     owner: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     status: Mapped[Optional[str]] = mapped_column(String(40), nullable=True, default="Active")
