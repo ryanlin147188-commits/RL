@@ -2091,17 +2091,55 @@ driver.swipe(100, 800, 100, 200, 500)"
                     </div>
                 </section>
 
-                <!-- 功能卡片 -->
+                <!-- 功能卡片：對齊上方導覽列（規劃 / 設定 / 執行 · 監控） -->
                 <section class="max-w-6xl mx-auto mb-8">
                     <h3 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
                         <i class="fa-solid fa-compass text-blue-500"></i> 快速導覽
                     </h3>
-                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+
+                    <!-- 規劃 (Planning) -->
+                    <div class="text-[11px] font-bold text-stone-400 uppercase tracking-wider mb-2 mt-1">規劃</div>
+                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-5">
+                        <button onclick="showTestProjectsView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-amber-300 transition group">
+                            <div class="w-10 h-10 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-folder-tree"></i></div>
+                            <div class="font-semibold text-slate-800 mb-0.5">測試專案</div>
+                            <div class="text-xs text-slate-500">專案卡片 / 起訖日 / 負責人</div>
+                        </button>
+                        <button onclick="showWbsView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-yellow-300 transition group">
+                            <div class="w-10 h-10 rounded-lg bg-yellow-100 text-yellow-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-sitemap"></i></div>
+                            <div class="font-semibold text-slate-800 mb-0.5">WBS</div>
+                            <div class="text-xs text-slate-500">工作分解結構 / 進度追蹤</div>
+                        </button>
+                        <button onclick="showTestPlanView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300 transition group">
+                            <div class="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-clipboard-list"></i></div>
+                            <div class="font-semibold text-slate-800 mb-0.5">測試計畫</div>
+                            <div class="text-xs text-slate-500">ISTQB 格式 / Markdown / Mermaid</div>
+                        </button>
+                        <button onclick="showRequirementsView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-cyan-300 transition group">
+                            <div class="w-10 h-10 rounded-lg bg-cyan-100 text-cyan-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-diagram-project"></i></div>
+                            <div class="font-semibold text-slate-800 mb-0.5">需求 / RTM</div>
+                            <div class="text-xs text-slate-500">需求清單 + 追溯矩陣</div>
+                        </button>
                         <button onclick="showTestCasesView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300 transition group">
                             <div class="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-list-check"></i></div>
                             <div class="font-semibold text-slate-800 mb-0.5">測試案例</div>
                             <div class="text-xs text-slate-500">瀏覽 / 編輯所有 TESTCASE</div>
                         </button>
+                        <button onclick="showTestDataSetsView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-violet-300 transition group">
+                            <div class="w-10 h-10 rounded-lg bg-violet-100 text-violet-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-table"></i></div>
+                            <div class="font-semibold text-slate-800 mb-0.5">測試資料集</div>
+                            <div class="text-xs text-slate-500">DDT 資料表 (No / Key / Value)</div>
+                        </button>
+                        <button onclick="showTestDocumentsView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-pink-300 transition group">
+                            <div class="w-10 h-10 rounded-lg bg-pink-100 text-pink-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-file-lines"></i></div>
+                            <div class="font-semibold text-slate-800 mb-0.5">測試文件</div>
+                            <div class="text-xs text-slate-500">Markdown WYSIWYG + Mermaid</div>
+                        </button>
+                    </div>
+
+                    <!-- 設定 (Settings) -->
+                    <div class="text-[11px] font-bold text-stone-400 uppercase tracking-wider mb-2">設定</div>
+                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-5">
                         <button onclick="showDevicesView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-rose-300 transition group">
                             <div class="w-10 h-10 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-mobile-screen"></i></div>
                             <div class="font-semibold text-slate-800 mb-0.5">設備資訊</div>
@@ -2122,15 +2160,20 @@ driver.swipe(100, 800, 100, 200, 500)"
                             <div class="font-semibold text-slate-800 mb-0.5">Mock</div>
                             <div class="text-xs text-slate-500">REST Mock 端點管理</div>
                         </button>
+                    </div>
+
+                    <!-- 執行 / 監控 (Execution / Monitor) -->
+                    <div class="text-[11px] font-bold text-stone-400 uppercase tracking-wider mb-2">執行 / 監控</div>
+                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        <button onclick="showTestMilestonesView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-teal-300 transition group">
+                            <div class="w-10 h-10 rounded-lg bg-teal-100 text-teal-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-regular fa-calendar"></i></div>
+                            <div class="font-semibold text-slate-800 mb-0.5">測試時程</div>
+                            <div class="text-xs text-slate-500">里程碑 / 時間軸概覽</div>
+                        </button>
                         <button onclick="showTestRoundView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-purple-300 transition group">
                             <div class="w-10 h-10 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-layer-group"></i></div>
                             <div class="font-semibold text-slate-800 mb-0.5">測試回合</div>
                             <div class="text-xs text-slate-500">具名案例集合彙總執行</div>
-                        </button>
-                        <button onclick="showReportView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300 transition group">
-                            <div class="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-chart-pie"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5">測試報告</div>
-                            <div class="text-xs text-slate-500">Dashboard / 歷史 / Trace 檢視</div>
                         </button>
                         <button onclick="showScheduleView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-300 transition group">
                             <div class="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-calendar-days"></i></div>
@@ -2141,6 +2184,21 @@ driver.swipe(100, 800, 100, 200, 500)"
                             <div class="w-10 h-10 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-video"></i></div>
                             <div class="font-semibold text-slate-800 mb-0.5">測試錄製</div>
                             <div class="text-xs text-slate-500">WEB / API / APP 三種來源</div>
+                        </button>
+                        <button onclick="showTestKanbanView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-orange-300 transition group">
+                            <div class="w-10 h-10 rounded-lg bg-orange-100 text-orange-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-columns"></i></div>
+                            <div class="font-semibold text-slate-800 mb-0.5">測試看版</div>
+                            <div class="text-xs text-slate-500">缺陷 Kanban + KPI 概覽</div>
+                        </button>
+                        <button onclick="showReportView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300 transition group">
+                            <div class="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-chart-pie"></i></div>
+                            <div class="font-semibold text-slate-800 mb-0.5">測試報告</div>
+                            <div class="text-xs text-slate-500">Dashboard / 歷史 / Trace 檢視</div>
+                        </button>
+                        <button onclick="showDefectsView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-red-300 transition group">
+                            <div class="w-10 h-10 rounded-lg bg-red-100 text-red-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-bug"></i></div>
+                            <div class="font-semibold text-slate-800 mb-0.5">缺陷管理</div>
+                            <div class="text-xs text-slate-500">缺陷列表 + 附件 + 工作流</div>
                         </button>
                     </div>
                 </section>
@@ -11173,15 +11231,13 @@ gantt
             const body = document.getElementById('dsGridBody');
             if (!head || !body) return;
 
-            head.innerHTML = '<th class="p-2 border-b border-violet-200 w-12 text-violet-700 font-semibold text-left bg-violet-50/80">#</th>'
-                + _dsCols.map(c => `<th class="p-2 border-b border-l border-violet-200 text-violet-700 font-semibold text-left bg-violet-50/80 ds-col-cell">${_esc(c)}</th>`).join('');
+            head.innerHTML = _dsCols.map((c, ci) => `<th class="p-2 border-b ${ci > 0 ? 'border-l ' : ''}border-violet-200 text-violet-700 font-semibold text-left bg-violet-50/80 ds-col-cell">${_esc(c)}</th>`).join('');
 
             if (!_dsRows.length) {
-                body.innerHTML = `<tr><td colspan="${_dsCols.length + 1}" class="p-6 text-center text-stone-400 text-xs">尚無資料列；請點上方「匯入 JSON」載入資料</td></tr>`;
+                body.innerHTML = `<tr><td colspan="${_dsCols.length}" class="p-6 text-center text-stone-400 text-xs">尚無資料列；請點上方「匯入 JSON」載入資料</td></tr>`;
             } else {
                 body.innerHTML = _dsRows.map((row, ri) => `<tr class="hover:bg-violet-50/30">
-                    <td class="p-1.5 border-b border-violet-100 text-stone-400 font-mono text-[11px] text-center">${ri + 1}</td>
-                    ${_dsCols.map(c => `<td class="p-0 border-b border-l border-violet-100 ds-col-cell"><input type="text" value="${_esc(row[c] != null ? row[c] : '')}" oninput="dsSetCell(${ri},'${_esc(c)}', this.value)" aria-label="第${ri+1}列 ${_esc(c)}" class="w-full px-2 py-1.5 text-xs bg-transparent focus:bg-white focus:outline-none focus:ring-1 focus:ring-violet-300"></td>`).join('')}
+                    ${_dsCols.map((c, ci) => `<td class="p-0 border-b ${ci > 0 ? 'border-l ' : ''}border-violet-100 ds-col-cell"><input type="text" value="${_esc(row[c] != null ? row[c] : '')}" oninput="dsSetCell(${ri},'${_esc(c)}', this.value)" aria-label="第${ri+1}列 ${_esc(c)}" class="w-full px-2 py-1.5 text-xs bg-transparent focus:bg-white focus:outline-none focus:ring-1 focus:ring-violet-300"></td>`).join('')}
                 </tr>`).join('');
             }
 
