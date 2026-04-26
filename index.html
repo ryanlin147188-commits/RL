@@ -688,7 +688,7 @@
         <div id="sidebarResizer" class="w-1 cursor-col-resize bg-amber-100 hover:bg-amber-400 active:bg-amber-500 transition shrink-0 z-20" title="拖曳調整側邊欄寬度"></div>
 
         <!-- 右側主工作區 -->
-        <main class="flex-1 flex flex-col bg-white overflow-hidden relative">
+        <main class="flex-1 flex flex-col bg-white overflow-hidden relative z-[101]">
 
             <!-- 工作區標題與操作列 (在測試報告視圖下會隱藏) -->
             <div id="mainHeader" class="p-5 border-b border-amber-100 flex justify-between items-end shrink-0 bg-white z-10">
@@ -2673,14 +2673,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                                 <input id="dsSearch" type="search" oninput="renderDataSetsList()" placeholder="搜尋資料集名稱、代號…"
                                     class="w-full pl-9 pr-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-violet-400">
                             </div>
-                            <select id="dsCategoryFilter" onchange="renderDataSetsList()" aria-label="依分類過濾" class="px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
-                                <option value="">全部分類</option>
-                                <option value="Login">登入</option>
-                                <option value="Boundary">邊界值</option>
-                                <option value="Business">業務流程</option>
-                                <option value="Performance">效能</option>
-                                <option value="Other">其他</option>
-                            </select>
                             <button onclick="renderDataSetsList()" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
                             <button onclick="openDataSetModal()" class="px-3 py-2 bg-violet-500 hover:bg-violet-600 text-white rounded-md text-sm font-semibold shadow-sm"><i class="fa-solid fa-plus"></i> 新增資料集</button>
                             <div class="text-xs text-stone-500 ml-auto">共 <span id="dsListCount" class="font-bold text-stone-700">0</span> 筆</div>
@@ -2689,7 +2681,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                     <div class="bg-white rounded-lg border border-violet-200 shadow-sm overflow-hidden">
                         <table class="w-full text-sm">
                             <thead class="bg-violet-50/60 border-b border-violet-200 text-stone-600 text-xs uppercase">
-                                <tr><th class="p-3 text-left w-24">代號</th><th class="p-3 text-left">名稱</th><th class="p-3 w-28">分類</th><th class="p-3 w-20">欄位</th><th class="p-3 w-20">資料列</th><th class="p-3 w-32">負責人</th><th class="p-3 w-36 text-center">操作</th></tr>
+                                <tr><th class="p-3 text-left w-24">代號</th><th class="p-3 text-left">名稱</th><th class="p-3 w-20">欄位</th><th class="p-3 w-20">資料列</th><th class="p-3 w-32">負責人</th><th class="p-3 w-36 text-center">操作</th></tr>
                             </thead>
                             <tbody id="dsListBody" class="divide-y divide-stone-100"></tbody>
                         </table>
@@ -2936,18 +2928,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                         <button type="button" onclick="closeDataSetModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
                     </div>
                     <form onsubmit="return dataSetSubmit(event)" class="p-6 space-y-3">
-                        <div class="grid grid-cols-3 gap-3">
-                            <div class="col-span-2"><label for="dsName" class="block text-xs font-semibold text-stone-600 mb-1">名稱 *</label><input type="text" id="dsName" aria-label="名稱" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
-                            <div><label for="dsCategory" class="block text-xs font-semibold text-stone-600 mb-1">分類</label>
-                                <select id="dsCategory" aria-label="分類" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
-                                    <option value="Login">登入</option>
-                                    <option value="Boundary">邊界值</option>
-                                    <option value="Business">業務流程</option>
-                                    <option value="Performance">效能</option>
-                                    <option value="Other" selected>其他</option>
-                                </select>
-                            </div>
-                        </div>
+                        <div><label for="dsName" class="block text-xs font-semibold text-stone-600 mb-1">名稱 *</label><input type="text" id="dsName" aria-label="名稱" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
                         <div class="grid grid-cols-2 gap-3">
                             <div><label for="dsOwner" class="block text-xs font-semibold text-stone-600 mb-1">負責人</label><input type="text" id="dsOwner" aria-label="負責人" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
                             <div><label for="dsDesc" class="block text-xs font-semibold text-stone-600 mb-1">說明</label><input type="text" id="dsDesc" aria-label="說明" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
@@ -2956,26 +2937,14 @@ driver.swipe(100, 800, 100, 200, 500)"
                             <label class="block text-xs font-semibold text-stone-600 mb-1">資料表（行 × 欄）</label>
                             <div class="bg-stone-50 border border-stone-200 rounded p-3 space-y-2">
                                 <div class="flex items-center gap-2 flex-wrap">
-                                    <button type="button" onclick="dsAddColumn()" class="text-xs px-2 py-1 border border-stone-300 bg-white rounded hover:bg-violet-50"><i class="fa-solid fa-plus"></i> 新增欄</button>
-                                    <button type="button" onclick="dsAddRow()" class="text-xs px-2 py-1 border border-stone-300 bg-white rounded hover:bg-violet-50"><i class="fa-solid fa-plus"></i> 新增列</button>
                                     <input type="file" id="dsJsonImportInput" accept=".json,application/json" multiple aria-label="匯入 JSON 測試資料（可複選）" class="hidden" onchange="dsImportJson(event)">
                                     <button type="button" onclick="document.getElementById('dsJsonImportInput').click()" class="text-xs px-2 py-1 border border-stone-300 bg-white rounded hover:bg-violet-50" title="可一次選取多個 JSON 檔；巢狀結構會以點記法展開為 Key 路徑"><i class="fa-solid fa-file-import"></i> 匯入 JSON</button>
                                     <button type="button" onclick="dsExportJson()" class="text-xs px-2 py-1 border border-stone-300 bg-white rounded hover:bg-violet-50" title="把目前資料表下載成 JSON 檔（rows_json 結構）"><i class="fa-solid fa-file-export"></i> 匯出 JSON</button>
                                     <button type="button" onclick="dsClearGrid()" class="text-xs px-2 py-1 border border-rose-200 text-rose-600 bg-white rounded hover:bg-rose-50" title="清空所有欄列"><i class="fa-solid fa-eraser"></i> 清空</button>
-                                    <div class="ml-auto flex items-center gap-1">
-                                        <button type="button" id="dsViewTableBtn" onclick="dsSwitchView('table')" class="text-xs px-2 py-1 border border-violet-300 bg-violet-100 text-violet-800 rounded font-semibold" title="表格模式（橫向捲動）"><i class="fa-solid fa-table-cells"></i> 表格</button>
-                                        <button type="button" id="dsViewCardBtn" onclick="dsSwitchView('card')" class="text-xs px-2 py-1 border border-stone-300 bg-white rounded hover:bg-violet-50" title="卡片模式：每列一張卡，欄位垂直顯示，欄數多時較易閱讀"><i class="fa-solid fa-id-card"></i> 卡片</button>
-                                    </div>
-                                    <span class="text-[11px] text-stone-500">總計 <span id="dsColCount" class="font-mono font-bold text-stone-700">0</span> 欄 × <span id="dsRowCount" class="font-mono font-bold text-stone-700">0</span> 列</span>
+                                    <span class="text-[11px] text-stone-500 ml-auto">總計 <span id="dsColCount" class="font-mono font-bold text-stone-700">0</span> 欄 × <span id="dsRowCount" class="font-mono font-bold text-stone-700">0</span> 列</span>
                                 </div>
-                                <div id="dsGridTableWrap" class="overflow-x-auto max-h-[55vh] border border-violet-100 rounded">
-                                    <table id="dsGrid" class="text-xs">
-                                        <thead class="bg-violet-100/40 sticky top-0 z-[1]"><tr id="dsGridHead"></tr></thead>
-                                        <tbody id="dsGridBody"></tbody>
-                                    </table>
-                                </div>
-                                <div id="dsGridCardWrap" class="hidden max-h-[55vh] overflow-y-auto border border-violet-100 rounded p-2 space-y-2 bg-stone-50/40"></div>
-                                <p class="text-[10px] text-stone-500">點擊欄位可重新命名；任一欄／列右側「✕」可移除。欄位多時可切到「卡片模式」以更好閱讀。</p>
+                                <div id="dsGridCardWrap" class="max-h-[55vh] overflow-y-auto border border-violet-100 rounded p-2 space-y-2 bg-stone-50/40"></div>
+                                <p class="text-[10px] text-stone-500">資料以 JSON 為單一來源；上方按鈕可匯入 / 匯出 / 清空整份資料表。</p>
                             </div>
                         </div>
                         <div class="flex justify-end gap-2 pt-2"><button type="button" onclick="closeDataSetModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button><button type="submit" class="px-4 py-2 bg-violet-500 hover:bg-violet-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button></div>
@@ -10320,14 +10289,154 @@ driver.swipe(100, 800, 100, 200, 500)"
                 tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-red-500">載入失敗：${_esc(e.message)}</td></tr>`;
             }
         }
+        // 對齊 ISTQB / IEEE 829 測試計畫文件結構：
+        //  ScopeIn   → 簡介、識別、參考文件、測試項目、要測試的功能
+        //  ScopeOut  → 不測試的功能
+        //  Strategy  → 測試方法、通過/失敗準則、中止/恢復準則
+        //  Resources → 交付物、環境、任務、職責、人員與訓練
+        //  Schedule  → 時程、里程碑
+        //  Risks     → 規劃風險、應變、核准
         const _PLAN_SECTIONS = [
-            { key:'ScopeIn',   label:'範圍 (Scope In)',  textareaId:'tpScopeIn',   field:'scope_in_text' },
-            { key:'ScopeOut',  label:'排除 (Scope Out)', textareaId:'tpScopeOut',  field:'scope_out_text' },
-            { key:'Strategy',  label:'測試策略',         textareaId:'tpStrategy',  field:'test_strategy_text' },
-            { key:'Resources', label:'資源',             textareaId:'tpResources', field:'resources_text' },
-            { key:'Schedule',  label:'時程',             textareaId:'tpSchedule',  field:'schedule_text' },
-            { key:'Risks',     label:'風險',             textareaId:'tpRisks',     field:'risks_text' },
+            { key:'ScopeIn',   label:'簡介 / 範圍 / 測試項目', textareaId:'tpScopeIn',   field:'scope_in_text' },
+            { key:'ScopeOut',  label:'不測試的功能',           textareaId:'tpScopeOut',  field:'scope_out_text' },
+            { key:'Strategy',  label:'測試方法 / 通過準則',    textareaId:'tpStrategy',  field:'test_strategy_text' },
+            { key:'Resources', label:'環境 / 職責 / 交付物',   textareaId:'tpResources', field:'resources_text' },
+            { key:'Schedule',  label:'時程 / 里程碑',          textareaId:'tpSchedule',  field:'schedule_text' },
+            { key:'Risks',     label:'風險 / 應變 / 核准',     textareaId:'tpRisks',     field:'risks_text' },
         ];
+
+        // 建立新計畫時，每個 tab 自動填入符合 ISTQB / IEEE 829 的小節骨架
+        const _PLAN_ISTQB_TEMPLATES = {
+            ScopeIn: `## 1. 簡介 (Introduction)
+
+簡述本次測試計畫的目的、目標讀者，以及與專案／產品的對應關係。
+
+## 2. 測試計畫識別 (Test Plan Identifier)
+
+- 計畫代號：TP-001
+- 對應版本：1.0
+- 適用週期：YYYY-MM-DD ~ YYYY-MM-DD
+
+## 3. 參考文件 (References)
+
+- 需求規格 / PRD：
+- 系統架構文件：
+- 風險登錄表：
+
+## 4. 測試項目 (Test Items)
+
+列出本輪納入測試的元件 / 模組 / 服務 / 版本。
+
+| 項目 | 版本 | 說明 |
+| --- | --- | --- |
+| 模組 A | 1.2.0 | 主要結帳流程 |
+
+## 5. 要測試的功能 (Features To Be Tested)
+
+- 功能 A：……
+- 功能 B：……
+- 功能 C：……
+`,
+            ScopeOut: `## 6. 不測試的功能 (Features NOT To Be Tested)
+
+明確列出本輪不會涵蓋的功能、平台、瀏覽器、使用情境，以及不測試的理由（資源、優先級、技術限制…）。
+
+- 功能 X：因仍在開發中，預計下一輪納入。
+- iOS 17 之前版本：使用率 < 1%，不投入資源驗證。
+`,
+            Strategy: `## 7. 測試方法 / 策略 (Approach)
+
+- 測試類型：單元 / 整合 / 系統 / UAT / 回歸 / 效能 / 安全 / 相容性
+- 測試技術：BDD（Given-When-Then）、ATDD、DDT 資料驅動、KDT 關鍵字驅動、SBE
+- 自動化策略：Robot Framework + Playwright；UI 70%、API 90%、回歸 100% 自動化
+- 探索式測試比例：每輪 10–15%
+
+## 8. 項目通過 / 失敗準則 (Item Pass / Fail Criteria)
+
+- 通過：對應驗收條件全部 PASS、無 Critical / Major 缺陷
+- 失敗：任一驗收條件 FAIL，或新增 Critical 缺陷且未排定修復
+
+## 9. 中止與恢復準則 (Suspension & Resumption Criteria)
+
+- 中止條件：環境連續中斷 > 4 小時、阻擋性缺陷未修復、需求大幅異動
+- 恢復條件：阻擋因素解除並完成回歸驗證
+`,
+            Resources: `## 10. 測試交付物 (Test Deliverables)
+
+- 測試計畫（本文件）
+- 測試案例（連結到「測試案例」模組）
+- 測試資料（連結到「測試資料集」模組）
+- 缺陷紀錄（缺陷管理模組）
+- 測試報告 / 覆蓋率報告 / 風險評估表
+
+## 11. 環境需求 (Environmental Needs)
+
+- 測試環境：QA Stage / UAT
+- 硬體 / 瀏覽器 / 行動裝置矩陣：
+- 第三方服務：Mock / Sandbox API endpoints
+- 資料：Seed dataset、敏感資料遮罩
+
+## 12. 測試任務 (Testing Tasks)
+
+| 任務 | 負責人 | 預估工時 |
+| --- | --- | --- |
+| 撰寫測試計畫 | | |
+| 設計測試案例 | | |
+| 執行回歸測試 | | |
+
+## 13. 職責 (Responsibilities)
+
+- 測試經理：審核計畫、追蹤指標、決策中止 / 恢復
+- 測試工程師：撰寫案例、執行測試、回報缺陷
+- 開發：修復缺陷、提供 Mock / Stub
+- PM / PO：驗收簽核
+
+## 14. 人員配置與訓練 (Staffing & Training)
+
+- 人力：QA × N、自動化工程師 × M
+- 訓練：Robot Framework / Playwright、領域知識培訓
+`,
+            Schedule: `## 15. 時程 (Schedule)
+
+整體里程碑與每階段日期；可用 Mermaid 甘特圖表達：
+
+\`\`\`mermaid
+gantt
+    title 測試時程
+    dateFormat  YYYY-MM-DD
+    section 規劃
+    撰寫測試計畫       :a1, 2026-04-01, 5d
+    審核 / 簽核        :a2, after a1, 3d
+    section 執行
+    冒煙測試           :b1, after a2, 2d
+    回歸測試           :b2, after b1, 7d
+    UAT                :b3, after b2, 5d
+\`\`\`
+
+### 里程碑
+
+- M1 計畫定稿：YYYY-MM-DD
+- M2 測試環境就緒：YYYY-MM-DD
+- M3 主測試完成：YYYY-MM-DD
+- M4 簽核發布：YYYY-MM-DD
+`,
+            Risks: `## 16. 規劃風險與應變 (Planning Risks & Contingencies)
+
+| 風險 | 衝擊 | 機率 | 應變方案 |
+| --- | --- | --- | --- |
+| 第三方 API 不穩 | 高 | 中 | 啟用 Mock；降級驗證 |
+| 環境延遲就緒 | 中 | 中 | 切到本機環境並縮減情境 |
+| 人力不足 | 高 | 低 | 提前借調、優先級重排 |
+
+## 17. 核准 (Approvals)
+
+| 角色 | 姓名 | 簽核日期 | 簽名 |
+| --- | --- | --- | --- |
+| 測試經理 | | | |
+| 開發負責人 | | | |
+| 產品負責人 | | | |
+`
+        };
         let _planActiveSection = 'ScopeIn';
         let _planDirty = false;
 
@@ -10342,12 +10451,14 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('tpVersion').value = r?.version || '';
             document.getElementById('tpStatus').value = r?.status || 'Draft';
             document.getElementById('tpOwner').value = r?.owner || (typeof authCurrentUsername === 'function' ? (authCurrentUsername()||'') : '');
-            document.getElementById('tpScopeIn').value = r?.scope_in_text || '';
-            document.getElementById('tpScopeOut').value = r?.scope_out_text || '';
-            document.getElementById('tpStrategy').value = r?.test_strategy_text || '';
-            document.getElementById('tpResources').value = r?.resources_text || '';
-            document.getElementById('tpSchedule').value = r?.schedule_text || '';
-            document.getElementById('tpRisks').value = r?.risks_text || '';
+            // 編輯既有計畫 → 用後端內容；建立新計畫 → 帶入 ISTQB 範本
+            const isNew = !id;
+            document.getElementById('tpScopeIn').value   = r?.scope_in_text       ?? (isNew ? _PLAN_ISTQB_TEMPLATES.ScopeIn   : '');
+            document.getElementById('tpScopeOut').value  = r?.scope_out_text      ?? (isNew ? _PLAN_ISTQB_TEMPLATES.ScopeOut  : '');
+            document.getElementById('tpStrategy').value  = r?.test_strategy_text  ?? (isNew ? _PLAN_ISTQB_TEMPLATES.Strategy  : '');
+            document.getElementById('tpResources').value = r?.resources_text      ?? (isNew ? _PLAN_ISTQB_TEMPLATES.Resources : '');
+            document.getElementById('tpSchedule').value  = r?.schedule_text       ?? (isNew ? _PLAN_ISTQB_TEMPLATES.Schedule  : '');
+            document.getElementById('tpRisks').value     = r?.risks_text          ?? (isNew ? _PLAN_ISTQB_TEMPLATES.Risks     : '');
             _planDirty = false;
             updatePlanDirtyHint();
             document.getElementById('planModal').classList.remove('hidden');
@@ -10996,12 +11107,10 @@ driver.swipe(100, 800, 100, 200, 500)"
             const cnt = document.getElementById('dsListCount');
             if (!tbody) return;
             const pid = currentProjectId;
-            if (!pid) { tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-stone-400">請先選擇專案</td></tr>'; cnt.textContent='0'; return; }
-            tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-stone-400">載入中…</td></tr>';
+            if (!pid) { tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-stone-400">請先選擇專案</td></tr>'; cnt.textContent='0'; return; }
+            tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-stone-400">載入中…</td></tr>';
             try {
                 const params = new URLSearchParams({project_id: pid});
-                const cat = document.getElementById('dsCategoryFilter')?.value;
-                if (cat) params.set('category', cat);
                 const res = await fetch('/api/data-sets?'+params);
                 if (!res.ok) throw new Error('HTTP '+res.status);
                 _dataSetsCache = await res.json();
@@ -11009,12 +11118,10 @@ driver.swipe(100, 800, 100, 200, 500)"
                 let rows = _dataSetsCache;
                 if (kw) rows = rows.filter(r => (r.name||'').toLowerCase().includes(kw) || (r.code||'').toLowerCase().includes(kw));
                 cnt.textContent = rows.length;
-                if (!rows.length) { tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-stone-400">尚無資料集</td></tr>'; return; }
-                const catColor = {Login:'bg-blue-100 text-blue-700', Boundary:'bg-amber-100 text-amber-700', Business:'bg-emerald-100 text-emerald-700', Performance:'bg-rose-100 text-rose-700', Other:'bg-stone-100 text-stone-600'};
+                if (!rows.length) { tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-stone-400">尚無資料集</td></tr>'; return; }
                 tbody.innerHTML = rows.map(r => `<tr class="hover:bg-amber-50/30">
                     <td class="p-3 font-mono text-xs text-stone-500">${_esc(r.code)}</td>
                     <td class="p-3"><div class="font-semibold text-stone-800">${_esc(r.name)}</div>${r.description ? `<div class="text-[11px] text-stone-500 line-clamp-1">${_esc(r.description)}</div>` : ''}</td>
-                    <td class="p-3"><span class="text-xs px-2 py-0.5 rounded font-medium ${catColor[r.category]||'bg-stone-100'}">${_esc(_zh('dsCategory', r.category))}</span></td>
                     <td class="p-3 text-xs font-mono text-center">${(r.columns_json||[]).length}</td>
                     <td class="p-3 text-xs font-mono text-center">${(r.rows_json||[]).length}</td>
                     <td class="p-3 text-xs text-stone-600">${_esc(r.owner||'—')}</td>
@@ -11024,7 +11131,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                     </td>
                 </tr>`).join('');
             } catch(e) {
-                tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-red-500">載入失敗：${_esc(e.message)}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-red-500">載入失敗：${_esc(e.message)}</td></tr>`;
             }
         }
         function openDataSetModal(id) {
@@ -11033,118 +11140,43 @@ driver.swipe(100, 800, 100, 200, 500)"
             const r = id ? _dataSetsCache.find(x => x.id === id) : null;
             document.getElementById('testDataSetModalTitle').innerHTML = r ? `<i class="fa-solid fa-table text-violet-500"></i> 編輯資料集 ${_esc(r.code)}` : '<i class="fa-solid fa-table text-violet-500"></i> 新增測試資料集';
             document.getElementById('dsName').value = r?.name || '';
-            document.getElementById('dsCategory').value = r?.category || 'Other';
             document.getElementById('dsOwner').value = r?.owner || (typeof authCurrentUsername === 'function' ? (authCurrentUsername()||'') : '');
             document.getElementById('dsDesc').value = r?.description || '';
-            _dsCols = Array.isArray(r?.columns_json) ? [...r.columns_json] : ['account', 'password', 'expected'];
+            // 預設欄位 = No | Key | Value（與舊版 inline DDT 保持一致）
+            _dsCols = Array.isArray(r?.columns_json) && r.columns_json.length ? [...r.columns_json] : ['No', 'Key', 'Value'];
             _dsRows = Array.isArray(r?.rows_json) ? r.rows_json.map(x => ({...x})) : [];
             renderDataSetGrid();
             document.getElementById('testDataSetModal').classList.remove('hidden');
         }
         function closeDataSetModal() { document.getElementById('testDataSetModal').classList.add('hidden'); }
-        let _dsViewMode = 'table';   // 'table' | 'card'
-        function dsSwitchView(mode) {
-            _dsViewMode = mode;
-            const tableWrap = document.getElementById('dsGridTableWrap');
-            const cardWrap = document.getElementById('dsGridCardWrap');
-            const tBtn = document.getElementById('dsViewTableBtn');
-            const cBtn = document.getElementById('dsViewCardBtn');
-            if (mode === 'card') {
-                tableWrap.classList.add('hidden'); cardWrap.classList.remove('hidden');
-                tBtn.classList.remove('bg-violet-100','text-violet-800','border-violet-300','font-semibold');
-                tBtn.classList.add('bg-white','border-stone-300');
-                cBtn.classList.add('bg-violet-100','text-violet-800','border-violet-300','font-semibold');
-                cBtn.classList.remove('bg-white','border-stone-300');
-            } else {
-                tableWrap.classList.remove('hidden'); cardWrap.classList.add('hidden');
-                tBtn.classList.add('bg-violet-100','text-violet-800','border-violet-300','font-semibold');
-                tBtn.classList.remove('bg-white','border-stone-300');
-                cBtn.classList.remove('bg-violet-100','text-violet-800','border-violet-300','font-semibold');
-                cBtn.classList.add('bg-white','border-stone-300');
-            }
-            renderDataSetGrid();
-        }
-
+        // 資料集只用「卡片模式」呈現：每列一張卡，欄位垂直顯示。資料的新增 / 刪除 / 編輯
+        // 透過匯入 JSON 完成，UI 不再提供逐欄 / 逐列的編輯按鈕。
         function renderDataSetGrid() {
-            const head = document.getElementById('dsGridHead');
-            const body = document.getElementById('dsGridBody');
             const cardWrap = document.getElementById('dsGridCardWrap');
-            if (!head || !body) return;
-
-            // === 表格模式 ===
-            // 每欄至少 160px 寬，table 整體會超過容器寬度 → 由 wrap 的 overflow-x-auto 提供水平捲軸
-            head.innerHTML = _dsCols.map((c, ci) => `<th class="p-1 border border-violet-200 text-stone-600 font-medium ds-col-cell">
-                <div class="flex items-center gap-1">
-                    <input type="text" value="${_esc(c)}" oninput="dsRenameColumn(${ci}, this.value)" aria-label="欄位 ${ci+1} 名稱" class="flex-1 min-w-0 px-1.5 py-0.5 border border-stone-200 rounded text-xs font-semibold text-violet-700 bg-white">
-                    <button type="button" onclick="dsRemoveColumn(${ci})" class="shrink-0 text-stone-400 hover:text-red-500 px-1" title="刪除這一欄">✕</button>
-                </div>
-            </th>`).join('') + '<th class="w-10 sticky right-0 bg-violet-100/60 border border-violet-200">操作</th>';
+            if (!cardWrap) return;
             if (!_dsRows.length) {
-                body.innerHTML = `<tr><td colspan="${_dsCols.length+1}" class="p-3 text-center text-stone-400 text-xs">尚無資料列</td></tr>`;
+                cardWrap.innerHTML = '<div class="text-xs text-stone-400 text-center py-6">尚無資料列；請點上方「匯入 JSON」載入資料</div>';
             } else {
-                body.innerHTML = _dsRows.map((row, ri) => `<tr class="hover:bg-violet-50/30">
-                    ${_dsCols.map(c => `<td class="p-0.5 border border-violet-100 ds-col-cell"><input type="text" value="${_esc(row[c]||'')}" oninput="dsSetCell(${ri},'${_esc(c)}', this.value)" aria-label="第${ri+1}列 ${_esc(c)}" class="w-full px-1.5 py-1 text-xs"></td>`).join('')}
-                    <td class="p-0.5 border border-violet-100 text-center sticky right-0 bg-white"><button type="button" onclick="dsRemoveRow(${ri})" class="text-stone-400 hover:text-red-500 px-1" title="刪除這一列">✕</button></td>
-                </tr>`).join('');
-            }
-
-            // === 卡片模式 ===
-            if (cardWrap) {
-                if (!_dsRows.length) {
-                    cardWrap.innerHTML = '<div class="text-xs text-stone-400 text-center py-6">尚無資料列</div>';
-                } else {
-                    cardWrap.innerHTML = _dsRows.map((row, ri) => `
-                        <div class="bg-white border border-violet-200 rounded-md p-3 shadow-sm">
-                            <div class="flex items-center justify-between mb-2">
-                                <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-violet-100 text-violet-700">第 ${ri+1} 列</span>
-                                <button type="button" onclick="dsRemoveRow(${ri})" class="text-xs text-stone-400 hover:text-red-500" title="刪除這一列"><i class="fa-solid fa-trash"></i> 刪除整列</button>
-                            </div>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-3 gap-y-1.5">
-                                ${_dsCols.map((c, ci) => `<div class="flex items-center gap-2">
-                                    <label class="w-32 shrink-0 text-[11px] font-semibold text-violet-700 truncate" title="${_esc(c)}">${_esc(c)}</label>
-                                    <input type="text" value="${_esc(row[c]||'')}" oninput="dsSetCell(${ri},'${_esc(c)}', this.value)" aria-label="第${ri+1}列 ${_esc(c)}" class="flex-1 min-w-0 px-2 py-1 border border-stone-200 rounded text-xs">
-                                </div>`).join('')}
-                            </div>
+                cardWrap.innerHTML = _dsRows.map((row, ri) => `
+                    <div class="bg-white border border-violet-200 rounded-md p-3 shadow-sm">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-violet-100 text-violet-700">第 ${ri+1} 列</span>
                         </div>
-                    `).join('');
-                }
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-x-3 gap-y-1.5">
+                            ${_dsCols.map(c => `<div class="flex items-start gap-2">
+                                <label class="w-32 shrink-0 text-[11px] font-semibold text-violet-700 truncate pt-1.5" title="${_esc(c)}">${_esc(c)}</label>
+                                <input type="text" value="${_esc(row[c]||'')}" oninput="dsSetCell(${ri},'${_esc(c)}', this.value)" aria-label="第${ri+1}列 ${_esc(c)}" class="flex-1 min-w-0 px-2 py-1 border border-stone-200 rounded text-xs">
+                            </div>`).join('')}
+                        </div>
+                    </div>
+                `).join('');
             }
-
-            document.getElementById('dsColCount').textContent = _dsCols.length;
-            document.getElementById('dsRowCount').textContent = _dsRows.length;
+            const colCnt = document.getElementById('dsColCount');
+            const rowCnt = document.getElementById('dsRowCount');
+            if (colCnt) colCnt.textContent = _dsCols.length;
+            if (rowCnt) rowCnt.textContent = _dsRows.length;
         }
-        function dsAddColumn() {
-            let n = 1;
-            while (_dsCols.includes('col_'+n)) n++;
-            _dsCols.push('col_'+n);
-            _dsRows.forEach(r => { r['col_'+n] = ''; });
-            renderDataSetGrid();
-        }
-        function dsRemoveColumn(idx) {
-            const name = _dsCols[idx];
-            _dsCols.splice(idx, 1);
-            _dsRows.forEach(r => { delete r[name]; });
-            renderDataSetGrid();
-        }
-        function dsRenameColumn(idx, newName) {
-            const old = _dsCols[idx];
-            const nn = (newName||'').trim() || old;
-            if (nn === old) return;
-            if (_dsCols.includes(nn)) return;  // 重複名稱不允許
-            _dsCols[idx] = nn;
-            _dsRows.forEach(r => { r[nn] = r[old]; delete r[old]; });
-            // 不重新 render，避免打斷使用者輸入；count 不變
-        }
-        function dsAddRow() {
-            const blank = {};
-            _dsCols.forEach(c => blank[c] = '');
-            _dsRows.push(blank);
-            renderDataSetGrid();
-        }
-        function dsRemoveRow(idx) {
-            _dsRows.splice(idx, 1);
-            renderDataSetGrid();
-        }
+        // 編輯卡片內某格 → 同步進記憶體中的 _dsRows
         function dsSetCell(ri, col, val) {
             if (_dsRows[ri]) _dsRows[ri][col] = val;
         }
@@ -11281,7 +11313,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                 project_id: currentProjectId,
                 name: document.getElementById('dsName').value.trim(),
                 description: document.getElementById('dsDesc').value || null,
-                category: document.getElementById('dsCategory').value,
                 owner: document.getElementById('dsOwner').value.trim() || null,
                 columns_json: _dsCols,
                 rows_json: _dsRows,
