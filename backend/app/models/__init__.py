@@ -15,6 +15,7 @@ from .ai_token_config import AiProvider, AiTokenConfig
 from .email_config import EmailConfig
 from .notification_preference import NotificationPreference
 from .role import Role
+from .user import User
 from .test_data_set import DataSetCategory, TestDataSet
 from .test_document import DocumentCategory, TestDocument
 from .test_milestone import MilestoneStatus, TestMilestone
@@ -48,4 +49,5 @@ __all__ = [
     "Role", "NotificationPreference", "EmailConfig",
     "AiTokenConfig", "AiProvider",
     "TodoItem", "TodoStatus", "TodoPriority",
+    "User",
 ]
