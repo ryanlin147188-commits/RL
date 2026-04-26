@@ -3208,7 +3208,7 @@ driver.swipe(100, 800, 100, 200, 500)"
     <!-- ==================== 彈出視窗 (Modals) ==================== -->
 
     <!-- 完整錄影 Modal（案例完整錄影 .webm）-->
-    <div id="fullVideoModal" class="fixed inset-0 bg-slate-900/70 hidden z-[60] flex items-center justify-center opacity-0 transition-opacity">
+    <div id="fullVideoModal" class="fixed inset-0 bg-slate-900/70 hidden z-[160] flex items-center justify-center opacity-0 transition-opacity">
         <div class="bg-white rounded-lg shadow-xl w-[960px] max-w-[95vw] transform scale-95 transition-transform">
             <div class="flex items-center justify-between p-3 border-b border-slate-200">
                 <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
@@ -3223,7 +3223,7 @@ driver.swipe(100, 800, 100, 200, 500)"
     </div>
 
     <!-- Trace Viewer 嵌入式 Modal（iframe 載入 trace.playwright.dev）-->
-    <div id="traceViewerModal" class="fixed inset-0 bg-slate-900/70 hidden z-[60] flex items-center justify-center opacity-0 transition-opacity">
+    <div id="traceViewerModal" class="fixed inset-0 bg-slate-900/70 hidden z-[160] flex items-center justify-center opacity-0 transition-opacity">
         <div class="bg-white rounded-lg shadow-xl w-[95vw] h-[90vh] flex flex-col transform scale-95 transition-transform">
             <div class="flex items-center justify-between p-3 border-b border-slate-200 shrink-0">
                 <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
@@ -3237,7 +3237,7 @@ driver.swipe(100, 800, 100, 200, 500)"
     </div>
 
     <!-- Screenshot Baseline Modal（設定 / 替換 / 刪除某個 AssertScreenshotMatch step 的 baseline）-->
-    <div id="baselineModal" class="fixed inset-0 bg-slate-900/70 hidden z-[60] flex items-center justify-center opacity-0 transition-opacity">
+    <div id="baselineModal" class="fixed inset-0 bg-slate-900/70 hidden z-[160] flex items-center justify-center opacity-0 transition-opacity">
         <div class="bg-white rounded-lg shadow-xl w-[640px] max-w-[95vw] max-h-[90vh] flex flex-col transform scale-95 transition-transform">
             <div class="flex items-center justify-between p-3 border-b border-slate-200 shrink-0">
                 <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
@@ -3288,7 +3288,7 @@ driver.swipe(100, 800, 100, 200, 500)"
         </div>
     </div>
 
-    <div id="nodeModal" class="fixed inset-0 bg-slate-900/50 hidden z-50 flex items-center justify-center opacity-0 transition-opacity">
+    <div id="nodeModal" class="fixed inset-0 bg-slate-900/50 hidden z-[160] flex items-center justify-center opacity-0 transition-opacity">
         <div class="bg-white rounded-lg shadow-xl w-[400px] transform scale-95 transition-transform" id="nodeModalContent">
             <div class="p-4 border-b border-slate-200"><h3 id="nodeModalTitle" class="text-lg font-bold text-slate-800 flex items-center gap-2">新增節點</h3></div>
             <div class="p-5">
@@ -3300,7 +3300,7 @@ driver.swipe(100, 800, 100, 200, 500)"
     </div>
 
     <!-- 刪除確認 Modal -->
-    <div id="deleteModal" class="fixed inset-0 bg-slate-900/50 hidden z-50 flex items-center justify-center opacity-0 transition-opacity">
+    <div id="deleteModal" class="fixed inset-0 bg-slate-900/50 hidden z-[160] flex items-center justify-center opacity-0 transition-opacity">
         <div class="bg-white rounded-lg shadow-xl w-[400px] transform scale-95 transition-transform" id="deleteModalContent">
             <div class="p-4 border-b border-slate-200"><h3 class="text-lg font-bold text-slate-800 flex items-center gap-2"><i class="fa-solid fa-trash text-red-500"></i> 確認刪除</h3></div>
             <div class="p-5">
@@ -3314,7 +3314,7 @@ driver.swipe(100, 800, 100, 200, 500)"
     </div>
 
     <!-- 排程 Modal（新增 / 編輯） -->
-    <div id="scheduleModal" class="fixed inset-0 bg-slate-900/50 hidden z-50 flex items-center justify-center opacity-0 transition-opacity">
+    <div id="scheduleModal" class="fixed inset-0 bg-slate-900/50 hidden z-[160] flex items-center justify-center opacity-0 transition-opacity">
         <div class="bg-white rounded-lg shadow-xl w-[520px] max-w-[95vw] transform scale-95 transition-transform" id="scheduleModalContent">
             <div class="p-4 border-b border-slate-200 flex items-center gap-2">
                 <i class="fa-solid fa-calendar-days text-emerald-500"></i>
@@ -3393,7 +3393,7 @@ driver.swipe(100, 800, 100, 200, 500)"
     </div>
 
     <!-- 測試回合 Modal（新增 / 編輯） -->
-    <div id="testRoundModal" class="fixed inset-0 bg-slate-900/50 hidden z-50 flex items-center justify-center opacity-0 transition-opacity">
+    <div id="testRoundModal" class="fixed inset-0 bg-slate-900/50 hidden z-[160] flex items-center justify-center opacity-0 transition-opacity">
         <div class="bg-white rounded-lg shadow-xl w-[560px] max-w-[95vw] transform scale-95 transition-transform" id="testRoundModalContent">
             <div class="p-4 border-b border-slate-200 flex items-center gap-2">
                 <i class="fa-solid fa-layer-group text-purple-500"></i>
@@ -3439,7 +3439,7 @@ driver.swipe(100, 800, 100, 200, 500)"
     </div>
 
     <!-- 本機 Agent 使用說明 Modal -->
-    <div id="localAgentModal" class="fixed inset-0 bg-slate-900/50 hidden z-50 flex items-center justify-center opacity-0 transition-opacity">
+    <div id="localAgentModal" class="fixed inset-0 bg-slate-900/50 hidden z-[160] flex items-center justify-center opacity-0 transition-opacity">
         <div class="bg-white rounded-lg shadow-xl w-[560px] max-w-[95vw] transform scale-95 transition-transform" id="localAgentModalContent">
             <div class="p-4 border-b border-slate-200 flex items-center gap-2">
                 <i class="fa-solid fa-laptop-code text-amber-500"></i>
