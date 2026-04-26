@@ -26,6 +26,10 @@ _PUBLIC_PATTERNS: list[re.Pattern] = [
     re.compile(r"^/openapi\.json$"),
     re.compile(r"^/api/auth/login$"),
     re.compile(r"^/api/auth/refresh$"),
+    # OIDC SSO：登入流程整段都不需要既有 token
+    re.compile(r"^/api/auth/oidc/providers$"),
+    re.compile(r"^/api/auth/oidc/login(/|$)"),
+    re.compile(r"^/api/auth/oidc/callback$"),
     # 靜態檔（截圖 / 結果）— 仍以反向代理保護，這裡放行讓 nginx 直接服務
     re.compile(r"^/pics/"),
     re.compile(r"^/results/"),

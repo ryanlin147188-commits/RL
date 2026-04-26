@@ -70,6 +70,7 @@ async def init_db() -> None:
             "CREATE INDEX IF NOT EXISTS ix_email_configs_org ON email_configs (organization_id)",
             "CREATE INDEX IF NOT EXISTS ix_ai_token_configs_org ON ai_token_configs (organization_id)",
             "CREATE INDEX IF NOT EXISTS ix_todo_items_org ON todo_items (organization_id)",
+            "CREATE INDEX IF NOT EXISTS ix_oidc_providers_org ON oidc_providers (organization_id)",
         ):
             try:
                 await conn.execute(text(stmt))

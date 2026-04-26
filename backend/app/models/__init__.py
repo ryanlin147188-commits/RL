@@ -15,6 +15,7 @@ from .ai_token_config import AiProvider, AiTokenConfig
 from .audit_log import AuditLog
 from .email_config import EmailConfig
 from .notification_preference import NotificationPreference
+from .oidc_provider import OidcProvider
 from .organization import Organization
 from .role import Role
 from .user import User
@@ -54,4 +55,6 @@ __all__ = [
     "User",
     # Multi-tenancy + audit
     "Organization", "AuditLog",
+    # SSO / OIDC
+    "OidcProvider",
 ]
