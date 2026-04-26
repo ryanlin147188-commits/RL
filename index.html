@@ -52,31 +52,64 @@
         .tree-actions { min-width: 60px; }
         .ddt-input:focus { outline: none; background-color: #fffbeb; }
 
-        /* 測試文件預覽：Tailwind Typography 我們沒裝，這裡手刻最小樣式 */
-        #docPreview h1 { font-size: 1.5rem; font-weight: 700; margin: 0.6em 0 0.3em; border-bottom: 1px solid #fbcfe8; padding-bottom: 0.2em; color: #831843; }
-        #docPreview h2 { font-size: 1.25rem; font-weight: 700; margin: 0.6em 0 0.3em; color: #9d174d; }
-        #docPreview h3 { font-size: 1.1rem; font-weight: 600; margin: 0.5em 0 0.25em; color: #be185d; }
-        #docPreview h4, #docPreview h5, #docPreview h6 { font-weight: 600; margin: 0.4em 0 0.2em; color: #831843; }
-        #docPreview p { margin: 0.5em 0; line-height: 1.65; color: #1f2937; }
-        #docPreview ul, #docPreview ol { margin: 0.5em 0 0.5em 1.4em; line-height: 1.6; }
-        #docPreview ul { list-style: disc; }
-        #docPreview ol { list-style: decimal; }
-        #docPreview li { margin: 0.15em 0; }
-        #docPreview a { color: #db2777; text-decoration: underline; }
-        #docPreview code { background: #fdf2f8; color: #9d174d; padding: 0.1em 0.35em; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.9em; }
-        #docPreview pre { background: #1f2937; color: #f9fafb; padding: 0.9em 1em; border-radius: 6px; overflow-x: auto; margin: 0.6em 0; }
-        #docPreview pre code { background: transparent; color: inherit; padding: 0; }
-        #docPreview blockquote { border-left: 4px solid #f9a8d4; padding: 0.2em 0.9em; color: #6b7280; background: #fdf2f8; margin: 0.6em 0; border-radius: 0 4px 4px 0; }
-        #docPreview table { border-collapse: collapse; margin: 0.6em 0; font-size: 0.9em; }
-        #docPreview th, #docPreview td { border: 1px solid #fbcfe8; padding: 0.4em 0.7em; }
-        #docPreview th { background: #fdf2f8; font-weight: 600; color: #9d174d; }
-        #docPreview hr { border: 0; border-top: 1px dashed #fbcfe8; margin: 1em 0; }
-        #docPreview img { max-width: 100%; height: auto; border-radius: 4px; }
-        #docPreview .mermaid { background: #fff; border: 1px dashed #f9a8d4; border-radius: 6px; padding: 0.6em; margin: 0.6em 0; text-align: center; }
-        #docPreview .mermaid-error { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; padding: 0.6em; border-radius: 4px; font-size: 0.85em; font-family: ui-monospace, monospace; white-space: pre-wrap; }
+        /* 測試文件 / 測試計畫 預覽：Tailwind Typography 我們沒裝，這裡手刻最小樣式 */
+        .md-preview h1, #docPreview h1, .plan-md-preview h1 { font-size: 1.5rem; font-weight: 700; margin: 0.6em 0 0.3em; border-bottom: 1px solid #fbcfe8; padding-bottom: 0.2em; color: #831843; }
+        .md-preview h2, #docPreview h2, .plan-md-preview h2 { font-size: 1.25rem; font-weight: 700; margin: 0.6em 0 0.3em; color: #9d174d; }
+        .md-preview h3, #docPreview h3, .plan-md-preview h3 { font-size: 1.1rem; font-weight: 600; margin: 0.5em 0 0.25em; color: #be185d; }
+        .md-preview h4, .md-preview h5, .md-preview h6,
+        #docPreview h4, #docPreview h5, #docPreview h6,
+        .plan-md-preview h4, .plan-md-preview h5, .plan-md-preview h6 { font-weight: 600; margin: 0.4em 0 0.2em; color: #831843; }
+        .md-preview p, #docPreview p, .plan-md-preview p { margin: 0.5em 0; line-height: 1.65; color: #1f2937; }
+        .md-preview ul, .md-preview ol,
+        #docPreview ul, #docPreview ol,
+        .plan-md-preview ul, .plan-md-preview ol { margin: 0.5em 0 0.5em 1.4em; line-height: 1.6; }
+        .md-preview ul, #docPreview ul, .plan-md-preview ul { list-style: disc; }
+        .md-preview ol, #docPreview ol, .plan-md-preview ol { list-style: decimal; }
+        .md-preview li, #docPreview li, .plan-md-preview li { margin: 0.15em 0; }
+        .md-preview a, #docPreview a, .plan-md-preview a { color: #db2777; text-decoration: underline; }
+        .md-preview code, #docPreview code, .plan-md-preview code { background: #fdf2f8; color: #9d174d; padding: 0.1em 0.35em; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.9em; }
+        .md-preview pre, #docPreview pre, .plan-md-preview pre { background: #1f2937; color: #f9fafb; padding: 0.9em 1em; border-radius: 6px; overflow-x: auto; margin: 0.6em 0; }
+        .md-preview pre code, #docPreview pre code, .plan-md-preview pre code { background: transparent; color: inherit; padding: 0; }
+        .md-preview blockquote, #docPreview blockquote, .plan-md-preview blockquote { border-left: 4px solid #f9a8d4; padding: 0.2em 0.9em; color: #6b7280; background: #fdf2f8; margin: 0.6em 0; border-radius: 0 4px 4px 0; }
+        .md-preview table, #docPreview table, .plan-md-preview table { border-collapse: collapse; margin: 0.6em 0; font-size: 0.9em; }
+        .md-preview th, .md-preview td,
+        #docPreview th, #docPreview td,
+        .plan-md-preview th, .plan-md-preview td { border: 1px solid #fbcfe8; padding: 0.4em 0.7em; }
+        .md-preview th, #docPreview th, .plan-md-preview th { background: #fdf2f8; font-weight: 600; color: #9d174d; }
+        .md-preview hr, #docPreview hr, .plan-md-preview hr { border: 0; border-top: 1px dashed #fbcfe8; margin: 1em 0; }
+        .md-preview img, #docPreview img, .plan-md-preview img { max-width: 100%; height: auto; border-radius: 4px; }
+        .md-preview .mermaid, #docPreview .mermaid, .plan-md-preview .mermaid { background: #fff; border: 1px dashed #f9a8d4; border-radius: 6px; padding: 0.6em; margin: 0.6em 0; text-align: center; }
+        .md-preview .mermaid-error, #docPreview .mermaid-error, .plan-md-preview .mermaid-error { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; padding: 0.6em; border-radius: 4px; font-size: 0.85em; font-family: ui-monospace, monospace; white-space: pre-wrap; }
         /* Kanban 拖移視覺 */
         .kanban-col.drag-over { background-color: rgba(252, 211, 77, 0.18) !important; }
         .kanban-card.dragging { opacity: 0.45; transform: rotate(-1deg); }
+
+        /* 測試資料集網格：每欄固定 160px、欄多時水平捲動 */
+        #dsGrid { table-layout: fixed; border-collapse: separate; border-spacing: 0; }
+        #dsGrid .ds-col-cell { min-width: 160px; max-width: 220px; width: 160px; }
+
+        /* 日期 input 的占位符在地化：原本 zh-TW 會顯示 "yyyy/月/dd"，這裡把它改成 "年/月/日" */
+        .date-zh { position: relative; display: block; }
+        .date-zh input[type="date"] { position: relative; z-index: 1; background: transparent; }
+        .date-zh::before {
+            content: "年/月/日";
+            position: absolute;
+            left: 0.85rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #94a3b8;
+            font-size: 0.875rem;
+            font-family: ui-monospace, SFMono-Regular, monospace;
+            pointer-events: none;
+            z-index: 0;
+        }
+        /* 已選日期或正在編輯時，把 placeholder 字樣藏起來 */
+        .date-zh:has(input[type="date"]:focus)::before,
+        .date-zh:has(input[type="date"]:valid)::before { display: none; }
+        /* 把 webkit 內建的 yyyy / dd 占位字壓掉 — 用透明色（已選日期時恢復繼承色） */
+        .date-zh input[type="date"]:not(:focus):invalid::-webkit-datetime-edit { color: transparent; }
+        .date-zh input[type="date"]:focus::-webkit-datetime-edit,
+        .date-zh input[type="date"]:valid::-webkit-datetime-edit { color: inherit; }
         
         /* 步驟時間軸樣式 */
         .step-timeline::before {
@@ -2781,8 +2814,8 @@ driver.swipe(100, 800, 100, 200, 500)"
                             <div><label for="wbsAssignee" class="block text-xs font-semibold text-stone-600 mb-1">負責人</label><input type="text" id="wbsAssignee" aria-label="負責人" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
                         </div>
                         <div class="grid grid-cols-3 gap-3">
-                            <div><label for="wbsStart" class="block text-xs font-semibold text-stone-600 mb-1">起始日期</label><input type="date" id="wbsStart" aria-label="起始日期" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
-                            <div><label for="wbsEnd" class="block text-xs font-semibold text-stone-600 mb-1">結束日期</label><input type="date" id="wbsEnd" aria-label="結束日期" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                            <div><label for="wbsStart" class="block text-xs font-semibold text-stone-600 mb-1">起始日期</label><span class="date-zh"><input type="date" id="wbsStart" aria-label="起始日期" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></span></div>
+                            <div><label for="wbsEnd" class="block text-xs font-semibold text-stone-600 mb-1">結束日期</label><span class="date-zh"><input type="date" id="wbsEnd" aria-label="結束日期" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></span></div>
                             <div><label for="wbsEffort" class="block text-xs font-semibold text-stone-600 mb-1">預估工時</label><input type="number" id="wbsEffort" aria-label="預估工時" step="0.5" min="0" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
                         </div>
                         <div><label for="wbsDesc" class="block text-xs font-semibold text-stone-600 mb-1">說明</label><textarea id="wbsDesc" aria-label="說明" rows="3" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
@@ -2886,8 +2919,8 @@ driver.swipe(100, 800, 100, 200, 500)"
                             <div><label for="tprjOwner" class="block text-xs font-semibold text-stone-600 mb-1">負責人</label><input type="text" id="tprjOwner" aria-label="負責人" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
                         </div>
                         <div class="grid grid-cols-2 gap-3">
-                            <div><label for="tprjStart" class="block text-xs font-semibold text-stone-600 mb-1">起始日期</label><input type="date" id="tprjStart" aria-label="起始日期" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
-                            <div><label for="tprjTarget" class="block text-xs font-semibold text-stone-600 mb-1">目標日期</label><input type="date" id="tprjTarget" aria-label="目標日期" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                            <div><label for="tprjStart" class="block text-xs font-semibold text-stone-600 mb-1">起始日期</label><span class="date-zh"><input type="date" id="tprjStart" aria-label="起始日期" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></span></div>
+                            <div><label for="tprjTarget" class="block text-xs font-semibold text-stone-600 mb-1">目標日期</label><span class="date-zh"><input type="date" id="tprjTarget" aria-label="目標日期" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></span></div>
                         </div>
                         <div><label for="tprjTags" class="block text-xs font-semibold text-stone-600 mb-1">標籤（用逗號分隔）</label><input type="text" id="tprjTags" aria-label="標籤" placeholder="UI, API, 回歸" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
                         <div class="flex justify-end gap-2 pt-2"><button type="button" onclick="closeTestProjectModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button><button type="submit" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button></div>
@@ -2929,15 +2962,20 @@ driver.swipe(100, 800, 100, 200, 500)"
                                     <button type="button" onclick="document.getElementById('dsJsonImportInput').click()" class="text-xs px-2 py-1 border border-stone-300 bg-white rounded hover:bg-violet-50" title="可一次選取多個 JSON 檔；巢狀結構會以點記法展開為 Key 路徑"><i class="fa-solid fa-file-import"></i> 匯入 JSON</button>
                                     <button type="button" onclick="dsExportJson()" class="text-xs px-2 py-1 border border-stone-300 bg-white rounded hover:bg-violet-50" title="把目前資料表下載成 JSON 檔（rows_json 結構）"><i class="fa-solid fa-file-export"></i> 匯出 JSON</button>
                                     <button type="button" onclick="dsClearGrid()" class="text-xs px-2 py-1 border border-rose-200 text-rose-600 bg-white rounded hover:bg-rose-50" title="清空所有欄列"><i class="fa-solid fa-eraser"></i> 清空</button>
-                                    <span class="text-[11px] text-stone-500 ml-auto">總計 <span id="dsColCount" class="font-mono font-bold text-stone-700">0</span> 欄 × <span id="dsRowCount" class="font-mono font-bold text-stone-700">0</span> 列</span>
+                                    <div class="ml-auto flex items-center gap-1">
+                                        <button type="button" id="dsViewTableBtn" onclick="dsSwitchView('table')" class="text-xs px-2 py-1 border border-violet-300 bg-violet-100 text-violet-800 rounded font-semibold" title="表格模式（橫向捲動）"><i class="fa-solid fa-table-cells"></i> 表格</button>
+                                        <button type="button" id="dsViewCardBtn" onclick="dsSwitchView('card')" class="text-xs px-2 py-1 border border-stone-300 bg-white rounded hover:bg-violet-50" title="卡片模式：每列一張卡，欄位垂直顯示，欄數多時較易閱讀"><i class="fa-solid fa-id-card"></i> 卡片</button>
+                                    </div>
+                                    <span class="text-[11px] text-stone-500">總計 <span id="dsColCount" class="font-mono font-bold text-stone-700">0</span> 欄 × <span id="dsRowCount" class="font-mono font-bold text-stone-700">0</span> 列</span>
                                 </div>
-                                <div class="overflow-x-auto">
-                                    <table id="dsGrid" class="text-xs min-w-full">
-                                        <thead class="bg-violet-100/40"><tr id="dsGridHead"></tr></thead>
+                                <div id="dsGridTableWrap" class="overflow-x-auto max-h-[55vh] border border-violet-100 rounded">
+                                    <table id="dsGrid" class="text-xs">
+                                        <thead class="bg-violet-100/40 sticky top-0 z-[1]"><tr id="dsGridHead"></tr></thead>
                                         <tbody id="dsGridBody"></tbody>
                                     </table>
                                 </div>
-                                <p class="text-[10px] text-stone-500">點擊欄位可重新命名；任一欄／列右側「✕」可移除</p>
+                                <div id="dsGridCardWrap" class="hidden max-h-[55vh] overflow-y-auto border border-violet-100 rounded p-2 space-y-2 bg-stone-50/40"></div>
+                                <p class="text-[10px] text-stone-500">點擊欄位可重新命名；任一欄／列右側「✕」可移除。欄位多時可切到「卡片模式」以更好閱讀。</p>
                             </div>
                         </div>
                         <div class="flex justify-end gap-2 pt-2"><button type="button" onclick="closeDataSetModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button><button type="submit" class="px-4 py-2 bg-violet-500 hover:bg-violet-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button></div>
@@ -2999,8 +3037,8 @@ driver.swipe(100, 800, 100, 200, 500)"
                     <form onsubmit="return milestoneSubmit(event)" class="p-6 space-y-3">
                         <div><label for="msName" class="block text-xs font-semibold text-stone-600 mb-1">名稱 *</label><input type="text" id="msName" aria-label="名稱" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
                         <div class="grid grid-cols-2 gap-3">
-                            <div><label for="msStart" class="block text-xs font-semibold text-stone-600 mb-1">起始日期 *</label><input type="date" id="msStart" aria-label="起始日期" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
-                            <div><label for="msEnd" class="block text-xs font-semibold text-stone-600 mb-1">結束日期 *</label><input type="date" id="msEnd" aria-label="結束日期" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                            <div><label for="msStart" class="block text-xs font-semibold text-stone-600 mb-1">起始日期 *</label><span class="date-zh"><input type="date" id="msStart" aria-label="起始日期" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></span></div>
+                            <div><label for="msEnd" class="block text-xs font-semibold text-stone-600 mb-1">結束日期 *</label><span class="date-zh"><input type="date" id="msEnd" aria-label="結束日期" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></span></div>
                         </div>
                         <div class="grid grid-cols-2 gap-3">
                             <div><label for="msStatus" class="block text-xs font-semibold text-stone-600 mb-1">狀態</label><select id="msStatus" aria-label="狀態" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option value="Planned" selected>規劃中</option><option value="InProgress">進行中</option><option value="Completed">已完成</option><option value="Cancelled">已取消</option></select></div>
@@ -3012,31 +3050,78 @@ driver.swipe(100, 800, 100, 200, 500)"
                 </div>
             </div>
 
-            <!-- 計畫 Modal -->
-            <div id="planModal" class="hidden fixed inset-0 z-[150] bg-black/40 flex items-center justify-center p-4">
-                <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl border border-blue-200 max-h-[90vh] overflow-y-auto">
-                    <div class="px-6 py-4 border-b border-stone-200 bg-blue-50/60 flex items-center justify-between">
+            <!-- 測試計畫 全螢幕 Markdown 編輯器（六大段：Scope In / Scope Out / 策略 / 資源 / 時程 / 風險）-->
+            <div id="planModal" class="hidden fixed inset-0 z-[150] bg-black/50 flex items-center justify-center p-4">
+                <div class="bg-white rounded-xl shadow-2xl w-[96vw] max-w-7xl h-[92vh] border border-blue-200 flex flex-col">
+                    <div class="px-6 py-3 border-b border-stone-200 bg-blue-50/60 flex items-center justify-between gap-3 flex-wrap shrink-0">
                         <h3 id="planModalTitle" class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-clipboard-list text-blue-500"></i> 新增測試計畫</h3>
-                        <button type="button" onclick="closePlanModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="text-[10px] text-stone-400 hidden md:inline">每個區段都可寫 Markdown，並用 ```mermaid 區塊畫流程圖</span>
+                            <button type="button" onclick="planEditorView('split')" id="planViewSplitBtn" class="text-xs px-2 py-1 border border-stone-300 rounded hover:bg-blue-50" title="編輯 + 預覽分欄"><i class="fa-solid fa-columns"></i> 分欄</button>
+                            <button type="button" onclick="planEditorView('edit')" id="planViewEditBtn" class="text-xs px-2 py-1 border border-stone-300 rounded hover:bg-blue-50"><i class="fa-solid fa-pen"></i> 編輯</button>
+                            <button type="button" onclick="planEditorView('preview')" id="planViewPreviewBtn" class="text-xs px-2 py-1 border border-stone-300 rounded hover:bg-blue-50"><i class="fa-solid fa-eye"></i> 預覽</button>
+                            <button type="button" onclick="closePlanModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700 ml-2"><i class="fa-solid fa-xmark text-lg"></i></button>
+                        </div>
                     </div>
-                    <form onsubmit="return planSubmit(event)" class="p-6 space-y-3">
-                        <div class="grid grid-cols-3 gap-3">
-                            <div class="col-span-2"><label for="tpTitle" class="block text-xs font-semibold text-stone-600 mb-1">標題 *</label><input type="text" id="tpTitle" aria-label="標題" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
-                            <div><label for="tpVersion" class="block text-xs font-semibold text-stone-600 mb-1">版本</label><input type="text" id="tpVersion" aria-label="版本" placeholder="1.0" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                    <form id="planEditorForm" onsubmit="return planSubmit(event)" class="flex-1 flex flex-col min-h-0">
+                        <!-- Meta 列 -->
+                        <div class="px-6 py-3 border-b border-stone-200 grid grid-cols-1 md:grid-cols-12 gap-3 shrink-0">
+                            <div class="md:col-span-5"><label for="tpTitle" class="block text-[10px] font-semibold text-stone-600 mb-0.5">標題 *</label><input type="text" id="tpTitle" aria-label="標題" required class="w-full px-3 py-1.5 border border-stone-300 rounded-md text-sm"></div>
+                            <div class="md:col-span-2"><label for="tpVersion" class="block text-[10px] font-semibold text-stone-600 mb-0.5">版本</label><input type="text" id="tpVersion" aria-label="版本" placeholder="1.0" class="w-full px-3 py-1.5 border border-stone-300 rounded-md text-sm"></div>
+                            <div class="md:col-span-2"><label for="tpStatus" class="block text-[10px] font-semibold text-stone-600 mb-0.5">狀態</label>
+                                <select id="tpStatus" aria-label="狀態" class="w-full px-3 py-1.5 border border-stone-300 rounded-md text-sm bg-white">
+                                    <option value="Draft" selected>草稿</option>
+                                    <option value="InReview">審核中</option>
+                                    <option value="Approved">已核准</option>
+                                    <option value="Active">執行中</option>
+                                    <option value="Closed">已關閉</option>
+                                </select>
+                            </div>
+                            <div class="md:col-span-3"><label for="tpOwner" class="block text-[10px] font-semibold text-stone-600 mb-0.5">負責人</label><input type="text" id="tpOwner" aria-label="負責人" class="w-full px-3 py-1.5 border border-stone-300 rounded-md text-sm"></div>
                         </div>
-                        <div class="grid grid-cols-2 gap-3">
-                            <div><label for="tpStatus" class="block text-xs font-semibold text-stone-600 mb-1">狀態</label><select id="tpStatus" aria-label="狀態" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option value="Draft" selected>草稿</option><option value="InReview">審核中</option><option value="Approved">已核准</option><option value="Active">執行中</option><option value="Closed">已關閉</option></select></div>
-                            <div><label for="tpOwner" class="block text-xs font-semibold text-stone-600 mb-1">負責人</label><input type="text" id="tpOwner" aria-label="負責人" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                        <!-- 區段切換 -->
+                        <div class="px-6 py-2 border-b border-stone-200 bg-stone-50 flex items-center gap-1 flex-wrap shrink-0" id="planSectionTabs">
+                            <!-- 6 個 tab 在 JS 動態生成，因為 active 樣式要切換 -->
                         </div>
-                        <div><label for="tpScopeIn" class="block text-xs font-semibold text-stone-600 mb-1">範圍 (Scope In)</label><textarea id="tpScopeIn" aria-label="範圍 (Scope In)" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
-                        <div><label for="tpScopeOut" class="block text-xs font-semibold text-stone-600 mb-1">排除 (Scope Out)</label><textarea id="tpScopeOut" aria-label="排除 (Scope Out)" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
-                        <div><label for="tpStrategy" class="block text-xs font-semibold text-stone-600 mb-1">測試策略</label><textarea id="tpStrategy" aria-label="測試策略" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
-                        <div class="grid grid-cols-2 gap-3">
-                            <div><label for="tpResources" class="block text-xs font-semibold text-stone-600 mb-1">資源</label><textarea id="tpResources" aria-label="資源" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
-                            <div><label for="tpSchedule" class="block text-xs font-semibold text-stone-600 mb-1">時程</label><textarea id="tpSchedule" aria-label="時程" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
+                        <!-- 工具列 -->
+                        <div class="px-6 py-2 border-b border-stone-200 bg-stone-50/60 flex items-center gap-1 flex-wrap shrink-0">
+                            <button type="button" onclick="planInsertMd('# ', '', true)" title="標題" class="text-xs px-2 py-1 hover:bg-blue-50 rounded text-stone-600 font-semibold">H1</button>
+                            <button type="button" onclick="planInsertMd('## ', '', true)" title="次標題" class="text-xs px-2 py-1 hover:bg-blue-50 rounded text-stone-600 font-semibold">H2</button>
+                            <button type="button" onclick="planInsertMd('### ', '', true)" title="三級標題" class="text-xs px-2 py-1 hover:bg-blue-50 rounded text-stone-600 font-semibold">H3</button>
+                            <span class="w-px h-5 bg-stone-300 mx-1"></span>
+                            <button type="button" onclick="planInsertMd('**', '**')" title="粗體" class="text-xs px-2 py-1 hover:bg-blue-50 rounded text-stone-600 font-bold">B</button>
+                            <button type="button" onclick="planInsertMd('*', '*')" title="斜體" class="text-xs px-2 py-1 hover:bg-blue-50 rounded text-stone-600 italic">I</button>
+                            <button type="button" onclick="planInsertMd('`', '`')" title="行內程式碼" class="text-xs px-2 py-1 hover:bg-blue-50 rounded text-stone-600 font-mono">{ }</button>
+                            <span class="w-px h-5 bg-stone-300 mx-1"></span>
+                            <button type="button" onclick="planInsertMd('- ', '', true)" title="清單" class="text-xs px-2 py-1 hover:bg-blue-50 rounded text-stone-600"><i class="fa-solid fa-list-ul"></i></button>
+                            <button type="button" onclick="planInsertMd('1. ', '', true)" title="編號清單" class="text-xs px-2 py-1 hover:bg-blue-50 rounded text-stone-600"><i class="fa-solid fa-list-ol"></i></button>
+                            <button type="button" onclick="planInsertMd('- [ ] ', '', true)" title="待辦清單" class="text-xs px-2 py-1 hover:bg-blue-50 rounded text-stone-600"><i class="fa-regular fa-square-check"></i></button>
+                            <button type="button" onclick="planInsertMd('> ', '', true)" title="引用" class="text-xs px-2 py-1 hover:bg-blue-50 rounded text-stone-600"><i class="fa-solid fa-quote-left"></i></button>
+                            <button type="button" onclick="planInsertTable()" title="表格" class="text-xs px-2 py-1 hover:bg-blue-50 rounded text-stone-600"><i class="fa-solid fa-table"></i></button>
+                            <button type="button" onclick="planInsertCodeBlock()" title="程式碼區塊" class="text-xs px-2 py-1 hover:bg-blue-50 rounded text-stone-600"><i class="fa-solid fa-code"></i></button>
+                            <span class="w-px h-5 bg-stone-300 mx-1"></span>
+                            <button type="button" onclick="planInsertMermaidFlowchart()" title="Mermaid 流程圖" class="text-xs px-2 py-1 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded font-semibold"><i class="fa-solid fa-diagram-project"></i> 流程圖</button>
+                            <button type="button" onclick="planInsertMermaidSequence()" title="Mermaid 序列圖" class="text-xs px-2 py-1 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded font-semibold"><i class="fa-solid fa-arrow-right-arrow-left"></i> 序列圖</button>
+                            <button type="button" onclick="planInsertMermaidGantt()" title="Mermaid 甘特圖" class="text-xs px-2 py-1 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded font-semibold"><i class="fa-regular fa-calendar"></i> 甘特圖</button>
                         </div>
-                        <div><label for="tpRisks" class="block text-xs font-semibold text-stone-600 mb-1">風險</label><textarea id="tpRisks" aria-label="風險" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
-                        <div class="flex justify-end gap-2 pt-2"><button type="button" onclick="closePlanModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button><button type="submit" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button></div>
+                        <!-- 編輯/預覽區（同時保留 6 個 textarea，僅顯示當前 tab 對應的） -->
+                        <div id="planEditorBody" class="flex-1 grid grid-cols-2 min-h-0 overflow-hidden">
+                            <div id="planEditorPane" class="h-full border-r border-stone-200 relative">
+                                <textarea id="tpScopeIn" data-section="ScopeIn" aria-label="範圍 (Scope In)" oninput="planOnContentChange()" spellcheck="false" class="plan-section absolute inset-0 w-full h-full p-4 font-mono text-sm focus:outline-none focus:bg-blue-50/20 resize-none" placeholder="# Scope In&#10;&#10;描述測試將涵蓋的功能、模組、平台…"></textarea>
+                                <textarea id="tpScopeOut" data-section="ScopeOut" aria-label="排除 (Scope Out)" oninput="planOnContentChange()" spellcheck="false" class="plan-section hidden absolute inset-0 w-full h-full p-4 font-mono text-sm focus:outline-none focus:bg-blue-50/20 resize-none" placeholder="# Scope Out&#10;&#10;描述本輪計畫不會涵蓋的部分…"></textarea>
+                                <textarea id="tpStrategy" data-section="Strategy" aria-label="測試策略" oninput="planOnContentChange()" spellcheck="false" class="plan-section hidden absolute inset-0 w-full h-full p-4 font-mono text-sm focus:outline-none focus:bg-blue-50/20 resize-none" placeholder="# 測試策略&#10;&#10;ATDD / BDD / DDT / 探索式 ……"></textarea>
+                                <textarea id="tpResources" data-section="Resources" aria-label="資源" oninput="planOnContentChange()" spellcheck="false" class="plan-section hidden absolute inset-0 w-full h-full p-4 font-mono text-sm focus:outline-none focus:bg-blue-50/20 resize-none" placeholder="# 資源&#10;&#10;人力 / 環境 / 工具…"></textarea>
+                                <textarea id="tpSchedule" data-section="Schedule" aria-label="時程" oninput="planOnContentChange()" spellcheck="false" class="plan-section hidden absolute inset-0 w-full h-full p-4 font-mono text-sm focus:outline-none focus:bg-blue-50/20 resize-none" placeholder="# 時程&#10;&#10;```mermaid&#10;gantt&#10;…&#10;```"></textarea>
+                                <textarea id="tpRisks" data-section="Risks" aria-label="風險" oninput="planOnContentChange()" spellcheck="false" class="plan-section hidden absolute inset-0 w-full h-full p-4 font-mono text-sm focus:outline-none focus:bg-blue-50/20 resize-none" placeholder="# 風險&#10;&#10;- 風險 1：…&#10;- 風險 2：…"></textarea>
+                            </div>
+                            <div id="planPreview" class="plan-md-preview w-full h-full p-6 overflow-y-auto bg-white"></div>
+                        </div>
+                        <!-- 底部 -->
+                        <div class="px-6 py-3 border-t border-stone-200 bg-stone-50 flex justify-end gap-2 shrink-0">
+                            <span id="planDirtyHint" class="text-[10px] text-stone-400 mr-auto"></span>
+                            <button type="button" onclick="closePlanModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button>
+                            <button type="submit" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button>
+                        </div>
                     </form>
                 </div>
             </div>
@@ -10235,24 +10320,166 @@ driver.swipe(100, 800, 100, 200, 500)"
                 tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-red-500">載入失敗：${_esc(e.message)}</td></tr>`;
             }
         }
+        const _PLAN_SECTIONS = [
+            { key:'ScopeIn',   label:'範圍 (Scope In)',  textareaId:'tpScopeIn',   field:'scope_in_text' },
+            { key:'ScopeOut',  label:'排除 (Scope Out)', textareaId:'tpScopeOut',  field:'scope_out_text' },
+            { key:'Strategy',  label:'測試策略',         textareaId:'tpStrategy',  field:'test_strategy_text' },
+            { key:'Resources', label:'資源',             textareaId:'tpResources', field:'resources_text' },
+            { key:'Schedule',  label:'時程',             textareaId:'tpSchedule',  field:'schedule_text' },
+            { key:'Risks',     label:'風險',             textareaId:'tpRisks',     field:'risks_text' },
+        ];
+        let _planActiveSection = 'ScopeIn';
+        let _planDirty = false;
+
         function openPlanModal(id) {
             if (!currentProjectId) { showToast('請先選擇專案', 'error'); return; }
             _editingPlanId = id || null;
             const r = id ? _plansCache.find(x => x.id === id) : null;
-            document.getElementById('planModalTitle').innerHTML = r ? `<i class="fa-solid fa-clipboard-list text-blue-500"></i> 編輯計畫 ${_esc(r.code)}` : '<i class="fa-solid fa-clipboard-list text-blue-500"></i> 新增測試計畫';
+            document.getElementById('planModalTitle').innerHTML = r
+                ? `<i class="fa-solid fa-clipboard-list text-blue-500"></i> 編輯計畫 ${_esc(r.code)}`
+                : '<i class="fa-solid fa-clipboard-list text-blue-500"></i> 新增測試計畫';
             document.getElementById('tpTitle').value = r?.title || '';
             document.getElementById('tpVersion').value = r?.version || '';
             document.getElementById('tpStatus').value = r?.status || 'Draft';
-            document.getElementById('tpOwner').value = r?.owner || (authCurrentUsername()||'');
+            document.getElementById('tpOwner').value = r?.owner || (typeof authCurrentUsername === 'function' ? (authCurrentUsername()||'') : '');
             document.getElementById('tpScopeIn').value = r?.scope_in_text || '';
             document.getElementById('tpScopeOut').value = r?.scope_out_text || '';
             document.getElementById('tpStrategy').value = r?.test_strategy_text || '';
             document.getElementById('tpResources').value = r?.resources_text || '';
             document.getElementById('tpSchedule').value = r?.schedule_text || '';
             document.getElementById('tpRisks').value = r?.risks_text || '';
+            _planDirty = false;
+            updatePlanDirtyHint();
             document.getElementById('planModal').classList.remove('hidden');
+            renderPlanSectionTabs();
+            planEditorView('split');
+            planSwitchSection(_planActiveSection || 'ScopeIn');
         }
-        function closePlanModal() { document.getElementById('planModal').classList.add('hidden'); }
+        function closePlanModal() {
+            if (_planDirty && !confirm('計畫有未儲存的修改，確定要關閉嗎？')) return;
+            document.getElementById('planModal').classList.add('hidden');
+            _editingPlanId = null;
+            _planDirty = false;
+        }
+
+        function renderPlanSectionTabs() {
+            const wrap = document.getElementById('planSectionTabs');
+            if (!wrap) return;
+            wrap.innerHTML = _PLAN_SECTIONS.map(s => {
+                const active = s.key === _planActiveSection;
+                const cls = active
+                    ? 'text-xs px-3 py-1 rounded font-semibold border bg-blue-100 text-blue-800 border-blue-300'
+                    : 'text-xs px-3 py-1 rounded font-medium border bg-white text-stone-600 border-stone-300 hover:bg-blue-50';
+                const ta = document.getElementById(s.textareaId);
+                const hasContent = ta && ta.value && ta.value.trim().length > 0;
+                const dot = hasContent ? '<span class="ml-1 inline-block w-1.5 h-1.5 rounded-full bg-blue-500" title="此區段有內容"></span>' : '';
+                return `<button type="button" onclick="planSwitchSection('${s.key}')" class="${cls}">${_esc(s.label)}${dot}</button>`;
+            }).join('');
+        }
+
+        function planSwitchSection(key) {
+            _planActiveSection = key;
+            // 顯示對應 textarea
+            document.querySelectorAll('#planEditorPane .plan-section').forEach(el => {
+                if (el.dataset.section === key) el.classList.remove('hidden');
+                else el.classList.add('hidden');
+            });
+            renderPlanSectionTabs();
+            // 重新渲染預覽（顯示「目前 tab 區段的內容」+ 標題）
+            renderPlanPreview();
+        }
+
+        function planEditorView(mode) {
+            const body = document.getElementById('planEditorBody');
+            const pane = document.getElementById('planEditorPane');
+            const pv = document.getElementById('planPreview');
+            if (!body) return;
+            body.classList.remove('grid-cols-1', 'grid-cols-2');
+            if (mode === 'edit') {
+                body.classList.add('grid-cols-1');
+                pane.classList.remove('hidden'); pv.classList.add('hidden');
+            } else if (mode === 'preview') {
+                body.classList.add('grid-cols-1');
+                pane.classList.add('hidden'); pv.classList.remove('hidden');
+                renderPlanPreview();
+            } else {
+                body.classList.add('grid-cols-2');
+                pane.classList.remove('hidden'); pv.classList.remove('hidden');
+                renderPlanPreview();
+            }
+            ['Split','Edit','Preview'].forEach(k => {
+                const b = document.getElementById('planView'+k+'Btn');
+                if (!b) return;
+                if (k.toLowerCase() === mode) b.classList.add('bg-blue-200','text-blue-800');
+                else b.classList.remove('bg-blue-200','text-blue-800');
+            });
+        }
+
+        async function renderPlanPreview() {
+            // 預覽模式 = 把整個計畫的 6 個區段串成一份完整 markdown，加上 H2 區段標題
+            const pv = document.getElementById('planPreview');
+            if (!pv) return;
+            const parts = _PLAN_SECTIONS.map(s => {
+                const txt = (document.getElementById(s.textareaId)?.value || '').trim();
+                if (!txt) return '';
+                return `## ${s.label}\n\n${txt}`;
+            }).filter(Boolean);
+            const md = parts.length ? parts.join('\n\n---\n\n') : '_（尚無內容；請選擇上方區段並開始撰寫）_';
+            await renderMarkdownInto(pv, md);
+        }
+
+        function planOnContentChange() {
+            _planDirty = true;
+            updatePlanDirtyHint();
+            clearTimeout(window._planPreviewTimer);
+            window._planPreviewTimer = setTimeout(renderPlanPreview, 180);
+            // 區段 tab 上的小圓點要隨內容更新（有/無內容）
+            renderPlanSectionTabs();
+        }
+
+        function updatePlanDirtyHint() {
+            const hint = document.getElementById('planDirtyHint');
+            if (hint) hint.textContent = _planDirty ? '● 有未儲存的修改' : '';
+        }
+
+        // ── 工具列：在「目前 active 區段的 textarea」插入 markdown ──
+        function _planActiveTextarea() {
+            const sec = _PLAN_SECTIONS.find(s => s.key === _planActiveSection);
+            return sec ? document.getElementById(sec.textareaId) : null;
+        }
+        function planInsertMd(prefix, suffix, asLine) {
+            const ta = _planActiveTextarea();
+            if (!ta) return;
+            const start = ta.selectionStart, end = ta.selectionEnd;
+            const sel = ta.value.substring(start, end);
+            let insert;
+            if (asLine) {
+                const lines = (sel || '').split('\n');
+                insert = lines.map(l => prefix + l).join('\n');
+                if (!sel) insert = prefix;
+            } else {
+                insert = prefix + (sel || '') + suffix;
+            }
+            ta.setRangeText(insert, start, end, 'end');
+            ta.focus();
+            planOnContentChange();
+        }
+        function planInsertTable() {
+            planInsertMd('\n| 欄位 1 | 欄位 2 | 欄位 3 |\n| --- | --- | --- |\n| A | B | C |\n| D | E | F |\n', '');
+        }
+        function planInsertCodeBlock() {
+            const lang = prompt('程式語言（如 python / bash / robot；可空）：', '') || '';
+            planInsertMd('\n```' + lang + '\n', '\n```\n');
+        }
+        function planInsertMermaidFlowchart() {
+            planInsertMd(`\n\`\`\`mermaid\nflowchart LR\n    A[開始] --> B{條件?}\n    B -- 是 --> C[執行 X]\n    B -- 否 --> D[執行 Y]\n    C --> E[結束]\n    D --> E\n\`\`\`\n`, '');
+        }
+        function planInsertMermaidSequence() {
+            planInsertMd(`\n\`\`\`mermaid\nsequenceDiagram\n    participant 使用者\n    participant 前端\n    participant 後端\n    使用者->>前端: 提交\n    前端->>後端: API 呼叫\n    後端-->>前端: 回應\n\`\`\`\n`, '');
+        }
+        function planInsertMermaidGantt() {
+            planInsertMd(`\n\`\`\`mermaid\ngantt\n    title 測試計畫時程\n    dateFormat  YYYY-MM-DD\n    section 規劃\n    撰寫計畫       :a1, 2026-04-01, 5d\n    審核           :a2, after a1, 3d\n    section 執行\n    冒煙測試       :b1, after a2, 2d\n    回歸測試       :b2, after b1, 7d\n\`\`\`\n`, '');
+        }
         async function planSubmit(ev) {
             ev.preventDefault();
             const payload = {
@@ -10273,8 +10500,12 @@ driver.swipe(100, 800, 100, 200, 500)"
                 const method = _editingPlanId ? 'PUT' : 'POST';
                 const res = await fetch(url, {method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
                 if (!res.ok) throw new Error('HTTP '+res.status);
-                showToast(_editingPlanId ? '已更新' : '已建立', 'success');
-                closePlanModal();
+                const saved = await res.json();
+                _editingPlanId = saved.id;
+                _planDirty = false;
+                updatePlanDirtyHint();
+                document.getElementById('planModalTitle').innerHTML = `<i class="fa-solid fa-clipboard-list text-blue-500"></i> 編輯計畫 ${_esc(saved.code)}`;
+                showToast('已儲存', 'success');
                 renderPlansList();
             } catch(e) { showToast('儲存失敗：'+e.message, 'error'); }
             return false;
@@ -10811,26 +11042,74 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('testDataSetModal').classList.remove('hidden');
         }
         function closeDataSetModal() { document.getElementById('testDataSetModal').classList.add('hidden'); }
+        let _dsViewMode = 'table';   // 'table' | 'card'
+        function dsSwitchView(mode) {
+            _dsViewMode = mode;
+            const tableWrap = document.getElementById('dsGridTableWrap');
+            const cardWrap = document.getElementById('dsGridCardWrap');
+            const tBtn = document.getElementById('dsViewTableBtn');
+            const cBtn = document.getElementById('dsViewCardBtn');
+            if (mode === 'card') {
+                tableWrap.classList.add('hidden'); cardWrap.classList.remove('hidden');
+                tBtn.classList.remove('bg-violet-100','text-violet-800','border-violet-300','font-semibold');
+                tBtn.classList.add('bg-white','border-stone-300');
+                cBtn.classList.add('bg-violet-100','text-violet-800','border-violet-300','font-semibold');
+                cBtn.classList.remove('bg-white','border-stone-300');
+            } else {
+                tableWrap.classList.remove('hidden'); cardWrap.classList.add('hidden');
+                tBtn.classList.add('bg-violet-100','text-violet-800','border-violet-300','font-semibold');
+                tBtn.classList.remove('bg-white','border-stone-300');
+                cBtn.classList.remove('bg-violet-100','text-violet-800','border-violet-300','font-semibold');
+                cBtn.classList.add('bg-white','border-stone-300');
+            }
+            renderDataSetGrid();
+        }
+
         function renderDataSetGrid() {
             const head = document.getElementById('dsGridHead');
             const body = document.getElementById('dsGridBody');
+            const cardWrap = document.getElementById('dsGridCardWrap');
             if (!head || !body) return;
-            // Header
-            head.innerHTML = _dsCols.map((c, ci) => `<th class="p-1 border border-violet-200 text-stone-600 font-medium">
+
+            // === 表格模式 ===
+            // 每欄至少 160px 寬，table 整體會超過容器寬度 → 由 wrap 的 overflow-x-auto 提供水平捲軸
+            head.innerHTML = _dsCols.map((c, ci) => `<th class="p-1 border border-violet-200 text-stone-600 font-medium ds-col-cell">
                 <div class="flex items-center gap-1">
-                    <input type="text" value="${_esc(c)}" oninput="dsRenameColumn(${ci}, this.value)" aria-label="欄位 ${ci+1} 名稱" class="w-full px-1.5 py-0.5 border border-stone-200 rounded text-xs">
-                    <button type="button" onclick="dsRemoveColumn(${ci})" class="text-stone-400 hover:text-red-500 px-1" title="刪除這一欄">✕</button>
+                    <input type="text" value="${_esc(c)}" oninput="dsRenameColumn(${ci}, this.value)" aria-label="欄位 ${ci+1} 名稱" class="flex-1 min-w-0 px-1.5 py-0.5 border border-stone-200 rounded text-xs font-semibold text-violet-700 bg-white">
+                    <button type="button" onclick="dsRemoveColumn(${ci})" class="shrink-0 text-stone-400 hover:text-red-500 px-1" title="刪除這一欄">✕</button>
                 </div>
-            </th>`).join('') + '<th class="w-8"></th>';
-            // Body
+            </th>`).join('') + '<th class="w-10 sticky right-0 bg-violet-100/60 border border-violet-200">操作</th>';
             if (!_dsRows.length) {
                 body.innerHTML = `<tr><td colspan="${_dsCols.length+1}" class="p-3 text-center text-stone-400 text-xs">尚無資料列</td></tr>`;
             } else {
-                body.innerHTML = _dsRows.map((row, ri) => `<tr>
-                    ${_dsCols.map(c => `<td class="p-0.5 border border-violet-100"><input type="text" value="${_esc(row[c]||'')}" oninput="dsSetCell(${ri},'${_esc(c)}', this.value)" aria-label="第${ri+1}列 ${_esc(c)}" class="w-full px-1.5 py-1 text-xs"></td>`).join('')}
-                    <td class="p-0.5 border border-violet-100 text-center"><button type="button" onclick="dsRemoveRow(${ri})" class="text-stone-400 hover:text-red-500 px-1" title="刪除這一列">✕</button></td>
+                body.innerHTML = _dsRows.map((row, ri) => `<tr class="hover:bg-violet-50/30">
+                    ${_dsCols.map(c => `<td class="p-0.5 border border-violet-100 ds-col-cell"><input type="text" value="${_esc(row[c]||'')}" oninput="dsSetCell(${ri},'${_esc(c)}', this.value)" aria-label="第${ri+1}列 ${_esc(c)}" class="w-full px-1.5 py-1 text-xs"></td>`).join('')}
+                    <td class="p-0.5 border border-violet-100 text-center sticky right-0 bg-white"><button type="button" onclick="dsRemoveRow(${ri})" class="text-stone-400 hover:text-red-500 px-1" title="刪除這一列">✕</button></td>
                 </tr>`).join('');
             }
+
+            // === 卡片模式 ===
+            if (cardWrap) {
+                if (!_dsRows.length) {
+                    cardWrap.innerHTML = '<div class="text-xs text-stone-400 text-center py-6">尚無資料列</div>';
+                } else {
+                    cardWrap.innerHTML = _dsRows.map((row, ri) => `
+                        <div class="bg-white border border-violet-200 rounded-md p-3 shadow-sm">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-violet-100 text-violet-700">第 ${ri+1} 列</span>
+                                <button type="button" onclick="dsRemoveRow(${ri})" class="text-xs text-stone-400 hover:text-red-500" title="刪除這一列"><i class="fa-solid fa-trash"></i> 刪除整列</button>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-3 gap-y-1.5">
+                                ${_dsCols.map((c, ci) => `<div class="flex items-center gap-2">
+                                    <label class="w-32 shrink-0 text-[11px] font-semibold text-violet-700 truncate" title="${_esc(c)}">${_esc(c)}</label>
+                                    <input type="text" value="${_esc(row[c]||'')}" oninput="dsSetCell(${ri},'${_esc(c)}', this.value)" aria-label="第${ri+1}列 ${_esc(c)}" class="flex-1 min-w-0 px-2 py-1 border border-stone-200 rounded text-xs">
+                                </div>`).join('')}
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            }
+
             document.getElementById('dsColCount').textContent = _dsCols.length;
             document.getElementById('dsRowCount').textContent = _dsRows.length;
         }
@@ -11151,38 +11430,32 @@ driver.swipe(100, 800, 100, 200, 500)"
             });
         }
 
-        // 把 markdown → safe HTML，並將 ```mermaid 區塊抽出來改用 mermaid.render() 渲染為 SVG
-        async function renderDocPreview() {
-            const md = document.getElementById('docContent').value || '';
-            const pv = document.getElementById('docPreview');
-            if (!pv) return;
-            if (typeof marked === 'undefined') { pv.innerHTML = '<em class="text-rose-500">marked.js 載入失敗</em>'; return; }
-            // 設定 marked：保留換行、不要 sanitize 我們自己處理（純前端編輯場景，內容信任）
+        // 把 markdown → safe HTML，並將 ```mermaid 區塊抽出來改用 mermaid.render() 渲染為 SVG。
+        // 此 helper 同時被測試文件與測試計畫的編輯器使用。
+        async function renderMarkdownInto(targetEl, mdText) {
+            if (!targetEl) return;
+            if (typeof marked === 'undefined') {
+                targetEl.innerHTML = '<em class="text-rose-500">marked.js 未載入</em>';
+                return;
+            }
             try { marked.setOptions({ gfm: true, breaks: true, headerIds: false, mangle: false }); } catch (_) {}
-            // 抽出 mermaid 區塊：marked 會把 ```mermaid 變成 <pre><code class="language-mermaid">；先預掃描，
-            // 把它換成 placeholder，等 HTML 出爐後再 swap。
             const mermaidBlocks = [];
-            const replaced = md.replace(/```mermaid\s*\n([\s\S]*?)```/g, (m, code) => {
+            const replaced = (mdText || '').replace(/```mermaid\s*\n([\s\S]*?)```/g, (m, code) => {
                 const idx = mermaidBlocks.length;
                 mermaidBlocks.push(code.trim());
                 return `\n@@MERMAID_BLOCK_${idx}@@\n`;
             });
             let html;
-            try {
-                html = marked.parse(replaced);
-            } catch (e) {
-                html = '<pre class="text-rose-500">Markdown 解析失敗：' + _esc(e.message) + '</pre>';
-            }
-            // 把 placeholder 換回 <div class="mermaid"> ... </div>
+            try { html = marked.parse(replaced); }
+            catch (e) { html = '<pre class="text-rose-500">Markdown 解析失敗：' + _esc(e.message) + '</pre>'; }
             html = html.replace(/<p>\s*@@MERMAID_BLOCK_(\d+)@@\s*<\/p>|@@MERMAID_BLOCK_(\d+)@@/g, (m, a, b) => {
                 const i = parseInt(a ?? b, 10);
                 const code = mermaidBlocks[i] || '';
                 return `<div class="mermaid">${_esc(code)}</div>`;
             });
-            pv.innerHTML = html;
-            // 渲染 mermaid
-            if (typeof mermaid !== 'undefined' && pv.querySelector('.mermaid')) {
-                const nodes = pv.querySelectorAll('.mermaid');
+            targetEl.innerHTML = html || '<em class="text-stone-400">（內容空白）</em>';
+            if (typeof mermaid !== 'undefined' && targetEl.querySelector('.mermaid')) {
+                const nodes = targetEl.querySelectorAll('.mermaid');
                 for (const node of nodes) {
                     const code = node.textContent;
                     const id = 'mmd_' + (++_docMermaidCounter);
@@ -11194,6 +11467,11 @@ driver.swipe(100, 800, 100, 200, 500)"
                     }
                 }
             }
+        }
+
+        async function renderDocPreview() {
+            const md = document.getElementById('docContent').value || '';
+            await renderMarkdownInto(document.getElementById('docPreview'), md);
         }
 
         // textarea 工具列：在游標位置插入 markdown；wrap 後游標停在尾端
