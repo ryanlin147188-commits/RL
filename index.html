@@ -2943,8 +2943,13 @@ driver.swipe(100, 800, 100, 200, 500)"
                                     <button type="button" onclick="dsClearGrid()" class="text-xs px-2 py-1 border border-rose-200 text-rose-600 bg-white rounded hover:bg-rose-50" title="清空所有欄列"><i class="fa-solid fa-eraser"></i> 清空</button>
                                     <span class="text-[11px] text-stone-500 ml-auto">總計 <span id="dsColCount" class="font-mono font-bold text-stone-700">0</span> 欄 × <span id="dsRowCount" class="font-mono font-bold text-stone-700">0</span> 列</span>
                                 </div>
-                                <div id="dsGridCardWrap" class="max-h-[55vh] overflow-y-auto border border-violet-100 rounded p-2 space-y-2 bg-stone-50/40"></div>
-                                <p class="text-[10px] text-stone-500">資料以 JSON 為單一來源；上方按鈕可匯入 / 匯出 / 清空整份資料表。</p>
+                                <div id="dsGridTableWrap" class="overflow-auto max-h-[55vh] border border-violet-100 rounded bg-white">
+                                    <table id="dsGridTable" class="text-xs w-full">
+                                        <thead class="bg-violet-100/40 sticky top-0 z-[1]"><tr id="dsGridHead"></tr></thead>
+                                        <tbody id="dsGridBody"></tbody>
+                                    </table>
+                                </div>
+                                <p class="text-[10px] text-stone-500">資料以 JSON 為單一來源；上方按鈕可匯入 / 匯出 / 清空整份資料表。匯入時會自動展平為 No / Key / Value 三欄。</p>
                             </div>
                         </div>
                         <div class="flex justify-end gap-2 pt-2"><button type="button" onclick="closeDataSetModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button><button type="submit" class="px-4 py-2 bg-violet-500 hover:bg-violet-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button></div>
@@ -11161,28 +11166,25 @@ gantt
             document.getElementById('testDataSetModal').classList.remove('hidden');
         }
         function closeDataSetModal() { document.getElementById('testDataSetModal').classList.add('hidden'); }
-        // 資料集只用「卡片模式」呈現：每列一張卡，欄位垂直顯示。資料的新增 / 刪除 / 編輯
-        // 透過匯入 JSON 完成，UI 不再提供逐欄 / 逐列的編輯按鈕。
+        // 資料集以「表格」呈現：欄位作為表頭，每列一行。資料的新增 / 編輯主要透過匯入 JSON
+        // 完成；表格上的 input 仍可手動微調。表頭是黏性 (sticky-top)，欄多時自動水平捲動。
         function renderDataSetGrid() {
-            const cardWrap = document.getElementById('dsGridCardWrap');
-            if (!cardWrap) return;
+            const head = document.getElementById('dsGridHead');
+            const body = document.getElementById('dsGridBody');
+            if (!head || !body) return;
+
+            head.innerHTML = '<th class="p-2 border-b border-violet-200 w-12 text-violet-700 font-semibold text-left bg-violet-50/80">#</th>'
+                + _dsCols.map(c => `<th class="p-2 border-b border-l border-violet-200 text-violet-700 font-semibold text-left bg-violet-50/80 ds-col-cell">${_esc(c)}</th>`).join('');
+
             if (!_dsRows.length) {
-                cardWrap.innerHTML = '<div class="text-xs text-stone-400 text-center py-6">尚無資料列；請點上方「匯入 JSON」載入資料</div>';
+                body.innerHTML = `<tr><td colspan="${_dsCols.length + 1}" class="p-6 text-center text-stone-400 text-xs">尚無資料列；請點上方「匯入 JSON」載入資料</td></tr>`;
             } else {
-                cardWrap.innerHTML = _dsRows.map((row, ri) => `
-                    <div class="bg-white border border-violet-200 rounded-md p-3 shadow-sm">
-                        <div class="flex items-center justify-between mb-2">
-                            <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-violet-100 text-violet-700">第 ${ri+1} 列</span>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-x-3 gap-y-1.5">
-                            ${_dsCols.map(c => `<div class="flex items-start gap-2">
-                                <label class="w-32 shrink-0 text-[11px] font-semibold text-violet-700 truncate pt-1.5" title="${_esc(c)}">${_esc(c)}</label>
-                                <input type="text" value="${_esc(row[c]||'')}" oninput="dsSetCell(${ri},'${_esc(c)}', this.value)" aria-label="第${ri+1}列 ${_esc(c)}" class="flex-1 min-w-0 px-2 py-1 border border-stone-200 rounded text-xs">
-                            </div>`).join('')}
-                        </div>
-                    </div>
-                `).join('');
+                body.innerHTML = _dsRows.map((row, ri) => `<tr class="hover:bg-violet-50/30">
+                    <td class="p-1.5 border-b border-violet-100 text-stone-400 font-mono text-[11px] text-center">${ri + 1}</td>
+                    ${_dsCols.map(c => `<td class="p-0 border-b border-l border-violet-100 ds-col-cell"><input type="text" value="${_esc(row[c] != null ? row[c] : '')}" oninput="dsSetCell(${ri},'${_esc(c)}', this.value)" aria-label="第${ri+1}列 ${_esc(c)}" class="w-full px-2 py-1.5 text-xs bg-transparent focus:bg-white focus:outline-none focus:ring-1 focus:ring-violet-300"></td>`).join('')}
+                </tr>`).join('');
             }
+
             const colCnt = document.getElementById('dsColCount');
             const rowCnt = document.getElementById('dsRowCount');
             if (colCnt) colCnt.textContent = _dsCols.length;
@@ -11192,9 +11194,8 @@ gantt
         function dsSetCell(ri, col, val) {
             if (_dsRows[ri]) _dsRows[ri][col] = val;
         }
-        // 匯入 JSON：每個檔案會展平成 (key, value) pairs，
-        // 多檔合併進同一個資料集 — 第一份檔案決定欄位名稱（通常會是 [檔案名稱, key, value] 三欄結構，
-        // 但這裡採取較直觀的 flatten：將 JSON 物件的各 leaf 攤成一列；多檔則加一個檔名欄位區分）。
+        // 匯入 JSON：所有檔案都「展平成 (key, value) pairs」並轉為 No | Key | Value 三欄結構。
+        // 多檔合併到同一份表格；No 欄位是跨檔案的全域流水號。
         async function dsImportJson(event) {
             const files = Array.from(event.target.files || []);
             if (!files.length) return;
@@ -11202,8 +11203,7 @@ gantt
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     try {
-                        const obj = JSON.parse(e.target.result);
-                        resolve({ ok: true, name: file.name, json: obj });
+                        resolve({ ok: true, name: file.name, json: JSON.parse(e.target.result) });
                     } catch (err) {
                         resolve({ ok: false, name: file.name, error: err.message });
                     }
@@ -11220,81 +11220,22 @@ gantt
                 return;
             }
 
-            // 策略：
-            // (1) 若每筆 JSON 都是「物件」(非陣列)，把它們當作「一列 = 一個檔」
-            //     → 欄位 = 所有檔案 keys 的聯集（depth-1，巢狀展平成 key.path 形式），
-            //       第一欄是 __file__（檔名）。
-            // (2) 若 JSON 是「陣列且每個元素是物件」，把每個元素當作一列。
-            //     → 欄位 = 所有元素 keys 的聯集；__file__ 同前。
-            // (3) 其他形式（純值、多層巢狀陣列）：fallback 用舊版 flattenJsonToPairs，
-            //     一個檔展開成 [檔名, key, value] 三欄多列。
-            const newRows = [];
-            const colSet = new Set();
-            let useFallback = false;
+            // 統一輸出為 No / Key / Value 三欄；多檔的 key 路徑會以「檔名::」前綴避免衝突
+            _dsCols = ['No', 'Key', 'Value'];
+            _dsRows = [];
+            let n = 1;
+            const multi = oks.length > 1;
             for (const { name, json } of oks) {
-                if (Array.isArray(json) && json.every(x => x && typeof x === 'object' && !Array.isArray(x))) {
-                    json.forEach(obj => {
-                        const flat = _flattenObjectShallow(obj);
-                        const row = { __file__: name };
-                        Object.entries(flat).forEach(([k, v]) => { row[k] = v; colSet.add(k); });
-                        newRows.push(row);
-                    });
-                } else if (json && typeof json === 'object' && !Array.isArray(json)) {
-                    const flat = _flattenObjectShallow(json);
-                    const row = { __file__: name };
-                    Object.entries(flat).forEach(([k, v]) => { row[k] = v; colSet.add(k); });
-                    newRows.push(row);
-                } else {
-                    useFallback = true;
-                    break;
+                const pairs = flattenJsonToPairs(json, '');
+                for (const [k, v] of pairs) {
+                    const key = multi ? `${name}::${k}` : k;
+                    _dsRows.push({ No: String(n++), Key: key, Value: (v == null ? '' : (typeof v === 'string' ? v : String(v))) });
                 }
-            }
-            if (useFallback) {
-                // fallback：對每個檔案展平成 [檔名, key, value] 三欄
-                _dsCols = ['檔案名稱', 'Key', 'Value'];
-                _dsRows = [];
-                for (const { name, json } of oks) {
-                    flattenJsonToPairs(json, '').forEach(([k, v]) => {
-                        _dsRows.push({ '檔案名稱': name, 'Key': k, 'Value': String(v ?? '') });
-                    });
-                }
-            } else {
-                // 正常路徑
-                const newCols = ['__file__', ...Array.from(colSet)];
-                _dsCols = newCols;
-                _dsRows = newRows.map(r => {
-                    const row = {};
-                    newCols.forEach(c => { row[c] = r[c] ?? ''; });
-                    return row;
-                });
             }
             renderDataSetGrid();
             const errMsg = errors.length ? `（${errors.length} 個檔案解析失敗）` : '';
             showToast(`已匯入 ${oks.length} 個 JSON 檔，共 ${_dsRows.length} 列${errMsg}`, errors.length ? 'error' : 'success');
             event.target.value = '';
-        }
-
-        // 把單層物件的值都轉成字串；遇到巢狀物件 / 陣列時再以點記法展開（一層即可，避免欄太多）
-        function _flattenObjectShallow(obj, prefix = '') {
-            const out = {};
-            if (obj === null || obj === undefined) return out;
-            if (typeof obj !== 'object') {
-                out[prefix || 'value'] = String(obj);
-                return out;
-            }
-            if (Array.isArray(obj)) {
-                out[prefix || 'value'] = JSON.stringify(obj);
-                return out;
-            }
-            Object.entries(obj).forEach(([k, v]) => {
-                const key = prefix ? `${prefix}.${k}` : k;
-                if (v !== null && typeof v === 'object') {
-                    Object.assign(out, _flattenObjectShallow(v, key));
-                } else {
-                    out[key] = v == null ? '' : (typeof v === 'string' ? v : String(v));
-                }
-            });
-            return out;
         }
 
         function dsExportJson() {
