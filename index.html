@@ -479,62 +479,62 @@
             </div>
             <!-- 第一列：規劃 & 設計 / 設定 -->
             <div class="hidden md:flex items-center gap-2 md:gap-3 xl:gap-5 flex-1 justify-center px-4">
-                <span class="hidden 2xl:inline text-[10px] text-stone-400 font-bold uppercase tracking-wider">規劃</span>
-                <button type="button" onclick="showTestProjectsView()" id="navTestProjectsBtn" title="測試專案"
+                <span class="hidden 2xl:inline text-[10px] text-stone-400 font-bold uppercase tracking-wider" data-i18n="nav.section.planning">規劃</span>
+                <button type="button" onclick="showTestProjectsView()" id="navTestProjectsBtn" data-i18n-attr="title;nav.testProjects"
                     class="text-slate-500 hover:text-amber-600 font-medium transition flex items-center gap-2">
                     <i class="fa-solid fa-folder-tree"></i>
-                    <span class="hidden xl:inline">測試專案</span>
+                    <span class="hidden xl:inline" data-i18n="nav.testProjects">測試專案</span>
                 </button>
-                <button type="button" onclick="showWbsView()" id="navWbsBtn" title="WBS 工作分解結構"
+                <button type="button" onclick="showWbsView()" id="navWbsBtn" data-i18n-attr="title;nav.wbs"
                     class="text-slate-500 hover:text-yellow-600 font-medium transition flex items-center gap-2">
                     <i class="fa-solid fa-sitemap"></i>
-                    <span class="hidden xl:inline">WBS</span>
+                    <span class="hidden xl:inline" data-i18n="nav.wbs">WBS</span>
                 </button>
-                <button type="button" onclick="showTestPlanView()" id="navTestPlanBtn" title="測試計畫"
+                <button type="button" onclick="showTestPlanView()" id="navTestPlanBtn" data-i18n-attr="title;nav.testPlan"
                     class="text-slate-500 hover:text-blue-600 font-medium transition flex items-center gap-2">
                     <i class="fa-solid fa-clipboard-list"></i>
-                    <span class="hidden xl:inline">測試計畫</span>
+                    <span class="hidden xl:inline" data-i18n="nav.testPlan">測試計畫</span>
                 </button>
-                <button type="button" onclick="showRequirementsView()" id="navRequirementsBtn" title="需求 / RTM 追溯矩陣"
+                <button type="button" onclick="showRequirementsView()" id="navRequirementsBtn" data-i18n-attr="title;nav.requirements"
                     class="text-slate-500 hover:text-cyan-600 font-medium transition flex items-center gap-2">
                     <i class="fa-solid fa-diagram-project"></i>
-                    <span class="hidden xl:inline">需求/RTM</span>
+                    <span class="hidden xl:inline" data-i18n="nav.requirements">需求/RTM</span>
                 </button>
-                <button type="button" onclick="showTestCasesView()" id="navTestCasesBtn" title="測試案例"
+                <button type="button" onclick="showTestCasesView()" id="navTestCasesBtn" data-i18n-attr="title;nav.testCases"
                     class="text-slate-500 hover:text-blue-600 font-medium transition flex items-center gap-2">
                     <i class="fa-solid fa-list-check"></i>
-                    <span class="hidden xl:inline">測試案例</span>
+                    <span class="hidden xl:inline" data-i18n="nav.testCases">測試案例</span>
                 </button>
-                <button type="button" onclick="showTestDataSetsView()" id="navTestDataSetsBtn" title="測試資料集 (DDT)"
+                <button type="button" onclick="showTestDataSetsView()" id="navTestDataSetsBtn" data-i18n-attr="title;nav.dataSets"
                     class="text-slate-500 hover:text-violet-600 font-medium transition flex items-center gap-2">
                     <i class="fa-solid fa-table"></i>
-                    <span class="hidden xl:inline">測試資料集</span>
+                    <span class="hidden xl:inline" data-i18n="nav.dataSets">測試資料集</span>
                 </button>
-                <button type="button" onclick="showTestDocumentsView()" id="navTestDocumentsBtn" title="測試文件（Markdown + Mermaid）"
+                <button type="button" onclick="showTestDocumentsView()" id="navTestDocumentsBtn" data-i18n-attr="title;nav.documents"
                     class="text-slate-500 hover:text-pink-600 font-medium transition flex items-center gap-2">
                     <i class="fa-solid fa-file-lines"></i>
-                    <span class="hidden xl:inline">測試文件</span>
+                    <span class="hidden xl:inline" data-i18n="nav.documents">測試文件</span>
                 </button>
-                <span class="hidden 2xl:inline text-[10px] text-stone-400 font-bold uppercase tracking-wider ml-2">設定</span>
-                <button type="button" onclick="showDevicesView()" id="navDevicesBtn" title="設備資訊"
+                <span class="hidden 2xl:inline text-[10px] text-stone-400 font-bold uppercase tracking-wider ml-2" data-i18n="nav.section.settings">設定</span>
+                <button type="button" onclick="showDevicesView()" id="navDevicesBtn" data-i18n-attr="title;nav.devices"
                     class="text-slate-500 hover:text-rose-600 font-medium transition flex items-center gap-2">
                     <i class="fa-solid fa-mobile-screen"></i>
-                    <span class="hidden xl:inline">設備資訊</span>
+                    <span class="hidden xl:inline" data-i18n="nav.devices">設備資訊</span>
                 </button>
-                <button type="button" onclick="showEnvVarsView()" id="navEnvVarsBtn" title="環境變數"
+                <button type="button" onclick="showEnvVarsView()" id="navEnvVarsBtn" data-i18n-attr="title;nav.envVars"
                     class="text-slate-500 hover:text-emerald-600 font-medium transition flex items-center gap-2">
                     <i class="fa-solid fa-key"></i>
-                    <span class="hidden xl:inline">環境變數</span>
+                    <span class="hidden xl:inline" data-i18n="nav.envVars">環境變數</span>
                 </button>
-                <button type="button" onclick="showDbConfigView()" id="navDbConfigBtn" title="DB 資訊"
+                <button type="button" onclick="showDbConfigView()" id="navDbConfigBtn" data-i18n-attr="title;nav.dbConfig"
                     class="text-slate-500 hover:text-indigo-600 font-medium transition flex items-center gap-2">
                     <i class="fa-solid fa-database"></i>
-                    <span class="hidden xl:inline">DB資訊</span>
+                    <span class="hidden xl:inline" data-i18n="nav.dbConfig">DB資訊</span>
                 </button>
-                <button type="button" onclick="showMockView()" id="navMockBtn" title="Mock 端點管理"
+                <button type="button" onclick="showMockView()" id="navMockBtn" data-i18n-attr="title;nav.mock"
                     class="text-slate-500 hover:text-amber-600 font-medium transition flex items-center gap-2">
                     <i class="fa-solid fa-plug"></i>
-                    <span class="hidden xl:inline">Mock</span>
+                    <span class="hidden xl:inline" data-i18n="nav.mock">Mock</span>
                 </button>
             </div>
             <!-- 右側使用者區：名稱 / 登出 / 暗黑切換 -->
@@ -545,12 +545,16 @@
                     <span id="userMenuName" class="hidden sm:inline text-sm font-semibold text-stone-700">admin</span>
                 </button>
                 <div class="h-6 w-px bg-stone-200"></div>
-                <button type="button" onclick="authLogout()" title="登出" aria-label="登出"
+                <button type="button" onclick="authLogout()" data-i18n-attr="title;common.logout,aria-label;common.logout"
                     class="flex items-center gap-1.5 px-3 h-9 rounded border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 transition text-sm font-medium">
                     <i class="fa-solid fa-right-from-bracket"></i>
-                    <span class="hidden sm:inline">登出</span>
+                    <span class="hidden sm:inline" data-i18n="common.logout">登出</span>
                 </button>
                 <div class="h-6 w-px bg-stone-200"></div>
+                <button type="button" id="i18nToggleBtn" onclick="i18nToggle()" title="切換語言 / Switch language" aria-label="切換語言"
+                    class="h-9 px-2.5 flex items-center justify-center rounded-full border border-stone-200 hover:bg-amber-50 hover:border-amber-300 transition text-stone-600 text-xs font-bold">
+                    <span id="i18nToggleLabel">EN</span>
+                </button>
                 <button type="button" id="themeToggleBtn" onclick="toggleDarkMode()" title="切換暗黑模式" aria-label="切換暗黑模式"
                     class="w-9 h-9 flex items-center justify-center rounded-full border border-stone-200 hover:bg-amber-50 hover:border-amber-300 transition text-stone-600">
                     <i id="themeToggleIcon" class="fa-solid fa-moon text-sm"></i>
@@ -559,41 +563,41 @@
         </div>
         <!-- ── 下排：執行 / 監控 nav + 環境切換 ── -->
         <div class="hidden md:flex h-12 items-center gap-2 md:gap-3 xl:gap-5 px-4 md:px-6 border-t border-amber-50">
-            <span class="text-[10px] text-stone-400 font-bold uppercase tracking-wider mr-auto">執行 / 監控</span>
-            <button type="button" onclick="showTestMilestonesView()" id="navTestMilestonesBtn" title="測試時程"
+            <span class="text-[10px] text-stone-400 font-bold uppercase tracking-wider mr-auto" data-i18n="nav.section.execution">執行 / 監控</span>
+            <button type="button" onclick="showTestMilestonesView()" id="navTestMilestonesBtn" data-i18n-attr="title;nav.milestones"
                 class="text-slate-500 hover:text-teal-600 font-medium transition flex items-center gap-2">
                 <i class="fa-regular fa-calendar"></i>
-                <span class="hidden xl:inline">測試時程</span>
+                <span class="hidden xl:inline" data-i18n="nav.milestones">測試時程</span>
             </button>
-            <button type="button" onclick="showTestRoundView()" id="navTestRoundBtn" title="測試回合"
+            <button type="button" onclick="showTestRoundView()" id="navTestRoundBtn" data-i18n-attr="title;nav.testRound"
                 class="text-slate-500 hover:text-purple-600 font-medium transition flex items-center gap-2">
                 <i class="fa-solid fa-layer-group"></i>
-                <span class="hidden xl:inline">測試回合</span>
+                <span class="hidden xl:inline" data-i18n="nav.testRound">測試回合</span>
             </button>
-            <button onclick="showScheduleView()" id="navScheduleBtn" title="測試排程"
+            <button onclick="showScheduleView()" id="navScheduleBtn" data-i18n-attr="title;nav.schedule"
                 class="text-slate-500 hover:text-emerald-600 font-medium transition flex items-center gap-2">
                 <i class="fa-solid fa-calendar-days"></i>
-                <span class="hidden xl:inline">測試排程</span>
+                <span class="hidden xl:inline" data-i18n="nav.schedule">測試排程</span>
             </button>
-            <button onclick="showRecorderView()" id="navRecorderBtn" title="測試錄製"
+            <button onclick="showRecorderView()" id="navRecorderBtn" data-i18n-attr="title;nav.recorder"
                 class="text-slate-500 hover:text-rose-600 font-medium transition flex items-center gap-2">
                 <i class="fa-solid fa-video"></i>
-                <span class="hidden xl:inline">測試錄製</span>
+                <span class="hidden xl:inline" data-i18n="nav.recorder">測試錄製</span>
             </button>
-            <button type="button" onclick="showTestKanbanView()" id="navTestKanbanBtn" title="測試看版"
+            <button type="button" onclick="showTestKanbanView()" id="navTestKanbanBtn" data-i18n-attr="title;nav.kanban"
                 class="text-slate-500 hover:text-orange-600 font-medium transition flex items-center gap-2">
                 <i class="fa-solid fa-columns"></i>
-                <span class="hidden xl:inline">測試看版</span>
+                <span class="hidden xl:inline" data-i18n="nav.kanban">測試看版</span>
             </button>
-            <button type="button" onclick="showReportView()" id="navReportBtn" title="測試報告"
+            <button type="button" onclick="showReportView()" id="navReportBtn" data-i18n-attr="title;nav.reports"
                 class="text-slate-500 hover:text-blue-600 font-medium transition flex items-center gap-2">
                 <i class="fa-solid fa-chart-pie"></i>
-                <span class="hidden xl:inline">測試報告</span>
+                <span class="hidden xl:inline" data-i18n="nav.reports">測試報告</span>
             </button>
-            <button type="button" onclick="showDefectsView()" id="navDefectsBtn" title="缺陷管理"
+            <button type="button" onclick="showDefectsView()" id="navDefectsBtn" data-i18n-attr="title;nav.defects"
                 class="text-slate-500 hover:text-red-600 font-medium transition flex items-center gap-2">
                 <i class="fa-solid fa-bug"></i>
-                <span class="hidden xl:inline">缺陷管理</span>
+                <span class="hidden xl:inline" data-i18n="nav.defects">缺陷管理</span>
             </button>
             <div class="flex items-center gap-1 ml-2">
                 <button type="button" id="envToggleBtn" onclick="toggleExecutionMode()" aria-label="切換執行環境" title="切換執行環境（點擊切換；本機 = 有頭瀏覽器，Docker = 無頭）"
@@ -2452,14 +2456,14 @@ driver.swipe(100, 800, 100, 200, 500)"
                 <div class="max-w-5xl mx-auto">
                     <!-- 6 個分頁切換 -->
                     <div class="bg-white rounded-lg border border-amber-100 shadow-sm p-2 mb-4 flex gap-1 flex-wrap">
-                        <button id="setTabUser"     onclick="settingsSwitchTab('user')"     class="px-3 py-1.5 text-sm font-medium rounded text-amber-700 bg-amber-50 border border-amber-300"><i class="fa-solid fa-user-circle"></i> 使用者設定</button>
-                        <button id="setTabPerms"    onclick="settingsSwitchTab('perms')"    class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-shield"></i> 權限管理</button>
-                        <button id="setTabRoles"    onclick="settingsSwitchTab('roles')"    class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-user-tag"></i> 角色管理</button>
-                        <button id="setTabNotif"    onclick="settingsSwitchTab('notif')"    class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-bell"></i> 通知設定</button>
-                        <button id="setTabEmail"    onclick="settingsSwitchTab('email')"    class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-envelope"></i> 電子郵件</button>
-                        <button id="setTabAi"       onclick="settingsSwitchTab('ai')"       class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-robot"></i> AI Token</button>
-                        <button id="setTabOrgs"     onclick="settingsSwitchTab('orgs')"     class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-building"></i> 組織</button>
-                        <button id="setTabAudit"    onclick="settingsSwitchTab('audit')"    class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-clipboard-check"></i> 審計紀錄</button>
+                        <button id="setTabUser"     onclick="settingsSwitchTab('user')"     class="px-3 py-1.5 text-sm font-medium rounded text-amber-700 bg-amber-50 border border-amber-300"><i class="fa-solid fa-user-circle"></i> <span data-i18n="settings.tab.user">使用者設定</span></button>
+                        <button id="setTabPerms"    onclick="settingsSwitchTab('perms')"    class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-shield"></i> <span data-i18n="settings.tab.perms">權限管理</span></button>
+                        <button id="setTabRoles"    onclick="settingsSwitchTab('roles')"    class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-user-tag"></i> <span data-i18n="settings.tab.roles">角色管理</span></button>
+                        <button id="setTabNotif"    onclick="settingsSwitchTab('notif')"    class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-bell"></i> <span data-i18n="settings.tab.notif">通知設定</span></button>
+                        <button id="setTabEmail"    onclick="settingsSwitchTab('email')"    class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-envelope"></i> <span data-i18n="settings.tab.email">電子郵件</span></button>
+                        <button id="setTabAi"       onclick="settingsSwitchTab('ai')"       class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-robot"></i> <span data-i18n="settings.tab.ai">AI Token</span></button>
+                        <button id="setTabOrgs"     onclick="settingsSwitchTab('orgs')"     class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-building"></i> <span data-i18n="settings.tab.orgs">組織</span></button>
+                        <button id="setTabAudit"    onclick="settingsSwitchTab('audit')"    class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-clipboard-check"></i> <span data-i18n="settings.tab.audit">審計紀錄</span></button>
                     </div>
 
                     <!-- ─── Pane 1: 使用者設定（保留原本內容） ─── -->
@@ -6330,6 +6334,127 @@ driver.swipe(100, 800, 100, 200, 500)"
             return out;
         }
 
+        // ==================== i18n（中英雙語） ====================
+        // 策略：所有需要翻譯的元素加上 data-i18n="<key>"；i18nApply() 會走訪整棵 DOM
+        //       依當前語系替換 textContent。語系存 localStorage。
+        // 預設語系：zh-TW（中文）；按右上角「EN」按鈕切到英文。
+        // 因為 codebase 中文字數龐大（70k+），這裡只覆蓋頂部導覽 / 共用按鈕 / 登入畫面
+        //   等高頻表面；其餘 deep view 內的中文先保留，後續可漸進式擴展（grep `data-i18n=`
+        //   找到所有已翻譯點）。
+        const I18N_KEY = 'autotest.locale';
+        const I18N_DICT = {
+            // 通用按鈕 / 動詞
+            'common.save': { 'zh-TW': '儲存', 'en': 'Save' },
+            'common.cancel': { 'zh-TW': '取消', 'en': 'Cancel' },
+            'common.delete': { 'zh-TW': '刪除', 'en': 'Delete' },
+            'common.edit': { 'zh-TW': '編輯', 'en': 'Edit' },
+            'common.add': { 'zh-TW': '新增', 'en': 'Add' },
+            'common.search': { 'zh-TW': '搜尋', 'en': 'Search' },
+            'common.refresh': { 'zh-TW': '重新整理', 'en': 'Refresh' },
+            'common.loading': { 'zh-TW': '載入中…', 'en': 'Loading…' },
+            'common.logout': { 'zh-TW': '登出', 'en': 'Sign out' },
+            'common.close': { 'zh-TW': '關閉', 'en': 'Close' },
+            'common.apply': { 'zh-TW': '套用', 'en': 'Apply' },
+            'common.export': { 'zh-TW': '匯出', 'en': 'Export' },
+            'common.import': { 'zh-TW': '匯入', 'en': 'Import' },
+            // 頂部導覽
+            'nav.section.planning': { 'zh-TW': '規劃', 'en': 'PLAN' },
+            'nav.section.settings': { 'zh-TW': '設定', 'en': 'CONFIG' },
+            'nav.section.execution': { 'zh-TW': '執行 / 監控', 'en': 'RUN / MONITOR' },
+            'nav.testProjects': { 'zh-TW': '測試專案', 'en': 'Projects' },
+            'nav.wbs': { 'zh-TW': 'WBS', 'en': 'WBS' },
+            'nav.testPlan': { 'zh-TW': '測試計畫', 'en': 'Test Plan' },
+            'nav.requirements': { 'zh-TW': '需求/RTM', 'en': 'Reqs / RTM' },
+            'nav.testCases': { 'zh-TW': '測試案例', 'en': 'Test Cases' },
+            'nav.dataSets': { 'zh-TW': '測試資料集', 'en': 'Data Sets' },
+            'nav.documents': { 'zh-TW': '測試文件', 'en': 'Docs' },
+            'nav.devices': { 'zh-TW': '設備資訊', 'en': 'Devices' },
+            'nav.envVars': { 'zh-TW': '環境變數', 'en': 'Env Vars' },
+            'nav.dbConfig': { 'zh-TW': 'DB資訊', 'en': 'DB Config' },
+            'nav.mock': { 'zh-TW': 'Mock', 'en': 'Mock' },
+            'nav.milestones': { 'zh-TW': '測試時程', 'en': 'Milestones' },
+            'nav.testRound': { 'zh-TW': '測試回合', 'en': 'Test Rounds' },
+            'nav.schedule': { 'zh-TW': '測試排程', 'en': 'Schedules' },
+            'nav.recorder': { 'zh-TW': '測試錄製', 'en': 'Recorder' },
+            'nav.kanban': { 'zh-TW': '測試看版', 'en': 'Kanban' },
+            'nav.reports': { 'zh-TW': '測試報告', 'en': 'Reports' },
+            'nav.defects': { 'zh-TW': '缺陷管理', 'en': 'Defects' },
+            // 環境切換
+            'nav.env.label': { 'zh-TW': '環境：', 'en': 'Env:' },
+            // 登入畫面
+            'auth.login': { 'zh-TW': '登入', 'en': 'Sign in' },
+            'auth.register': { 'zh-TW': '註冊', 'en': 'Sign up' },
+            'auth.forgot': { 'zh-TW': '忘記密碼', 'en': 'Forgot password' },
+            'auth.username': { 'zh-TW': '使用者名稱', 'en': 'Username' },
+            'auth.password': { 'zh-TW': '密碼', 'en': 'Password' },
+            'auth.email': { 'zh-TW': 'Email', 'en': 'Email' },
+            'auth.welcomeBack': { 'zh-TW': '歡迎回來，請登入以繼續', 'en': 'Welcome back, please sign in to continue' },
+            // 設定 8 個分頁
+            'settings.tab.user': { 'zh-TW': '使用者設定', 'en': 'User' },
+            'settings.tab.perms': { 'zh-TW': '權限管理', 'en': 'Permissions' },
+            'settings.tab.roles': { 'zh-TW': '角色管理', 'en': 'Roles' },
+            'settings.tab.notif': { 'zh-TW': '通知設定', 'en': 'Notifications' },
+            'settings.tab.email': { 'zh-TW': '電子郵件', 'en': 'Email' },
+            'settings.tab.ai': { 'zh-TW': 'AI Token', 'en': 'AI Token' },
+            'settings.tab.orgs': { 'zh-TW': '組織', 'en': 'Organizations' },
+            'settings.tab.audit': { 'zh-TW': '審計紀錄', 'en': 'Audit Log' },
+            // 首頁
+            'home.title': { 'zh-TW': 'AutoTest 首頁', 'en': 'AutoTest Home' },
+            'home.quickNav': { 'zh-TW': '快速導覽', 'en': 'Quick Navigation' },
+            'home.recentCases': { 'zh-TW': '最近測試案例', 'en': 'Recent Test Cases' },
+            'home.todos': { 'zh-TW': '待辦事項', 'en': 'To-do' },
+            'home.calendar': { 'zh-TW': '行事曆', 'en': 'Calendar' },
+            'home.todoBucket.overdue': { 'zh-TW': '過期', 'en': 'Overdue' },
+            'home.todoBucket.dueSoon': { 'zh-TW': '快到期 (≤3天)', 'en': 'Due soon (≤3d)' },
+            'home.todoBucket.upcoming': { 'zh-TW': '待辦', 'en': 'Upcoming' },
+            'home.todoBucket.done': { 'zh-TW': '已完成', 'en': 'Done' },
+        };
+        function _i18nGetLocale() {
+            try { return localStorage.getItem(I18N_KEY) || 'zh-TW'; } catch (_) { return 'zh-TW'; }
+        }
+        function _i18nSetLocale(loc) {
+            try { localStorage.setItem(I18N_KEY, loc); } catch (_) {}
+        }
+        function t(key, fallback) {
+            const loc = _i18nGetLocale();
+            const entry = I18N_DICT[key];
+            if (!entry) return fallback != null ? fallback : key;
+            return entry[loc] != null ? entry[loc] : (entry['zh-TW'] || (fallback != null ? fallback : key));
+        }
+        function i18nApply(root) {
+            const scope = root || document;
+            const loc = _i18nGetLocale();
+            // 1) data-i18n="<key>" → textContent
+            scope.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                const v = (I18N_DICT[key] || {})[loc];
+                if (v != null) el.textContent = v;
+            });
+            // 2) data-i18n-attr="title|placeholder|aria-label;<key>" → 設指定屬性
+            //    多組以「,」分隔，例：data-i18n-attr="title;nav.testPlan,placeholder;auth.username"
+            scope.querySelectorAll('[data-i18n-attr]').forEach(el => {
+                const spec = el.getAttribute('data-i18n-attr') || '';
+                spec.split(',').forEach(part => {
+                    const [attr, key] = part.split(';');
+                    if (!attr || !key) return;
+                    const v = (I18N_DICT[key.trim()] || {})[loc];
+                    if (v != null) el.setAttribute(attr.trim(), v);
+                });
+            });
+            // 3) <html lang> 同步
+            document.documentElement.setAttribute('lang', loc === 'en' ? 'en' : 'zh-TW');
+            // 4) 切換按鈕標籤：當前是 zh-TW 就顯示「EN」（提示按了會切到 en），反之亦然
+            const btn = document.getElementById('i18nToggleLabel');
+            if (btn) btn.textContent = loc === 'zh-TW' ? 'EN' : '中';
+        }
+        function i18nToggle() {
+            const cur = _i18nGetLocale();
+            _i18nSetLocale(cur === 'zh-TW' ? 'en' : 'zh-TW');
+            i18nApply();
+        }
+        // 在頁面 DOMContentLoaded / window.onload 時自動 apply 一次（onload 已有；這裡掛備援）
+        document.addEventListener('DOMContentLoaded', () => { try { i18nApply(); } catch (_) {} });
+
         // ==================== 暗黑模式切換 ====================
         // 策略：<html class="dark"> + Tailwind darkMode:'class'
         //       暗黑模式額外 CSS 在 <style> 區塊內定義（以 html.dark ... 覆蓋關鍵顏色）
@@ -6913,6 +7038,8 @@ driver.swipe(100, 800, 100, 200, 500)"
         }
 
         window.onload = async () => {
+            // 套用語系（從 localStorage 讀回去過的語言；預設 zh-TW）
+            try { i18nApply(); } catch (_) {}
             // 第一步：檢查登入狀態。未登入 → 顯示認證覆蓋層並停止初始化。
             authBootstrap();
             if (!authIsLoggedIn()) {
