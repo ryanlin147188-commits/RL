@@ -452,6 +452,11 @@
                     <i class="fa-solid fa-folder-tree"></i>
                     <span class="hidden xl:inline">測試專案</span>
                 </button>
+                <button type="button" onclick="showWbsView()" id="navWbsBtn" title="WBS 工作分解結構"
+                    class="text-slate-500 hover:text-yellow-600 font-medium transition flex items-center gap-2">
+                    <i class="fa-solid fa-sitemap"></i>
+                    <span class="hidden xl:inline">WBS</span>
+                </button>
                 <button type="button" onclick="showTestPlanView()" id="navTestPlanBtn" title="測試計畫"
                     class="text-slate-500 hover:text-blue-600 font-medium transition flex items-center gap-2">
                     <i class="fa-solid fa-clipboard-list"></i>
@@ -1635,24 +1640,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                     </div>
                 </section>
 
-                <section class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm mb-10">
-                    <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
-                        <h3 class="font-bold text-slate-700 flex items-center gap-2"><i class="fa-solid fa-database text-violet-500"></i> 連結測試資料集</h3>
-                        <button type="button" onclick="showTestDataSetsView()" class="text-sm px-3 py-1.5 bg-violet-50 text-violet-700 border border-violet-200 hover:bg-violet-100 rounded flex items-center gap-1 transition shadow-sm">
-                            <i class="fa-solid fa-arrow-up-right-from-square"></i> 前往測試資料集模組
-                        </button>
-                    </div>
-                    <p class="text-xs text-slate-500 mb-3">資料集 (DDT) 已移到獨立模組統一維護，請從下方選擇一個已建立的資料集連結到此案例。執行時會以連結的資料集第一列作為變數來源。</p>
-                    <div class="flex items-center gap-2 flex-wrap mb-3">
-                        <label for="tcDataSetSelect" class="text-xs font-semibold text-slate-600">選擇資料集：</label>
-                        <select id="tcDataSetSelect" onchange="tcLinkDataSet(this.value)" aria-label="選擇要連結的測試資料集"
-                            class="flex-1 min-w-[240px] border border-slate-300 rounded px-3 py-1.5 text-sm bg-white focus:outline-none focus:border-violet-400">
-                            <option value="">— 不連結資料集 —</option>
-                        </select>
-                        <button type="button" onclick="tcRefreshLinkedDataSet()" id="tcDataSetRefreshBtn" class="text-xs px-2 py-1.5 bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 rounded" title="從資料集模組重新拉取最新欄位與資料"><i class="fa-solid fa-rotate"></i> 重新整理快照</button>
-                    </div>
-                    <div id="tcDataSetPreview" class="border border-violet-100 bg-violet-50/30 rounded p-3 text-xs text-slate-600 italic">尚未連結資料集</div>
-                </section>
             </div>
 
             <!-- 視圖 2: 測試報告儀表板 (Dashboard) -->
@@ -2677,6 +2664,53 @@ driver.swipe(100, 800, 100, 200, 500)"
                 </div>
             </div>
 
+            <!-- ── WBS (Work Breakdown Structure) ── -->
+            <div id="wbsWorkspace" class="flex-1 overflow-y-auto p-6 bg-amber-50/30 hidden">
+                <div class="max-w-7xl mx-auto">
+                    <div class="bg-white rounded-lg border border-yellow-200 shadow-sm p-4 mb-4">
+                        <div class="flex flex-wrap items-center gap-3">
+                            <div class="flex-1 min-w-[200px] relative">
+                                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm"></i>
+                                <input id="wbsSearch" type="search" oninput="renderWbsTree()" placeholder="搜尋工作項目名稱、代號…"
+                                    class="w-full pl-9 pr-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400">
+                            </div>
+                            <select id="wbsStatusFilter" onchange="renderWbsTree()" aria-label="依狀態過濾" class="px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
+                                <option value="">全部狀態</option>
+                                <option value="NotStarted">未開始</option>
+                                <option value="InProgress">進行中</option>
+                                <option value="Completed">已完成</option>
+                                <option value="Blocked">已阻擋</option>
+                                <option value="Cancelled">已取消</option>
+                            </select>
+                            <button onclick="loadWbsAndRender()" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
+                            <button onclick="wbsExpandAll(true)" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50"><i class="fa-solid fa-angles-down"></i> 全展開</button>
+                            <button onclick="wbsExpandAll(false)" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50"><i class="fa-solid fa-angles-up"></i> 全收合</button>
+                            <button onclick="openWbsModal()" class="px-3 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-md text-sm font-semibold shadow-sm"><i class="fa-solid fa-plus"></i> 新增項目</button>
+                            <div class="text-xs text-stone-500 ml-auto">總計 <span id="wbsListCount" class="font-bold text-stone-700">0</span> 項 · 整體進度 <span id="wbsOverallProgress" class="font-bold text-yellow-700">0%</span></div>
+                        </div>
+                    </div>
+                    <!-- KPI 摘要 -->
+                    <section class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4" id="wbsKpis">
+                        <div class="bg-white rounded-xl p-3 border border-yellow-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-regular fa-circle-dot text-stone-400"></i> 未開始</div><div class="text-2xl font-bold text-stone-600" id="wbs_kpi_notstarted">—</div></div>
+                        <div class="bg-white rounded-xl p-3 border border-yellow-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-solid fa-spinner text-amber-500"></i> 進行中</div><div class="text-2xl font-bold text-amber-600" id="wbs_kpi_inprogress">—</div></div>
+                        <div class="bg-white rounded-xl p-3 border border-yellow-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-solid fa-check text-emerald-500"></i> 已完成</div><div class="text-2xl font-bold text-emerald-600" id="wbs_kpi_completed">—</div></div>
+                        <div class="bg-white rounded-xl p-3 border border-yellow-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-solid fa-ban text-rose-500"></i> 已阻擋</div><div class="text-2xl font-bold text-rose-600" id="wbs_kpi_blocked">—</div></div>
+                        <div class="bg-white rounded-xl p-3 border border-yellow-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-regular fa-clock text-blue-500"></i> 預計工時</div><div class="text-2xl font-bold text-blue-600" id="wbs_kpi_effort">—</div></div>
+                    </section>
+                    <!-- 樹狀清單 -->
+                    <div class="bg-white rounded-lg border border-yellow-200 shadow-sm overflow-hidden">
+                        <div class="grid grid-cols-12 gap-2 bg-yellow-50/60 border-b border-yellow-200 text-stone-600 text-xs uppercase font-semibold px-3 py-2 sticky top-0">
+                            <div class="col-span-5">代號 / 名稱</div>
+                            <div class="col-span-2">狀態</div>
+                            <div class="col-span-2">負責人</div>
+                            <div class="col-span-2">進度</div>
+                            <div class="col-span-1 text-right">操作</div>
+                        </div>
+                        <div id="wbsTreeBody" class="text-sm"></div>
+                    </div>
+                </div>
+            </div>
+
             <!-- ── 測試文件 (Test Documents) ── -->
             <div id="testDocumentsWorkspace" class="flex-1 overflow-y-auto p-6 bg-amber-50/30 hidden">
                 <div class="max-w-7xl mx-auto">
@@ -2715,6 +2749,47 @@ driver.swipe(100, 800, 100, 200, 500)"
             <!-- ════════════════════════════════════════════════════════════════
                  8 個對應的 Modal（建立 / 編輯）
                  ════════════════════════════════════════════════════════════════ -->
+
+            <!-- WBS 項目 Modal -->
+            <div id="wbsModal" class="hidden fixed inset-0 z-[150] bg-black/40 flex items-center justify-center p-4">
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl border border-yellow-200 max-h-[90vh] overflow-y-auto">
+                    <div class="px-6 py-4 border-b border-stone-200 bg-yellow-50/60 flex items-center justify-between">
+                        <h3 id="wbsModalTitle" class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-sitemap text-yellow-500"></i> 新增 WBS 工作項目</h3>
+                        <button type="button" onclick="closeWbsModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <form onsubmit="return wbsSubmit(event)" class="p-6 space-y-3">
+                        <div><label for="wbsName" class="block text-xs font-semibold text-stone-600 mb-1">名稱 *</label><input type="text" id="wbsName" aria-label="名稱" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div><label for="wbsParent" class="block text-xs font-semibold text-stone-600 mb-1">父項目（留空 = 頂層）</label>
+                                <select id="wbsParent" aria-label="父項目" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
+                                    <option value="">— 頂層 —</option>
+                                </select>
+                            </div>
+                            <div><label for="wbsCode" class="block text-xs font-semibold text-stone-600 mb-1">代號</label><input type="text" id="wbsCode" aria-label="代號" placeholder="留空 → 自動 WBS-NNN" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm font-mono"></div>
+                        </div>
+                        <div class="grid grid-cols-3 gap-3">
+                            <div><label for="wbsStatus" class="block text-xs font-semibold text-stone-600 mb-1">狀態</label>
+                                <select id="wbsStatus" aria-label="狀態" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
+                                    <option value="NotStarted" selected>未開始</option>
+                                    <option value="InProgress">進行中</option>
+                                    <option value="Completed">已完成</option>
+                                    <option value="Blocked">已阻擋</option>
+                                    <option value="Cancelled">已取消</option>
+                                </select>
+                            </div>
+                            <div><label for="wbsProgress" class="block text-xs font-semibold text-stone-600 mb-1">進度 (0-100)</label><input type="number" id="wbsProgress" aria-label="進度百分比" min="0" max="100" value="0" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                            <div><label for="wbsAssignee" class="block text-xs font-semibold text-stone-600 mb-1">負責人</label><input type="text" id="wbsAssignee" aria-label="負責人" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                        </div>
+                        <div class="grid grid-cols-3 gap-3">
+                            <div><label for="wbsStart" class="block text-xs font-semibold text-stone-600 mb-1">起始日期</label><input type="date" id="wbsStart" aria-label="起始日期" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                            <div><label for="wbsEnd" class="block text-xs font-semibold text-stone-600 mb-1">結束日期</label><input type="date" id="wbsEnd" aria-label="結束日期" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                            <div><label for="wbsEffort" class="block text-xs font-semibold text-stone-600 mb-1">預估工時</label><input type="number" id="wbsEffort" aria-label="預估工時" step="0.5" min="0" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                        </div>
+                        <div><label for="wbsDesc" class="block text-xs font-semibold text-stone-600 mb-1">說明</label><textarea id="wbsDesc" aria-label="說明" rows="3" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
+                        <div class="flex justify-end gap-2 pt-2"><button type="button" onclick="closeWbsModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button><button type="submit" class="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button></div>
+                    </form>
+                </div>
+            </div>
 
             <!-- 測試文件 編輯器 Modal（全螢幕，Markdown + 即時預覽 + Mermaid）-->
             <div id="testDocumentModal" class="hidden fixed inset-0 z-[150] bg-black/50 flex items-center justify-center p-4">
@@ -2850,6 +2925,10 @@ driver.swipe(100, 800, 100, 200, 500)"
                                 <div class="flex items-center gap-2 flex-wrap">
                                     <button type="button" onclick="dsAddColumn()" class="text-xs px-2 py-1 border border-stone-300 bg-white rounded hover:bg-violet-50"><i class="fa-solid fa-plus"></i> 新增欄</button>
                                     <button type="button" onclick="dsAddRow()" class="text-xs px-2 py-1 border border-stone-300 bg-white rounded hover:bg-violet-50"><i class="fa-solid fa-plus"></i> 新增列</button>
+                                    <input type="file" id="dsJsonImportInput" accept=".json,application/json" multiple aria-label="匯入 JSON 測試資料（可複選）" class="hidden" onchange="dsImportJson(event)">
+                                    <button type="button" onclick="document.getElementById('dsJsonImportInput').click()" class="text-xs px-2 py-1 border border-stone-300 bg-white rounded hover:bg-violet-50" title="可一次選取多個 JSON 檔；巢狀結構會以點記法展開為 Key 路徑"><i class="fa-solid fa-file-import"></i> 匯入 JSON</button>
+                                    <button type="button" onclick="dsExportJson()" class="text-xs px-2 py-1 border border-stone-300 bg-white rounded hover:bg-violet-50" title="把目前資料表下載成 JSON 檔（rows_json 結構）"><i class="fa-solid fa-file-export"></i> 匯出 JSON</button>
+                                    <button type="button" onclick="dsClearGrid()" class="text-xs px-2 py-1 border border-rose-200 text-rose-600 bg-white rounded hover:bg-rose-50" title="清空所有欄列"><i class="fa-solid fa-eraser"></i> 清空</button>
                                     <span class="text-[11px] text-stone-500 ml-auto">總計 <span id="dsColCount" class="font-mono font-bold text-stone-700">0</span> 欄 × <span id="dsRowCount" class="font-mono font-bold text-stone-700">0</span> 列</span>
                                 </div>
                                 <div class="overflow-x-auto">
@@ -4111,102 +4190,9 @@ driver.swipe(100, 800, 100, 200, 500)"
             showToast(`已刪除 ${n} 列`, 'success');
         }
 
-        // ── 連結測試資料集（取代過去的 inline DDT 編輯器）──────────────
-        // tc.ddt 結構保留為 {headers, rows, data_set_id?, data_set_code?}，
-        // 連結後會把資料集快照進 headers/rows 讓 runner 不需要改動。
-        let _tcDataSetCache = [];
-        async function tcLoadDataSetOptions() {
-            const sel = document.getElementById('tcDataSetSelect');
-            if (!sel) return;
-            if (!currentProjectId) {
-                sel.innerHTML = '<option value="">— 請先選擇專案 —</option>';
-                return;
-            }
-            try {
-                const res = await fetch('/api/data-sets?project_id=' + encodeURIComponent(currentProjectId));
-                if (!res.ok) throw new Error('HTTP ' + res.status);
-                _tcDataSetCache = await res.json();
-                const tc = testCases[currentTestCase];
-                const linkedId = tc?.ddt?.data_set_id || '';
-                sel.innerHTML = '<option value="">— 不連結資料集 —</option>' +
-                    _tcDataSetCache.map(s => `<option value="${s.id}">${_esc(s.code)} · ${_esc(s.name)}</option>`).join('');
-                sel.value = linkedId;
-            } catch (e) {
-                sel.innerHTML = '<option value="">載入失敗：' + _esc(e.message) + '</option>';
-            }
-        }
-
-        async function tcLinkDataSet(dsId) {
-            const tc = testCases[currentTestCase];
-            if (!tc) return;
-            if (!tc.ddt) tc.ddt = { headers: [], rows: [] };
-            if (!dsId) {
-                tc.ddt.data_set_id = null;
-                tc.ddt.data_set_code = null;
-                tc.ddt.headers = [];
-                tc.ddt.rows = [];
-                markDirty();
-                tcRenderDataSetPreview();
-                return;
-            }
-            try {
-                const res = await fetch('/api/data-sets/' + dsId);
-                if (!res.ok) throw new Error('HTTP ' + res.status);
-                const ds = await res.json();
-                tc.ddt.data_set_id = ds.id;
-                tc.ddt.data_set_code = ds.code;
-                // 把資料集的欄位/列快照到 tc.ddt 讓執行器繼續使用既有結構
-                tc.ddt.headers = Array.isArray(ds.columns_json) ? [...ds.columns_json] : [];
-                tc.ddt.rows = Array.isArray(ds.rows_json)
-                    ? ds.rows_json.map(row => tc.ddt.headers.map(h => row[h] ?? ''))
-                    : [];
-                markDirty();
-                tcRenderDataSetPreview();
-                showToast(`已連結資料集 ${ds.code}`, 'success');
-            } catch (e) {
-                showToast('連結失敗：' + e.message, 'error');
-            }
-        }
-
-        async function tcRefreshLinkedDataSet() {
-            const tc = testCases[currentTestCase];
-            const dsId = tc?.ddt?.data_set_id;
-            if (!dsId) { showToast('尚未連結資料集', 'error'); return; }
-            await tcLinkDataSet(dsId);  // 重新拉一次當作快照刷新
-        }
-
-        function tcRenderDataSetPreview() {
-            const box = document.getElementById('tcDataSetPreview');
-            if (!box) return;
-            const tc = testCases[currentTestCase];
-            const ddt = tc?.ddt;
-            if (!ddt || !ddt.data_set_id) {
-                box.innerHTML = '<span class="italic text-slate-400">尚未連結資料集 — 請從上方下拉選單選擇一個已建立的資料集，或點「前往測試資料集模組」建立新的。</span>';
-                return;
-            }
-            const headers = ddt.headers || [];
-            const rows = ddt.rows || [];
-            const previewRows = rows.slice(0, 5);
-            const headHtml = `<thead class="bg-violet-100/40"><tr>${headers.map(h => `<th class="p-1.5 border border-violet-200 font-medium text-violet-700">${_esc(h)}</th>`).join('')}</tr></thead>`;
-            const bodyHtml = previewRows.length
-                ? `<tbody>${previewRows.map(r => `<tr>${(Array.isArray(r) ? r : headers.map(h => r[h] ?? '')).map(v => `<td class="p-1.5 border border-violet-100">${_esc(v)}</td>`).join('')}</tr>`).join('')}</tbody>`
-                : `<tbody><tr><td colspan="${headers.length}" class="p-3 text-center text-slate-400">資料集為空</td></tr></tbody>`;
-            box.innerHTML = `
-                <div class="flex items-center justify-between mb-2 not-italic">
-                    <div class="text-xs text-slate-700">已連結 <span class="font-mono font-bold text-violet-700">${_esc(ddt.data_set_code || ddt.data_set_id)}</span> · 共 <span class="font-mono">${headers.length}</span> 欄 × <span class="font-mono">${rows.length}</span> 列</div>
-                    <div class="text-[10px] text-slate-500">執行時以第一列作為變數來源</div>
-                </div>
-                <div class="overflow-x-auto bg-white border border-violet-200 rounded">
-                    <table class="text-xs min-w-full not-italic">${headHtml}${bodyHtml}</table>
-                </div>
-                ${rows.length > 5 ? `<div class="text-[10px] text-slate-400 mt-1 not-italic">…只顯示前 5 列；完整內容請至「測試資料集」模組編輯</div>` : ''}
-            `;
-        }
-
-        // 兼容舊呼叫：載入測試案例時，本函式會載入下拉選項並渲染預覽
-        function renderDDT() {
-            tcLoadDataSetOptions().then(() => tcRenderDataSetPreview());
-        }
+        // 測試案例不再連結測試資料集；DDT 完全由獨立的「測試資料集」模組維護。
+        // renderDDT 保留為相容呼叫的 no-op（editTestCase 仍會呼叫它）。
+        function renderDDT() { /* no-op：DDT 已移出測試案例編輯器 */ }
 
         function updateDdtCell(ri, ci, value) {
             const cur = testCases[currentTestCase].ddt.rows[ri][ci];
@@ -6819,7 +6805,7 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('homeWorkspace')?.classList.add('hidden');
             document.getElementById('testcasesWorkspace')?.classList.add('hidden');
             document.getElementById('userSettingsWorkspace')?.classList.add('hidden');
-            // 8 個測試管理擴充工作區
+            // 9 個測試管理擴充工作區
             document.getElementById('defectsWorkspace')?.classList.add('hidden');
             document.getElementById('testMilestonesWorkspace')?.classList.add('hidden');
             document.getElementById('testPlansWorkspace')?.classList.add('hidden');
@@ -6828,6 +6814,7 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('testProjectsWorkspace')?.classList.add('hidden');
             document.getElementById('testDataSetsWorkspace')?.classList.add('hidden');
             document.getElementById('testDocumentsWorkspace')?.classList.add('hidden');
+            document.getElementById('wbsWorkspace')?.classList.add('hidden');
         }
 
         // ==================== 首頁 (Home) ====================
@@ -10498,6 +10485,39 @@ driver.swipe(100, 800, 100, 200, 500)"
                 '測試看版')) return;
             renderTestKanban();
         }
+        const _KANBAN_COL_DEFS = [
+            {key:'New', label:'新建立', color:'border-blue-300 bg-blue-50'},
+            {key:'Assigned', label:'已指派', color:'border-purple-300 bg-purple-50'},
+            {key:'InProgress', label:'處理中', color:'border-amber-300 bg-amber-50'},
+            {key:'Fixed', label:'已修復', color:'border-emerald-300 bg-emerald-50'},
+            {key:'Verified', label:'已驗證', color:'border-green-300 bg-green-50'},
+            {key:'Closed', label:'已關閉', color:'border-stone-300 bg-stone-50'},
+        ];
+        const _KANBAN_SEV_BADGE = {Critical:'bg-red-100 text-red-700', Major:'bg-orange-100 text-orange-700', Minor:'bg-amber-100 text-amber-700', Trivial:'bg-stone-100 text-stone-500'};
+
+        function renderKanbanColumns(colsEl, defs) {
+            colsEl.innerHTML = _KANBAN_COL_DEFS.map(c => {
+                const items = defs.filter(d => d.status === c.key).slice(0, 30);
+                return `<div class="bg-white rounded-lg border ${c.color} p-2 min-h-[200px] kanban-col" data-col-status="${c.key}" ondragover="kanbanDragOver(event)" ondragleave="kanbanDragLeave(event)" ondrop="kanbanDrop(event)">
+                    <div class="text-xs font-bold text-stone-700 px-1 pb-2 flex items-center justify-between">
+                        <span>${_esc(c.label)}</span>
+                        <span class="text-stone-400 font-mono">${items.length}</span>
+                    </div>
+                    <div class="space-y-2">${items.map(d => `<div class="bg-white border border-stone-200 rounded p-2 cursor-move hover:border-blue-300 shadow-sm kanban-card" draggable="true" data-defect-id="${_esc(d.id)}" data-defect-status="${_esc(d.status)}" ondragstart="kanbanDragStart(event)" ondragend="kanbanDragEnd(event)" onclick="kanbanCardClick(event, '${_esc(d.id)}')" title="拖移到其他欄變更狀態；點擊編輯">
+                        <div class="flex items-center justify-between">
+                            <div class="text-[10px] font-mono text-stone-400">${_esc(d.code)}</div>
+                            <span class="text-[9px] px-1 rounded bg-stone-100 text-stone-500">${_esc(_zh('defStatus', d.status))}</span>
+                        </div>
+                        <div class="text-xs font-semibold text-stone-800 line-clamp-2 mt-0.5">${_esc(d.title)}</div>
+                        <div class="flex items-center justify-between mt-1">
+                            <span class="text-[10px] px-1.5 py-0.5 rounded ${_KANBAN_SEV_BADGE[d.severity]||''}">${_esc(_zh('defSeverity', d.severity))}</span>
+                            <span class="text-[10px] text-stone-400">${_esc(d.assignee||'未指派')}</span>
+                        </div>
+                    </div>`).join('')||'<div class="text-xs text-stone-400 text-center py-2">無</div>'}</div>
+                </div>`;
+            }).join('');
+        }
+
         async function renderTestKanban() {
             const pid = currentProjectId;
             const cols = document.getElementById('kanbanColumns');
@@ -10506,15 +10526,15 @@ driver.swipe(100, 800, 100, 200, 500)"
                 ['kpi_open_defects','kpi_critical_defects','kpi_active_milestones','kpi_active_plans','kpi_requirements'].forEach(id => document.getElementById(id).textContent = '—');
                 return;
             }
-            // 並行抓所有資料
             try {
-                const [defs, summ, ms, plans, reqs] = await Promise.all([
+                const [defs, ms, plans, reqs] = await Promise.all([
                     fetch('/api/defects?project_id='+pid).then(r => r.json()),
-                    fetch('/api/defects/stats/summary?project_id='+pid).then(r => r.json()),
                     fetch('/api/milestones?project_id='+pid).then(r => r.json()),
                     fetch('/api/plans?project_id='+pid).then(r => r.json()),
                     fetch('/api/requirements?project_id='+pid).then(r => r.json()),
                 ]);
+                _defectsCache = defs;
+                _kanbanLastDefects = defs;
                 // KPIs
                 const openStatuses = ['New','Assigned','InProgress','Reopened'];
                 const openDefects = defs.filter(d => openStatuses.includes(d.status)).length;
@@ -10524,55 +10544,35 @@ driver.swipe(100, 800, 100, 200, 500)"
                 document.getElementById('kpi_active_milestones').textContent = ms.filter(m => m.status === 'InProgress').length;
                 document.getElementById('kpi_active_plans').textContent = plans.filter(p => ['Active','Approved'].includes(p.status)).length;
                 document.getElementById('kpi_requirements').textContent = reqs.length;
-                // Kanban 欄位（用缺陷）
-                const COL_DEFS = [
-                    {key:'New', label:'新建立', color:'border-blue-300 bg-blue-50'},
-                    {key:'Assigned', label:'已指派', color:'border-purple-300 bg-purple-50'},
-                    {key:'InProgress', label:'處理中', color:'border-amber-300 bg-amber-50'},
-                    {key:'Fixed', label:'已修復', color:'border-emerald-300 bg-emerald-50'},
-                    {key:'Verified', label:'已驗證', color:'border-green-300 bg-green-50'},
-                    {key:'Closed', label:'已關閉', color:'border-stone-300 bg-stone-50'},
-                ];
-                const sevBadge = {Critical:'bg-red-100 text-red-700', Major:'bg-orange-100 text-orange-700', Minor:'bg-amber-100 text-amber-700', Trivial:'bg-stone-100 text-stone-500'};
-                cols.innerHTML = COL_DEFS.map(c => {
-                    const items = defs.filter(d => d.status === c.key).slice(0, 30);
-                    return `<div class="bg-white rounded-lg border ${c.color} p-2 min-h-[200px] kanban-col" data-col-status="${c.key}" ondragover="kanbanDragOver(event)" ondragleave="kanbanDragLeave(event)" ondrop="kanbanDrop(event)">
-                        <div class="text-xs font-bold text-stone-700 px-1 pb-2 flex items-center justify-between">
-                            <span>${_esc(c.label)}</span>
-                            <span class="text-stone-400 font-mono">${items.length}</span>
-                        </div>
-                        <div class="space-y-2">${items.map(d => `<div class="bg-white border border-stone-200 rounded p-2 cursor-move hover:border-blue-300 shadow-sm kanban-card" draggable="true" data-defect-id="${_esc(d.id)}" ondragstart="kanbanDragStart(event)" ondragend="kanbanDragEnd(event)" ondblclick="openDefectModal('${_esc(d.id)}')" title="拖移到其他欄變更狀態；雙擊編輯">
-                            <div class="text-[10px] font-mono text-stone-400">${_esc(d.code)}</div>
-                            <div class="text-xs font-semibold text-stone-800 line-clamp-2">${_esc(d.title)}</div>
-                            <div class="flex items-center justify-between mt-1">
-                                <span class="text-[10px] px-1.5 py-0.5 rounded ${sevBadge[d.severity]||''}">${_esc(_zh('defSeverity', d.severity))}</span>
-                                <span class="text-[10px] text-stone-400">${_esc(d.assignee||'未指派')}</span>
-                            </div>
-                        </div>`).join('')||'<div class="text-xs text-stone-400 text-center py-2">無</div>'}</div>
-                    </div>`;
-                }).join('');
+                renderKanbanColumns(cols, defs);
             } catch(e) {
                 cols.innerHTML = `<div class="col-span-6 p-6 text-center text-red-500">載入失敗：${_esc(e.message)}</div>`;
             }
         }
 
         // ─── 看板拖移：改變缺陷狀態 ───────────────────────────────────────
-        // _kanbanDragId 紀錄目前正在拖移的缺陷 id；_kanbanDragFromStatus 是來源欄狀態，
-        // 用來在拖回相同欄位時跳過 PUT。
+        // _kanbanDragId / _kanbanDragFromStatus：拖移中暫存
+        // _kanbanDidDrag：用來區分 click vs drag（draggable=true 的元件，純點擊也會
+        // 觸發短暫的 dragstart/dragend；我們需要避免拖完一放鬆就觸發 onclick）
         let _kanbanDragId = null;
         let _kanbanDragFromStatus = null;
+        let _kanbanDidDrag = false;
+
         function kanbanDragStart(ev) {
             const card = ev.currentTarget;
             _kanbanDragId = card.dataset.defectId;
             const fromCol = card.closest('.kanban-col');
-            _kanbanDragFromStatus = fromCol ? fromCol.dataset.colStatus : null;
+            _kanbanDragFromStatus = fromCol ? fromCol.dataset.colStatus : (card.dataset.defectStatus || null);
+            _kanbanDidDrag = true;
             ev.dataTransfer.effectAllowed = 'move';
-            try { ev.dataTransfer.setData('text/plain', _kanbanDragId); } catch (_) { /* IE/Edge fallback */ }
+            try { ev.dataTransfer.setData('text/plain', _kanbanDragId); } catch (_) {}
             card.classList.add('dragging');
         }
         function kanbanDragEnd(ev) {
             ev.currentTarget.classList.remove('dragging');
             document.querySelectorAll('.kanban-col').forEach(c => c.classList.remove('drag-over'));
+            // 等 click 事件 (緊接著的 mouseup) 處理完再清旗標
+            setTimeout(() => { _kanbanDidDrag = false; }, 50);
             _kanbanDragId = null;
             _kanbanDragFromStatus = null;
         }
@@ -10582,10 +10582,15 @@ driver.swipe(100, 800, 100, 200, 500)"
             ev.currentTarget.classList.add('drag-over');
         }
         function kanbanDragLeave(ev) {
-            // 注意：dragleave 會在進入子元素時誤觸；用 relatedTarget 判斷是否真的離開欄位
             const col = ev.currentTarget;
             const to = ev.relatedTarget;
             if (!to || !col.contains(to)) col.classList.remove('drag-over');
+        }
+        function kanbanCardClick(ev, defectId) {
+            // 拖移過程中，瀏覽器在某些瀏覽器會在 dragend 後丟一個 click，
+            // 避免「拖完就誤開編輯彈窗」
+            if (_kanbanDidDrag) { ev.preventDefault(); return; }
+            openDefectModal(defectId);
         }
         async function kanbanDrop(ev) {
             ev.preventDefault();
@@ -10594,12 +10599,17 @@ driver.swipe(100, 800, 100, 200, 500)"
             col.classList.remove('drag-over');
             const id = _kanbanDragId;
             const fromStatus = _kanbanDragFromStatus;
+            const newStatus = col.dataset.colStatus;
+            // 注意：不在這裡清 _kanbanDidDrag，要交給 dragend 的 setTimeout
             _kanbanDragId = null;
             _kanbanDragFromStatus = null;
-            const newStatus = col.dataset.colStatus;
             if (!id || !newStatus) return;
-            // 同欄位拖放 → 不打 API
             if (fromStatus === newStatus) return;
+            // ── 樂觀更新：先在 _defectsCache 改狀態 + 重畫，讓使用者立刻看到變化 ──
+            const cached = (Array.isArray(_defectsCache) ? _defectsCache : []).find(d => d.id === id);
+            const prevStatus = cached ? cached.status : null;
+            if (cached) cached.status = newStatus;
+            renderTestKanbanFromCache();
             try {
                 const res = await fetch('/api/defects/' + id, {
                     method: 'PUT',
@@ -10611,13 +10621,28 @@ driver.swipe(100, 800, 100, 200, 500)"
                     try { const err = await res.json(); detail = err.detail || detail; } catch (_) {}
                     throw new Error(detail);
                 }
+                const saved = await res.json();
+                // 用後端真實值更新 cache（含 closed_at 等同步寫入的欄位）
+                if (cached) Object.assign(cached, saved);
                 showToast(`狀態已改為「${_zh('defStatus', newStatus)}」`, 'success');
+                // 全量 refetch 一次以確保 stats / KPIs 也同步
                 renderTestKanban();
             } catch (e) {
                 showToast('狀態更新失敗：' + e.message, 'error');
-                // 失敗時重新整理避免 UI 與 DB 不同步
+                // 還原 cache
+                if (cached && prevStatus !== null) cached.status = prevStatus;
                 renderTestKanban();
             }
+        }
+
+        // 用目前的 _defectsCache 即時重畫看板（不打 API） — 樂觀更新用
+        let _kanbanLastDefects = [];
+        function renderTestKanbanFromCache() {
+            const cols = document.getElementById('kanbanColumns');
+            if (!cols || !Array.isArray(_kanbanLastDefects)) return;
+            // 用最新的 _defectsCache 覆蓋（若存在），否則用 _kanbanLastDefects
+            const defs = (Array.isArray(_defectsCache) && _defectsCache.length) ? _defectsCache : _kanbanLastDefects;
+            renderKanbanColumns(cols, defs);
         }
 
         // ─── 測試專案 (Test Projects) ────────────────────────────────────
@@ -10844,6 +10869,133 @@ driver.swipe(100, 800, 100, 200, 500)"
         function dsSetCell(ri, col, val) {
             if (_dsRows[ri]) _dsRows[ri][col] = val;
         }
+        // 匯入 JSON：每個檔案會展平成 (key, value) pairs，
+        // 多檔合併進同一個資料集 — 第一份檔案決定欄位名稱（通常會是 [檔案名稱, key, value] 三欄結構，
+        // 但這裡採取較直觀的 flatten：將 JSON 物件的各 leaf 攤成一列；多檔則加一個檔名欄位區分）。
+        async function dsImportJson(event) {
+            const files = Array.from(event.target.files || []);
+            if (!files.length) return;
+            const readFile = (file) => new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const obj = JSON.parse(e.target.result);
+                        resolve({ ok: true, name: file.name, json: obj });
+                    } catch (err) {
+                        resolve({ ok: false, name: file.name, error: err.message });
+                    }
+                };
+                reader.onerror = () => resolve({ ok: false, name: file.name, error: 'read failed' });
+                reader.readAsText(file);
+            });
+            const results = await Promise.all(files.map(readFile));
+            const errors = results.filter(r => !r.ok);
+            const oks = results.filter(r => r.ok);
+            if (!oks.length) {
+                showToast(`匯入失敗：${errors.map(e => e.name + '(' + e.error + ')').join(', ')}`, 'error');
+                event.target.value = '';
+                return;
+            }
+
+            // 策略：
+            // (1) 若每筆 JSON 都是「物件」(非陣列)，把它們當作「一列 = 一個檔」
+            //     → 欄位 = 所有檔案 keys 的聯集（depth-1，巢狀展平成 key.path 形式），
+            //       第一欄是 __file__（檔名）。
+            // (2) 若 JSON 是「陣列且每個元素是物件」，把每個元素當作一列。
+            //     → 欄位 = 所有元素 keys 的聯集；__file__ 同前。
+            // (3) 其他形式（純值、多層巢狀陣列）：fallback 用舊版 flattenJsonToPairs，
+            //     一個檔展開成 [檔名, key, value] 三欄多列。
+            const newRows = [];
+            const colSet = new Set();
+            let useFallback = false;
+            for (const { name, json } of oks) {
+                if (Array.isArray(json) && json.every(x => x && typeof x === 'object' && !Array.isArray(x))) {
+                    json.forEach(obj => {
+                        const flat = _flattenObjectShallow(obj);
+                        const row = { __file__: name };
+                        Object.entries(flat).forEach(([k, v]) => { row[k] = v; colSet.add(k); });
+                        newRows.push(row);
+                    });
+                } else if (json && typeof json === 'object' && !Array.isArray(json)) {
+                    const flat = _flattenObjectShallow(json);
+                    const row = { __file__: name };
+                    Object.entries(flat).forEach(([k, v]) => { row[k] = v; colSet.add(k); });
+                    newRows.push(row);
+                } else {
+                    useFallback = true;
+                    break;
+                }
+            }
+            if (useFallback) {
+                // fallback：對每個檔案展平成 [檔名, key, value] 三欄
+                _dsCols = ['檔案名稱', 'Key', 'Value'];
+                _dsRows = [];
+                for (const { name, json } of oks) {
+                    flattenJsonToPairs(json, '').forEach(([k, v]) => {
+                        _dsRows.push({ '檔案名稱': name, 'Key': k, 'Value': String(v ?? '') });
+                    });
+                }
+            } else {
+                // 正常路徑
+                const newCols = ['__file__', ...Array.from(colSet)];
+                _dsCols = newCols;
+                _dsRows = newRows.map(r => {
+                    const row = {};
+                    newCols.forEach(c => { row[c] = r[c] ?? ''; });
+                    return row;
+                });
+            }
+            renderDataSetGrid();
+            const errMsg = errors.length ? `（${errors.length} 個檔案解析失敗）` : '';
+            showToast(`已匯入 ${oks.length} 個 JSON 檔，共 ${_dsRows.length} 列${errMsg}`, errors.length ? 'error' : 'success');
+            event.target.value = '';
+        }
+
+        // 把單層物件的值都轉成字串；遇到巢狀物件 / 陣列時再以點記法展開（一層即可，避免欄太多）
+        function _flattenObjectShallow(obj, prefix = '') {
+            const out = {};
+            if (obj === null || obj === undefined) return out;
+            if (typeof obj !== 'object') {
+                out[prefix || 'value'] = String(obj);
+                return out;
+            }
+            if (Array.isArray(obj)) {
+                out[prefix || 'value'] = JSON.stringify(obj);
+                return out;
+            }
+            Object.entries(obj).forEach(([k, v]) => {
+                const key = prefix ? `${prefix}.${k}` : k;
+                if (v !== null && typeof v === 'object') {
+                    Object.assign(out, _flattenObjectShallow(v, key));
+                } else {
+                    out[key] = v == null ? '' : (typeof v === 'string' ? v : String(v));
+                }
+            });
+            return out;
+        }
+
+        function dsExportJson() {
+            const data = _dsRows.map(r => {
+                const obj = {};
+                _dsCols.forEach(c => { obj[c] = r[c] ?? ''; });
+                return obj;
+            });
+            const name = (document.getElementById('dsName').value || 'dataset').trim().replace(/[^\w一-鿿-]+/g, '_');
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = `${name || 'dataset'}.json`;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }
+
+        function dsClearGrid() {
+            if (!confirm('確定清空所有欄位與資料列？此動作不會立即儲存。')) return;
+            _dsCols = [];
+            _dsRows = [];
+            renderDataSetGrid();
+        }
+
         async function dataSetSubmit(ev) {
             ev.preventDefault();
             const payload = {
@@ -11125,6 +11277,240 @@ driver.swipe(100, 800, 100, 200, 500)"
                 showToast('已刪除', 'success');
                 renderDocumentsList();
             } catch(e) { showToast('刪除失敗：'+e.message, 'error'); }
+        }
+
+        // ─── WBS (Work Breakdown Structure) ──────────────────────────────
+        const _WBS_STATUS = { NotStarted:'未開始', InProgress:'進行中', Completed:'已完成', Blocked:'已阻擋', Cancelled:'已取消' };
+        const _WBS_STATUS_COLOR = { NotStarted:'bg-stone-100 text-stone-600', InProgress:'bg-amber-100 text-amber-700', Completed:'bg-emerald-100 text-emerald-700', Blocked:'bg-rose-100 text-rose-700', Cancelled:'bg-stone-200 text-stone-500' };
+        const _WBS_BAR_COLOR = { NotStarted:'bg-stone-300', InProgress:'bg-amber-400', Completed:'bg-emerald-500', Blocked:'bg-rose-400', Cancelled:'bg-stone-300' };
+        let _wbsCache = [];                  // 平面陣列
+        let _editingWbsId = null;
+        const _wbsExpanded = new Set();      // 展開的節點 id
+
+        function showWbsView() {
+            if (!_setView('wbsWorkspace',
+                '<i class="fa-solid fa-sitemap text-yellow-500"></i> WBS · 工作分解結構',
+                'WBS',
+                'bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded font-medium',
+                'WBS')) return;
+            loadWbsAndRender();
+        }
+
+        async function loadWbsAndRender() {
+            const pid = currentProjectId;
+            const body = document.getElementById('wbsTreeBody');
+            if (!pid) {
+                body.innerHTML = '<div class="p-6 text-center text-stone-400">請先選擇專案</div>';
+                ['wbs_kpi_notstarted','wbs_kpi_inprogress','wbs_kpi_completed','wbs_kpi_blocked','wbs_kpi_effort'].forEach(i => document.getElementById(i).textContent = '—');
+                document.getElementById('wbsListCount').textContent = '0';
+                document.getElementById('wbsOverallProgress').textContent = '0%';
+                return;
+            }
+            body.innerHTML = '<div class="p-6 text-center text-stone-400">載入中…</div>';
+            try {
+                const res = await fetch('/api/wbs?project_id=' + encodeURIComponent(pid));
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                _wbsCache = await res.json();
+                renderWbsTree();
+                renderWbsKpis();
+                refreshWbsParentOptions();
+            } catch (e) {
+                body.innerHTML = `<div class="p-6 text-center text-red-500">載入失敗：${_esc(e.message)}</div>`;
+            }
+        }
+
+        function renderWbsKpis() {
+            const total = _wbsCache.length;
+            const counts = { NotStarted:0, InProgress:0, Completed:0, Blocked:0, Cancelled:0 };
+            let totalEffort = 0, weightedProgress = 0;
+            _wbsCache.forEach(w => {
+                counts[w.status] = (counts[w.status] || 0) + 1;
+                totalEffort += parseFloat(w.effort_hours || 0) || 0;
+                weightedProgress += (parseInt(w.progress, 10) || 0);
+            });
+            document.getElementById('wbs_kpi_notstarted').textContent = counts.NotStarted;
+            document.getElementById('wbs_kpi_inprogress').textContent = counts.InProgress;
+            document.getElementById('wbs_kpi_completed').textContent = counts.Completed;
+            document.getElementById('wbs_kpi_blocked').textContent = counts.Blocked;
+            document.getElementById('wbs_kpi_effort').textContent = totalEffort ? totalEffort.toFixed(1) + 'h' : '—';
+            document.getElementById('wbsListCount').textContent = total;
+            document.getElementById('wbsOverallProgress').textContent = total ? Math.round(weightedProgress / total) + '%' : '0%';
+        }
+
+        function refreshWbsParentOptions() {
+            const sel = document.getElementById('wbsParent');
+            if (!sel) return;
+            const editingId = _editingWbsId;
+            // 把樹狀關係扁平化成 "縮排前綴 + 名稱" 列表（避免循環：編輯時不能選自己或自己的後代）
+            const tree = _buildWbsTree(_wbsCache);
+            const out = ['<option value="">— 頂層 —</option>'];
+            (function walk(nodes, depth) {
+                for (const n of nodes) {
+                    const isSelf = n.id === editingId;
+                    const indent = '— '.repeat(depth);
+                    out.push(`<option value="${_esc(n.id)}" ${isSelf ? 'disabled' : ''}>${indent}${_esc(n.code)} · ${_esc(n.name)}${isSelf ? ' (本身)' : ''}</option>`);
+                    if (n.children && n.children.length) walk(n.children, depth + 1);
+                }
+            })(tree, 0);
+            sel.innerHTML = out.join('');
+        }
+
+        function _buildWbsTree(flat) {
+            const byId = new Map();
+            const roots = [];
+            for (const it of flat) byId.set(it.id, { ...it, children: [] });
+            for (const it of flat) {
+                const node = byId.get(it.id);
+                if (it.parent_id && byId.has(it.parent_id)) byId.get(it.parent_id).children.push(node);
+                else roots.push(node);
+            }
+            return roots;
+        }
+
+        function wbsExpandAll(expand) {
+            _wbsExpanded.clear();
+            if (expand) _wbsCache.forEach(w => _wbsExpanded.add(w.id));
+            renderWbsTree();
+        }
+
+        function renderWbsTree() {
+            const body = document.getElementById('wbsTreeBody');
+            if (!body) return;
+            const kw = (document.getElementById('wbsSearch')?.value || '').toLowerCase().trim();
+            const stf = document.getElementById('wbsStatusFilter')?.value || '';
+            // 過濾後重建樹（任何祖先要保留以維持階層；簡化做法：先標記命中節點與其祖先）
+            const matching = new Set();
+            if (kw || stf) {
+                const byId = new Map(_wbsCache.map(w => [w.id, w]));
+                _wbsCache.forEach(w => {
+                    let okKw = true, okSt = true;
+                    if (kw) okKw = (w.name||'').toLowerCase().includes(kw) || (w.code||'').toLowerCase().includes(kw) || (w.assignee||'').toLowerCase().includes(kw);
+                    if (stf) okSt = (w.status === stf);
+                    if (okKw && okSt) {
+                        let cur = w;
+                        while (cur) {
+                            matching.add(cur.id);
+                            cur = cur.parent_id ? byId.get(cur.parent_id) : null;
+                        }
+                    }
+                });
+            }
+            const tree = _buildWbsTree(_wbsCache);
+            const out = [];
+            const renderNode = (n, depth) => {
+                if ((kw || stf) && !matching.has(n.id)) return;
+                const hasChildren = n.children && n.children.length;
+                const expanded = _wbsExpanded.has(n.id);
+                const stCls = _WBS_STATUS_COLOR[n.status] || 'bg-stone-100';
+                const barCls = _WBS_BAR_COLOR[n.status] || 'bg-stone-300';
+                const progress = Math.max(0, Math.min(100, parseInt(n.progress, 10) || 0));
+                const indentPx = depth * 18;
+                out.push(`<div class="grid grid-cols-12 gap-2 px-3 py-2 border-b border-stone-100 hover:bg-amber-50/40 items-center">
+                    <div class="col-span-5 flex items-center gap-1" data-indent="${indentPx}" style="padding-left:${indentPx}px">
+                        ${hasChildren
+                            ? `<button type="button" class="w-5 h-5 flex items-center justify-center text-stone-400 hover:text-yellow-600" onclick="wbsToggleNode('${_esc(n.id)}')" aria-label="${expanded ? '收合' : '展開'}子項目"><i class="fa-solid ${expanded ? 'fa-chevron-down' : 'fa-chevron-right'} text-xs"></i></button>`
+                            : '<span class="w-5 inline-block"></span>'}
+                        <span class="font-mono text-[11px] text-stone-400">${_esc(n.code)}</span>
+                        <span class="font-semibold text-stone-800 truncate" title="${_esc(n.name)}">${_esc(n.name)}</span>
+                    </div>
+                    <div class="col-span-2"><span class="text-xs px-2 py-0.5 rounded font-medium ${stCls}">${_esc(_WBS_STATUS[n.status] || n.status)}</span></div>
+                    <div class="col-span-2 text-xs text-stone-600 truncate">${_esc(n.assignee || '—')}</div>
+                    <div class="col-span-2">
+                        <div class="h-3 bg-stone-100 rounded-full overflow-hidden relative">
+                            <div class="h-full ${barCls}" data-progress="${progress}"></div>
+                            <span class="absolute inset-0 flex items-center justify-center text-[10px] font-mono text-stone-700">${progress}%</span>
+                        </div>
+                    </div>
+                    <div class="col-span-1 text-right whitespace-nowrap space-x-1">
+                        <button onclick="openWbsModal(null, '${_esc(n.id)}')" title="新增子項" class="text-xs px-1.5 py-1 bg-yellow-50 text-yellow-700 border border-yellow-200 hover:bg-yellow-100 rounded"><i class="fa-solid fa-plus"></i></button>
+                        <button onclick="openWbsModal('${_esc(n.id)}')" title="編輯" class="text-xs px-1.5 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded"><i class="fa-solid fa-pen"></i></button>
+                        <button onclick="deleteWbs('${_esc(n.id)}','${_esc(n.code)}')" title="刪除" class="text-xs px-1.5 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded"><i class="fa-solid fa-trash"></i></button>
+                    </div>
+                </div>`);
+                if (hasChildren && expanded) {
+                    n.children.forEach(c => renderNode(c, depth + 1));
+                }
+            };
+            tree.forEach(r => renderNode(r, 0));
+            body.innerHTML = out.length ? out.join('') : '<div class="p-6 text-center text-stone-400">尚無 WBS 項目，點右上角「新增項目」開始拆解工作。</div>';
+            // 用 dataset 寫入 width，避免 inline style lint warning
+            body.querySelectorAll('[data-progress]').forEach(el => { el.style.width = el.dataset.progress + '%'; });
+        }
+
+        function wbsToggleNode(id) {
+            if (_wbsExpanded.has(id)) _wbsExpanded.delete(id);
+            else _wbsExpanded.add(id);
+            renderWbsTree();
+        }
+
+        function openWbsModal(id, parentId) {
+            if (!currentProjectId) { showToast('請先選擇專案', 'error'); return; }
+            _editingWbsId = id || null;
+            const r = id ? _wbsCache.find(x => x.id === id) : null;
+            document.getElementById('wbsModalTitle').innerHTML = r
+                ? `<i class="fa-solid fa-sitemap text-yellow-500"></i> 編輯 WBS · ${_esc(r.code)}`
+                : '<i class="fa-solid fa-sitemap text-yellow-500"></i> 新增 WBS 工作項目';
+            document.getElementById('wbsName').value = r?.name || '';
+            document.getElementById('wbsCode').value = r?.code || '';
+            document.getElementById('wbsStatus').value = r?.status || 'NotStarted';
+            document.getElementById('wbsProgress').value = r?.progress ?? 0;
+            document.getElementById('wbsAssignee').value = r?.assignee || (typeof authCurrentUsername === 'function' ? (authCurrentUsername()||'') : '');
+            document.getElementById('wbsStart').value = r?.start_date || '';
+            document.getElementById('wbsEnd').value = r?.end_date || '';
+            document.getElementById('wbsEffort').value = r?.effort_hours ?? '';
+            document.getElementById('wbsDesc').value = r?.description || '';
+            // 父項目選單：確保剛拉的選項是最新的（且可禁用自己）
+            refreshWbsParentOptions();
+            const parentSel = document.getElementById('wbsParent');
+            parentSel.value = (r?.parent_id || parentId || '');
+            document.getElementById('wbsModal').classList.remove('hidden');
+        }
+        function closeWbsModal() { document.getElementById('wbsModal').classList.add('hidden'); _editingWbsId = null; }
+
+        async function wbsSubmit(ev) {
+            ev.preventDefault();
+            const payload = {
+                project_id: currentProjectId,
+                parent_id: document.getElementById('wbsParent').value || null,
+                code: document.getElementById('wbsCode').value.trim() || null,
+                name: document.getElementById('wbsName').value.trim(),
+                description: document.getElementById('wbsDesc').value || null,
+                status: document.getElementById('wbsStatus').value,
+                progress: parseInt(document.getElementById('wbsProgress').value, 10) || 0,
+                assignee: document.getElementById('wbsAssignee').value.trim() || null,
+                start_date: document.getElementById('wbsStart').value || null,
+                end_date: document.getElementById('wbsEnd').value || null,
+                effort_hours: parseFloat(document.getElementById('wbsEffort').value) || null,
+            };
+            try {
+                const url = _editingWbsId ? '/api/wbs/' + _editingWbsId : '/api/wbs';
+                const method = _editingWbsId ? 'PUT' : 'POST';
+                const res = await fetch(url, { method, headers: { 'Content-Type':'application/json' }, body: JSON.stringify(payload) });
+                if (!res.ok) {
+                    let detail = 'HTTP ' + res.status;
+                    try { const err = await res.json(); detail = err.detail || detail; } catch (_) {}
+                    throw new Error(detail);
+                }
+                const saved = await res.json();
+                // 自動展開父項，讓使用者看到剛建立的子項
+                if (saved.parent_id) _wbsExpanded.add(saved.parent_id);
+                showToast(_editingWbsId ? '已更新' : '已建立', 'success');
+                closeWbsModal();
+                await loadWbsAndRender();
+            } catch (e) {
+                showToast('儲存失敗：' + e.message, 'error');
+            }
+            return false;
+        }
+
+        async function deleteWbs(id, code) {
+            if (!confirm(`確定刪除 ${code}？此項目的所有子項目也會一併刪除。`)) return;
+            try {
+                const res = await fetch('/api/wbs/' + id, { method:'DELETE' });
+                if (!res.ok && res.status !== 204) throw new Error('HTTP ' + res.status);
+                showToast('已刪除', 'success');
+                await loadWbsAndRender();
+            } catch (e) { showToast('刪除失敗：' + e.message, 'error'); }
         }
 
         // 預設新文件範本：讓使用者一進來就有一份完整 markdown + mermaid 範例

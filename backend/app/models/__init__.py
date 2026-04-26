@@ -17,6 +17,7 @@ from .test_milestone import MilestoneStatus, TestMilestone
 from .test_plan import TestPlan, TestPlanStatus
 from .testcase_content import TestcaseContent
 from .tree_node import LevelType, TreeNode
+from .wbs_item import WbsItem, WbsStatus
 
 __all__ = [
     "Base",
@@ -37,4 +38,5 @@ __all__ = [
     "RequirementStatus", "RequirementTestcaseLink",
     "TestDataSet", "DataSetCategory",
     "TestDocument", "DocumentCategory",
+    "WbsItem", "WbsStatus",
 ]
