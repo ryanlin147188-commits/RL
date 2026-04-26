@@ -1,6 +1,10 @@
-"""Auth REST endpoints — 登入 / 登出 / 取得當前使用者 / 變更密碼 / 管理使用者。"""
-from __future__ import annotations
+"""Auth REST endpoints — 登入 / 登出 / 取得當前使用者 / 變更密碼 / 管理使用者。
 
+注意：此檔不寫 `from __future__ import annotations`；slowapi 的 @limiter.limit
+裝飾器會讀取 function signature 做型別內省，搭配延後求值的 forward-ref
+（如 `payload: LoginRequest`）會在 FastAPI 註冊路由時拋
+`PydanticUndefinedAnnotation`。
+"""
 from datetime import datetime
 from typing import Optional
 
@@ -18,6 +22,7 @@ from app.auth.security import (
     hash_password,
     verify_password,
 )
+from app.rate_limit import limiter
 from app.database import get_db
 from app.models.role import Role
 from app.models.user import User
@@ -34,7 +39,8 @@ router = APIRouter()
 
 
 @router.post("/auth/login", response_model=TokenResponse, tags=["U · 認證"])
-async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
+@limiter.limit("10/minute")          # 暴力破解防護：同一 IP 每分鐘最多 10 次登入嘗試
+async def login(request: Request, payload: LoginRequest, db: AsyncSession = Depends(get_db)):
     user = (
         await db.execute(select(User).where(User.username == payload.username))
     ).scalar_one_or_none()

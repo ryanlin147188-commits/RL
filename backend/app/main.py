@@ -18,6 +18,10 @@ from app.models import (  # noqa: F401
 )
 from app.middleware import AuthMiddleware
 from app.audit import AuditMiddleware
+from app.rate_limit import limiter
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from app.services.schedule_service import scheduler_loop
 
 
@@ -202,6 +206,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Rate limiting：必須在 AuthMiddleware「之後 add」，這樣 dispatch 順序是
+# Auth → SlowAPI → Audit → handler；slowapi 會看到 request.state.user_payload
+# 來把 default key 從 IP 改成 user:<username>。
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 # Audit log middleware：要在 Auth 之前 add（add 順序與執行順序相反，
 # 所以 dispatch 順序為 Auth → Audit → handler）；確保 Audit 能看到 user_payload

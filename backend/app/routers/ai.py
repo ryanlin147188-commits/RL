@@ -1,9 +1,11 @@
-"""AI 相關 REST endpoints — 目前包含「從需求生成測試案例」MVP。"""
-from __future__ import annotations
+"""AI 相關 REST endpoints — 目前包含「從需求生成測試案例」MVP。
 
+(同 auth.py：刻意不開啟 `from __future__ import annotations`，避免
+與 slowapi `@limiter.limit` 的型別內省衝突。)
+"""
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,6 +13,7 @@ from app.auth.dependencies import get_current_user
 from app.database import get_db
 from app.models.requirement import Requirement
 from app.models.user import User
+from app.rate_limit import limiter
 from app.services.ai_test_gen import generate_testcases_from_requirement
 
 router = APIRouter()
@@ -40,7 +43,9 @@ class AiGenerateResponse(BaseModel):
     response_model=AiGenerateResponse,
     tags=["V · AI"],
 )
+@limiter.limit("30/hour")            # AI 是昂貴資源：每使用者每小時 30 次（about 1 次/2 分鐘）
 async def generate_testcases_from_req(
+    request: Request,
     req_id: str,
     payload: AiGenerateRequest,
     user: User = Depends(get_current_user),
