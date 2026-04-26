@@ -392,84 +392,124 @@
         </div>
     </div>
 
-    <!-- 頂部導覽列 -->
-    <header class="bg-white border-b border-amber-100 h-14 flex items-center justify-between px-4 md:px-6 shrink-0 z-[100] shadow-sm relative">
-        <div class="flex items-center gap-2">
-            <!-- 手機版：側邊欄開關（hamburger）— 僅 < md 顯示 -->
-            <button type="button" id="sidebarMobileToggle" onclick="toggleMobileSidebar()"
-                class="md:hidden p-2 text-stone-600 hover:text-amber-600 hover:bg-amber-50 rounded transition"
-                aria-label="開啟側邊欄" title="開啟專案目錄">
-                <i class="fa-solid fa-bars text-lg"></i>
-            </button>
-            <!-- Logo 區：點擊回首頁 -->
-            <button type="button" id="navHomeBtn" onclick="showHomeView()" title="回首頁" aria-label="回首頁"
-                class="flex items-center gap-2 md:gap-3 hover:opacity-80 transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 rounded">
-                <div class="bg-blue-600 text-white p-1.5 rounded-md shadow-inner">
-                    <i class="fa-solid fa-vial-circle-check"></i>
-                </div>
-                <h1 class="font-bold text-base md:text-lg text-slate-700 tracking-tight whitespace-nowrap">AutoTest <span class="hidden sm:inline text-xs text-slate-400 font-normal ml-2 border border-slate-200 px-1.5 py-0.5 rounded">v1.0</span></h1>
-            </button>
+    <!-- 頂部導覽列：兩列佈局（規劃/設定 上排；執行/監控 下排）-->
+    <header class="bg-white border-b border-amber-100 flex flex-col shrink-0 z-[100] shadow-sm relative">
+        <!-- ── 上排：Logo（左）+ 規劃/設定 nav（中）+ 使用者選單（右）── -->
+        <div class="h-14 flex items-center justify-between px-4 md:px-6">
+            <div class="flex items-center gap-2">
+                <button type="button" id="sidebarMobileToggle" onclick="toggleMobileSidebar()"
+                    class="md:hidden p-2 text-stone-600 hover:text-amber-600 hover:bg-amber-50 rounded transition"
+                    aria-label="開啟側邊欄" title="開啟專案目錄">
+                    <i class="fa-solid fa-bars text-lg"></i>
+                </button>
+                <button type="button" id="navHomeBtn" onclick="showHomeView()" title="回首頁" aria-label="回首頁"
+                    class="flex items-center gap-2 md:gap-3 hover:opacity-80 transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 rounded">
+                    <div class="bg-blue-600 text-white p-1.5 rounded-md shadow-inner">
+                        <i class="fa-solid fa-vial-circle-check"></i>
+                    </div>
+                    <h1 class="font-bold text-base md:text-lg text-slate-700 tracking-tight whitespace-nowrap">AutoTest <span class="hidden sm:inline text-xs text-slate-400 font-normal ml-2 border border-slate-200 px-1.5 py-0.5 rounded">v1.0</span></h1>
+                </button>
+            </div>
+            <!-- 第一列：規劃 & 設計 / 設定 -->
+            <div class="hidden md:flex items-center gap-2 md:gap-3 xl:gap-5 flex-1 justify-center px-4">
+                <span class="hidden 2xl:inline text-[10px] text-stone-400 font-bold uppercase tracking-wider">規劃</span>
+                <button type="button" onclick="showTestPlanView()" id="navTestPlanBtn" title="測試計畫"
+                    class="text-slate-500 hover:text-blue-600 font-medium transition flex items-center gap-2">
+                    <i class="fa-solid fa-clipboard-list"></i>
+                    <span class="hidden xl:inline">測試計畫</span>
+                </button>
+                <button type="button" onclick="showRequirementsView()" id="navRequirementsBtn" title="需求 / RTM 追溯矩陣"
+                    class="text-slate-500 hover:text-cyan-600 font-medium transition flex items-center gap-2">
+                    <i class="fa-solid fa-diagram-project"></i>
+                    <span class="hidden xl:inline">需求/RTM</span>
+                </button>
+                <button type="button" onclick="showTestCasesView()" id="navTestCasesBtn" title="測試案例"
+                    class="text-slate-500 hover:text-blue-600 font-medium transition flex items-center gap-2">
+                    <i class="fa-solid fa-list-check"></i>
+                    <span class="hidden xl:inline">測試案例</span>
+                </button>
+                <span class="hidden 2xl:inline text-[10px] text-stone-400 font-bold uppercase tracking-wider ml-2">設定</span>
+                <button type="button" onclick="showDevicesView()" id="navDevicesBtn" title="設備資訊"
+                    class="text-slate-500 hover:text-rose-600 font-medium transition flex items-center gap-2">
+                    <i class="fa-solid fa-mobile-screen"></i>
+                    <span class="hidden xl:inline">設備資訊</span>
+                </button>
+                <button type="button" onclick="showEnvVarsView()" id="navEnvVarsBtn" title="環境變數"
+                    class="text-slate-500 hover:text-emerald-600 font-medium transition flex items-center gap-2">
+                    <i class="fa-solid fa-key"></i>
+                    <span class="hidden xl:inline">環境變數</span>
+                </button>
+                <button type="button" onclick="showDbConfigView()" id="navDbConfigBtn" title="DB 資訊"
+                    class="text-slate-500 hover:text-indigo-600 font-medium transition flex items-center gap-2">
+                    <i class="fa-solid fa-database"></i>
+                    <span class="hidden xl:inline">DB資訊</span>
+                </button>
+                <button type="button" onclick="showMockView()" id="navMockBtn" title="Mock 端點管理"
+                    class="text-slate-500 hover:text-amber-600 font-medium transition flex items-center gap-2">
+                    <i class="fa-solid fa-plug"></i>
+                    <span class="hidden xl:inline">Mock</span>
+                </button>
+            </div>
+            <!-- 右側使用者區：名稱 / 登出 / 暗黑切換 -->
+            <div class="flex items-center gap-3 md:gap-4">
+                <button type="button" id="userMenuBtn" onclick="showUserSettingsView()" aria-label="使用者設定" title="點擊進入使用者設定"
+                    class="flex items-center gap-2 cursor-pointer hover:bg-amber-50 p-1 rounded transition focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400">
+                    <div id="userMenuAvatar" class="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white font-bold shadow-sm shrink-0">A</div>
+                    <span id="userMenuName" class="hidden sm:inline text-sm font-semibold text-stone-700">admin</span>
+                </button>
+                <div class="h-6 w-px bg-stone-200"></div>
+                <button type="button" onclick="authLogout()" title="登出" aria-label="登出"
+                    class="flex items-center gap-1.5 px-3 h-9 rounded border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 transition text-sm font-medium">
+                    <i class="fa-solid fa-right-from-bracket"></i>
+                    <span class="hidden sm:inline">登出</span>
+                </button>
+                <div class="h-6 w-px bg-stone-200"></div>
+                <button type="button" id="themeToggleBtn" onclick="toggleDarkMode()" title="切換暗黑模式" aria-label="切換暗黑模式"
+                    class="w-9 h-9 flex items-center justify-center rounded-full border border-stone-200 hover:bg-amber-50 hover:border-amber-300 transition text-stone-600">
+                    <i id="themeToggleIcon" class="fa-solid fa-moon text-sm"></i>
+                </button>
+            </div>
         </div>
-        <!-- 桌面版橫向選單（md 以上顯示）；< md 改由使用者選單內建導覽
-             策略：每個 label 包在 <span class="hidden xl:inline">；md~xl 區間僅顯示 icon -->
-        <div class="hidden md:flex items-center gap-2 md:gap-3 xl:gap-5 flex-wrap">
-            <!-- 設備資訊 -->
-            <button type="button" onclick="showDevicesView()" id="navDevicesBtn" title="設備資訊"
-                class="text-slate-500 hover:text-rose-600 font-medium transition flex items-center gap-2">
-                <i class="fa-solid fa-mobile-screen"></i>
-                <span class="hidden xl:inline">設備資訊</span>
+        <!-- ── 下排：執行 / 監控 nav + 環境切換 ── -->
+        <div class="hidden md:flex h-12 items-center gap-2 md:gap-3 xl:gap-5 px-4 md:px-6 border-t border-amber-50">
+            <span class="text-[10px] text-stone-400 font-bold uppercase tracking-wider mr-auto">執行 / 監控</span>
+            <button type="button" onclick="showTestMilestonesView()" id="navTestMilestonesBtn" title="測試時程"
+                class="text-slate-500 hover:text-teal-600 font-medium transition flex items-center gap-2">
+                <i class="fa-regular fa-calendar"></i>
+                <span class="hidden xl:inline">測試時程</span>
             </button>
-            <!-- 測試案例 -->
-            <button type="button" onclick="showTestCasesView()" id="navTestCasesBtn" title="測試案例"
-                class="text-slate-500 hover:text-blue-600 font-medium transition flex items-center gap-2">
-                <i class="fa-solid fa-list-check"></i>
-                <span class="hidden xl:inline">測試案例</span>
-            </button>
-            <!-- 環境變數 -->
-            <button type="button" onclick="showEnvVarsView()" id="navEnvVarsBtn" title="環境變數"
-                class="text-slate-500 hover:text-emerald-600 font-medium transition flex items-center gap-2">
-                <i class="fa-solid fa-key"></i>
-                <span class="hidden xl:inline">環境變數</span>
-            </button>
-            <!-- DB 資訊 -->
-            <button type="button" onclick="showDbConfigView()" id="navDbConfigBtn" title="DB 資訊"
-                class="text-slate-500 hover:text-indigo-600 font-medium transition flex items-center gap-2">
-                <i class="fa-solid fa-database"></i>
-                <span class="hidden xl:inline">DB資訊</span>
-            </button>
-            <!-- Mock -->
-            <button type="button" onclick="showMockView()" id="navMockBtn" title="Mock 端點管理"
-                class="text-slate-500 hover:text-amber-600 font-medium transition flex items-center gap-2">
-                <i class="fa-solid fa-plug"></i>
-                <span class="hidden xl:inline">Mock</span>
-            </button>
-            <!-- 測試回合 -->
             <button type="button" onclick="showTestRoundView()" id="navTestRoundBtn" title="測試回合"
                 class="text-slate-500 hover:text-purple-600 font-medium transition flex items-center gap-2">
                 <i class="fa-solid fa-layer-group"></i>
                 <span class="hidden xl:inline">測試回合</span>
             </button>
-            <!-- 測試報告 -->
-            <button type="button" onclick="showReportView()" id="navReportBtn" title="測試報告"
-                class="text-slate-500 hover:text-blue-600 font-medium transition flex items-center gap-2">
-                <i class="fa-solid fa-chart-pie"></i>
-                <span class="hidden xl:inline">測試報告</span>
-            </button>
-            <!-- 測試排程 -->
             <button onclick="showScheduleView()" id="navScheduleBtn" title="測試排程"
                 class="text-slate-500 hover:text-emerald-600 font-medium transition flex items-center gap-2">
                 <i class="fa-solid fa-calendar-days"></i>
                 <span class="hidden xl:inline">測試排程</span>
             </button>
-            <!-- 測試錄製 -->
             <button onclick="showRecorderView()" id="navRecorderBtn" title="測試錄製"
                 class="text-slate-500 hover:text-rose-600 font-medium transition flex items-center gap-2">
                 <i class="fa-solid fa-video"></i>
                 <span class="hidden xl:inline">測試錄製</span>
             </button>
-            <!-- 環境切換（Docker / 本機） -->
-            <div class="flex items-center gap-1">
-                <button type="button" id="envToggleBtn" onclick="toggleExecutionMode()" aria-label="切換執行環境" title="切換執行環境（點擊切換；本機模式 = 有頭瀏覽器，Docker 模式 = 無頭）"
+            <button type="button" onclick="showTestKanbanView()" id="navTestKanbanBtn" title="測試看版"
+                class="text-slate-500 hover:text-orange-600 font-medium transition flex items-center gap-2">
+                <i class="fa-solid fa-columns"></i>
+                <span class="hidden xl:inline">測試看版</span>
+            </button>
+            <button type="button" onclick="showReportView()" id="navReportBtn" title="測試報告"
+                class="text-slate-500 hover:text-blue-600 font-medium transition flex items-center gap-2">
+                <i class="fa-solid fa-chart-pie"></i>
+                <span class="hidden xl:inline">測試報告</span>
+            </button>
+            <button type="button" onclick="showDefectsView()" id="navDefectsBtn" title="缺陷管理"
+                class="text-slate-500 hover:text-red-600 font-medium transition flex items-center gap-2">
+                <i class="fa-solid fa-bug"></i>
+                <span class="hidden xl:inline">缺陷管理</span>
+            </button>
+            <div class="flex items-center gap-1 ml-2">
+                <button type="button" id="envToggleBtn" onclick="toggleExecutionMode()" aria-label="切換執行環境" title="切換執行環境（點擊切換；本機 = 有頭瀏覽器，Docker = 無頭）"
                     class="flex items-center gap-2 text-sm font-medium px-3 py-1 rounded border transition whitespace-nowrap">
                     <i class="fa-solid fa-server"></i>
                     <span class="hidden xl:inline">環境：</span>
@@ -480,44 +520,19 @@
                     <i class="fa-solid fa-circle-question"></i>
                 </button>
             </div>
-            <div class="h-6 w-px bg-stone-200"></div>
         </div>
-        <!-- 右側固定：使用者名稱 → 登出 → 暗黑模式（由左至右，三者之間用分隔線明確區分） -->
-        <div class="flex items-center gap-3 md:gap-4">
-            <!-- 使用者名稱（點擊直接進入使用者設定頁） -->
-            <button type="button" id="userMenuBtn" onclick="showUserSettingsView()" aria-label="使用者設定" title="點擊進入使用者設定"
-                class="flex items-center gap-2 cursor-pointer hover:bg-amber-50 p-1 rounded transition focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400">
-                <div id="userMenuAvatar" class="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white font-bold shadow-sm shrink-0">
-                    A
-                </div>
-                <span id="userMenuName" class="hidden sm:inline text-sm font-semibold text-stone-700">admin</span>
-            </button>
-            <!-- 分隔線 1 -->
-            <div class="h-6 w-px bg-stone-200"></div>
-            <!-- 登出按鈕 -->
-            <button type="button" onclick="authLogout()" title="登出" aria-label="登出"
-                class="flex items-center gap-1.5 px-3 h-9 rounded border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 transition text-sm font-medium">
-                <i class="fa-solid fa-right-from-bracket"></i>
-                <span class="hidden sm:inline">登出</span>
-            </button>
-            <!-- 分隔線 2 -->
-            <div class="h-6 w-px bg-stone-200"></div>
-            <!-- 暗黑模式切換（最右邊） -->
-            <button type="button" id="themeToggleBtn" onclick="toggleDarkMode()" title="切換暗黑模式" aria-label="切換暗黑模式"
-                class="w-9 h-9 flex items-center justify-center rounded-full border border-stone-200 hover:bg-amber-50 hover:border-amber-300 transition text-stone-600">
-                <i id="themeToggleIcon" class="fa-solid fa-moon text-sm"></i>
-            </button>
-        </div><!-- end 右側固定容器 -->
     </header>
 
     <!-- 主要內容區 -->
     <div class="flex-1 flex overflow-hidden relative">
 
         <!-- 手機版：側邊欄背景遮罩（點擊可關閉；僅 < md 顯示） -->
+        <!-- 行動版只有上排 h-14；下排 hidden md：流程 - 行動裝置走使用者選單 nav -->
         <div id="sidebarBackdrop" onclick="closeMobileSidebar()" class="hidden md:hidden fixed inset-0 top-14 bg-black/40 z-[45]"></div>
 
-        <!-- 左側面板：專案切換與動態樹狀圖（< md 以 drawer 呈現，≥ md inline）
-             注意：drawer 從 top-14 開始（header 高度 h-14 = 56px），避免覆蓋到頂部導覽列 -->
+        <!-- 左側面板：drawer < md / inline ≥ md
+             ≥ md：header 兩排 = 56 + 48 = 104px；用 top-[104px]
+             < md：只有上排 56px（hamburger 抽屜情境）；用 top-14 -->
         <aside id="sidebar" class="bg-amber-50/40 border-r border-amber-100 flex flex-col shrink-0 shadow-[2px_0_5px_rgba(0,0,0,0.02)] z-50 fixed md:relative top-14 bottom-0 md:top-auto md:bottom-auto md:inset-y-0 left-0 transform -translate-x-full md:translate-x-0 transition-transform duration-300 w-[85vw] max-w-[360px] md:max-w-none md:w-auto">
             <div class="p-4 border-b border-slate-200 flex flex-col gap-3 bg-white z-10">
                 
@@ -2391,6 +2406,297 @@ driver.swipe(100, 800, 100, 200, 500)"
                             </button>
                         </div>
                     </section>
+                </div>
+            </div>
+
+            <!-- ════════════════════════════════════════════════════════════════
+                 5 個測試管理擴充工作區（缺陷 / 時程 / 計畫 / 需求 / 看版）
+                 每個 workspace 都是 hidden 預設；由 show*View() 切換顯示。
+                 ════════════════════════════════════════════════════════════════ -->
+
+            <!-- ── 缺陷管理 ── -->
+            <div id="defectsWorkspace" class="flex-1 overflow-y-auto p-6 bg-amber-50/30 hidden">
+                <div class="max-w-7xl mx-auto">
+                    <div class="bg-white rounded-lg border border-red-100 shadow-sm p-4 mb-4">
+                        <div class="flex flex-wrap items-center gap-3">
+                            <div class="flex-1 min-w-[200px] relative">
+                                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm"></i>
+                                <input id="defSearch" type="search" oninput="renderDefectsList()" placeholder="搜尋缺陷標題、code…"
+                                    class="w-full pl-9 pr-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-400">
+                            </div>
+                            <select id="defStatusFilter" onchange="renderDefectsList()" aria-label="依狀態過濾" class="px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
+                                <option value="">全部狀態</option>
+                                <option value="New">New</option><option value="Assigned">Assigned</option>
+                                <option value="InProgress">InProgress</option><option value="Fixed">Fixed</option>
+                                <option value="Verified">Verified</option><option value="Closed">Closed</option>
+                                <option value="Reopened">Reopened</option><option value="WontFix">WontFix</option>
+                            </select>
+                            <select id="defSeverityFilter" onchange="renderDefectsList()" aria-label="依嚴重性過濾" class="px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
+                                <option value="">全部嚴重性</option>
+                                <option value="Critical">Critical</option><option value="Major">Major</option>
+                                <option value="Minor">Minor</option><option value="Trivial">Trivial</option>
+                            </select>
+                            <button onclick="renderDefectsList()" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
+                            <button onclick="openDefectModal()" class="px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded-md text-sm font-semibold shadow-sm"><i class="fa-solid fa-plus"></i> 新增缺陷</button>
+                            <div class="text-xs text-stone-500 ml-auto">共 <span id="defListCount" class="font-bold text-stone-700">0</span> 筆</div>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-lg border border-red-100 shadow-sm overflow-hidden">
+                        <table class="w-full text-sm">
+                            <thead class="bg-red-50/60 border-b border-red-100 text-stone-600 text-xs uppercase">
+                                <tr><th class="p-3 text-left w-24">代號</th><th class="p-3 text-left">標題</th><th class="p-3 w-28">嚴重性</th><th class="p-3 w-20">優先</th><th class="p-3 w-32">狀態</th><th class="p-3 w-28">指派</th><th class="p-3 w-32">建立時間</th><th class="p-3 w-32 text-center">操作</th></tr>
+                            </thead>
+                            <tbody id="defListBody" class="divide-y divide-stone-100"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── 測試時程 ── -->
+            <div id="testMilestonesWorkspace" class="flex-1 overflow-y-auto p-6 bg-amber-50/30 hidden">
+                <div class="max-w-7xl mx-auto">
+                    <div class="bg-white rounded-lg border border-teal-100 shadow-sm p-4 mb-4">
+                        <div class="flex flex-wrap items-center gap-3">
+                            <div class="flex-1 min-w-[200px] relative">
+                                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm"></i>
+                                <input id="msSearch" type="search" oninput="renderMilestonesList()" placeholder="搜尋時程名稱…"
+                                    class="w-full pl-9 pr-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
+                            </div>
+                            <select id="msStatusFilter" onchange="renderMilestonesList()" aria-label="依狀態過濾" class="px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
+                                <option value="">全部狀態</option>
+                                <option value="Planned">Planned</option><option value="InProgress">InProgress</option>
+                                <option value="Completed">Completed</option><option value="Cancelled">Cancelled</option>
+                            </select>
+                            <button onclick="renderMilestonesList()" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
+                            <button onclick="openMilestoneModal()" class="px-3 py-2 bg-teal-500 hover:bg-teal-600 text-white rounded-md text-sm font-semibold shadow-sm"><i class="fa-solid fa-plus"></i> 新增時程</button>
+                            <div class="text-xs text-stone-500 ml-auto">共 <span id="msListCount" class="font-bold text-stone-700">0</span> 筆</div>
+                        </div>
+                    </div>
+                    <!-- 時間軸視覺化（簡化 Gantt：橫條依日期長度） -->
+                    <div id="msGanttArea" class="bg-white rounded-lg border border-teal-100 shadow-sm p-4 mb-4">
+                        <h3 class="text-sm font-bold text-stone-600 mb-3 flex items-center gap-2"><i class="fa-solid fa-stream text-teal-500"></i> 時間軸概覽</h3>
+                        <div id="msGanttRows" class="space-y-2"></div>
+                    </div>
+                    <div class="bg-white rounded-lg border border-teal-100 shadow-sm overflow-hidden">
+                        <table class="w-full text-sm">
+                            <thead class="bg-teal-50/60 border-b border-teal-100 text-stone-600 text-xs uppercase">
+                                <tr><th class="p-3 text-left">名稱</th><th class="p-3 w-32">起始</th><th class="p-3 w-32">結束</th><th class="p-3 w-28">狀態</th><th class="p-3 w-28">負責人</th><th class="p-3 w-28 text-center">操作</th></tr>
+                            </thead>
+                            <tbody id="msListBody" class="divide-y divide-stone-100"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── 測試計畫 ── -->
+            <div id="testPlansWorkspace" class="flex-1 overflow-y-auto p-6 bg-amber-50/30 hidden">
+                <div class="max-w-7xl mx-auto">
+                    <div class="bg-white rounded-lg border border-blue-100 shadow-sm p-4 mb-4">
+                        <div class="flex flex-wrap items-center gap-3">
+                            <div class="flex-1 min-w-[200px] relative">
+                                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm"></i>
+                                <input id="tpSearch" type="search" oninput="renderPlansList()" placeholder="搜尋測試計畫…"
+                                    class="w-full pl-9 pr-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                            </div>
+                            <select id="tpStatusFilter" onchange="renderPlansList()" aria-label="依狀態過濾" class="px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
+                                <option value="">全部狀態</option>
+                                <option value="Draft">Draft</option><option value="InReview">InReview</option>
+                                <option value="Approved">Approved</option><option value="Active">Active</option><option value="Closed">Closed</option>
+                            </select>
+                            <button onclick="renderPlansList()" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
+                            <button onclick="openPlanModal()" class="px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md text-sm font-semibold shadow-sm"><i class="fa-solid fa-plus"></i> 新增計畫</button>
+                            <div class="text-xs text-stone-500 ml-auto">共 <span id="tpListCount" class="font-bold text-stone-700">0</span> 筆</div>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-lg border border-blue-100 shadow-sm overflow-hidden">
+                        <table class="w-full text-sm">
+                            <thead class="bg-blue-50/60 border-b border-blue-100 text-stone-600 text-xs uppercase">
+                                <tr><th class="p-3 text-left w-24">代號</th><th class="p-3 text-left">標題</th><th class="p-3 w-20">版本</th><th class="p-3 w-28">狀態</th><th class="p-3 w-28">負責人</th><th class="p-3 w-32">建立時間</th><th class="p-3 w-32 text-center">操作</th></tr>
+                            </thead>
+                            <tbody id="tpListBody" class="divide-y divide-stone-100"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── 需求 / RTM 追溯矩陣 ── -->
+            <div id="requirementsWorkspace" class="flex-1 overflow-y-auto p-6 bg-amber-50/30 hidden">
+                <div class="max-w-7xl mx-auto">
+                    <!-- 子分頁切換 -->
+                    <div class="bg-white rounded-lg border border-cyan-100 shadow-sm p-2 mb-4 flex gap-2">
+                        <button id="rtmTabRequirements" onclick="rtmSwitchTab('requirements')" class="px-3 py-1.5 text-sm font-medium rounded text-cyan-700 bg-cyan-50 border border-cyan-300"><i class="fa-solid fa-list"></i> 需求清單</button>
+                        <button id="rtmTabMatrix" onclick="rtmSwitchTab('matrix')" class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-table-cells-large"></i> RTM 矩陣</button>
+                    </div>
+                    <!-- 子分頁 1：需求列表 -->
+                    <div id="rtmPaneRequirements">
+                        <div class="bg-white rounded-lg border border-cyan-100 shadow-sm p-4 mb-4">
+                            <div class="flex flex-wrap items-center gap-3">
+                                <div class="flex-1 min-w-[200px] relative">
+                                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm"></i>
+                                    <input id="reqSearch" type="search" oninput="renderRequirementsList()" placeholder="搜尋需求…"
+                                        class="w-full pl-9 pr-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400">
+                                </div>
+                                <button onclick="renderRequirementsList()" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
+                                <button onclick="openRequirementModal()" class="px-3 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-md text-sm font-semibold shadow-sm"><i class="fa-solid fa-plus"></i> 新增需求</button>
+                                <div class="text-xs text-stone-500 ml-auto">共 <span id="reqListCount" class="font-bold text-stone-700">0</span> 筆</div>
+                            </div>
+                        </div>
+                        <div class="bg-white rounded-lg border border-cyan-100 shadow-sm overflow-hidden">
+                            <table class="w-full text-sm">
+                                <thead class="bg-cyan-50/60 border-b border-cyan-100 text-stone-600 text-xs uppercase">
+                                    <tr><th class="p-3 text-left w-24">代號</th><th class="p-3 text-left">標題</th><th class="p-3 w-24">來源</th><th class="p-3 w-24">優先</th><th class="p-3 w-28">狀態</th><th class="p-3 w-32">關聯案例</th><th class="p-3 w-40 text-center">操作</th></tr>
+                                </thead>
+                                <tbody id="reqListBody" class="divide-y divide-stone-100"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <!-- 子分頁 2：RTM 矩陣 -->
+                    <div id="rtmPaneMatrix" class="hidden">
+                        <div class="bg-white rounded-lg border border-cyan-100 shadow-sm p-4 mb-4 flex items-center gap-3 flex-wrap">
+                            <button onclick="renderRtmMatrix()" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新計算</button>
+                            <span class="text-xs text-stone-500">每格表示「需求 × 案例」最近一次執行狀態：<span class="bg-green-100 text-green-700 border border-green-200 px-1.5 rounded">PASSED</span> <span class="bg-red-100 text-red-700 border border-red-200 px-1.5 rounded">FAILED</span> <span class="bg-stone-100 text-stone-500 border border-stone-200 px-1.5 rounded">未跑</span></span>
+                            <span class="ml-auto text-xs text-stone-500">覆蓋率：<span id="rtmCoverage" class="font-bold text-cyan-700">—</span></span>
+                        </div>
+                        <div class="bg-white rounded-lg border border-cyan-100 shadow-sm overflow-auto">
+                            <table id="rtmMatrixTable" class="text-xs">
+                                <thead class="bg-cyan-50/60 border-b border-cyan-100"></thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── 測試看版 ── -->
+            <div id="testKanbanWorkspace" class="flex-1 overflow-y-auto p-6 bg-amber-50/30 hidden">
+                <div class="max-w-7xl mx-auto">
+                    <!-- KPI 摘要 -->
+                    <section class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4" id="kanbanKpis">
+                        <div class="bg-white rounded-xl p-3 border border-orange-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-solid fa-bug text-red-500"></i> 未關閉缺陷</div><div class="text-2xl font-bold text-red-600" id="kpi_open_defects">—</div></div>
+                        <div class="bg-white rounded-xl p-3 border border-orange-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-solid fa-skull text-rose-700"></i> Critical+Major</div><div class="text-2xl font-bold text-rose-700" id="kpi_critical_defects">—</div></div>
+                        <div class="bg-white rounded-xl p-3 border border-orange-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-regular fa-calendar text-teal-500"></i> 進行中時程</div><div class="text-2xl font-bold text-teal-600" id="kpi_active_milestones">—</div></div>
+                        <div class="bg-white rounded-xl p-3 border border-orange-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-solid fa-clipboard-list text-blue-500"></i> 啟用中計畫</div><div class="text-2xl font-bold text-blue-600" id="kpi_active_plans">—</div></div>
+                        <div class="bg-white rounded-xl p-3 border border-orange-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-solid fa-diagram-project text-cyan-500"></i> 需求總數</div><div class="text-2xl font-bold text-cyan-600" id="kpi_requirements">—</div></div>
+                    </section>
+                    <!-- Kanban 板（缺陷狀態欄）-->
+                    <h3 class="text-sm font-bold text-stone-500 uppercase tracking-wider mb-2 flex items-center gap-2">
+                        <i class="fa-solid fa-columns text-orange-500"></i> 缺陷看版（依狀態分欄；顯示截至最近建立的 30 筆）
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-3" id="kanbanColumns">
+                        <!-- 動態渲染：6 個 column = New / Assigned / InProgress / Fixed / Verified / Closed -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- ════════════════════════════════════════════════════════════════
+                 5 個對應的 Modal（建立 / 編輯）
+                 ════════════════════════════════════════════════════════════════ -->
+
+            <!-- 缺陷 Modal -->
+            <div id="defectModal" class="hidden fixed inset-0 z-[150] bg-black/40 flex items-center justify-center p-4">
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl border border-red-200 max-h-[90vh] overflow-y-auto">
+                    <div class="px-6 py-4 border-b border-stone-200 bg-red-50/60 flex items-center justify-between">
+                        <h3 id="defectModalTitle" class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-bug text-red-500"></i> 新增缺陷</h3>
+                        <button type="button" onclick="closeDefectModal()" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <form onsubmit="return defectSubmit(event)" class="p-6 space-y-3">
+                        <div><label class="block text-xs font-semibold text-stone-600 mb-1">標題 *</label><input type="text" id="defTitle" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                        <div class="grid grid-cols-3 gap-3">
+                            <div><label class="block text-xs font-semibold text-stone-600 mb-1">嚴重性</label><select id="defSeverity" aria-label="嚴重性" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option>Critical</option><option>Major</option><option selected>Minor</option><option>Trivial</option></select></div>
+                            <div><label class="block text-xs font-semibold text-stone-600 mb-1">優先</label><select id="defPriority" aria-label="優先" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option>P0</option><option>P1</option><option selected>P2</option><option>P3</option></select></div>
+                            <div><label class="block text-xs font-semibold text-stone-600 mb-1">狀態</label><select id="defStatus" aria-label="狀態" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option selected>New</option><option>Assigned</option><option>InProgress</option><option>Fixed</option><option>Verified</option><option>Closed</option><option>Reopened</option><option>WontFix</option></select></div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div><label class="block text-xs font-semibold text-stone-600 mb-1">回報者</label><input type="text" id="defReporter" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                            <div><label class="block text-xs font-semibold text-stone-600 mb-1">指派</label><input type="text" id="defAssignee" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                        </div>
+                        <div><label class="block text-xs font-semibold text-stone-600 mb-1">描述</label><textarea id="defDesc" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
+                        <div><label class="block text-xs font-semibold text-stone-600 mb-1">重現步驟</label><textarea id="defSteps" rows="3" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm font-mono"></textarea></div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div><label class="block text-xs font-semibold text-stone-600 mb-1">預期結果</label><textarea id="defExpected" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
+                            <div><label class="block text-xs font-semibold text-stone-600 mb-1">實際結果</label><textarea id="defActual" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
+                        </div>
+                        <div><label class="block text-xs font-semibold text-stone-600 mb-1">外部連結（Jira / GitHub Issue）</label><input type="url" id="defExternalUrl" placeholder="https://" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                        <div class="flex justify-end gap-2 pt-2"><button type="button" onclick="closeDefectModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button><button type="submit" class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button></div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- 時程 Modal -->
+            <div id="milestoneModal" class="hidden fixed inset-0 z-[150] bg-black/40 flex items-center justify-center p-4">
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg border border-teal-200">
+                    <div class="px-6 py-4 border-b border-stone-200 bg-teal-50/60 flex items-center justify-between">
+                        <h3 id="milestoneModalTitle" class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-regular fa-calendar text-teal-500"></i> 新增測試時程</h3>
+                        <button type="button" onclick="closeMilestoneModal()" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <form onsubmit="return milestoneSubmit(event)" class="p-6 space-y-3">
+                        <div><label class="block text-xs font-semibold text-stone-600 mb-1">名稱 *</label><input type="text" id="msName" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div><label class="block text-xs font-semibold text-stone-600 mb-1">起始日期 *</label><input type="date" id="msStart" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                            <div><label class="block text-xs font-semibold text-stone-600 mb-1">結束日期 *</label><input type="date" id="msEnd" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div><label class="block text-xs font-semibold text-stone-600 mb-1">狀態</label><select id="msStatus" aria-label="狀態" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option selected>Planned</option><option>InProgress</option><option>Completed</option><option>Cancelled</option></select></div>
+                            <div><label class="block text-xs font-semibold text-stone-600 mb-1">負責人</label><input type="text" id="msOwner" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                        </div>
+                        <div><label class="block text-xs font-semibold text-stone-600 mb-1">說明</label><textarea id="msDesc" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
+                        <div class="flex justify-end gap-2 pt-2"><button type="button" onclick="closeMilestoneModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button><button type="submit" class="px-4 py-2 bg-teal-500 hover:bg-teal-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button></div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- 計畫 Modal -->
+            <div id="planModal" class="hidden fixed inset-0 z-[150] bg-black/40 flex items-center justify-center p-4">
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl border border-blue-200 max-h-[90vh] overflow-y-auto">
+                    <div class="px-6 py-4 border-b border-stone-200 bg-blue-50/60 flex items-center justify-between">
+                        <h3 id="planModalTitle" class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-clipboard-list text-blue-500"></i> 新增測試計畫</h3>
+                        <button type="button" onclick="closePlanModal()" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <form onsubmit="return planSubmit(event)" class="p-6 space-y-3">
+                        <div class="grid grid-cols-3 gap-3">
+                            <div class="col-span-2"><label class="block text-xs font-semibold text-stone-600 mb-1">標題 *</label><input type="text" id="tpTitle" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                            <div><label class="block text-xs font-semibold text-stone-600 mb-1">版本</label><input type="text" id="tpVersion" placeholder="1.0" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div><label class="block text-xs font-semibold text-stone-600 mb-1">狀態</label><select id="tpStatus" aria-label="狀態" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option selected>Draft</option><option>InReview</option><option>Approved</option><option>Active</option><option>Closed</option></select></div>
+                            <div><label class="block text-xs font-semibold text-stone-600 mb-1">負責人</label><input type="text" id="tpOwner" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                        </div>
+                        <div><label class="block text-xs font-semibold text-stone-600 mb-1">範圍 (Scope In)</label><textarea id="tpScopeIn" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
+                        <div><label class="block text-xs font-semibold text-stone-600 mb-1">排除 (Scope Out)</label><textarea id="tpScopeOut" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
+                        <div><label class="block text-xs font-semibold text-stone-600 mb-1">測試策略</label><textarea id="tpStrategy" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div><label class="block text-xs font-semibold text-stone-600 mb-1">資源</label><textarea id="tpResources" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
+                            <div><label class="block text-xs font-semibold text-stone-600 mb-1">時程</label><textarea id="tpSchedule" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
+                        </div>
+                        <div><label class="block text-xs font-semibold text-stone-600 mb-1">風險</label><textarea id="tpRisks" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
+                        <div class="flex justify-end gap-2 pt-2"><button type="button" onclick="closePlanModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button><button type="submit" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button></div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- 需求 Modal -->
+            <div id="requirementModal" class="hidden fixed inset-0 z-[150] bg-black/40 flex items-center justify-center p-4">
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl border border-cyan-200 max-h-[90vh] overflow-y-auto">
+                    <div class="px-6 py-4 border-b border-stone-200 bg-cyan-50/60 flex items-center justify-between">
+                        <h3 id="requirementModalTitle" class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-diagram-project text-cyan-500"></i> 新增需求</h3>
+                        <button type="button" onclick="closeRequirementModal()" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <form onsubmit="return requirementSubmit(event)" class="p-6 space-y-3">
+                        <div><label class="block text-xs font-semibold text-stone-600 mb-1">標題 *</label><input type="text" id="reqTitle" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                        <div class="grid grid-cols-3 gap-3">
+                            <div><label class="block text-xs font-semibold text-stone-600 mb-1">來源</label><select id="reqSource" aria-label="來源" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option selected>PRD</option><option>Customer</option><option>Regulatory</option><option>Security</option><option>Internal</option></select></div>
+                            <div><label class="block text-xs font-semibold text-stone-600 mb-1">優先 (MoSCoW)</label><select id="reqPriority" aria-label="優先" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option>Must</option><option selected>Should</option><option>Could</option><option>Wont</option></select></div>
+                            <div><label class="block text-xs font-semibold text-stone-600 mb-1">狀態</label><select id="reqStatus" aria-label="狀態" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option selected>Draft</option><option>Approved</option><option>Implemented</option><option>Verified</option><option>Deprecated</option></select></div>
+                        </div>
+                        <div><label class="block text-xs font-semibold text-stone-600 mb-1">說明</label><textarea id="reqDesc" rows="3" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
+                        <div><label class="block text-xs font-semibold text-stone-600 mb-1">負責人</label><input type="text" id="reqOwner" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                        <div>
+                            <label class="block text-xs font-semibold text-stone-600 mb-1">關聯測試案例（多選；按 Ctrl/⌘ 選多項）</label>
+                            <select id="reqTestcases" multiple aria-label="關聯測試案例" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white" size="6"></select>
+                            <p class="text-[10px] text-stone-500 mt-0.5">儲存時會整批替換此需求的關聯案例</p>
+                        </div>
+                        <div class="flex justify-end gap-2 pt-2"><button type="button" onclick="closeRequirementModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button><button type="submit" class="px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button></div>
+                    </form>
                 </div>
             </div>
 
@@ -6198,6 +6504,12 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('homeWorkspace')?.classList.add('hidden');
             document.getElementById('testcasesWorkspace')?.classList.add('hidden');
             document.getElementById('userSettingsWorkspace')?.classList.add('hidden');
+            // 5 個測試管理擴充工作區
+            document.getElementById('defectsWorkspace')?.classList.add('hidden');
+            document.getElementById('testMilestonesWorkspace')?.classList.add('hidden');
+            document.getElementById('testPlansWorkspace')?.classList.add('hidden');
+            document.getElementById('requirementsWorkspace')?.classList.add('hidden');
+            document.getElementById('testKanbanWorkspace')?.classList.add('hidden');
         }
 
         // ==================== 首頁 (Home) ====================
@@ -9219,6 +9531,607 @@ driver.swipe(100, 800, 100, 200, 500)"
                 recRefreshList();
             } catch (e) {
                 showToast('刪除失敗：' + e.message, 'error');
+            }
+        }
+
+        // ════════════════════════════════════════════════════════════════
+        // 測試管理擴充：Defect / Milestone / TestPlan / Requirement / Kanban
+        // 共用：esc / fmt / 設定通用 view 切換頭
+        // ════════════════════════════════════════════════════════════════
+        function _esc(v) { return v == null ? '' : String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+        function _setView(workspaceId, title, tag, tagClass, filename) {
+            if (!confirmDiscardIfDirty()) return false;
+            _hideAllWorkspaces();
+            document.getElementById(workspaceId).classList.remove('hidden');
+            document.getElementById('mainHeader').classList.remove('hidden');
+            document.getElementById('mainActions').classList.add('hidden');
+            document.getElementById('viewFilename').textContent = filename;
+            document.getElementById('viewTitle').innerHTML = title;
+            document.getElementById('viewTag').className = tagClass;
+            document.getElementById('viewTag').textContent = tag;
+            currentTestCase = null;
+            return true;
+        }
+
+        // ─── 缺陷管理 ────────────────────────────────────────────────────
+        let _defectsCache = [];
+        let _editingDefectId = null;
+        function showDefectsView() {
+            if (!_setView('defectsWorkspace',
+                '<i class="fa-solid fa-bug text-red-500"></i> 缺陷管理',
+                'Defects',
+                'bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-medium',
+                '缺陷管理')) return;
+            renderDefectsList();
+        }
+        async function renderDefectsList() {
+            const tbody = document.getElementById('defListBody');
+            const cntEl = document.getElementById('defListCount');
+            if (!tbody) return;
+            const pid = currentProjectId;
+            if (!pid) { tbody.innerHTML = '<tr><td colspan="8" class="p-6 text-center text-stone-400">請先選擇專案</td></tr>'; cntEl.textContent='0'; return; }
+            tbody.innerHTML = '<tr><td colspan="8" class="p-6 text-center text-stone-400">載入中…</td></tr>';
+            try {
+                const params = new URLSearchParams({project_id: pid});
+                const st = document.getElementById('defStatusFilter')?.value;
+                const sv = document.getElementById('defSeverityFilter')?.value;
+                if (st) params.set('status', st);
+                if (sv) params.set('severity', sv);
+                const res = await fetch('/api/defects?'+params);
+                if (!res.ok) throw new Error('HTTP '+res.status);
+                _defectsCache = await res.json();
+                const kw = (document.getElementById('defSearch')?.value || '').toLowerCase().trim();
+                let rows = _defectsCache;
+                if (kw) rows = rows.filter(r => (r.title||'').toLowerCase().includes(kw) || (r.code||'').toLowerCase().includes(kw));
+                cntEl.textContent = rows.length;
+                if (!rows.length) { tbody.innerHTML = '<tr><td colspan="8" class="p-6 text-center text-stone-400">尚無缺陷</td></tr>'; return; }
+                const sevColor = {Critical:'bg-red-100 text-red-700 border-red-200', Major:'bg-orange-100 text-orange-700 border-orange-200', Minor:'bg-amber-100 text-amber-700 border-amber-200', Trivial:'bg-stone-100 text-stone-600 border-stone-200'};
+                const stColor = {New:'bg-blue-100 text-blue-700', Assigned:'bg-purple-100 text-purple-700', InProgress:'bg-amber-100 text-amber-700', Fixed:'bg-emerald-100 text-emerald-700', Verified:'bg-green-100 text-green-700', Closed:'bg-stone-200 text-stone-700', Reopened:'bg-rose-100 text-rose-700', WontFix:'bg-stone-100 text-stone-500'};
+                tbody.innerHTML = rows.map(r => `<tr class="hover:bg-amber-50/30">
+                    <td class="p-3 font-mono text-xs text-stone-500">${_esc(r.code)}</td>
+                    <td class="p-3 font-semibold text-stone-800 break-all">${_esc(r.title)}</td>
+                    <td class="p-3"><span class="text-xs px-2 py-0.5 rounded font-medium border ${sevColor[r.severity]||''}">${_esc(r.severity)}</span></td>
+                    <td class="p-3 font-mono text-xs">${_esc(r.priority)}</td>
+                    <td class="p-3"><span class="text-xs px-2 py-0.5 rounded font-medium ${stColor[r.status]||'bg-stone-100'}">${_esc(r.status)}</span></td>
+                    <td class="p-3 text-xs text-stone-600">${_esc(r.assignee||'—')}</td>
+                    <td class="p-3 text-xs text-stone-500 font-mono">${(r.created_at||'').slice(0,10)}</td>
+                    <td class="p-3 text-center whitespace-nowrap space-x-1">
+                        <button onclick="openDefectModal('${_esc(r.id)}')" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded"><i class="fa-solid fa-pen"></i></button>
+                        <button onclick="deleteDefect('${_esc(r.id)}','${_esc(r.code)}')" class="text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                </tr>`).join('');
+            } catch(e) {
+                tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-red-500">載入失敗：${_esc(e.message)}</td></tr>`;
+            }
+        }
+        function openDefectModal(id) {
+            if (!currentProjectId) { showToast('請先選擇專案', 'error'); return; }
+            _editingDefectId = id || null;
+            const r = id ? _defectsCache.find(x => x.id === id) : null;
+            document.getElementById('defectModalTitle').innerHTML = r ? `<i class="fa-solid fa-bug text-red-500"></i> 編輯缺陷 ${_esc(r.code)}` : '<i class="fa-solid fa-bug text-red-500"></i> 新增缺陷';
+            document.getElementById('defTitle').value = r?.title || '';
+            document.getElementById('defSeverity').value = r?.severity || 'Minor';
+            document.getElementById('defPriority').value = r?.priority || 'P2';
+            document.getElementById('defStatus').value = r?.status || 'New';
+            document.getElementById('defReporter').value = r?.reporter || (authCurrentUsername()||'');
+            document.getElementById('defAssignee').value = r?.assignee || '';
+            document.getElementById('defDesc').value = r?.description || '';
+            document.getElementById('defSteps').value = r?.steps_to_reproduce || '';
+            document.getElementById('defExpected').value = r?.expected_result || '';
+            document.getElementById('defActual').value = r?.actual_result || '';
+            document.getElementById('defExternalUrl').value = r?.external_url || '';
+            document.getElementById('defectModal').classList.remove('hidden');
+        }
+        function closeDefectModal() { document.getElementById('defectModal').classList.add('hidden'); }
+        async function defectSubmit(ev) {
+            ev.preventDefault();
+            const payload = {
+                project_id: currentProjectId,
+                title: document.getElementById('defTitle').value.trim(),
+                severity: document.getElementById('defSeverity').value,
+                priority: document.getElementById('defPriority').value,
+                status: document.getElementById('defStatus').value,
+                reporter: document.getElementById('defReporter').value.trim() || null,
+                assignee: document.getElementById('defAssignee').value.trim() || null,
+                description: document.getElementById('defDesc').value || null,
+                steps_to_reproduce: document.getElementById('defSteps').value || null,
+                expected_result: document.getElementById('defExpected').value || null,
+                actual_result: document.getElementById('defActual').value || null,
+                external_url: document.getElementById('defExternalUrl').value.trim() || null,
+            };
+            try {
+                const url = _editingDefectId ? '/api/defects/'+_editingDefectId : '/api/defects';
+                const method = _editingDefectId ? 'PUT' : 'POST';
+                const res = await fetch(url, {method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+                if (!res.ok) throw new Error('HTTP '+res.status);
+                showToast(_editingDefectId ? '已更新' : '已建立', 'success');
+                closeDefectModal();
+                renderDefectsList();
+            } catch(e) { showToast('儲存失敗：'+e.message, 'error'); }
+            return false;
+        }
+        async function deleteDefect(id, code) {
+            if (!confirm(`確定刪除缺陷 ${code}？`)) return;
+            try {
+                const res = await fetch('/api/defects/'+id, {method:'DELETE'});
+                if (!res.ok && res.status !== 204) throw new Error('HTTP '+res.status);
+                showToast('已刪除', 'success');
+                renderDefectsList();
+            } catch(e) { showToast('刪除失敗：'+e.message, 'error'); }
+        }
+
+        // ─── 測試時程 ────────────────────────────────────────────────────
+        let _milestonesCache = [];
+        let _editingMilestoneId = null;
+        function showTestMilestonesView() {
+            if (!_setView('testMilestonesWorkspace',
+                '<i class="fa-regular fa-calendar text-teal-500"></i> 測試時程',
+                'Schedule',
+                'bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded font-medium',
+                '測試時程')) return;
+            renderMilestonesList();
+        }
+        async function renderMilestonesList() {
+            const tbody = document.getElementById('msListBody');
+            const cntEl = document.getElementById('msListCount');
+            const gantt = document.getElementById('msGanttRows');
+            if (!tbody) return;
+            const pid = currentProjectId;
+            if (!pid) { tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-stone-400">請先選擇專案</td></tr>'; cntEl.textContent='0'; gantt.innerHTML=''; return; }
+            try {
+                const res = await fetch('/api/milestones?project_id='+encodeURIComponent(pid));
+                if (!res.ok) throw new Error('HTTP '+res.status);
+                _milestonesCache = await res.json();
+                const kw = (document.getElementById('msSearch')?.value || '').toLowerCase().trim();
+                const st = document.getElementById('msStatusFilter')?.value;
+                let rows = _milestonesCache;
+                if (kw) rows = rows.filter(r => (r.name||'').toLowerCase().includes(kw));
+                if (st) rows = rows.filter(r => r.status === st);
+                cntEl.textContent = rows.length;
+                // 表格
+                if (!rows.length) { tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-stone-400">尚無時程</td></tr>'; }
+                else {
+                    const stColor = {Planned:'bg-blue-100 text-blue-700', InProgress:'bg-amber-100 text-amber-700', Completed:'bg-emerald-100 text-emerald-700', Cancelled:'bg-stone-100 text-stone-500'};
+                    tbody.innerHTML = rows.map(r => `<tr class="hover:bg-amber-50/30">
+                        <td class="p-3 font-semibold text-stone-800">${_esc(r.name)}</td>
+                        <td class="p-3 text-xs font-mono">${_esc(r.start_date)}</td>
+                        <td class="p-3 text-xs font-mono">${_esc(r.end_date)}</td>
+                        <td class="p-3"><span class="text-xs px-2 py-0.5 rounded font-medium ${stColor[r.status]||'bg-stone-100'}">${_esc(r.status)}</span></td>
+                        <td class="p-3 text-xs text-stone-600">${_esc(r.owner||'—')}</td>
+                        <td class="p-3 text-center whitespace-nowrap space-x-1">
+                            <button onclick="openMilestoneModal('${_esc(r.id)}')" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded"><i class="fa-solid fa-pen"></i></button>
+                            <button onclick="deleteMilestone('${_esc(r.id)}','${_esc(r.name)}')" class="text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                    </tr>`).join('');
+                }
+                // Gantt 簡圖
+                if (rows.length) {
+                    const allDates = rows.flatMap(r => [r.start_date, r.end_date]).filter(Boolean).sort();
+                    const minD = new Date(allDates[0]); const maxD = new Date(allDates[allDates.length-1]);
+                    const span = Math.max(1, (maxD - minD)/(1000*60*60*24));
+                    gantt.innerHTML = rows.map(r => {
+                        const s = new Date(r.start_date); const e = new Date(r.end_date);
+                        const offset = ((s-minD)/(1000*60*60*24)) / span * 100;
+                        const width = Math.max(2, ((e-s)/(1000*60*60*24)) / span * 100);
+                        const stColor = {Planned:'bg-blue-400', InProgress:'bg-amber-500', Completed:'bg-emerald-500', Cancelled:'bg-stone-400'};
+                        return `<div class="flex items-center gap-2 text-xs">
+                            <div class="w-32 truncate text-stone-600" title="${_esc(r.name)}">${_esc(r.name)}</div>
+                            <div class="flex-1 h-4 bg-stone-100 rounded relative overflow-hidden">
+                                <div class="absolute h-full ${stColor[r.status]||'bg-stone-400'} rounded" data-offset="${offset.toFixed(1)}" data-width="${width.toFixed(1)}"></div>
+                            </div>
+                            <div class="w-44 text-stone-500 font-mono">${r.start_date} → ${r.end_date}</div>
+                        </div>`;
+                    }).join('');
+                    // 用 dataset 寫入 left/width，避免 inline style lint warning
+                    gantt.querySelectorAll('[data-offset]').forEach(el => {
+                        el.style.left = el.dataset.offset+'%';
+                        el.style.width = el.dataset.width+'%';
+                    });
+                } else { gantt.innerHTML = '<div class="text-xs text-stone-400">尚無時程資料</div>'; }
+            } catch(e) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-red-500">載入失敗：${_esc(e.message)}</td></tr>`;
+            }
+        }
+        function openMilestoneModal(id) {
+            if (!currentProjectId) { showToast('請先選擇專案', 'error'); return; }
+            _editingMilestoneId = id || null;
+            const r = id ? _milestonesCache.find(x => x.id === id) : null;
+            document.getElementById('milestoneModalTitle').innerHTML = r ? '<i class="fa-regular fa-calendar text-teal-500"></i> 編輯時程' : '<i class="fa-regular fa-calendar text-teal-500"></i> 新增測試時程';
+            document.getElementById('msName').value = r?.name || '';
+            document.getElementById('msStart').value = r?.start_date || '';
+            document.getElementById('msEnd').value = r?.end_date || '';
+            document.getElementById('msStatus').value = r?.status || 'Planned';
+            document.getElementById('msOwner').value = r?.owner || '';
+            document.getElementById('msDesc').value = r?.description || '';
+            document.getElementById('milestoneModal').classList.remove('hidden');
+        }
+        function closeMilestoneModal() { document.getElementById('milestoneModal').classList.add('hidden'); }
+        async function milestoneSubmit(ev) {
+            ev.preventDefault();
+            const payload = {
+                project_id: currentProjectId,
+                name: document.getElementById('msName').value.trim(),
+                start_date: document.getElementById('msStart').value,
+                end_date: document.getElementById('msEnd').value,
+                status: document.getElementById('msStatus').value,
+                owner: document.getElementById('msOwner').value.trim() || null,
+                description: document.getElementById('msDesc').value || null,
+            };
+            try {
+                const url = _editingMilestoneId ? '/api/milestones/'+_editingMilestoneId : '/api/milestones';
+                const method = _editingMilestoneId ? 'PUT' : 'POST';
+                const res = await fetch(url, {method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+                if (!res.ok) {
+                    const err = await res.json().catch(()=>({}));
+                    throw new Error(err.detail || ('HTTP '+res.status));
+                }
+                showToast(_editingMilestoneId ? '已更新' : '已建立', 'success');
+                closeMilestoneModal();
+                renderMilestonesList();
+            } catch(e) { showToast('儲存失敗：'+e.message, 'error'); }
+            return false;
+        }
+        async function deleteMilestone(id, name) {
+            if (!confirm(`確定刪除時程「${name}」？`)) return;
+            try {
+                const res = await fetch('/api/milestones/'+id, {method:'DELETE'});
+                if (!res.ok && res.status !== 204) throw new Error('HTTP '+res.status);
+                showToast('已刪除', 'success');
+                renderMilestonesList();
+            } catch(e) { showToast('刪除失敗：'+e.message, 'error'); }
+        }
+
+        // ─── 測試計畫 ────────────────────────────────────────────────────
+        let _plansCache = [];
+        let _editingPlanId = null;
+        function showTestPlanView() {
+            if (!_setView('testPlansWorkspace',
+                '<i class="fa-solid fa-clipboard-list text-blue-500"></i> 測試計畫',
+                'Plans',
+                'bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium',
+                '測試計畫')) return;
+            renderPlansList();
+        }
+        async function renderPlansList() {
+            const tbody = document.getElementById('tpListBody');
+            const cntEl = document.getElementById('tpListCount');
+            if (!tbody) return;
+            const pid = currentProjectId;
+            if (!pid) { tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-stone-400">請先選擇專案</td></tr>'; cntEl.textContent='0'; return; }
+            try {
+                const params = new URLSearchParams({project_id: pid});
+                const st = document.getElementById('tpStatusFilter')?.value;
+                if (st) params.set('status', st);
+                const res = await fetch('/api/plans?'+params);
+                if (!res.ok) throw new Error('HTTP '+res.status);
+                _plansCache = await res.json();
+                const kw = (document.getElementById('tpSearch')?.value || '').toLowerCase().trim();
+                let rows = _plansCache;
+                if (kw) rows = rows.filter(r => (r.title||'').toLowerCase().includes(kw) || (r.code||'').toLowerCase().includes(kw));
+                cntEl.textContent = rows.length;
+                if (!rows.length) { tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-stone-400">尚無測試計畫</td></tr>'; return; }
+                const stColor = {Draft:'bg-stone-100 text-stone-600', InReview:'bg-amber-100 text-amber-700', Approved:'bg-emerald-100 text-emerald-700', Active:'bg-blue-100 text-blue-700', Closed:'bg-stone-200 text-stone-500'};
+                tbody.innerHTML = rows.map(r => `<tr class="hover:bg-amber-50/30">
+                    <td class="p-3 font-mono text-xs text-stone-500">${_esc(r.code)}</td>
+                    <td class="p-3 font-semibold text-stone-800 break-all">${_esc(r.title)}</td>
+                    <td class="p-3 text-xs">${_esc(r.version||'—')}</td>
+                    <td class="p-3"><span class="text-xs px-2 py-0.5 rounded font-medium ${stColor[r.status]||'bg-stone-100'}">${_esc(r.status)}</span></td>
+                    <td class="p-3 text-xs text-stone-600">${_esc(r.owner||'—')}</td>
+                    <td class="p-3 text-xs text-stone-500 font-mono">${(r.created_at||'').slice(0,10)}</td>
+                    <td class="p-3 text-center whitespace-nowrap space-x-1">
+                        <button onclick="openPlanModal('${_esc(r.id)}')" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded"><i class="fa-solid fa-pen"></i></button>
+                        <button onclick="deletePlan('${_esc(r.id)}','${_esc(r.code)}')" class="text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                </tr>`).join('');
+            } catch(e) {
+                tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-red-500">載入失敗：${_esc(e.message)}</td></tr>`;
+            }
+        }
+        function openPlanModal(id) {
+            if (!currentProjectId) { showToast('請先選擇專案', 'error'); return; }
+            _editingPlanId = id || null;
+            const r = id ? _plansCache.find(x => x.id === id) : null;
+            document.getElementById('planModalTitle').innerHTML = r ? `<i class="fa-solid fa-clipboard-list text-blue-500"></i> 編輯計畫 ${_esc(r.code)}` : '<i class="fa-solid fa-clipboard-list text-blue-500"></i> 新增測試計畫';
+            document.getElementById('tpTitle').value = r?.title || '';
+            document.getElementById('tpVersion').value = r?.version || '';
+            document.getElementById('tpStatus').value = r?.status || 'Draft';
+            document.getElementById('tpOwner').value = r?.owner || (authCurrentUsername()||'');
+            document.getElementById('tpScopeIn').value = r?.scope_in_text || '';
+            document.getElementById('tpScopeOut').value = r?.scope_out_text || '';
+            document.getElementById('tpStrategy').value = r?.test_strategy_text || '';
+            document.getElementById('tpResources').value = r?.resources_text || '';
+            document.getElementById('tpSchedule').value = r?.schedule_text || '';
+            document.getElementById('tpRisks').value = r?.risks_text || '';
+            document.getElementById('planModal').classList.remove('hidden');
+        }
+        function closePlanModal() { document.getElementById('planModal').classList.add('hidden'); }
+        async function planSubmit(ev) {
+            ev.preventDefault();
+            const payload = {
+                project_id: currentProjectId,
+                title: document.getElementById('tpTitle').value.trim(),
+                version: document.getElementById('tpVersion').value.trim() || null,
+                status: document.getElementById('tpStatus').value,
+                owner: document.getElementById('tpOwner').value.trim() || null,
+                scope_in_text: document.getElementById('tpScopeIn').value || null,
+                scope_out_text: document.getElementById('tpScopeOut').value || null,
+                test_strategy_text: document.getElementById('tpStrategy').value || null,
+                resources_text: document.getElementById('tpResources').value || null,
+                schedule_text: document.getElementById('tpSchedule').value || null,
+                risks_text: document.getElementById('tpRisks').value || null,
+            };
+            try {
+                const url = _editingPlanId ? '/api/plans/'+_editingPlanId : '/api/plans';
+                const method = _editingPlanId ? 'PUT' : 'POST';
+                const res = await fetch(url, {method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+                if (!res.ok) throw new Error('HTTP '+res.status);
+                showToast(_editingPlanId ? '已更新' : '已建立', 'success');
+                closePlanModal();
+                renderPlansList();
+            } catch(e) { showToast('儲存失敗：'+e.message, 'error'); }
+            return false;
+        }
+        async function deletePlan(id, code) {
+            if (!confirm(`確定刪除測試計畫 ${code}？`)) return;
+            try {
+                const res = await fetch('/api/plans/'+id, {method:'DELETE'});
+                if (!res.ok && res.status !== 204) throw new Error('HTTP '+res.status);
+                showToast('已刪除', 'success');
+                renderPlansList();
+            } catch(e) { showToast('刪除失敗：'+e.message, 'error'); }
+        }
+
+        // ─── 需求 / RTM ─────────────────────────────────────────────────
+        let _requirementsCache = [];
+        let _editingRequirementId = null;
+        function showRequirementsView() {
+            if (!_setView('requirementsWorkspace',
+                '<i class="fa-solid fa-diagram-project text-cyan-500"></i> 需求 / RTM 追溯矩陣',
+                'RTM',
+                'bg-cyan-100 text-cyan-700 px-1.5 py-0.5 rounded font-medium',
+                '需求 / RTM')) return;
+            rtmSwitchTab('requirements');
+        }
+        function rtmSwitchTab(tab) {
+            const t1 = document.getElementById('rtmTabRequirements');
+            const t2 = document.getElementById('rtmTabMatrix');
+            const p1 = document.getElementById('rtmPaneRequirements');
+            const p2 = document.getElementById('rtmPaneMatrix');
+            const ON = 'px-3 py-1.5 text-sm font-medium rounded text-cyan-700 bg-cyan-50 border border-cyan-300';
+            const OFF = 'px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50';
+            if (tab === 'requirements') {
+                t1.className = ON; t2.className = OFF; p1.classList.remove('hidden'); p2.classList.add('hidden');
+                renderRequirementsList();
+            } else {
+                t1.className = OFF; t2.className = ON; p1.classList.add('hidden'); p2.classList.remove('hidden');
+                renderRtmMatrix();
+            }
+        }
+        async function renderRequirementsList() {
+            const tbody = document.getElementById('reqListBody');
+            const cntEl = document.getElementById('reqListCount');
+            if (!tbody) return;
+            const pid = currentProjectId;
+            if (!pid) { tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-stone-400">請先選擇專案</td></tr>'; cntEl.textContent='0'; return; }
+            try {
+                const res = await fetch('/api/requirements?project_id='+encodeURIComponent(pid));
+                if (!res.ok) throw new Error('HTTP '+res.status);
+                _requirementsCache = await res.json();
+                const kw = (document.getElementById('reqSearch')?.value || '').toLowerCase().trim();
+                let rows = _requirementsCache;
+                if (kw) rows = rows.filter(r => (r.title||'').toLowerCase().includes(kw) || (r.code||'').toLowerCase().includes(kw));
+                cntEl.textContent = rows.length;
+                if (!rows.length) { tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-stone-400">尚無需求</td></tr>'; return; }
+                const prColor = {Must:'bg-red-100 text-red-700', Should:'bg-amber-100 text-amber-700', Could:'bg-blue-100 text-blue-700', Wont:'bg-stone-100 text-stone-500'};
+                const stColor = {Draft:'bg-stone-100 text-stone-600', Approved:'bg-amber-100 text-amber-700', Implemented:'bg-blue-100 text-blue-700', Verified:'bg-emerald-100 text-emerald-700', Deprecated:'bg-stone-200 text-stone-500'};
+                tbody.innerHTML = rows.map(r => `<tr class="hover:bg-amber-50/30">
+                    <td class="p-3 font-mono text-xs text-stone-500">${_esc(r.code)}</td>
+                    <td class="p-3 font-semibold text-stone-800 break-all">${_esc(r.title)}</td>
+                    <td class="p-3 text-xs">${_esc(r.source)}</td>
+                    <td class="p-3"><span class="text-xs px-2 py-0.5 rounded font-medium ${prColor[r.priority]||''}">${_esc(r.priority)}</span></td>
+                    <td class="p-3"><span class="text-xs px-2 py-0.5 rounded font-medium ${stColor[r.status]||'bg-stone-100'}">${_esc(r.status)}</span></td>
+                    <td class="p-3 text-xs text-stone-600 text-center">${(r.linked_testcase_ids||[]).length}</td>
+                    <td class="p-3 text-center whitespace-nowrap space-x-1">
+                        <button onclick="openRequirementModal('${_esc(r.id)}')" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded"><i class="fa-solid fa-pen"></i></button>
+                        <button onclick="deleteRequirement('${_esc(r.id)}','${_esc(r.code)}')" class="text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                </tr>`).join('');
+            } catch(e) {
+                tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-red-500">載入失敗：${_esc(e.message)}</td></tr>`;
+            }
+        }
+        function _collectAllTestCases() {
+            const out = [];
+            (function walk(nodes, path) {
+                if (!nodes) return;
+                for (const n of nodes) {
+                    if (n.level_type === 'TESTCASE' || n.isFile) {
+                        out.push({ id: n.id, title: (n.title||n.name||'').replace(/\.md$/i,''), path });
+                    }
+                    if (n.children && n.children.length) {
+                        walk(n.children, path ? path+' / '+(n.title||n.name) : (n.title||n.name));
+                    }
+                }
+            })(activeTreeData||[], '');
+            return out;
+        }
+        function openRequirementModal(id) {
+            if (!currentProjectId) { showToast('請先選擇專案', 'error'); return; }
+            _editingRequirementId = id || null;
+            const r = id ? _requirementsCache.find(x => x.id === id) : null;
+            document.getElementById('requirementModalTitle').innerHTML = r ? `<i class="fa-solid fa-diagram-project text-cyan-500"></i> 編輯需求 ${_esc(r.code)}` : '<i class="fa-solid fa-diagram-project text-cyan-500"></i> 新增需求';
+            document.getElementById('reqTitle').value = r?.title || '';
+            document.getElementById('reqSource').value = r?.source || 'PRD';
+            document.getElementById('reqPriority').value = r?.priority || 'Should';
+            document.getElementById('reqStatus').value = r?.status || 'Draft';
+            document.getElementById('reqOwner').value = r?.owner || (authCurrentUsername()||'');
+            document.getElementById('reqDesc').value = r?.description || '';
+            // 填入測試案例下拉
+            const sel = document.getElementById('reqTestcases');
+            const tcs = _collectAllTestCases();
+            const linked = new Set(r?.linked_testcase_ids || []);
+            sel.innerHTML = tcs.map(tc => `<option value="${_esc(tc.id)}" ${linked.has(tc.id)?'selected':''}>${_esc(tc.title)} （${_esc(tc.path||'—')}）</option>`).join('');
+            document.getElementById('requirementModal').classList.remove('hidden');
+        }
+        function closeRequirementModal() { document.getElementById('requirementModal').classList.add('hidden'); }
+        async function requirementSubmit(ev) {
+            ev.preventDefault();
+            const payload = {
+                project_id: currentProjectId,
+                title: document.getElementById('reqTitle').value.trim(),
+                source: document.getElementById('reqSource').value,
+                priority: document.getElementById('reqPriority').value,
+                status: document.getElementById('reqStatus').value,
+                owner: document.getElementById('reqOwner').value.trim() || null,
+                description: document.getElementById('reqDesc').value || null,
+            };
+            const sel = document.getElementById('reqTestcases');
+            const tcIds = Array.from(sel.selectedOptions).map(o => o.value);
+            try {
+                let reqId = _editingRequirementId;
+                if (reqId) {
+                    const res = await fetch('/api/requirements/'+reqId, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+                    if (!res.ok) throw new Error('HTTP '+res.status);
+                } else {
+                    const res = await fetch('/api/requirements', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+                    if (!res.ok) throw new Error('HTTP '+res.status);
+                    const created = await res.json();
+                    reqId = created.id;
+                }
+                // 同步關聯
+                await fetch('/api/requirements/'+reqId+'/links', {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({testcase_node_ids: tcIds})});
+                showToast(_editingRequirementId ? '已更新' : '已建立', 'success');
+                closeRequirementModal();
+                renderRequirementsList();
+            } catch(e) { showToast('儲存失敗：'+e.message, 'error'); }
+            return false;
+        }
+        async function deleteRequirement(id, code) {
+            if (!confirm(`確定刪除需求 ${code}？關聯的 RTM link 也會一起移除。`)) return;
+            try {
+                const res = await fetch('/api/requirements/'+id, {method:'DELETE'});
+                if (!res.ok && res.status !== 204) throw new Error('HTTP '+res.status);
+                showToast('已刪除', 'success');
+                renderRequirementsList();
+            } catch(e) { showToast('刪除失敗：'+e.message, 'error'); }
+        }
+        async function renderRtmMatrix() {
+            const table = document.getElementById('rtmMatrixTable');
+            if (!table) return;
+            const pid = currentProjectId;
+            if (!pid) { table.innerHTML = '<tbody><tr><td class="p-6 text-center text-stone-400">請先選擇專案</td></tr></tbody>'; return; }
+            try {
+                const res = await fetch('/api/rtm/matrix?project_id='+encodeURIComponent(pid));
+                if (!res.ok) throw new Error('HTTP '+res.status);
+                const data = await res.json();
+                const reqs = data.requirements || [];
+                const tcs = data.testcases || [];
+                // cells map: req_id_tc_id → status
+                const cellMap = {};
+                (data.cells||[]).forEach(c => cellMap[c.requirement_id+'|'+c.testcase_node_id] = c.last_status);
+                if (!reqs.length || !tcs.length) {
+                    table.innerHTML = '<tbody><tr><td class="p-6 text-center text-stone-400">需要至少一個需求 + 一個測試案例</td></tr></tbody>';
+                    document.getElementById('rtmCoverage').textContent = '—';
+                    return;
+                }
+                // 表頭：第一格是空，其後每個 testcase 一欄
+                let html = '<thead><tr><th class="p-2 sticky left-0 bg-cyan-50 z-10 text-left">需求 \\ 案例</th>';
+                tcs.forEach(tc => {
+                    html += `<th class="p-2 text-center min-w-[80px] max-w-[120px]" title="${_esc(tc.title)}"><div class="truncate text-[10px] font-mono">${_esc(tc.title)}</div></th>`;
+                });
+                html += '</tr></thead><tbody>';
+                let coveredReqs = 0;
+                reqs.forEach(req => {
+                    let hasAny = false;
+                    html += `<tr class="hover:bg-cyan-50/30"><td class="p-2 sticky left-0 bg-white border-r border-stone-200 text-xs"><div class="font-mono text-stone-500">${_esc(req.code)}</div><div class="font-medium truncate max-w-[180px]" title="${_esc(req.title)}">${_esc(req.title)}</div></td>`;
+                    tcs.forEach(tc => {
+                        const k = req.id+'|'+tc.id;
+                        const st = cellMap[k];
+                        const linked = (req.linked_testcase_ids||[]).includes(tc.id);
+                        if (linked) hasAny = true;
+                        let cell = '<span class="text-stone-200">·</span>';
+                        if (linked) {
+                            if (st === 'PASSED') cell = '<span class="px-1.5 py-0.5 rounded bg-green-100 text-green-700 text-[10px] font-bold">PASS</span>';
+                            else if (st === 'FAILED') cell = '<span class="px-1.5 py-0.5 rounded bg-red-100 text-red-700 text-[10px] font-bold">FAIL</span>';
+                            else cell = '<span class="px-1.5 py-0.5 rounded bg-stone-100 text-stone-500 text-[10px]">─</span>';
+                        }
+                        html += `<td class="p-1 text-center border border-stone-100">${cell}</td>`;
+                    });
+                    html += '</tr>';
+                    if (hasAny) coveredReqs++;
+                });
+                html += '</tbody>';
+                table.innerHTML = html;
+                document.getElementById('rtmCoverage').textContent = `${coveredReqs} / ${reqs.length} (${reqs.length ? Math.round(coveredReqs*100/reqs.length) : 0}%)`;
+            } catch(e) {
+                table.innerHTML = `<tbody><tr><td class="p-6 text-center text-red-500">載入失敗：${_esc(e.message)}</td></tr></tbody>`;
+            }
+        }
+
+        // ─── 測試看版 ───────────────────────────────────────────────────
+        function showTestKanbanView() {
+            if (!_setView('testKanbanWorkspace',
+                '<i class="fa-solid fa-columns text-orange-500"></i> 測試看版',
+                'Kanban',
+                'bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-medium',
+                '測試看版')) return;
+            renderTestKanban();
+        }
+        async function renderTestKanban() {
+            const pid = currentProjectId;
+            const cols = document.getElementById('kanbanColumns');
+            if (!pid) {
+                cols.innerHTML = '<div class="col-span-6 p-6 text-center text-stone-400">請先選擇專案</div>';
+                ['kpi_open_defects','kpi_critical_defects','kpi_active_milestones','kpi_active_plans','kpi_requirements'].forEach(id => document.getElementById(id).textContent = '—');
+                return;
+            }
+            // 並行抓所有資料
+            try {
+                const [defs, summ, ms, plans, reqs] = await Promise.all([
+                    fetch('/api/defects?project_id='+pid).then(r => r.json()),
+                    fetch('/api/defects/stats/summary?project_id='+pid).then(r => r.json()),
+                    fetch('/api/milestones?project_id='+pid).then(r => r.json()),
+                    fetch('/api/plans?project_id='+pid).then(r => r.json()),
+                    fetch('/api/requirements?project_id='+pid).then(r => r.json()),
+                ]);
+                // KPIs
+                const openStatuses = ['New','Assigned','InProgress','Reopened'];
+                const openDefects = defs.filter(d => openStatuses.includes(d.status)).length;
+                const criticalDefects = defs.filter(d => ['Critical','Major'].includes(d.severity) && openStatuses.includes(d.status)).length;
+                document.getElementById('kpi_open_defects').textContent = openDefects;
+                document.getElementById('kpi_critical_defects').textContent = criticalDefects;
+                document.getElementById('kpi_active_milestones').textContent = ms.filter(m => m.status === 'InProgress').length;
+                document.getElementById('kpi_active_plans').textContent = plans.filter(p => ['Active','Approved'].includes(p.status)).length;
+                document.getElementById('kpi_requirements').textContent = reqs.length;
+                // Kanban 欄位（用缺陷）
+                const COL_DEFS = [
+                    {key:'New', label:'New', color:'border-blue-300 bg-blue-50'},
+                    {key:'Assigned', label:'Assigned', color:'border-purple-300 bg-purple-50'},
+                    {key:'InProgress', label:'In Progress', color:'border-amber-300 bg-amber-50'},
+                    {key:'Fixed', label:'Fixed', color:'border-emerald-300 bg-emerald-50'},
+                    {key:'Verified', label:'Verified', color:'border-green-300 bg-green-50'},
+                    {key:'Closed', label:'Closed', color:'border-stone-300 bg-stone-50'},
+                ];
+                const sevBadge = {Critical:'bg-red-100 text-red-700', Major:'bg-orange-100 text-orange-700', Minor:'bg-amber-100 text-amber-700', Trivial:'bg-stone-100 text-stone-500'};
+                cols.innerHTML = COL_DEFS.map(c => {
+                    const items = defs.filter(d => d.status === c.key).slice(0, 30);
+                    return `<div class="bg-white rounded-lg border ${c.color} p-2 min-h-[200px]">
+                        <div class="text-xs font-bold text-stone-700 px-1 pb-2 flex items-center justify-between">
+                            <span>${_esc(c.label)}</span>
+                            <span class="text-stone-400 font-mono">${items.length}</span>
+                        </div>
+                        <div class="space-y-2">${items.map(d => `<div class="bg-white border border-stone-200 rounded p-2 cursor-pointer hover:border-blue-300 shadow-sm" onclick="openDefectModal('${_esc(d.id)}')">
+                            <div class="text-[10px] font-mono text-stone-400">${_esc(d.code)}</div>
+                            <div class="text-xs font-semibold text-stone-800 line-clamp-2">${_esc(d.title)}</div>
+                            <div class="flex items-center justify-between mt-1">
+                                <span class="text-[10px] px-1.5 py-0.5 rounded ${sevBadge[d.severity]||''}">${_esc(d.severity)}</span>
+                                <span class="text-[10px] text-stone-400">${_esc(d.assignee||'未指派')}</span>
+                            </div>
+                        </div>`).join('')||'<div class="text-xs text-stone-400 text-center py-2">無</div>'}</div>
+                    </div>`;
+                }).join('');
+            } catch(e) {
+                cols.innerHTML = `<div class="col-span-6 p-6 text-center text-red-500">載入失敗：${_esc(e.message)}</div>`;
             }
         }
     </script>

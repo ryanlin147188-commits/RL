@@ -1,8 +1,18 @@
 from .base import Base
+from .defect import Defect, DefectPriority, DefectSeverity, DefectStatus
 from .execution_report import ExecutionReport, ReportStatus
 from .execution_step_log import ExecutionStepLog, StepStatus
 from .project import Project
 from .recording import RecordingSession
+from .requirement import (
+    Requirement,
+    RequirementPriority,
+    RequirementSource,
+    RequirementStatus,
+    RequirementTestcaseLink,
+)
+from .test_milestone import MilestoneStatus, TestMilestone
+from .test_plan import TestPlan, TestPlanStatus
 from .testcase_content import TestcaseContent
 from .tree_node import LevelType, TreeNode
 
@@ -17,4 +27,10 @@ __all__ = [
     "ExecutionStepLog",
     "StepStatus",
     "RecordingSession",
+    # Test management extensions (defect / milestone / plan / requirement / RTM)
+    "Defect", "DefectSeverity", "DefectPriority", "DefectStatus",
+    "TestMilestone", "MilestoneStatus",
+    "TestPlan", "TestPlanStatus",
+    "Requirement", "RequirementSource", "RequirementPriority",
+    "RequirementStatus", "RequirementTestcaseLink",
 ]

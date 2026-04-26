@@ -8,7 +8,9 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.database import init_db
-from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings, schedules, local_runner, test_rounds, project_settings, screenshot_baselines, system
+from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings, schedules, local_runner, test_rounds, project_settings, screenshot_baselines, system, defects, test_milestones, test_plans, requirements
+# 確保 5 個新增 model 在 init_db() 前已 import 註冊到 Base.metadata
+from app.models import Defect, TestMilestone, TestPlan, Requirement, RequirementTestcaseLink  # noqa: F401
 from app.services.schedule_service import scheduler_loop
 
 
@@ -63,6 +65,10 @@ app.include_router(test_rounds.router,     prefix="/api", tags=["H · 測試回�
 app.include_router(project_settings.router, prefix="/api", tags=["I · 專案設定（環境變數 / 設備）"])
 app.include_router(screenshot_baselines.router, prefix="/api", tags=["J · Screenshot Diff Baseline"])
 app.include_router(system.router,          prefix="/api", tags=["K · 系統狀態"])
+app.include_router(defects.router,         prefix="/api", tags=["L · 缺陷管理"])
+app.include_router(test_milestones.router, prefix="/api", tags=["M · 測試時程"])
+app.include_router(test_plans.router,      prefix="/api", tags=["N · 測試計畫"])
+app.include_router(requirements.router,    prefix="/api", tags=["O · 需求 / RTM"])
 
 
 @app.get("/", tags=["Health"])
