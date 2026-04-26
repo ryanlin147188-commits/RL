@@ -1,6 +1,6 @@
 """Defect 缺陷 Pydantic Schemas。"""
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict
 
@@ -18,7 +18,7 @@ class DefectBase(BaseModel):
     assignee: Optional[str] = None
     linked_testcase_id: Optional[str] = None
     linked_report_id: Optional[str] = None
-    external_url: Optional[str] = None
+    attachments_json: Optional[list[dict[str, Any]]] = None
 
 
 class DefectCreate(DefectBase):
@@ -38,7 +38,7 @@ class DefectUpdate(BaseModel):
     assignee: Optional[str] = None
     linked_testcase_id: Optional[str] = None
     linked_report_id: Optional[str] = None
-    external_url: Optional[str] = None
+    attachments_json: Optional[list[dict[str, Any]]] = None
 
 
 class DefectResponse(DefectBase):
@@ -49,3 +49,11 @@ class DefectResponse(DefectBase):
     created_at: datetime
     updated_at: datetime
     closed_at: Optional[datetime] = None
+
+
+class AttachmentResponse(BaseModel):
+    """`POST /api/defects/{id}/attachments` 上傳檔案的回應。"""
+    name: str
+    url: str
+    size: int
+    type: str

@@ -3,7 +3,7 @@
 每個缺陷可以：
 - 連結到一個測試案例（linked_testcase_id → tree_nodes）
 - 連結到一份執行報告（linked_report_id → execution_reports）
-- 連結到一條外部 issue tracker URL（external_url，例：Jira / GitHub Issue）
+- 上傳多張截圖／附件（attachments_json 為 [{name, url, size, type}, ...] 的列表）
 
 狀態機（簡化版）：
   New → Assigned → InProgress → Fixed → Verified → Closed
@@ -13,9 +13,9 @@
 import enum
 import uuid
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
-from sqlalchemy import DateTime, Enum, ForeignKey, String, Text
+from sqlalchemy import JSON, DateTime, Enum, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base
@@ -76,7 +76,9 @@ class Defect(Base):
         String(36), ForeignKey("tree_nodes.id", ondelete="SET NULL"), nullable=True
     )
     linked_report_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
-    external_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    attachments_json: Mapped[Optional[list[dict[str, Any]]]] = mapped_column(
+        JSON, nullable=True, default=list
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow

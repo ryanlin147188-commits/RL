@@ -11,6 +11,7 @@ from .requirement import (
     RequirementStatus,
     RequirementTestcaseLink,
 )
+from .test_data_set import DataSetCategory, TestDataSet
 from .test_milestone import MilestoneStatus, TestMilestone
 from .test_plan import TestPlan, TestPlanStatus
 from .testcase_content import TestcaseContent
@@ -33,4 +34,5 @@ __all__ = [
     "TestPlan", "TestPlanStatus",
     "Requirement", "RequirementSource", "RequirementPriority",
     "RequirementStatus", "RequirementTestcaseLink",
+    "TestDataSet", "DataSetCategory",
 ]

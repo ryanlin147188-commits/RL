@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.project import Project
 from app.models.tree_node import TreeNode
-from app.schemas.project import ProjectCreate, ProjectResponse
+from app.schemas.project import ProjectCreate, ProjectResponse, ProjectUpdate
 from app.services.tree_service import build_tree
 
 router = APIRouter()
@@ -21,7 +21,15 @@ async def list_projects(db: AsyncSession = Depends(get_db)):
 # 2. POST /api/projects
 @router.post("/projects", response_model=ProjectResponse, status_code=201)
 async def create_project(payload: ProjectCreate, db: AsyncSession = Depends(get_db)):
-    project = Project(name=payload.name)
+    project = Project(
+        name=payload.name,
+        description=payload.description,
+        owner=payload.owner,
+        status=payload.status or "Active",
+        start_date=payload.start_date,
+        target_date=payload.target_date,
+        tags=payload.tags,
+    )
     db.add(project)
     await db.flush()
     await db.refresh(project)
@@ -60,16 +68,30 @@ async def delete_project(project_id: str, db: AsyncSession = Depends(get_db)):
 # 5. PUT /api/projects/{projectId}
 @router.put("/projects/{project_id}", response_model=ProjectResponse)
 async def update_project(
-    project_id: str, payload: ProjectCreate, db: AsyncSession = Depends(get_db)
+    project_id: str, payload: ProjectUpdate, db: AsyncSession = Depends(get_db)
 ):
-    """更新專案名稱。"""
+    """更新測試專案的欄位（部分更新，未提供的欄位保留）。"""
     proj = await db.get(Project, project_id)
     if proj is None:
         raise HTTPException(status_code=404, detail="Project not found")
-    name = (payload.name or "").strip()
-    if not name:
-        raise HTTPException(status_code=400, detail="Project name cannot be empty")
-    proj.name = name
+    data = payload.model_dump(exclude_unset=True)
+    if "name" in data:
+        name = (data["name"] or "").strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="Project name cannot be empty")
+        proj.name = name
+    for key in ("description", "owner", "status", "start_date", "target_date", "tags"):
+        if key in data:
+            setattr(proj, key, data[key])
     await db.flush()
     await db.refresh(proj)
+    return proj
+
+
+# 6. GET /api/projects/{projectId} — 單一測試專案詳情
+@router.get("/projects/{project_id}", response_model=ProjectResponse)
+async def get_project(project_id: str, db: AsyncSession = Depends(get_db)):
+    proj = await db.get(Project, project_id)
+    if proj is None:
+        raise HTTPException(status_code=404, detail="Project not found")
     return proj

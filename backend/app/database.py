@@ -24,7 +24,7 @@ AsyncSessionLocal = async_sessionmaker(
 
 
 async def init_db() -> None:
-    """應用程式啟動時，若資料表不存在則自動建立。"""
+    """應用程式啟動時，若資料表不存在則自動建立，並補上新增欄位（idempotent）。"""
     # 確保所有 model 都已被 import，才能讓 metadata 認識它們
     from app.models import (  # noqa: F401
         execution_report,
@@ -40,8 +40,26 @@ async def init_db() -> None:
         tree_node,
     )
 
+    from sqlalchemy import text
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # ── Lightweight in-place migrations ─────────────────────────────
+        # PostgreSQL 支援 ADD COLUMN IF NOT EXISTS，可以在每次啟動安全執行。
+        for stmt in (
+            "ALTER TABLE projects ADD COLUMN IF NOT EXISTS description TEXT",
+            "ALTER TABLE projects ADD COLUMN IF NOT EXISTS owner VARCHAR(100)",
+            "ALTER TABLE projects ADD COLUMN IF NOT EXISTS status VARCHAR(40)",
+            "ALTER TABLE projects ADD COLUMN IF NOT EXISTS start_date VARCHAR(20)",
+            "ALTER TABLE projects ADD COLUMN IF NOT EXISTS target_date VARCHAR(20)",
+            "ALTER TABLE projects ADD COLUMN IF NOT EXISTS tags VARCHAR(300)",
+            "ALTER TABLE defects ADD COLUMN IF NOT EXISTS attachments_json JSON",
+        ):
+            try:
+                await conn.execute(text(stmt))
+            except Exception:
+                # 若 defects 表不存在（首次冷啟動），忽略；create_all 之後會在下次啟動補上
+                pass
 
 
 async def get_db():

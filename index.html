@@ -413,6 +413,11 @@
             <!-- 第一列：規劃 & 設計 / 設定 -->
             <div class="hidden md:flex items-center gap-2 md:gap-3 xl:gap-5 flex-1 justify-center px-4">
                 <span class="hidden 2xl:inline text-[10px] text-stone-400 font-bold uppercase tracking-wider">規劃</span>
+                <button type="button" onclick="showTestProjectsView()" id="navTestProjectsBtn" title="測試專案"
+                    class="text-slate-500 hover:text-amber-600 font-medium transition flex items-center gap-2">
+                    <i class="fa-solid fa-folder-tree"></i>
+                    <span class="hidden xl:inline">測試專案</span>
+                </button>
                 <button type="button" onclick="showTestPlanView()" id="navTestPlanBtn" title="測試計畫"
                     class="text-slate-500 hover:text-blue-600 font-medium transition flex items-center gap-2">
                     <i class="fa-solid fa-clipboard-list"></i>
@@ -427,6 +432,11 @@
                     class="text-slate-500 hover:text-blue-600 font-medium transition flex items-center gap-2">
                     <i class="fa-solid fa-list-check"></i>
                     <span class="hidden xl:inline">測試案例</span>
+                </button>
+                <button type="button" onclick="showTestDataSetsView()" id="navTestDataSetsBtn" title="測試資料集 (DDT)"
+                    class="text-slate-500 hover:text-violet-600 font-medium transition flex items-center gap-2">
+                    <i class="fa-solid fa-table"></i>
+                    <span class="hidden xl:inline">測試資料集</span>
                 </button>
                 <span class="hidden 2xl:inline text-[10px] text-stone-400 font-bold uppercase tracking-wider ml-2">設定</span>
                 <button type="button" onclick="showDevicesView()" id="navDevicesBtn" title="設備資訊"
@@ -2426,15 +2436,15 @@ driver.swipe(100, 800, 100, 200, 500)"
                             </div>
                             <select id="defStatusFilter" onchange="renderDefectsList()" aria-label="依狀態過濾" class="px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
                                 <option value="">全部狀態</option>
-                                <option value="New">New</option><option value="Assigned">Assigned</option>
-                                <option value="InProgress">InProgress</option><option value="Fixed">Fixed</option>
-                                <option value="Verified">Verified</option><option value="Closed">Closed</option>
-                                <option value="Reopened">Reopened</option><option value="WontFix">WontFix</option>
+                                <option value="New">新建立</option><option value="Assigned">已指派</option>
+                                <option value="InProgress">處理中</option><option value="Fixed">已修復</option>
+                                <option value="Verified">已驗證</option><option value="Closed">已關閉</option>
+                                <option value="Reopened">重新開啟</option><option value="WontFix">不予修復</option>
                             </select>
                             <select id="defSeverityFilter" onchange="renderDefectsList()" aria-label="依嚴重性過濾" class="px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
                                 <option value="">全部嚴重性</option>
-                                <option value="Critical">Critical</option><option value="Major">Major</option>
-                                <option value="Minor">Minor</option><option value="Trivial">Trivial</option>
+                                <option value="Critical">嚴重</option><option value="Major">重大</option>
+                                <option value="Minor">次要</option><option value="Trivial">輕微</option>
                             </select>
                             <button onclick="renderDefectsList()" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
                             <button onclick="openDefectModal()" class="px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded-md text-sm font-semibold shadow-sm"><i class="fa-solid fa-plus"></i> 新增缺陷</button>
@@ -2464,8 +2474,8 @@ driver.swipe(100, 800, 100, 200, 500)"
                             </div>
                             <select id="msStatusFilter" onchange="renderMilestonesList()" aria-label="依狀態過濾" class="px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
                                 <option value="">全部狀態</option>
-                                <option value="Planned">Planned</option><option value="InProgress">InProgress</option>
-                                <option value="Completed">Completed</option><option value="Cancelled">Cancelled</option>
+                                <option value="Planned">規劃中</option><option value="InProgress">進行中</option>
+                                <option value="Completed">已完成</option><option value="Cancelled">已取消</option>
                             </select>
                             <button onclick="renderMilestonesList()" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
                             <button onclick="openMilestoneModal()" class="px-3 py-2 bg-teal-500 hover:bg-teal-600 text-white rounded-md text-sm font-semibold shadow-sm"><i class="fa-solid fa-plus"></i> 新增時程</button>
@@ -2500,8 +2510,8 @@ driver.swipe(100, 800, 100, 200, 500)"
                             </div>
                             <select id="tpStatusFilter" onchange="renderPlansList()" aria-label="依狀態過濾" class="px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
                                 <option value="">全部狀態</option>
-                                <option value="Draft">Draft</option><option value="InReview">InReview</option>
-                                <option value="Approved">Approved</option><option value="Active">Active</option><option value="Closed">Closed</option>
+                                <option value="Draft">草稿</option><option value="InReview">審核中</option>
+                                <option value="Approved">已核准</option><option value="Active">執行中</option><option value="Closed">已關閉</option>
                             </select>
                             <button onclick="renderPlansList()" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
                             <button onclick="openPlanModal()" class="px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md text-sm font-semibold shadow-sm"><i class="fa-solid fa-plus"></i> 新增計畫</button>
@@ -2588,6 +2598,154 @@ driver.swipe(100, 800, 100, 200, 500)"
                 </div>
             </div>
 
+            <!-- ── 測試專案 (Test Projects) ── -->
+            <div id="testProjectsWorkspace" class="flex-1 overflow-y-auto p-6 bg-amber-50/30 hidden">
+                <div class="max-w-7xl mx-auto">
+                    <div class="bg-white rounded-lg border border-amber-200 shadow-sm p-4 mb-4">
+                        <div class="flex flex-wrap items-center gap-3">
+                            <div class="flex-1 min-w-[200px] relative">
+                                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm"></i>
+                                <input id="tprjSearch" type="search" oninput="renderTestProjectsList()" placeholder="搜尋專案名稱…"
+                                    class="w-full pl-9 pr-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+                            </div>
+                            <select id="tprjStatusFilter" onchange="renderTestProjectsList()" aria-label="依狀態過濾" class="px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
+                                <option value="">全部狀態</option>
+                                <option value="Planning">規劃中</option>
+                                <option value="Active">進行中</option>
+                                <option value="OnHold">暫停</option>
+                                <option value="Archived">已封存</option>
+                            </select>
+                            <button onclick="renderTestProjectsList()" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
+                            <button onclick="openTestProjectModal()" class="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold shadow-sm"><i class="fa-solid fa-plus"></i> 新增專案</button>
+                            <div class="text-xs text-stone-500 ml-auto">共 <span id="tprjListCount" class="font-bold text-stone-700">0</span> 筆</div>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-lg border border-amber-200 shadow-sm overflow-hidden">
+                        <table class="w-full text-sm">
+                            <thead class="bg-amber-50/60 border-b border-amber-200 text-stone-600 text-xs uppercase">
+                                <tr><th class="p-3 text-left">名稱</th><th class="p-3 w-32">狀態</th><th class="p-3 w-32">負責人</th><th class="p-3 w-32">起始</th><th class="p-3 w-32">目標</th><th class="p-3 w-40">標籤</th><th class="p-3 w-36 text-center">操作</th></tr>
+                            </thead>
+                            <tbody id="tprjListBody" class="divide-y divide-stone-100"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── 測試資料集 (Test Data Set / DDT) ── -->
+            <div id="testDataSetsWorkspace" class="flex-1 overflow-y-auto p-6 bg-amber-50/30 hidden">
+                <div class="max-w-7xl mx-auto">
+                    <div class="bg-white rounded-lg border border-violet-200 shadow-sm p-4 mb-4">
+                        <div class="flex flex-wrap items-center gap-3">
+                            <div class="flex-1 min-w-[200px] relative">
+                                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm"></i>
+                                <input id="dsSearch" type="search" oninput="renderDataSetsList()" placeholder="搜尋資料集名稱、代號…"
+                                    class="w-full pl-9 pr-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-violet-400">
+                            </div>
+                            <select id="dsCategoryFilter" onchange="renderDataSetsList()" aria-label="依分類過濾" class="px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
+                                <option value="">全部分類</option>
+                                <option value="Login">登入</option>
+                                <option value="Boundary">邊界值</option>
+                                <option value="Business">業務流程</option>
+                                <option value="Performance">效能</option>
+                                <option value="Other">其他</option>
+                            </select>
+                            <button onclick="renderDataSetsList()" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
+                            <button onclick="openDataSetModal()" class="px-3 py-2 bg-violet-500 hover:bg-violet-600 text-white rounded-md text-sm font-semibold shadow-sm"><i class="fa-solid fa-plus"></i> 新增資料集</button>
+                            <div class="text-xs text-stone-500 ml-auto">共 <span id="dsListCount" class="font-bold text-stone-700">0</span> 筆</div>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-lg border border-violet-200 shadow-sm overflow-hidden">
+                        <table class="w-full text-sm">
+                            <thead class="bg-violet-50/60 border-b border-violet-200 text-stone-600 text-xs uppercase">
+                                <tr><th class="p-3 text-left w-24">代號</th><th class="p-3 text-left">名稱</th><th class="p-3 w-28">分類</th><th class="p-3 w-20">欄位</th><th class="p-3 w-20">資料列</th><th class="p-3 w-32">負責人</th><th class="p-3 w-36 text-center">操作</th></tr>
+                            </thead>
+                            <tbody id="dsListBody" class="divide-y divide-stone-100"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ════════════════════════════════════════════════════════════════
+                 7 個對應的 Modal（建立 / 編輯）
+                 ════════════════════════════════════════════════════════════════ -->
+
+            <!-- 測試專案 Modal -->
+            <div id="testProjectModal" class="hidden fixed inset-0 z-[150] bg-black/40 flex items-center justify-center p-4">
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl border border-amber-200 max-h-[90vh] overflow-y-auto">
+                    <div class="px-6 py-4 border-b border-stone-200 bg-amber-50/60 flex items-center justify-between">
+                        <h3 id="testProjectModalTitle" class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-folder-tree text-amber-500"></i> 新增測試專案</h3>
+                        <button type="button" onclick="closeTestProjectModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <form onsubmit="return testProjectSubmit(event)" class="p-6 space-y-3">
+                        <div><label for="tprjName" class="block text-xs font-semibold text-stone-600 mb-1">專案名稱 *</label><input type="text" id="tprjName" aria-label="專案名稱" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                        <div><label for="tprjDesc" class="block text-xs font-semibold text-stone-600 mb-1">專案簡介</label><textarea id="tprjDesc" aria-label="專案簡介" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div><label for="tprjStatus" class="block text-xs font-semibold text-stone-600 mb-1">狀態</label>
+                                <select id="tprjStatus" aria-label="狀態" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
+                                    <option value="Planning">規劃中</option>
+                                    <option value="Active" selected>進行中</option>
+                                    <option value="OnHold">暫停</option>
+                                    <option value="Archived">已封存</option>
+                                </select>
+                            </div>
+                            <div><label for="tprjOwner" class="block text-xs font-semibold text-stone-600 mb-1">負責人</label><input type="text" id="tprjOwner" aria-label="負責人" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div><label for="tprjStart" class="block text-xs font-semibold text-stone-600 mb-1">起始日期</label><input type="date" id="tprjStart" aria-label="起始日期" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                            <div><label for="tprjTarget" class="block text-xs font-semibold text-stone-600 mb-1">目標日期</label><input type="date" id="tprjTarget" aria-label="目標日期" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                        </div>
+                        <div><label for="tprjTags" class="block text-xs font-semibold text-stone-600 mb-1">標籤（用逗號分隔）</label><input type="text" id="tprjTags" aria-label="標籤" placeholder="UI, API, 回歸" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                        <div class="flex justify-end gap-2 pt-2"><button type="button" onclick="closeTestProjectModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button><button type="submit" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button></div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- 測試資料集 Modal -->
+            <div id="testDataSetModal" class="hidden fixed inset-0 z-[150] bg-black/40 flex items-center justify-center p-4">
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl border border-violet-200 max-h-[90vh] overflow-y-auto">
+                    <div class="px-6 py-4 border-b border-stone-200 bg-violet-50/60 flex items-center justify-between">
+                        <h3 id="testDataSetModalTitle" class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-table text-violet-500"></i> 新增測試資料集</h3>
+                        <button type="button" onclick="closeDataSetModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <form onsubmit="return dataSetSubmit(event)" class="p-6 space-y-3">
+                        <div class="grid grid-cols-3 gap-3">
+                            <div class="col-span-2"><label for="dsName" class="block text-xs font-semibold text-stone-600 mb-1">名稱 *</label><input type="text" id="dsName" aria-label="名稱" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                            <div><label for="dsCategory" class="block text-xs font-semibold text-stone-600 mb-1">分類</label>
+                                <select id="dsCategory" aria-label="分類" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
+                                    <option value="Login">登入</option>
+                                    <option value="Boundary">邊界值</option>
+                                    <option value="Business">業務流程</option>
+                                    <option value="Performance">效能</option>
+                                    <option value="Other" selected>其他</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div><label for="dsOwner" class="block text-xs font-semibold text-stone-600 mb-1">負責人</label><input type="text" id="dsOwner" aria-label="負責人" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                            <div><label for="dsDesc" class="block text-xs font-semibold text-stone-600 mb-1">說明</label><input type="text" id="dsDesc" aria-label="說明" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-stone-600 mb-1">資料表（行 × 欄）</label>
+                            <div class="bg-stone-50 border border-stone-200 rounded p-3 space-y-2">
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <button type="button" onclick="dsAddColumn()" class="text-xs px-2 py-1 border border-stone-300 bg-white rounded hover:bg-violet-50"><i class="fa-solid fa-plus"></i> 新增欄</button>
+                                    <button type="button" onclick="dsAddRow()" class="text-xs px-2 py-1 border border-stone-300 bg-white rounded hover:bg-violet-50"><i class="fa-solid fa-plus"></i> 新增列</button>
+                                    <span class="text-[11px] text-stone-500 ml-auto">總計 <span id="dsColCount" class="font-mono font-bold text-stone-700">0</span> 欄 × <span id="dsRowCount" class="font-mono font-bold text-stone-700">0</span> 列</span>
+                                </div>
+                                <div class="overflow-x-auto">
+                                    <table id="dsGrid" class="text-xs min-w-full">
+                                        <thead class="bg-violet-100/40"><tr id="dsGridHead"></tr></thead>
+                                        <tbody id="dsGridBody"></tbody>
+                                    </table>
+                                </div>
+                                <p class="text-[10px] text-stone-500">點擊欄位可重新命名；任一欄／列右側「✕」可移除</p>
+                            </div>
+                        </div>
+                        <div class="flex justify-end gap-2 pt-2"><button type="button" onclick="closeDataSetModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button><button type="submit" class="px-4 py-2 bg-violet-500 hover:bg-violet-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button></div>
+                    </form>
+                </div>
+            </div>
+
             <!-- ════════════════════════════════════════════════════════════════
                  5 個對應的 Modal（建立 / 編輯）
                  ════════════════════════════════════════════════════════════════ -->
@@ -2602,9 +2760,9 @@ driver.swipe(100, 800, 100, 200, 500)"
                     <form onsubmit="return defectSubmit(event)" class="p-6 space-y-3">
                         <div><label for="defTitle" class="block text-xs font-semibold text-stone-600 mb-1">標題 *</label><input type="text" id="defTitle" aria-label="標題" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
                         <div class="grid grid-cols-3 gap-3">
-                            <div><label class="block text-xs font-semibold text-stone-600 mb-1">嚴重性</label><select id="defSeverity" aria-label="嚴重性" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option>Critical</option><option>Major</option><option selected>Minor</option><option>Trivial</option></select></div>
-                            <div><label class="block text-xs font-semibold text-stone-600 mb-1">優先</label><select id="defPriority" aria-label="優先" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option>P0</option><option>P1</option><option selected>P2</option><option>P3</option></select></div>
-                            <div><label class="block text-xs font-semibold text-stone-600 mb-1">狀態</label><select id="defStatus" aria-label="狀態" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option selected>New</option><option>Assigned</option><option>InProgress</option><option>Fixed</option><option>Verified</option><option>Closed</option><option>Reopened</option><option>WontFix</option></select></div>
+                            <div><label for="defSeverity" class="block text-xs font-semibold text-stone-600 mb-1">嚴重性</label><select id="defSeverity" aria-label="嚴重性" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option value="Critical">嚴重 (Critical)</option><option value="Major">重大 (Major)</option><option value="Minor" selected>次要 (Minor)</option><option value="Trivial">輕微 (Trivial)</option></select></div>
+                            <div><label for="defPriority" class="block text-xs font-semibold text-stone-600 mb-1">優先</label><select id="defPriority" aria-label="優先" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option value="P0">P0 (最高)</option><option value="P1">P1 (高)</option><option value="P2" selected>P2 (中)</option><option value="P3">P3 (低)</option></select></div>
+                            <div><label for="defStatus" class="block text-xs font-semibold text-stone-600 mb-1">狀態</label><select id="defStatus" aria-label="狀態" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option value="New" selected>新建立</option><option value="Assigned">已指派</option><option value="InProgress">處理中</option><option value="Fixed">已修復</option><option value="Verified">已驗證</option><option value="Closed">已關閉</option><option value="Reopened">重新開啟</option><option value="WontFix">不予修復</option></select></div>
                         </div>
                         <div class="grid grid-cols-2 gap-3">
                             <div><label for="defReporter" class="block text-xs font-semibold text-stone-600 mb-1">回報者</label><input type="text" id="defReporter" aria-label="回報者" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
@@ -2616,7 +2774,17 @@ driver.swipe(100, 800, 100, 200, 500)"
                             <div><label for="defExpected" class="block text-xs font-semibold text-stone-600 mb-1">預期結果</label><textarea id="defExpected" aria-label="預期結果" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
                             <div><label for="defActual" class="block text-xs font-semibold text-stone-600 mb-1">實際結果</label><textarea id="defActual" aria-label="實際結果" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
                         </div>
-                        <div><label class="block text-xs font-semibold text-stone-600 mb-1">外部連結（Jira / GitHub Issue）</label><input type="url" id="defExternalUrl" placeholder="https://" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                        <div>
+                            <label for="defAttachmentInput" class="block text-xs font-semibold text-stone-600 mb-1">附件（圖片或文件，可多選）</label>
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <input type="file" id="defAttachmentInput" aria-label="選擇附件" multiple
+                                    accept="image/png,image/jpeg,image/webp,image/gif,application/pdf,text/plain,text/csv,application/json,application/zip"
+                                    class="text-xs file:mr-2 file:px-3 file:py-1.5 file:rounded file:border file:border-stone-300 file:bg-white file:text-stone-700 file:cursor-pointer hover:file:bg-stone-50">
+                                <button type="button" id="defAttachmentUploadBtn" onclick="defectUploadAttachments()" class="text-xs px-2 py-1.5 bg-red-100 text-red-700 border border-red-200 rounded hover:bg-red-200 disabled:opacity-50" disabled><i class="fa-solid fa-upload"></i> 上傳</button>
+                                <span id="defAttachmentHint" class="text-[10px] text-stone-500">需先儲存缺陷後才能上傳附件</span>
+                            </div>
+                            <div id="defAttachmentList" class="mt-2 space-y-1"></div>
+                        </div>
                         <div class="flex justify-end gap-2 pt-2"><button type="button" onclick="closeDefectModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button><button type="submit" class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button></div>
                     </form>
                 </div>
@@ -2636,7 +2804,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                             <div><label for="msEnd" class="block text-xs font-semibold text-stone-600 mb-1">結束日期 *</label><input type="date" id="msEnd" aria-label="結束日期" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
                         </div>
                         <div class="grid grid-cols-2 gap-3">
-                            <div><label for="msStatus" class="block text-xs font-semibold text-stone-600 mb-1">狀態</label><select id="msStatus" aria-label="狀態" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option selected>Planned</option><option>InProgress</option><option>Completed</option><option>Cancelled</option></select></div>
+                            <div><label for="msStatus" class="block text-xs font-semibold text-stone-600 mb-1">狀態</label><select id="msStatus" aria-label="狀態" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option value="Planned" selected>規劃中</option><option value="InProgress">進行中</option><option value="Completed">已完成</option><option value="Cancelled">已取消</option></select></div>
                             <div><label for="msOwner" class="block text-xs font-semibold text-stone-600 mb-1">負責人</label><input type="text" id="msOwner" aria-label="負責人" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
                         </div>
                         <div><label for="msDesc" class="block text-xs font-semibold text-stone-600 mb-1">說明</label><textarea id="msDesc" aria-label="說明" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
@@ -2658,7 +2826,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                             <div><label for="tpVersion" class="block text-xs font-semibold text-stone-600 mb-1">版本</label><input type="text" id="tpVersion" aria-label="版本" placeholder="1.0" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
                         </div>
                         <div class="grid grid-cols-2 gap-3">
-                            <div><label for="tpStatus" class="block text-xs font-semibold text-stone-600 mb-1">狀態</label><select id="tpStatus" aria-label="狀態" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option selected>Draft</option><option>InReview</option><option>Approved</option><option>Active</option><option>Closed</option></select></div>
+                            <div><label for="tpStatus" class="block text-xs font-semibold text-stone-600 mb-1">狀態</label><select id="tpStatus" aria-label="狀態" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option value="Draft" selected>草稿</option><option value="InReview">審核中</option><option value="Approved">已核准</option><option value="Active">執行中</option><option value="Closed">已關閉</option></select></div>
                             <div><label for="tpOwner" class="block text-xs font-semibold text-stone-600 mb-1">負責人</label><input type="text" id="tpOwner" aria-label="負責人" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
                         </div>
                         <div><label for="tpScopeIn" class="block text-xs font-semibold text-stone-600 mb-1">範圍 (Scope In)</label><textarea id="tpScopeIn" aria-label="範圍 (Scope In)" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
@@ -2684,9 +2852,9 @@ driver.swipe(100, 800, 100, 200, 500)"
                     <form onsubmit="return requirementSubmit(event)" class="p-6 space-y-3">
                         <div><label for="reqTitle" class="block text-xs font-semibold text-stone-600 mb-1">標題 *</label><input type="text" id="reqTitle" aria-label="標題" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
                         <div class="grid grid-cols-3 gap-3">
-                            <div><label for="reqSource" class="block text-xs font-semibold text-stone-600 mb-1">來源</label><select id="reqSource" aria-label="來源" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option selected>PRD</option><option>Customer</option><option>Regulatory</option><option>Security</option><option>Internal</option></select></div>
-                            <div><label for="reqPriority" class="block text-xs font-semibold text-stone-600 mb-1">優先 (MoSCoW)</label><select id="reqPriority" aria-label="優先" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option>Must</option><option selected>Should</option><option>Could</option><option>Wont</option></select></div>
-                            <div><label for="reqStatus" class="block text-xs font-semibold text-stone-600 mb-1">狀態</label><select id="reqStatus" aria-label="狀態" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option selected>Draft</option><option>Approved</option><option>Implemented</option><option>Verified</option><option>Deprecated</option></select></div>
+                            <div><label for="reqSource" class="block text-xs font-semibold text-stone-600 mb-1">來源</label><select id="reqSource" aria-label="來源" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option value="PRD" selected>產品需求 (PRD)</option><option value="Customer">客戶</option><option value="Regulatory">法規</option><option value="Security">資安</option><option value="Internal">內部</option></select></div>
+                            <div><label for="reqPriority" class="block text-xs font-semibold text-stone-600 mb-1">優先 (MoSCoW)</label><select id="reqPriority" aria-label="優先" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option value="Must">必要 (Must)</option><option value="Should" selected>應當 (Should)</option><option value="Could">可選 (Could)</option><option value="Wont">不做 (Won't)</option></select></div>
+                            <div><label for="reqStatus" class="block text-xs font-semibold text-stone-600 mb-1">狀態</label><select id="reqStatus" aria-label="狀態" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option value="Draft" selected>草稿</option><option value="Approved">已核准</option><option value="Implemented">已實作</option><option value="Verified">已驗證</option><option value="Deprecated">已淘汰</option></select></div>
                         </div>
                         <div><label for="reqDesc" class="block text-xs font-semibold text-stone-600 mb-1">說明</label><textarea id="reqDesc" aria-label="說明" rows="3" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
                         <div><label for="reqOwner" class="block text-xs font-semibold text-stone-600 mb-1">負責人</label><input type="text" id="reqOwner" aria-label="負責人" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
@@ -6504,12 +6672,14 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('homeWorkspace')?.classList.add('hidden');
             document.getElementById('testcasesWorkspace')?.classList.add('hidden');
             document.getElementById('userSettingsWorkspace')?.classList.add('hidden');
-            // 5 個測試管理擴充工作區
+            // 7 個測試管理擴充工作區
             document.getElementById('defectsWorkspace')?.classList.add('hidden');
             document.getElementById('testMilestonesWorkspace')?.classList.add('hidden');
             document.getElementById('testPlansWorkspace')?.classList.add('hidden');
             document.getElementById('requirementsWorkspace')?.classList.add('hidden');
             document.getElementById('testKanbanWorkspace')?.classList.add('hidden');
+            document.getElementById('testProjectsWorkspace')?.classList.add('hidden');
+            document.getElementById('testDataSetsWorkspace')?.classList.add('hidden');
         }
 
         // ==================== 首頁 (Home) ====================
@@ -9553,6 +9723,28 @@ driver.swipe(100, 800, 100, 200, 500)"
             return true;
         }
 
+        // ─── 繁體中文標籤對照表（後端值 → 顯示文字）──────────────────────
+        // 後端 enum 仍使用英文，前端只做顯示層翻譯
+        const _ZH = {
+            // 缺陷
+            defSeverity: {Critical:'嚴重', Major:'重大', Minor:'次要', Trivial:'輕微'},
+            defPriority: {P0:'P0 (最高)', P1:'P1 (高)', P2:'P2 (中)', P3:'P3 (低)'},
+            defStatus:   {New:'新建立', Assigned:'已指派', InProgress:'處理中', Fixed:'已修復', Verified:'已驗證', Closed:'已關閉', Reopened:'重新開啟', WontFix:'不予修復'},
+            // 時程
+            msStatus:    {Planned:'規劃中', InProgress:'進行中', Completed:'已完成', Cancelled:'已取消'},
+            // 計畫
+            tpStatus:    {Draft:'草稿', InReview:'審核中', Approved:'已核准', Active:'執行中', Closed:'已關閉'},
+            // 需求
+            reqSource:   {PRD:'產品需求', Customer:'客戶', Regulatory:'法規', Security:'資安', Internal:'內部'},
+            reqPriority: {Must:'必要', Should:'應當', Could:'可選', Wont:'不做'},
+            reqStatus:   {Draft:'草稿', Approved:'已核准', Implemented:'已實作', Verified:'已驗證', Deprecated:'已淘汰'},
+            // 測試專案
+            tprjStatus:  {Planning:'規劃中', Active:'進行中', OnHold:'暫停', Archived:'已封存'},
+            // DDT 資料集分類
+            dsCategory:  {Login:'登入', Boundary:'邊界值', Business:'業務流程', Performance:'效能', Other:'其他'},
+        };
+        function _zh(group, val) { return (_ZH[group] && _ZH[group][val]) || val || ''; }
+
         // ─── 缺陷管理 ────────────────────────────────────────────────────
         let _defectsCache = [];
         let _editingDefectId = null;
@@ -9590,9 +9782,9 @@ driver.swipe(100, 800, 100, 200, 500)"
                 tbody.innerHTML = rows.map(r => `<tr class="hover:bg-amber-50/30">
                     <td class="p-3 font-mono text-xs text-stone-500">${_esc(r.code)}</td>
                     <td class="p-3 font-semibold text-stone-800 break-all">${_esc(r.title)}</td>
-                    <td class="p-3"><span class="text-xs px-2 py-0.5 rounded font-medium border ${sevColor[r.severity]||''}">${_esc(r.severity)}</span></td>
+                    <td class="p-3"><span class="text-xs px-2 py-0.5 rounded font-medium border ${sevColor[r.severity]||''}">${_esc(_zh('defSeverity', r.severity))}</span></td>
                     <td class="p-3 font-mono text-xs">${_esc(r.priority)}</td>
-                    <td class="p-3"><span class="text-xs px-2 py-0.5 rounded font-medium ${stColor[r.status]||'bg-stone-100'}">${_esc(r.status)}</span></td>
+                    <td class="p-3"><span class="text-xs px-2 py-0.5 rounded font-medium ${stColor[r.status]||'bg-stone-100'}">${_esc(_zh('defStatus', r.status))}</span></td>
                     <td class="p-3 text-xs text-stone-600">${_esc(r.assignee||'—')}</td>
                     <td class="p-3 text-xs text-stone-500 font-mono">${(r.created_at||'').slice(0,10)}</td>
                     <td class="p-3 text-center whitespace-nowrap space-x-1">
@@ -9619,8 +9811,81 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('defSteps').value = r?.steps_to_reproduce || '';
             document.getElementById('defExpected').value = r?.expected_result || '';
             document.getElementById('defActual').value = r?.actual_result || '';
-            document.getElementById('defExternalUrl').value = r?.external_url || '';
+            // 附件：只在「編輯」模式可上傳，建立模式需先存後再上傳
+            _editingDefectAttachments = Array.isArray(r?.attachments_json) ? [...r.attachments_json] : [];
+            const upBtn = document.getElementById('defAttachmentUploadBtn');
+            const hint = document.getElementById('defAttachmentHint');
+            const fileInp = document.getElementById('defAttachmentInput');
+            if (fileInp) fileInp.value = '';
+            if (id) {
+                upBtn.disabled = false;
+                hint.textContent = '可選多檔（PNG / JPEG / WebP / PDF / TXT / ZIP，每檔 ≤ 20 MB）';
+            } else {
+                upBtn.disabled = true;
+                hint.textContent = '需先儲存缺陷後才能上傳附件';
+            }
+            renderDefectAttachments();
             document.getElementById('defectModal').classList.remove('hidden');
+        }
+        let _editingDefectAttachments = [];
+        function renderDefectAttachments() {
+            const box = document.getElementById('defAttachmentList');
+            if (!box) return;
+            if (!_editingDefectAttachments.length) {
+                box.innerHTML = '<div class="text-[11px] text-stone-400">尚無附件</div>';
+                return;
+            }
+            box.innerHTML = _editingDefectAttachments.map((a, idx) => {
+                const isImg = (a.type||'').startsWith('image/');
+                const thumb = isImg ? `<img src="${_esc(a.url)}" alt="" class="w-10 h-10 object-cover rounded border border-stone-200">` : `<div class="w-10 h-10 flex items-center justify-center bg-stone-100 rounded border border-stone-200 text-stone-400"><i class="fa-solid fa-file"></i></div>`;
+                const sizeKb = Math.round((a.size||0)/1024);
+                return `<div class="flex items-center gap-2 text-xs bg-white border border-stone-200 rounded p-1.5">
+                    ${thumb}
+                    <a href="${_esc(a.url)}" target="_blank" rel="noopener" class="flex-1 min-w-0 truncate text-blue-600 hover:underline">${_esc(a.name||'(未命名)')}</a>
+                    <span class="text-[10px] text-stone-400 font-mono">${sizeKb} KB</span>
+                    <button type="button" onclick="defectRemoveAttachment(${idx})" class="text-stone-400 hover:text-red-500 px-1" title="移除"><i class="fa-solid fa-xmark"></i></button>
+                </div>`;
+            }).join('');
+        }
+        async function defectUploadAttachments() {
+            if (!_editingDefectId) { showToast('請先儲存缺陷', 'error'); return; }
+            const inp = document.getElementById('defAttachmentInput');
+            if (!inp || !inp.files || !inp.files.length) { showToast('請先選擇檔案', 'error'); return; }
+            const btn = document.getElementById('defAttachmentUploadBtn');
+            btn.disabled = true;
+            try {
+                for (const f of inp.files) {
+                    const fd = new FormData();
+                    fd.append('file', f);
+                    const res = await fetch('/api/defects/'+_editingDefectId+'/attachments', { method:'POST', body: fd });
+                    if (!res.ok) {
+                        const err = await res.json().catch(()=>({detail: 'HTTP '+res.status}));
+                        throw new Error(err.detail || ('HTTP '+res.status));
+                    }
+                    const att = await res.json();
+                    _editingDefectAttachments.push(att);
+                }
+                inp.value = '';
+                renderDefectAttachments();
+                showToast('附件已上傳', 'success');
+            } catch(e) {
+                showToast('上傳失敗：'+e.message, 'error');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+        async function defectRemoveAttachment(idx) {
+            if (!_editingDefectId) return;
+            if (!confirm('確定移除這個附件？')) return;
+            try {
+                const res = await fetch(`/api/defects/${_editingDefectId}/attachments/${idx}`, { method:'DELETE' });
+                if (!res.ok && res.status !== 204) throw new Error('HTTP '+res.status);
+                _editingDefectAttachments.splice(idx, 1);
+                renderDefectAttachments();
+                showToast('已移除', 'success');
+            } catch(e) {
+                showToast('移除失敗：'+e.message, 'error');
+            }
         }
         function closeDefectModal() { document.getElementById('defectModal').classList.add('hidden'); }
         async function defectSubmit(ev) {
@@ -9637,16 +9902,24 @@ driver.swipe(100, 800, 100, 200, 500)"
                 steps_to_reproduce: document.getElementById('defSteps').value || null,
                 expected_result: document.getElementById('defExpected').value || null,
                 actual_result: document.getElementById('defActual').value || null,
-                external_url: document.getElementById('defExternalUrl').value.trim() || null,
             };
             try {
                 const url = _editingDefectId ? '/api/defects/'+_editingDefectId : '/api/defects';
                 const method = _editingDefectId ? 'PUT' : 'POST';
                 const res = await fetch(url, {method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
                 if (!res.ok) throw new Error('HTTP '+res.status);
+                const saved = await res.json();
                 showToast(_editingDefectId ? '已更新' : '已建立', 'success');
-                closeDefectModal();
                 renderDefectsList();
+                // 建立模式：不關閉 modal，改切到「編輯」模式以便上傳附件
+                if (!_editingDefectId) {
+                    _editingDefectId = saved.id;
+                    document.getElementById('defectModalTitle').innerHTML = `<i class="fa-solid fa-bug text-red-500"></i> 編輯缺陷 ${_esc(saved.code)}`;
+                    document.getElementById('defAttachmentUploadBtn').disabled = false;
+                    document.getElementById('defAttachmentHint').textContent = '可選多檔（PNG / JPEG / WebP / PDF / TXT / ZIP，每檔 ≤ 20 MB）';
+                } else {
+                    closeDefectModal();
+                }
             } catch(e) { showToast('儲存失敗：'+e.message, 'error'); }
             return false;
         }
@@ -9696,7 +9969,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                         <td class="p-3 font-semibold text-stone-800">${_esc(r.name)}</td>
                         <td class="p-3 text-xs font-mono">${_esc(r.start_date)}</td>
                         <td class="p-3 text-xs font-mono">${_esc(r.end_date)}</td>
-                        <td class="p-3"><span class="text-xs px-2 py-0.5 rounded font-medium ${stColor[r.status]||'bg-stone-100'}">${_esc(r.status)}</span></td>
+                        <td class="p-3"><span class="text-xs px-2 py-0.5 rounded font-medium ${stColor[r.status]||'bg-stone-100'}">${_esc(_zh('msStatus', r.status))}</span></td>
                         <td class="p-3 text-xs text-stone-600">${_esc(r.owner||'—')}</td>
                         <td class="p-3 text-center whitespace-nowrap space-x-1">
                             <button onclick="openMilestoneModal('${_esc(r.id)}')" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded"><i class="fa-solid fa-pen"></i></button>
@@ -9815,7 +10088,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                     <td class="p-3 font-mono text-xs text-stone-500">${_esc(r.code)}</td>
                     <td class="p-3 font-semibold text-stone-800 break-all">${_esc(r.title)}</td>
                     <td class="p-3 text-xs">${_esc(r.version||'—')}</td>
-                    <td class="p-3"><span class="text-xs px-2 py-0.5 rounded font-medium ${stColor[r.status]||'bg-stone-100'}">${_esc(r.status)}</span></td>
+                    <td class="p-3"><span class="text-xs px-2 py-0.5 rounded font-medium ${stColor[r.status]||'bg-stone-100'}">${_esc(_zh('tpStatus', r.status))}</span></td>
                     <td class="p-3 text-xs text-stone-600">${_esc(r.owner||'—')}</td>
                     <td class="p-3 text-xs text-stone-500 font-mono">${(r.created_at||'').slice(0,10)}</td>
                     <td class="p-3 text-center whitespace-nowrap space-x-1">
@@ -9927,9 +10200,9 @@ driver.swipe(100, 800, 100, 200, 500)"
                 tbody.innerHTML = rows.map(r => `<tr class="hover:bg-amber-50/30">
                     <td class="p-3 font-mono text-xs text-stone-500">${_esc(r.code)}</td>
                     <td class="p-3 font-semibold text-stone-800 break-all">${_esc(r.title)}</td>
-                    <td class="p-3 text-xs">${_esc(r.source)}</td>
-                    <td class="p-3"><span class="text-xs px-2 py-0.5 rounded font-medium ${prColor[r.priority]||''}">${_esc(r.priority)}</span></td>
-                    <td class="p-3"><span class="text-xs px-2 py-0.5 rounded font-medium ${stColor[r.status]||'bg-stone-100'}">${_esc(r.status)}</span></td>
+                    <td class="p-3 text-xs">${_esc(_zh('reqSource', r.source))}</td>
+                    <td class="p-3"><span class="text-xs px-2 py-0.5 rounded font-medium ${prColor[r.priority]||''}">${_esc(_zh('reqPriority', r.priority))}</span></td>
+                    <td class="p-3"><span class="text-xs px-2 py-0.5 rounded font-medium ${stColor[r.status]||'bg-stone-100'}">${_esc(_zh('reqStatus', r.status))}</span></td>
                     <td class="p-3 text-xs text-stone-600 text-center">${(r.linked_testcase_ids||[]).length}</td>
                     <td class="p-3 text-center whitespace-nowrap space-x-1">
                         <button onclick="openRequirementModal('${_esc(r.id)}')" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded"><i class="fa-solid fa-pen"></i></button>
@@ -10105,26 +10378,26 @@ driver.swipe(100, 800, 100, 200, 500)"
                 document.getElementById('kpi_requirements').textContent = reqs.length;
                 // Kanban 欄位（用缺陷）
                 const COL_DEFS = [
-                    {key:'New', label:'New', color:'border-blue-300 bg-blue-50'},
-                    {key:'Assigned', label:'Assigned', color:'border-purple-300 bg-purple-50'},
-                    {key:'InProgress', label:'In Progress', color:'border-amber-300 bg-amber-50'},
-                    {key:'Fixed', label:'Fixed', color:'border-emerald-300 bg-emerald-50'},
-                    {key:'Verified', label:'Verified', color:'border-green-300 bg-green-50'},
-                    {key:'Closed', label:'Closed', color:'border-stone-300 bg-stone-50'},
+                    {key:'New', label:'新建立', color:'border-blue-300 bg-blue-50'},
+                    {key:'Assigned', label:'已指派', color:'border-purple-300 bg-purple-50'},
+                    {key:'InProgress', label:'處理中', color:'border-amber-300 bg-amber-50'},
+                    {key:'Fixed', label:'已修復', color:'border-emerald-300 bg-emerald-50'},
+                    {key:'Verified', label:'已驗證', color:'border-green-300 bg-green-50'},
+                    {key:'Closed', label:'已關閉', color:'border-stone-300 bg-stone-50'},
                 ];
                 const sevBadge = {Critical:'bg-red-100 text-red-700', Major:'bg-orange-100 text-orange-700', Minor:'bg-amber-100 text-amber-700', Trivial:'bg-stone-100 text-stone-500'};
                 cols.innerHTML = COL_DEFS.map(c => {
                     const items = defs.filter(d => d.status === c.key).slice(0, 30);
-                    return `<div class="bg-white rounded-lg border ${c.color} p-2 min-h-[200px]">
+                    return `<div class="bg-white rounded-lg border ${c.color} p-2 min-h-[200px] kanban-col" data-col-status="${c.key}" ondragover="kanbanDragOver(event)" ondragleave="kanbanDragLeave(event)" ondrop="kanbanDrop(event)">
                         <div class="text-xs font-bold text-stone-700 px-1 pb-2 flex items-center justify-between">
                             <span>${_esc(c.label)}</span>
                             <span class="text-stone-400 font-mono">${items.length}</span>
                         </div>
-                        <div class="space-y-2">${items.map(d => `<div class="bg-white border border-stone-200 rounded p-2 cursor-pointer hover:border-blue-300 shadow-sm" onclick="openDefectModal('${_esc(d.id)}')">
+                        <div class="space-y-2">${items.map(d => `<div class="bg-white border border-stone-200 rounded p-2 cursor-move hover:border-blue-300 shadow-sm kanban-card" draggable="true" data-defect-id="${_esc(d.id)}" ondragstart="kanbanDragStart(event)" ondragend="kanbanDragEnd(event)" ondblclick="openDefectModal('${_esc(d.id)}')" title="拖移到其他欄變更狀態；雙擊編輯">
                             <div class="text-[10px] font-mono text-stone-400">${_esc(d.code)}</div>
                             <div class="text-xs font-semibold text-stone-800 line-clamp-2">${_esc(d.title)}</div>
                             <div class="flex items-center justify-between mt-1">
-                                <span class="text-[10px] px-1.5 py-0.5 rounded ${sevBadge[d.severity]||''}">${_esc(d.severity)}</span>
+                                <span class="text-[10px] px-1.5 py-0.5 rounded ${sevBadge[d.severity]||''}">${_esc(_zh('defSeverity', d.severity))}</span>
                                 <span class="text-[10px] text-stone-400">${_esc(d.assignee||'未指派')}</span>
                             </div>
                         </div>`).join('')||'<div class="text-xs text-stone-400 text-center py-2">無</div>'}</div>
@@ -10133,6 +10406,304 @@ driver.swipe(100, 800, 100, 200, 500)"
             } catch(e) {
                 cols.innerHTML = `<div class="col-span-6 p-6 text-center text-red-500">載入失敗：${_esc(e.message)}</div>`;
             }
+        }
+
+        // ─── 看板拖移：改變缺陷狀態 ───────────────────────────────────────
+        let _kanbanDragId = null;
+        function kanbanDragStart(ev) {
+            const card = ev.currentTarget;
+            _kanbanDragId = card.dataset.defectId;
+            ev.dataTransfer.effectAllowed = 'move';
+            ev.dataTransfer.setData('text/plain', _kanbanDragId);
+            card.classList.add('opacity-50');
+        }
+        function kanbanDragEnd(ev) {
+            ev.currentTarget.classList.remove('opacity-50');
+            document.querySelectorAll('.kanban-col').forEach(c => c.classList.remove('ring-2','ring-amber-400'));
+        }
+        function kanbanDragOver(ev) {
+            ev.preventDefault();
+            ev.dataTransfer.dropEffect = 'move';
+            ev.currentTarget.classList.add('ring-2','ring-amber-400');
+        }
+        function kanbanDragLeave(ev) {
+            ev.currentTarget.classList.remove('ring-2','ring-amber-400');
+        }
+        async function kanbanDrop(ev) {
+            ev.preventDefault();
+            const col = ev.currentTarget;
+            col.classList.remove('ring-2','ring-amber-400');
+            const id = _kanbanDragId; _kanbanDragId = null;
+            const newStatus = col.dataset.colStatus;
+            if (!id || !newStatus) return;
+            try {
+                const res = await fetch('/api/defects/'+id, {
+                    method: 'PUT',
+                    headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({status: newStatus}),
+                });
+                if (!res.ok) throw new Error('HTTP '+res.status);
+                showToast(`已更新為「${_zh('defStatus', newStatus)}」`, 'success');
+                renderTestKanban();
+            } catch(e) {
+                showToast('狀態更新失敗：'+e.message, 'error');
+            }
+        }
+
+        // ─── 測試專案 (Test Projects) ────────────────────────────────────
+        let _testProjectsCache = [];
+        let _editingTestProjectId = null;
+        function showTestProjectsView() {
+            if (!_setView('testProjectsWorkspace',
+                '<i class="fa-solid fa-folder-tree text-amber-500"></i> 測試專案',
+                'Projects',
+                'bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium',
+                '測試專案')) return;
+            renderTestProjectsList();
+        }
+        async function renderTestProjectsList() {
+            const tbody = document.getElementById('tprjListBody');
+            const cnt = document.getElementById('tprjListCount');
+            if (!tbody) return;
+            tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-stone-400">載入中…</td></tr>';
+            try {
+                const res = await fetch('/api/projects');
+                if (!res.ok) throw new Error('HTTP '+res.status);
+                _testProjectsCache = await res.json();
+                const kw = (document.getElementById('tprjSearch')?.value || '').toLowerCase().trim();
+                const st = document.getElementById('tprjStatusFilter')?.value;
+                let rows = _testProjectsCache;
+                if (kw) rows = rows.filter(r => (r.name||'').toLowerCase().includes(kw));
+                if (st) rows = rows.filter(r => r.status === st);
+                cnt.textContent = rows.length;
+                if (!rows.length) { tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-stone-400">尚無專案</td></tr>'; return; }
+                const stColor = {Planning:'bg-stone-100 text-stone-600', Active:'bg-emerald-100 text-emerald-700', OnHold:'bg-amber-100 text-amber-700', Archived:'bg-stone-200 text-stone-500'};
+                tbody.innerHTML = rows.map(r => `<tr class="hover:bg-amber-50/30">
+                    <td class="p-3"><div class="font-semibold text-stone-800">${_esc(r.name)}</div>${r.description ? `<div class="text-[11px] text-stone-500 line-clamp-1">${_esc(r.description)}</div>` : ''}</td>
+                    <td class="p-3"><span class="text-xs px-2 py-0.5 rounded font-medium ${stColor[r.status]||'bg-stone-100'}">${_esc(_zh('tprjStatus', r.status))}</span></td>
+                    <td class="p-3 text-xs text-stone-600">${_esc(r.owner||'—')}</td>
+                    <td class="p-3 text-xs font-mono">${_esc(r.start_date||'—')}</td>
+                    <td class="p-3 text-xs font-mono">${_esc(r.target_date||'—')}</td>
+                    <td class="p-3 text-xs text-stone-500">${_esc(r.tags||'')}</td>
+                    <td class="p-3 text-center whitespace-nowrap space-x-1">
+                        <button onclick="testProjectActivate('${_esc(r.id)}')" title="切換為當前專案" class="text-xs px-2 py-1 bg-amber-100 text-amber-700 border border-amber-200 hover:bg-amber-200 rounded"><i class="fa-solid fa-arrow-right-to-bracket"></i></button>
+                        <button onclick="openTestProjectModal('${_esc(r.id)}')" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded"><i class="fa-solid fa-pen"></i></button>
+                        <button onclick="deleteTestProject('${_esc(r.id)}','${_esc(r.name)}')" class="text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                </tr>`).join('');
+            } catch(e) {
+                tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-red-500">載入失敗：${_esc(e.message)}</td></tr>`;
+            }
+        }
+        function openTestProjectModal(id) {
+            _editingTestProjectId = id || null;
+            const r = id ? _testProjectsCache.find(x => x.id === id) : null;
+            document.getElementById('testProjectModalTitle').innerHTML = r ? `<i class="fa-solid fa-folder-tree text-amber-500"></i> 編輯專案 ${_esc(r.name)}` : '<i class="fa-solid fa-folder-tree text-amber-500"></i> 新增測試專案';
+            document.getElementById('tprjName').value = r?.name || '';
+            document.getElementById('tprjDesc').value = r?.description || '';
+            document.getElementById('tprjStatus').value = r?.status || 'Active';
+            document.getElementById('tprjOwner').value = r?.owner || (typeof authCurrentUsername === 'function' ? (authCurrentUsername()||'') : '');
+            document.getElementById('tprjStart').value = r?.start_date || '';
+            document.getElementById('tprjTarget').value = r?.target_date || '';
+            document.getElementById('tprjTags').value = r?.tags || '';
+            document.getElementById('testProjectModal').classList.remove('hidden');
+        }
+        function closeTestProjectModal() { document.getElementById('testProjectModal').classList.add('hidden'); }
+        async function testProjectSubmit(ev) {
+            ev.preventDefault();
+            const payload = {
+                name: document.getElementById('tprjName').value.trim(),
+                description: document.getElementById('tprjDesc').value || null,
+                status: document.getElementById('tprjStatus').value,
+                owner: document.getElementById('tprjOwner').value.trim() || null,
+                start_date: document.getElementById('tprjStart').value || null,
+                target_date: document.getElementById('tprjTarget').value || null,
+                tags: document.getElementById('tprjTags').value.trim() || null,
+            };
+            try {
+                const url = _editingTestProjectId ? '/api/projects/'+_editingTestProjectId : '/api/projects';
+                const method = _editingTestProjectId ? 'PUT' : 'POST';
+                const res = await fetch(url, {method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+                if (!res.ok) throw new Error('HTTP '+res.status);
+                showToast(_editingTestProjectId ? '已更新' : '已建立', 'success');
+                closeTestProjectModal();
+                renderTestProjectsList();
+                if (typeof loadProjectList === 'function') loadProjectList();  // 同步左側專案下拉
+            } catch(e) { showToast('儲存失敗：'+e.message, 'error'); }
+            return false;
+        }
+        async function deleteTestProject(id, name) {
+            if (!confirm(`確定刪除專案「${name}」？此操作會連帶刪除其下所有節點與案例！`)) return;
+            try {
+                const res = await fetch('/api/projects/'+id, {method:'DELETE'});
+                if (!res.ok && res.status !== 204) throw new Error('HTTP '+res.status);
+                showToast('已刪除', 'success');
+                renderTestProjectsList();
+                if (typeof loadProjectList === 'function') loadProjectList();
+            } catch(e) { showToast('刪除失敗：'+e.message, 'error'); }
+        }
+        function testProjectActivate(id) {
+            if (typeof setCurrentProject === 'function') {
+                setCurrentProject(id);
+                showToast('已切換為當前專案', 'success');
+            } else {
+                window.currentProjectId = id;
+                showToast('已切換為當前專案', 'success');
+            }
+        }
+
+        // ─── 測試資料集 (Test Data Set / DDT) ────────────────────────────
+        let _dataSetsCache = [];
+        let _editingDataSetId = null;
+        let _dsCols = [];        // 編輯中的欄位名稱列表
+        let _dsRows = [];        // 編輯中的資料列（list of {colName: value}）
+        function showTestDataSetsView() {
+            if (!_setView('testDataSetsWorkspace',
+                '<i class="fa-solid fa-table text-violet-500"></i> 測試資料集 (DDT)',
+                'DataSets',
+                'bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded font-medium',
+                '測試資料集')) return;
+            renderDataSetsList();
+        }
+        async function renderDataSetsList() {
+            const tbody = document.getElementById('dsListBody');
+            const cnt = document.getElementById('dsListCount');
+            if (!tbody) return;
+            const pid = currentProjectId;
+            if (!pid) { tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-stone-400">請先選擇專案</td></tr>'; cnt.textContent='0'; return; }
+            tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-stone-400">載入中…</td></tr>';
+            try {
+                const params = new URLSearchParams({project_id: pid});
+                const cat = document.getElementById('dsCategoryFilter')?.value;
+                if (cat) params.set('category', cat);
+                const res = await fetch('/api/data-sets?'+params);
+                if (!res.ok) throw new Error('HTTP '+res.status);
+                _dataSetsCache = await res.json();
+                const kw = (document.getElementById('dsSearch')?.value || '').toLowerCase().trim();
+                let rows = _dataSetsCache;
+                if (kw) rows = rows.filter(r => (r.name||'').toLowerCase().includes(kw) || (r.code||'').toLowerCase().includes(kw));
+                cnt.textContent = rows.length;
+                if (!rows.length) { tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-stone-400">尚無資料集</td></tr>'; return; }
+                const catColor = {Login:'bg-blue-100 text-blue-700', Boundary:'bg-amber-100 text-amber-700', Business:'bg-emerald-100 text-emerald-700', Performance:'bg-rose-100 text-rose-700', Other:'bg-stone-100 text-stone-600'};
+                tbody.innerHTML = rows.map(r => `<tr class="hover:bg-amber-50/30">
+                    <td class="p-3 font-mono text-xs text-stone-500">${_esc(r.code)}</td>
+                    <td class="p-3"><div class="font-semibold text-stone-800">${_esc(r.name)}</div>${r.description ? `<div class="text-[11px] text-stone-500 line-clamp-1">${_esc(r.description)}</div>` : ''}</td>
+                    <td class="p-3"><span class="text-xs px-2 py-0.5 rounded font-medium ${catColor[r.category]||'bg-stone-100'}">${_esc(_zh('dsCategory', r.category))}</span></td>
+                    <td class="p-3 text-xs font-mono text-center">${(r.columns_json||[]).length}</td>
+                    <td class="p-3 text-xs font-mono text-center">${(r.rows_json||[]).length}</td>
+                    <td class="p-3 text-xs text-stone-600">${_esc(r.owner||'—')}</td>
+                    <td class="p-3 text-center whitespace-nowrap space-x-1">
+                        <button onclick="openDataSetModal('${_esc(r.id)}')" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded"><i class="fa-solid fa-pen"></i></button>
+                        <button onclick="deleteDataSet('${_esc(r.id)}','${_esc(r.code)}')" class="text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                </tr>`).join('');
+            } catch(e) {
+                tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-red-500">載入失敗：${_esc(e.message)}</td></tr>`;
+            }
+        }
+        function openDataSetModal(id) {
+            if (!currentProjectId) { showToast('請先選擇專案', 'error'); return; }
+            _editingDataSetId = id || null;
+            const r = id ? _dataSetsCache.find(x => x.id === id) : null;
+            document.getElementById('testDataSetModalTitle').innerHTML = r ? `<i class="fa-solid fa-table text-violet-500"></i> 編輯資料集 ${_esc(r.code)}` : '<i class="fa-solid fa-table text-violet-500"></i> 新增測試資料集';
+            document.getElementById('dsName').value = r?.name || '';
+            document.getElementById('dsCategory').value = r?.category || 'Other';
+            document.getElementById('dsOwner').value = r?.owner || (typeof authCurrentUsername === 'function' ? (authCurrentUsername()||'') : '');
+            document.getElementById('dsDesc').value = r?.description || '';
+            _dsCols = Array.isArray(r?.columns_json) ? [...r.columns_json] : ['account', 'password', 'expected'];
+            _dsRows = Array.isArray(r?.rows_json) ? r.rows_json.map(x => ({...x})) : [];
+            renderDataSetGrid();
+            document.getElementById('testDataSetModal').classList.remove('hidden');
+        }
+        function closeDataSetModal() { document.getElementById('testDataSetModal').classList.add('hidden'); }
+        function renderDataSetGrid() {
+            const head = document.getElementById('dsGridHead');
+            const body = document.getElementById('dsGridBody');
+            if (!head || !body) return;
+            // Header
+            head.innerHTML = _dsCols.map((c, ci) => `<th class="p-1 border border-violet-200 text-stone-600 font-medium">
+                <div class="flex items-center gap-1">
+                    <input type="text" value="${_esc(c)}" oninput="dsRenameColumn(${ci}, this.value)" aria-label="欄位 ${ci+1} 名稱" class="w-full px-1.5 py-0.5 border border-stone-200 rounded text-xs">
+                    <button type="button" onclick="dsRemoveColumn(${ci})" class="text-stone-400 hover:text-red-500 px-1" title="刪除這一欄">✕</button>
+                </div>
+            </th>`).join('') + '<th class="w-8"></th>';
+            // Body
+            if (!_dsRows.length) {
+                body.innerHTML = `<tr><td colspan="${_dsCols.length+1}" class="p-3 text-center text-stone-400 text-xs">尚無資料列</td></tr>`;
+            } else {
+                body.innerHTML = _dsRows.map((row, ri) => `<tr>
+                    ${_dsCols.map(c => `<td class="p-0.5 border border-violet-100"><input type="text" value="${_esc(row[c]||'')}" oninput="dsSetCell(${ri},'${_esc(c)}', this.value)" aria-label="第${ri+1}列 ${_esc(c)}" class="w-full px-1.5 py-1 text-xs"></td>`).join('')}
+                    <td class="p-0.5 border border-violet-100 text-center"><button type="button" onclick="dsRemoveRow(${ri})" class="text-stone-400 hover:text-red-500 px-1" title="刪除這一列">✕</button></td>
+                </tr>`).join('');
+            }
+            document.getElementById('dsColCount').textContent = _dsCols.length;
+            document.getElementById('dsRowCount').textContent = _dsRows.length;
+        }
+        function dsAddColumn() {
+            let n = 1;
+            while (_dsCols.includes('col_'+n)) n++;
+            _dsCols.push('col_'+n);
+            _dsRows.forEach(r => { r['col_'+n] = ''; });
+            renderDataSetGrid();
+        }
+        function dsRemoveColumn(idx) {
+            const name = _dsCols[idx];
+            _dsCols.splice(idx, 1);
+            _dsRows.forEach(r => { delete r[name]; });
+            renderDataSetGrid();
+        }
+        function dsRenameColumn(idx, newName) {
+            const old = _dsCols[idx];
+            const nn = (newName||'').trim() || old;
+            if (nn === old) return;
+            if (_dsCols.includes(nn)) return;  // 重複名稱不允許
+            _dsCols[idx] = nn;
+            _dsRows.forEach(r => { r[nn] = r[old]; delete r[old]; });
+            // 不重新 render，避免打斷使用者輸入；count 不變
+        }
+        function dsAddRow() {
+            const blank = {};
+            _dsCols.forEach(c => blank[c] = '');
+            _dsRows.push(blank);
+            renderDataSetGrid();
+        }
+        function dsRemoveRow(idx) {
+            _dsRows.splice(idx, 1);
+            renderDataSetGrid();
+        }
+        function dsSetCell(ri, col, val) {
+            if (_dsRows[ri]) _dsRows[ri][col] = val;
+        }
+        async function dataSetSubmit(ev) {
+            ev.preventDefault();
+            const payload = {
+                project_id: currentProjectId,
+                name: document.getElementById('dsName').value.trim(),
+                description: document.getElementById('dsDesc').value || null,
+                category: document.getElementById('dsCategory').value,
+                owner: document.getElementById('dsOwner').value.trim() || null,
+                columns_json: _dsCols,
+                rows_json: _dsRows,
+            };
+            try {
+                const url = _editingDataSetId ? '/api/data-sets/'+_editingDataSetId : '/api/data-sets';
+                const method = _editingDataSetId ? 'PUT' : 'POST';
+                const res = await fetch(url, {method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+                if (!res.ok) throw new Error('HTTP '+res.status);
+                showToast(_editingDataSetId ? '已更新' : '已建立', 'success');
+                closeDataSetModal();
+                renderDataSetsList();
+            } catch(e) { showToast('儲存失敗：'+e.message, 'error'); }
+            return false;
+        }
+        async function deleteDataSet(id, code) {
+            if (!confirm(`確定刪除資料集 ${code}？`)) return;
+            try {
+                const res = await fetch('/api/data-sets/'+id, {method:'DELETE'});
+                if (!res.ok && res.status !== 204) throw new Error('HTTP '+res.status);
+                showToast('已刪除', 'success');
+                renderDataSetsList();
+            } catch(e) { showToast('刪除失敗：'+e.message, 'error'); }
         }
     </script>
 </body>
