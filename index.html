@@ -2597,24 +2597,24 @@ driver.swipe(100, 800, 100, 200, 500)"
                 <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl border border-red-200 max-h-[90vh] overflow-y-auto">
                     <div class="px-6 py-4 border-b border-stone-200 bg-red-50/60 flex items-center justify-between">
                         <h3 id="defectModalTitle" class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-bug text-red-500"></i> 新增缺陷</h3>
-                        <button type="button" onclick="closeDefectModal()" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+                        <button type="button" onclick="closeDefectModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
                     </div>
                     <form onsubmit="return defectSubmit(event)" class="p-6 space-y-3">
-                        <div><label class="block text-xs font-semibold text-stone-600 mb-1">標題 *</label><input type="text" id="defTitle" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                        <div><label for="defTitle" class="block text-xs font-semibold text-stone-600 mb-1">標題 *</label><input type="text" id="defTitle" aria-label="標題" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
                         <div class="grid grid-cols-3 gap-3">
                             <div><label class="block text-xs font-semibold text-stone-600 mb-1">嚴重性</label><select id="defSeverity" aria-label="嚴重性" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option>Critical</option><option>Major</option><option selected>Minor</option><option>Trivial</option></select></div>
                             <div><label class="block text-xs font-semibold text-stone-600 mb-1">優先</label><select id="defPriority" aria-label="優先" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option>P0</option><option>P1</option><option selected>P2</option><option>P3</option></select></div>
                             <div><label class="block text-xs font-semibold text-stone-600 mb-1">狀態</label><select id="defStatus" aria-label="狀態" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option selected>New</option><option>Assigned</option><option>InProgress</option><option>Fixed</option><option>Verified</option><option>Closed</option><option>Reopened</option><option>WontFix</option></select></div>
                         </div>
                         <div class="grid grid-cols-2 gap-3">
-                            <div><label class="block text-xs font-semibold text-stone-600 mb-1">回報者</label><input type="text" id="defReporter" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
-                            <div><label class="block text-xs font-semibold text-stone-600 mb-1">指派</label><input type="text" id="defAssignee" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                            <div><label for="defReporter" class="block text-xs font-semibold text-stone-600 mb-1">回報者</label><input type="text" id="defReporter" aria-label="回報者" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                            <div><label for="defAssignee" class="block text-xs font-semibold text-stone-600 mb-1">指派</label><input type="text" id="defAssignee" aria-label="指派" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
                         </div>
-                        <div><label class="block text-xs font-semibold text-stone-600 mb-1">描述</label><textarea id="defDesc" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
-                        <div><label class="block text-xs font-semibold text-stone-600 mb-1">重現步驟</label><textarea id="defSteps" rows="3" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm font-mono"></textarea></div>
+                        <div><label for="defDesc" class="block text-xs font-semibold text-stone-600 mb-1">描述</label><textarea id="defDesc" aria-label="描述" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
+                        <div><label for="defSteps" class="block text-xs font-semibold text-stone-600 mb-1">重現步驟</label><textarea id="defSteps" aria-label="重現步驟" rows="3" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm font-mono"></textarea></div>
                         <div class="grid grid-cols-2 gap-3">
-                            <div><label class="block text-xs font-semibold text-stone-600 mb-1">預期結果</label><textarea id="defExpected" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
-                            <div><label class="block text-xs font-semibold text-stone-600 mb-1">實際結果</label><textarea id="defActual" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
+                            <div><label for="defExpected" class="block text-xs font-semibold text-stone-600 mb-1">預期結果</label><textarea id="defExpected" aria-label="預期結果" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
+                            <div><label for="defActual" class="block text-xs font-semibold text-stone-600 mb-1">實際結果</label><textarea id="defActual" aria-label="實際結果" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
                         </div>
                         <div><label class="block text-xs font-semibold text-stone-600 mb-1">外部連結（Jira / GitHub Issue）</label><input type="url" id="defExternalUrl" placeholder="https://" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
                         <div class="flex justify-end gap-2 pt-2"><button type="button" onclick="closeDefectModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button><button type="submit" class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button></div>
@@ -2627,19 +2627,19 @@ driver.swipe(100, 800, 100, 200, 500)"
                 <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg border border-teal-200">
                     <div class="px-6 py-4 border-b border-stone-200 bg-teal-50/60 flex items-center justify-between">
                         <h3 id="milestoneModalTitle" class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-regular fa-calendar text-teal-500"></i> 新增測試時程</h3>
-                        <button type="button" onclick="closeMilestoneModal()" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+                        <button type="button" onclick="closeMilestoneModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
                     </div>
                     <form onsubmit="return milestoneSubmit(event)" class="p-6 space-y-3">
-                        <div><label class="block text-xs font-semibold text-stone-600 mb-1">名稱 *</label><input type="text" id="msName" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                        <div><label for="msName" class="block text-xs font-semibold text-stone-600 mb-1">名稱 *</label><input type="text" id="msName" aria-label="名稱" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
                         <div class="grid grid-cols-2 gap-3">
-                            <div><label class="block text-xs font-semibold text-stone-600 mb-1">起始日期 *</label><input type="date" id="msStart" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
-                            <div><label class="block text-xs font-semibold text-stone-600 mb-1">結束日期 *</label><input type="date" id="msEnd" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                            <div><label for="msStart" class="block text-xs font-semibold text-stone-600 mb-1">起始日期 *</label><input type="date" id="msStart" aria-label="起始日期" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                            <div><label for="msEnd" class="block text-xs font-semibold text-stone-600 mb-1">結束日期 *</label><input type="date" id="msEnd" aria-label="結束日期" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
                         </div>
                         <div class="grid grid-cols-2 gap-3">
-                            <div><label class="block text-xs font-semibold text-stone-600 mb-1">狀態</label><select id="msStatus" aria-label="狀態" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option selected>Planned</option><option>InProgress</option><option>Completed</option><option>Cancelled</option></select></div>
-                            <div><label class="block text-xs font-semibold text-stone-600 mb-1">負責人</label><input type="text" id="msOwner" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                            <div><label for="msStatus" class="block text-xs font-semibold text-stone-600 mb-1">狀態</label><select id="msStatus" aria-label="狀態" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option selected>Planned</option><option>InProgress</option><option>Completed</option><option>Cancelled</option></select></div>
+                            <div><label for="msOwner" class="block text-xs font-semibold text-stone-600 mb-1">負責人</label><input type="text" id="msOwner" aria-label="負責人" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
                         </div>
-                        <div><label class="block text-xs font-semibold text-stone-600 mb-1">說明</label><textarea id="msDesc" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
+                        <div><label for="msDesc" class="block text-xs font-semibold text-stone-600 mb-1">說明</label><textarea id="msDesc" aria-label="說明" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
                         <div class="flex justify-end gap-2 pt-2"><button type="button" onclick="closeMilestoneModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button><button type="submit" class="px-4 py-2 bg-teal-500 hover:bg-teal-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button></div>
                     </form>
                 </div>
@@ -2650,25 +2650,25 @@ driver.swipe(100, 800, 100, 200, 500)"
                 <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl border border-blue-200 max-h-[90vh] overflow-y-auto">
                     <div class="px-6 py-4 border-b border-stone-200 bg-blue-50/60 flex items-center justify-between">
                         <h3 id="planModalTitle" class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-clipboard-list text-blue-500"></i> 新增測試計畫</h3>
-                        <button type="button" onclick="closePlanModal()" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+                        <button type="button" onclick="closePlanModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
                     </div>
                     <form onsubmit="return planSubmit(event)" class="p-6 space-y-3">
                         <div class="grid grid-cols-3 gap-3">
-                            <div class="col-span-2"><label class="block text-xs font-semibold text-stone-600 mb-1">標題 *</label><input type="text" id="tpTitle" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
-                            <div><label class="block text-xs font-semibold text-stone-600 mb-1">版本</label><input type="text" id="tpVersion" placeholder="1.0" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                            <div class="col-span-2"><label for="tpTitle" class="block text-xs font-semibold text-stone-600 mb-1">標題 *</label><input type="text" id="tpTitle" aria-label="標題" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                            <div><label for="tpVersion" class="block text-xs font-semibold text-stone-600 mb-1">版本</label><input type="text" id="tpVersion" aria-label="版本" placeholder="1.0" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
                         </div>
                         <div class="grid grid-cols-2 gap-3">
-                            <div><label class="block text-xs font-semibold text-stone-600 mb-1">狀態</label><select id="tpStatus" aria-label="狀態" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option selected>Draft</option><option>InReview</option><option>Approved</option><option>Active</option><option>Closed</option></select></div>
-                            <div><label class="block text-xs font-semibold text-stone-600 mb-1">負責人</label><input type="text" id="tpOwner" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                            <div><label for="tpStatus" class="block text-xs font-semibold text-stone-600 mb-1">狀態</label><select id="tpStatus" aria-label="狀態" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option selected>Draft</option><option>InReview</option><option>Approved</option><option>Active</option><option>Closed</option></select></div>
+                            <div><label for="tpOwner" class="block text-xs font-semibold text-stone-600 mb-1">負責人</label><input type="text" id="tpOwner" aria-label="負責人" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
                         </div>
-                        <div><label class="block text-xs font-semibold text-stone-600 mb-1">範圍 (Scope In)</label><textarea id="tpScopeIn" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
-                        <div><label class="block text-xs font-semibold text-stone-600 mb-1">排除 (Scope Out)</label><textarea id="tpScopeOut" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
-                        <div><label class="block text-xs font-semibold text-stone-600 mb-1">測試策略</label><textarea id="tpStrategy" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
+                        <div><label for="tpScopeIn" class="block text-xs font-semibold text-stone-600 mb-1">範圍 (Scope In)</label><textarea id="tpScopeIn" aria-label="範圍 (Scope In)" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
+                        <div><label for="tpScopeOut" class="block text-xs font-semibold text-stone-600 mb-1">排除 (Scope Out)</label><textarea id="tpScopeOut" aria-label="排除 (Scope Out)" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
+                        <div><label for="tpStrategy" class="block text-xs font-semibold text-stone-600 mb-1">測試策略</label><textarea id="tpStrategy" aria-label="測試策略" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
                         <div class="grid grid-cols-2 gap-3">
-                            <div><label class="block text-xs font-semibold text-stone-600 mb-1">資源</label><textarea id="tpResources" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
-                            <div><label class="block text-xs font-semibold text-stone-600 mb-1">時程</label><textarea id="tpSchedule" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
+                            <div><label for="tpResources" class="block text-xs font-semibold text-stone-600 mb-1">資源</label><textarea id="tpResources" aria-label="資源" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
+                            <div><label for="tpSchedule" class="block text-xs font-semibold text-stone-600 mb-1">時程</label><textarea id="tpSchedule" aria-label="時程" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
                         </div>
-                        <div><label class="block text-xs font-semibold text-stone-600 mb-1">風險</label><textarea id="tpRisks" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
+                        <div><label for="tpRisks" class="block text-xs font-semibold text-stone-600 mb-1">風險</label><textarea id="tpRisks" aria-label="風險" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
                         <div class="flex justify-end gap-2 pt-2"><button type="button" onclick="closePlanModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button><button type="submit" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button></div>
                     </form>
                 </div>
@@ -2679,17 +2679,17 @@ driver.swipe(100, 800, 100, 200, 500)"
                 <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl border border-cyan-200 max-h-[90vh] overflow-y-auto">
                     <div class="px-6 py-4 border-b border-stone-200 bg-cyan-50/60 flex items-center justify-between">
                         <h3 id="requirementModalTitle" class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-diagram-project text-cyan-500"></i> 新增需求</h3>
-                        <button type="button" onclick="closeRequirementModal()" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+                        <button type="button" onclick="closeRequirementModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
                     </div>
                     <form onsubmit="return requirementSubmit(event)" class="p-6 space-y-3">
-                        <div><label class="block text-xs font-semibold text-stone-600 mb-1">標題 *</label><input type="text" id="reqTitle" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                        <div><label for="reqTitle" class="block text-xs font-semibold text-stone-600 mb-1">標題 *</label><input type="text" id="reqTitle" aria-label="標題" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
                         <div class="grid grid-cols-3 gap-3">
-                            <div><label class="block text-xs font-semibold text-stone-600 mb-1">來源</label><select id="reqSource" aria-label="來源" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option selected>PRD</option><option>Customer</option><option>Regulatory</option><option>Security</option><option>Internal</option></select></div>
-                            <div><label class="block text-xs font-semibold text-stone-600 mb-1">優先 (MoSCoW)</label><select id="reqPriority" aria-label="優先" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option>Must</option><option selected>Should</option><option>Could</option><option>Wont</option></select></div>
-                            <div><label class="block text-xs font-semibold text-stone-600 mb-1">狀態</label><select id="reqStatus" aria-label="狀態" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option selected>Draft</option><option>Approved</option><option>Implemented</option><option>Verified</option><option>Deprecated</option></select></div>
+                            <div><label for="reqSource" class="block text-xs font-semibold text-stone-600 mb-1">來源</label><select id="reqSource" aria-label="來源" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option selected>PRD</option><option>Customer</option><option>Regulatory</option><option>Security</option><option>Internal</option></select></div>
+                            <div><label for="reqPriority" class="block text-xs font-semibold text-stone-600 mb-1">優先 (MoSCoW)</label><select id="reqPriority" aria-label="優先" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option>Must</option><option selected>Should</option><option>Could</option><option>Wont</option></select></div>
+                            <div><label for="reqStatus" class="block text-xs font-semibold text-stone-600 mb-1">狀態</label><select id="reqStatus" aria-label="狀態" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option selected>Draft</option><option>Approved</option><option>Implemented</option><option>Verified</option><option>Deprecated</option></select></div>
                         </div>
-                        <div><label class="block text-xs font-semibold text-stone-600 mb-1">說明</label><textarea id="reqDesc" rows="3" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
-                        <div><label class="block text-xs font-semibold text-stone-600 mb-1">負責人</label><input type="text" id="reqOwner" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                        <div><label for="reqDesc" class="block text-xs font-semibold text-stone-600 mb-1">說明</label><textarea id="reqDesc" aria-label="說明" rows="3" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
+                        <div><label for="reqOwner" class="block text-xs font-semibold text-stone-600 mb-1">負責人</label><input type="text" id="reqOwner" aria-label="負責人" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
                         <div>
                             <label class="block text-xs font-semibold text-stone-600 mb-1">關聯測試案例（多選；按 Ctrl/⌘ 選多項）</label>
                             <select id="reqTestcases" multiple aria-label="關聯測試案例" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white" size="6"></select>
