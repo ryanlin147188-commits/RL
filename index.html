@@ -2623,9 +2623,10 @@ driver.swipe(100, 800, 100, 200, 500)"
             <div id="requirementsWorkspace" class="flex-1 overflow-y-auto p-6 bg-amber-50/30 hidden">
                 <div class="max-w-7xl mx-auto">
                     <!-- 子分頁切換 -->
-                    <div class="bg-white rounded-lg border border-cyan-100 shadow-sm p-2 mb-4 flex gap-2">
+                    <div class="bg-white rounded-lg border border-cyan-100 shadow-sm p-2 mb-4 flex gap-2 flex-wrap">
                         <button id="rtmTabRequirements" onclick="rtmSwitchTab('requirements')" class="px-3 py-1.5 text-sm font-medium rounded text-cyan-700 bg-cyan-50 border border-cyan-300"><i class="fa-solid fa-list"></i> 需求清單</button>
                         <button id="rtmTabMatrix" onclick="rtmSwitchTab('matrix')" class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-table-cells-large"></i> RTM 矩陣</button>
+                        <button id="rtmTabChain" onclick="rtmSwitchTab('chain')" class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-link"></i> 追溯鏈 (Story → AC → 案例 → 缺陷)</button>
                     </div>
                     <!-- 子分頁 1：需求列表 -->
                     <div id="rtmPaneRequirements">
@@ -2663,6 +2664,24 @@ driver.swipe(100, 800, 100, 200, 500)"
                                 <tbody></tbody>
                             </table>
                         </div>
+                    </div>
+                    <!-- 子分頁 3：追溯鏈（User Story → AC → Test Case → Bug） -->
+                    <div id="rtmPaneChain" class="hidden">
+                        <!-- KPI 摘要 -->
+                        <section class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4" id="rtmChainKpis">
+                            <div class="bg-white rounded-xl p-3 border border-cyan-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-solid fa-book text-cyan-500"></i> User Story</div><div class="text-2xl font-bold text-cyan-700" id="rtm_kpi_us">—</div></div>
+                            <div class="bg-white rounded-xl p-3 border border-cyan-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-solid fa-check-double text-blue-500"></i> AC</div><div class="text-2xl font-bold text-blue-700" id="rtm_kpi_ac">—</div></div>
+                            <div class="bg-white rounded-xl p-3 border border-cyan-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-solid fa-list-check text-emerald-500"></i> 測試案例</div><div class="text-2xl font-bold text-emerald-700" id="rtm_kpi_tc">—</div></div>
+                            <div class="bg-white rounded-xl p-3 border border-cyan-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-solid fa-bug text-red-500"></i> 缺陷（鏈內）</div><div class="text-2xl font-bold text-red-700" id="rtm_kpi_bug">—</div></div>
+                            <div class="bg-white rounded-xl p-3 border border-cyan-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-solid fa-link-slash text-amber-600"></i> 未連結缺陷</div><div class="text-2xl font-bold text-amber-700" id="rtm_kpi_orphan">—</div></div>
+                        </section>
+                        <div class="bg-white rounded-lg border border-cyan-100 shadow-sm p-4 mb-4 flex items-center gap-3 flex-wrap">
+                            <button onclick="renderRtmChain()" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
+                            <button onclick="rtmChainExpandAll(true)" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50"><i class="fa-solid fa-angles-down"></i> 全展開</button>
+                            <button onclick="rtmChainExpandAll(false)" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50"><i class="fa-solid fa-angles-up"></i> 全收合</button>
+                            <span class="text-[11px] text-stone-500 ml-auto"><i class="fa-solid fa-circle-info"></i> 提示：頂層需求＝User Story；子需求＝AC（在新增需求 modal 設「父需求」）；缺陷需設「關聯測試案例」才會出現在鏈上</span>
+                        </div>
+                        <div id="rtmChainBody" class="space-y-3"></div>
                     </div>
                 </div>
             </div>
@@ -3173,7 +3192,15 @@ driver.swipe(100, 800, 100, 200, 500)"
                             <div><label for="reqStatus" class="block text-xs font-semibold text-stone-600 mb-1">狀態</label><select id="reqStatus" aria-label="狀態" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option value="Draft" selected>草稿</option><option value="Approved">已核准</option><option value="Implemented">已實作</option><option value="Verified">已驗證</option><option value="Deprecated">已淘汰</option></select></div>
                         </div>
                         <div><label for="reqDesc" class="block text-xs font-semibold text-stone-600 mb-1">說明</label><textarea id="reqDesc" aria-label="說明" rows="3" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
-                        <div><label for="reqOwner" class="block text-xs font-semibold text-stone-600 mb-1">負責人</label><input type="text" id="reqOwner" aria-label="負責人" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div><label for="reqOwner" class="block text-xs font-semibold text-stone-600 mb-1">負責人</label><input type="text" id="reqOwner" aria-label="負責人" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                            <div>
+                                <label for="reqParent" class="block text-xs font-semibold text-stone-600 mb-1">父需求（留空 = User Story；選擇後視為其 AC）</label>
+                                <select id="reqParent" aria-label="父需求" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
+                                    <option value="">— 頂層 (User Story) —</option>
+                                </select>
+                            </div>
+                        </div>
                         <div>
                             <label class="block text-xs font-semibold text-stone-600 mb-1">關聯測試案例（多選；按 Ctrl/⌘ 選多項）</label>
                             <select id="reqTestcases" multiple aria-label="關聯測試案例" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white" size="6"></select>
@@ -10708,16 +10735,20 @@ gantt
         function rtmSwitchTab(tab) {
             const t1 = document.getElementById('rtmTabRequirements');
             const t2 = document.getElementById('rtmTabMatrix');
+            const t3 = document.getElementById('rtmTabChain');
             const p1 = document.getElementById('rtmPaneRequirements');
             const p2 = document.getElementById('rtmPaneMatrix');
+            const p3 = document.getElementById('rtmPaneChain');
             const ON = 'px-3 py-1.5 text-sm font-medium rounded text-cyan-700 bg-cyan-50 border border-cyan-300';
             const OFF = 'px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50';
-            if (tab === 'requirements') {
-                t1.className = ON; t2.className = OFF; p1.classList.remove('hidden'); p2.classList.add('hidden');
-                renderRequirementsList();
+            t1.className = OFF; t2.className = OFF; t3.className = OFF;
+            p1.classList.add('hidden'); p2.classList.add('hidden'); p3.classList.add('hidden');
+            if (tab === 'matrix') {
+                t2.className = ON; p2.classList.remove('hidden'); renderRtmMatrix();
+            } else if (tab === 'chain') {
+                t3.className = ON; p3.classList.remove('hidden'); renderRtmChain();
             } else {
-                t1.className = OFF; t2.className = ON; p1.classList.add('hidden'); p2.classList.remove('hidden');
-                renderRtmMatrix();
+                t1.className = ON; p1.classList.remove('hidden'); renderRequirementsList();
             }
         }
         async function renderRequirementsList() {
@@ -10737,18 +10768,27 @@ gantt
                 if (!rows.length) { tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-stone-400">尚無需求</td></tr>'; return; }
                 const prColor = {Must:'bg-red-100 text-red-700', Should:'bg-amber-100 text-amber-700', Could:'bg-blue-100 text-blue-700', Wont:'bg-stone-100 text-stone-500'};
                 const stColor = {Draft:'bg-stone-100 text-stone-600', Approved:'bg-amber-100 text-amber-700', Implemented:'bg-blue-100 text-blue-700', Verified:'bg-emerald-100 text-emerald-700', Deprecated:'bg-stone-200 text-stone-500'};
-                tbody.innerHTML = rows.map(r => `<tr class="hover:bg-amber-50/30">
-                    <td class="p-3 font-mono text-xs text-stone-500">${_esc(r.code)}</td>
-                    <td class="p-3 font-semibold text-stone-800 break-all">${_esc(r.title)}</td>
-                    <td class="p-3 text-xs">${_esc(_zh('reqSource', r.source))}</td>
-                    <td class="p-3"><span class="text-xs px-2 py-0.5 rounded font-medium ${prColor[r.priority]||''}">${_esc(_zh('reqPriority', r.priority))}</span></td>
-                    <td class="p-3"><span class="text-xs px-2 py-0.5 rounded font-medium ${stColor[r.status]||'bg-stone-100'}">${_esc(_zh('reqStatus', r.status))}</span></td>
-                    <td class="p-3 text-xs text-stone-600 text-center">${(r.linked_testcase_ids||[]).length}</td>
-                    <td class="p-3 text-center whitespace-nowrap space-x-1">
-                        <button onclick="openRequirementModal('${_esc(r.id)}')" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded"><i class="fa-solid fa-pen"></i></button>
-                        <button onclick="deleteRequirement('${_esc(r.id)}','${_esc(r.code)}')" class="text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded"><i class="fa-solid fa-trash"></i></button>
-                    </td>
-                </tr>`).join('');
+                // 建立 id → code 對照，方便顯示「父需求 = AC of REQ-XXX」
+                const codeById = Object.fromEntries(_requirementsCache.map(x => [x.id, x.code]));
+                tbody.innerHTML = rows.map(r => {
+                    const parentCode = r.parent_id ? codeById[r.parent_id] : null;
+                    const kindBadge = r.parent_id
+                        ? `<span class="text-[9px] px-1 rounded bg-blue-100 text-blue-700 border border-blue-200 ml-1" title="${_esc(parentCode||'')} 之 AC">AC</span>`
+                        : `<span class="text-[9px] px-1 rounded bg-cyan-100 text-cyan-700 border border-cyan-200 ml-1" title="頂層需求 = User Story">Story</span>`;
+                    const parentHint = r.parent_id ? `<div class="text-[10px] text-stone-400">↳ AC of <span class="font-mono">${_esc(parentCode || r.parent_id)}</span></div>` : '';
+                    return `<tr class="hover:bg-amber-50/30">
+                        <td class="p-3 font-mono text-xs text-stone-500">${_esc(r.code)}${kindBadge}</td>
+                        <td class="p-3"><div class="font-semibold text-stone-800 break-all">${_esc(r.title)}</div>${parentHint}</td>
+                        <td class="p-3 text-xs">${_esc(_zh('reqSource', r.source))}</td>
+                        <td class="p-3"><span class="text-xs px-2 py-0.5 rounded font-medium ${prColor[r.priority]||''}">${_esc(_zh('reqPriority', r.priority))}</span></td>
+                        <td class="p-3"><span class="text-xs px-2 py-0.5 rounded font-medium ${stColor[r.status]||'bg-stone-100'}">${_esc(_zh('reqStatus', r.status))}</span></td>
+                        <td class="p-3 text-xs text-stone-600 text-center">${(r.linked_testcase_ids||[]).length}</td>
+                        <td class="p-3 text-center whitespace-nowrap space-x-1">
+                            <button onclick="openRequirementModal('${_esc(r.id)}')" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded"><i class="fa-solid fa-pen"></i></button>
+                            <button onclick="deleteRequirement('${_esc(r.id)}','${_esc(r.code)}')" class="text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                    </tr>`;
+                }).join('');
             } catch(e) {
                 tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-red-500">載入失敗：${_esc(e.message)}</td></tr>`;
             }
@@ -10777,8 +10817,31 @@ gantt
             document.getElementById('reqSource').value = r?.source || 'PRD';
             document.getElementById('reqPriority').value = r?.priority || 'Should';
             document.getElementById('reqStatus').value = r?.status || 'Draft';
-            document.getElementById('reqOwner').value = r?.owner || (authCurrentUsername()||'');
+            document.getElementById('reqOwner').value = r?.owner || (typeof authCurrentUsername === 'function' ? (authCurrentUsername()||'') : '');
             document.getElementById('reqDesc').value = r?.description || '';
+            // 父需求下拉：列出所有現有需求；編輯時禁止選自己 / 自己的後代（避免循環）
+            const parentSel = document.getElementById('reqParent');
+            if (parentSel) {
+                const reqs = _requirementsCache || [];
+                const editingId = _editingRequirementId;
+                // 計算「自己 + 後代」的 id 集合，全部禁用
+                const banned = new Set();
+                if (editingId) {
+                    banned.add(editingId);
+                    let changed = true;
+                    while (changed) {
+                        changed = false;
+                        reqs.forEach(x => {
+                            if (x.parent_id && banned.has(x.parent_id) && !banned.has(x.id)) {
+                                banned.add(x.id); changed = true;
+                            }
+                        });
+                    }
+                }
+                parentSel.innerHTML = '<option value="">— 頂層 (User Story) —</option>' +
+                    reqs.map(x => `<option value="${_esc(x.id)}" ${banned.has(x.id)?'disabled':''}>${_esc(x.code)} · ${_esc(x.title)}${banned.has(x.id) && x.id===editingId ? ' (本身)' : (banned.has(x.id) ? ' (後代)' : '')}</option>`).join('');
+                parentSel.value = r?.parent_id || '';
+            }
             // 填入測試案例下拉
             const sel = document.getElementById('reqTestcases');
             const tcs = _collectAllTestCases();
@@ -10789,6 +10852,7 @@ gantt
         function closeRequirementModal() { document.getElementById('requirementModal').classList.add('hidden'); }
         async function requirementSubmit(ev) {
             ev.preventDefault();
+            const parentVal = document.getElementById('reqParent')?.value || null;
             const payload = {
                 project_id: currentProjectId,
                 title: document.getElementById('reqTitle').value.trim(),
@@ -10797,6 +10861,7 @@ gantt
                 status: document.getElementById('reqStatus').value,
                 owner: document.getElementById('reqOwner').value.trim() || null,
                 description: document.getElementById('reqDesc').value || null,
+                parent_id: parentVal,
             };
             const sel = document.getElementById('reqTestcases');
             const tcIds = Array.from(sel.selectedOptions).map(o => o.value);
@@ -10879,6 +10944,175 @@ gantt
             } catch(e) {
                 table.innerHTML = `<tbody><tr><td class="p-6 text-center text-red-500">載入失敗：${_esc(e.message)}</td></tr></tbody>`;
             }
+        }
+
+        // ─── RTM 追溯鏈 (User Story → AC → Test Case → Bug) ──────────────
+        const _RTM_EXEC_BADGE = {
+            PASSED:'bg-green-100 text-green-700 border-green-200',
+            FAILED:'bg-red-100 text-red-700 border-red-200',
+            RUNNING:'bg-blue-100 text-blue-700 border-blue-200',
+            SKIPPED:'bg-stone-100 text-stone-500 border-stone-200',
+            ERROR:'bg-rose-100 text-rose-700 border-rose-200',
+        };
+        const _RTM_DEF_SEV_COLOR = {
+            Critical:'bg-red-100 text-red-700 border-red-200',
+            Major:'bg-orange-100 text-orange-700 border-orange-200',
+            Minor:'bg-amber-100 text-amber-700 border-amber-200',
+            Trivial:'bg-stone-100 text-stone-500 border-stone-200',
+        };
+        const _rtmChainCollapsed = new Set();   // membership = collapsed; default 為展開
+        let _rtmChainCache = null;
+
+        async function renderRtmChain() {
+            const body = document.getElementById('rtmChainBody');
+            const pid = currentProjectId;
+            if (!body) return;
+            if (!pid) {
+                body.innerHTML = '<div class="bg-white p-6 text-center text-stone-400 rounded border border-cyan-100">請先選擇專案</div>';
+                ['rtm_kpi_us','rtm_kpi_ac','rtm_kpi_tc','rtm_kpi_bug','rtm_kpi_orphan'].forEach(id => document.getElementById(id).textContent = '—');
+                return;
+            }
+            body.innerHTML = '<div class="bg-white p-6 text-center text-stone-400 rounded border border-cyan-100">載入中…</div>';
+            try {
+                const res = await fetch('/api/rtm/chain?project_id=' + encodeURIComponent(pid));
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                _rtmChainCache = await res.json();
+                const s = _rtmChainCache.summary || {};
+                document.getElementById('rtm_kpi_us').textContent = s.user_stories ?? 0;
+                document.getElementById('rtm_kpi_ac').textContent = s.acs ?? 0;
+                document.getElementById('rtm_kpi_tc').textContent = s.test_cases_in_chain ?? 0;
+                document.getElementById('rtm_kpi_bug').textContent = s.defects_in_chain ?? 0;
+                document.getElementById('rtm_kpi_orphan').textContent = s.orphan_defects ?? 0;
+
+                const stories = _rtmChainCache.user_stories || [];
+                if (!stories.length) {
+                    body.innerHTML = `<div class="bg-white p-8 text-center rounded border border-cyan-100">
+                        <div class="text-stone-400 text-sm mb-3">尚無 User Story（頂層需求）</div>
+                        <button onclick="rtmSwitchTab('requirements'); openRequirementModal()" class="text-xs px-3 py-1.5 bg-cyan-500 hover:bg-cyan-600 text-white rounded font-semibold"><i class="fa-solid fa-plus"></i> 新增需求</button>
+                        <p class="text-[11px] text-stone-400 mt-3">提示：在「新增需求」 modal 把「父需求」留空 = User Story；選一個 Story 作父 = 該 Story 的 AC。</p>
+                    </div>`;
+                    return;
+                }
+                body.innerHTML = stories.map(story => _rtmRenderStory(story)).join('') +
+                    (s.orphan_defects > 0 ? _rtmRenderOrphans(_rtmChainCache.orphan_defects || []) : '');
+            } catch (e) {
+                body.innerHTML = `<div class="bg-white p-6 text-center text-red-500 rounded border border-cyan-100">載入失敗：${_esc(e.message)}</div>`;
+            }
+        }
+
+        function _rtmRenderStory(story) {
+            const expanded = !_rtmChainCollapsed.has(story.id);
+            const acCount = (story.acs || []).length;
+            const tcsDirect = (story.test_cases || []).length;
+            const tcsViaAcs = (story.acs || []).reduce((sum, ac) => sum + (ac.test_cases || []).length, 0);
+            const bugsViaTcs = (story.test_cases || []).reduce((s, tc) => s + (tc.defects||[]).length, 0)
+                + (story.acs || []).reduce((s, ac) => s + (ac.test_cases||[]).reduce((s2, tc) => s2 + (tc.defects||[]).length, 0), 0);
+            return `<div class="bg-white border border-cyan-200 rounded-lg shadow-sm overflow-hidden">
+                <div class="bg-cyan-50/60 border-b border-cyan-200 p-3 flex items-center gap-3">
+                    <button type="button" onclick="rtmChainToggle('${_esc(story.id)}')" class="w-6 h-6 flex items-center justify-center text-cyan-600 hover:bg-cyan-100 rounded" aria-label="展開/收合">
+                        <i class="fa-solid ${expanded ? 'fa-chevron-down' : 'fa-chevron-right'} text-xs"></i>
+                    </button>
+                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-cyan-100 text-cyan-700 border border-cyan-200 font-semibold">User Story</span>
+                    <span class="font-mono text-xs text-stone-500">${_esc(story.code)}</span>
+                    <div class="font-bold text-stone-800 flex-1 truncate" title="${_esc(story.title)}">${_esc(story.title)}</div>
+                    <span class="text-[10px] text-stone-500" title="AC 數量">AC × ${acCount}</span>
+                    <span class="text-[10px] text-stone-500" title="關聯案例">案例 × ${tcsDirect + tcsViaAcs}</span>
+                    <span class="text-[10px] text-stone-500" title="鏈內缺陷">缺陷 × ${bugsViaTcs}</span>
+                    <button type="button" onclick="openRequirementModal('${_esc(story.id)}')" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded" title="編輯"><i class="fa-solid fa-pen"></i></button>
+                </div>
+                <div class="${expanded ? '' : 'hidden'} divide-y divide-stone-100">
+                    ${(story.test_cases || []).length ? `<div class="p-3 bg-amber-50/40 text-[11px] text-amber-700"><i class="fa-solid fa-triangle-exclamation"></i> 此 User Story 直接連結了測試案例（建議改為連結到其下的 AC）</div>` : ''}
+                    ${(story.test_cases || []).map(tc => _rtmRenderTc(tc, 1)).join('')}
+                    ${(story.acs || []).map(ac => _rtmRenderAc(ac)).join('')}
+                    ${acCount === 0 && tcsDirect === 0 ? `<div class="p-4 text-center text-stone-400 text-xs">尚未拆解出 AC，也未連結測試案例</div>` : ''}
+                </div>
+            </div>`;
+        }
+
+        function _rtmRenderAc(ac) {
+            const tcs = ac.test_cases || [];
+            const bugs = tcs.reduce((s, tc) => s + (tc.defects||[]).length, 0);
+            return `<div class="bg-white">
+                <div class="border-l-4 border-blue-300 bg-blue-50/40 px-3 py-2 flex items-center gap-3 ml-4">
+                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 border border-blue-200 font-semibold">AC</span>
+                    <span class="font-mono text-xs text-stone-500">${_esc(ac.code)}</span>
+                    <div class="font-semibold text-stone-700 flex-1 truncate" title="${_esc(ac.title)}">${_esc(ac.title)}</div>
+                    <span class="text-[10px] text-stone-500">案例 × ${tcs.length}</span>
+                    <span class="text-[10px] text-stone-500">缺陷 × ${bugs}</span>
+                    <button type="button" onclick="openRequirementModal('${_esc(ac.id)}')" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded" title="編輯"><i class="fa-solid fa-pen"></i></button>
+                </div>
+                <div class="ml-8">
+                    ${tcs.length ? tcs.map(tc => _rtmRenderTc(tc, 2)).join('') : '<div class="px-3 py-2 text-[11px] text-stone-400">此 AC 尚未連結任何測試案例</div>'}
+                </div>
+            </div>`;
+        }
+
+        function _rtmRenderTc(tc, depth) {
+            const stCls = _RTM_EXEC_BADGE[tc.last_status] || 'bg-stone-100 text-stone-500 border-stone-200';
+            const stLabel = tc.last_status || '未跑';
+            const bugs = tc.defects || [];
+            return `<div class="border-l-4 border-emerald-300 bg-emerald-50/30 px-3 py-2">
+                <div class="flex items-center gap-3">
+                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 border border-emerald-200 font-semibold">Test Case</span>
+                    <div class="font-medium text-stone-700 flex-1 truncate" title="${_esc(tc.title)}">${_esc(tc.title)}</div>
+                    <span class="text-[10px] px-1.5 py-0.5 rounded font-medium border ${stCls}">${_esc(stLabel)}</span>
+                    <span class="text-[10px] text-stone-500">缺陷 × ${bugs.length}</span>
+                </div>
+                ${bugs.length ? `<div class="mt-2 ml-4 space-y-1">${bugs.map(b => _rtmRenderBug(b)).join('')}</div>` : ''}
+            </div>`;
+        }
+
+        function _rtmRenderBug(b) {
+            const sevCls = _RTM_DEF_SEV_COLOR[b.severity] || 'bg-stone-100 text-stone-600 border-stone-200';
+            return `<div class="flex items-center gap-2 text-xs bg-white border border-red-100 rounded px-2 py-1">
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-700 border border-red-200 font-semibold">Bug</span>
+                <span class="font-mono text-[10px] text-stone-500">${_esc(b.code)}</span>
+                <button type="button" onclick="rtmOpenDefect('${_esc(b.id)}')" class="font-medium text-stone-700 flex-1 text-left truncate hover:text-red-600 hover:underline" title="${_esc(b.title)}">${_esc(b.title)}</button>
+                <span class="text-[10px] px-1.5 py-0.5 rounded font-medium border ${sevCls}">${_esc(_zh('defSeverity', b.severity))}</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded font-medium bg-stone-100 text-stone-500">${_esc(_zh('defStatus', b.status))}</span>
+                ${b.assignee ? `<span class="text-[10px] text-stone-400">${_esc(b.assignee)}</span>` : ''}
+            </div>`;
+        }
+
+        function _rtmRenderOrphans(orphans) {
+            if (!orphans.length) return '';
+            return `<div class="bg-white border border-amber-200 rounded-lg shadow-sm overflow-hidden mt-4">
+                <div class="bg-amber-50/60 border-b border-amber-200 p-3 flex items-center gap-3">
+                    <i class="fa-solid fa-link-slash text-amber-600"></i>
+                    <span class="font-bold text-amber-800">未連結到測試案例的缺陷（${orphans.length}）</span>
+                    <span class="text-[11px] text-stone-500 ml-auto">這些缺陷的 linked_testcase_id 為空或不存在；建議在缺陷編輯頁設定關聯案例以納入追溯鏈</span>
+                </div>
+                <div class="p-3 space-y-1">
+                    ${orphans.map(b => _rtmRenderBug(b)).join('')}
+                </div>
+            </div>`;
+        }
+
+        function rtmChainToggle(id) {
+            if (_rtmChainCollapsed.has(id)) _rtmChainCollapsed.delete(id);
+            else _rtmChainCollapsed.add(id);
+            renderRtmChain();
+        }
+        function rtmChainExpandAll(expand) {
+            _rtmChainCollapsed.clear();
+            if (!expand) {
+                ((_rtmChainCache && _rtmChainCache.user_stories) || []).forEach(s => _rtmChainCollapsed.add(s.id));
+            }
+            renderRtmChain();
+        }
+
+        // 透過追溯鏈直接打開缺陷編輯（先抓 defect 詳情塞 cache 再 open）
+        async function rtmOpenDefect(id) {
+            try {
+                const res = await fetch('/api/defects/' + id);
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const d = await res.json();
+                if (typeof _defectsCache === 'object') {
+                    const i = _defectsCache.findIndex(x => x.id === id);
+                    if (i >= 0) _defectsCache[i] = d; else _defectsCache.push(d);
+                }
+                openDefectModal(id);
+            } catch (e) { showToast('載入缺陷失敗：' + e.message, 'error'); }
         }
 
         // ─── 測試看版 ───────────────────────────────────────────────────

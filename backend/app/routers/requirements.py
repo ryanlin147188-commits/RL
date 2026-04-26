@@ -8,6 +8,7 @@ from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.models.defect import Defect
 from app.models.execution_report import ExecutionReport
 from app.models.execution_step_log import ExecutionStepLog
 from app.models.requirement import (
@@ -228,3 +229,154 @@ async def rtm_matrix(
         testcases=testcases,
         cells=cells,
     )
+
+
+# ========== RTM 追溯鏈（User Story → AC → Test Case → Bug） ==========
+
+@router.get("/rtm/chain", tags=["O · 需求 / RTM"])
+async def rtm_chain(
+    project_id: str = Query(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """完整追溯鏈：User Story → AC → Test Case → Bug。
+
+    對應關係（無需新增 schema，直接套用既有結構）：
+    - 頂層需求（parent_id IS NULL） → User Story
+    - 子需求（parent_id 指向 User Story）→ Acceptance Criteria (AC)
+    - AC 透過 RequirementTestcaseLink 關聯到 TreeNode (TESTCASE) → Test Case
+    - Defect.linked_testcase_id 指向 TreeNode → Bug
+
+    回傳：
+    {
+        "user_stories": [ { story, acs: [ { ac, test_cases: [ { tc, last_status, defects: [...] } ] } ] } ],
+        "summary": { user_stories, acs, test_cases, defects, orphan_defects }
+    }
+    """
+    from sqlalchemy import desc as sql_desc
+
+    # 1) 該專案所有需求
+    reqs = (await db.execute(
+        select(Requirement)
+        .where(Requirement.project_id == project_id)
+        .order_by(Requirement.code)
+    )).scalars().all()
+    req_by_id = {r.id: r for r in reqs}
+
+    # 2) 所有 link（需求 ↔ 測試案例）
+    req_ids = [r.id for r in reqs]
+    links = []
+    if req_ids:
+        links = (await db.execute(
+            select(RequirementTestcaseLink).where(
+                RequirementTestcaseLink.requirement_id.in_(req_ids)
+            )
+        )).scalars().all()
+    tc_ids = list({l.testcase_node_id for l in links})
+
+    # 3) Test case nodes
+    tcs_by_id: dict[str, TreeNode] = {}
+    if tc_ids:
+        tc_rows = (await db.execute(
+            select(TreeNode).where(TreeNode.id.in_(tc_ids))
+        )).scalars().all()
+        tcs_by_id = {t.id: t for t in tc_rows}
+
+    # 4) 每個 testcase 的最新執行狀態
+    latest_status: dict[str, str] = {}
+    for tc_id in tc_ids:
+        row = (await db.execute(
+            select(ExecutionStepLog.status)
+            .where(ExecutionStepLog.testcase_node_id == tc_id)
+            .order_by(sql_desc(ExecutionStepLog.id))
+            .limit(1)
+        )).first()
+        if row:
+            s = row[0]
+            latest_status[tc_id] = s.value if hasattr(s, "value") else str(s)
+
+    # 5) 該專案所有 defect
+    defects = (await db.execute(
+        select(Defect).where(Defect.project_id == project_id).order_by(Defect.code)
+    )).scalars().all()
+    defects_by_tc: dict[str, list[Defect]] = {}
+    orphan_defects: list[Defect] = []
+    for d in defects:
+        if d.linked_testcase_id and d.linked_testcase_id in tcs_by_id:
+            defects_by_tc.setdefault(d.linked_testcase_id, []).append(d)
+        else:
+            orphan_defects.append(d)
+
+    # 6) requirement → linked testcase ids
+    tcs_per_req: dict[str, list[str]] = {}
+    for l in links:
+        tcs_per_req.setdefault(l.requirement_id, []).append(l.testcase_node_id)
+
+    def _enum_str(v):
+        return v.value if hasattr(v, "value") else str(v) if v is not None else None
+
+    def _serialize_tc(tc_id: str) -> dict:
+        tc = tcs_by_id.get(tc_id)
+        if not tc:
+            return {"id": tc_id, "title": "(已刪除的案例)", "last_status": None, "defects": []}
+        return {
+            "id": tc.id,
+            "title": tc.name,
+            "last_status": latest_status.get(tc_id),
+            "defects": [
+                {
+                    "id": d.id,
+                    "code": d.code,
+                    "title": d.title,
+                    "status": _enum_str(d.status),
+                    "severity": _enum_str(d.severity),
+                    "priority": _enum_str(d.priority),
+                    "assignee": d.assignee,
+                }
+                for d in defects_by_tc.get(tc_id, [])
+            ],
+        }
+
+    def _serialize_req(r: Requirement, depth: int = 0) -> dict:
+        children = [
+            _serialize_req(c, depth + 1)
+            for c in reqs
+            if c.parent_id == r.id
+        ]
+        return {
+            "id": r.id,
+            "code": r.code,
+            "title": r.title,
+            "parent_id": r.parent_id,
+            "source": _enum_str(r.source),
+            "priority": _enum_str(r.priority),
+            "status": _enum_str(r.status),
+            "owner": r.owner,
+            "test_cases": [_serialize_tc(tc_id) for tc_id in tcs_per_req.get(r.id, [])],
+            "acs" if depth == 0 else "children": children,
+        }
+
+    user_stories = [_serialize_req(r, 0) for r in reqs if r.parent_id is None]
+
+    summary = {
+        "user_stories": len(user_stories),
+        "acs": len([r for r in reqs if r.parent_id is not None]),
+        "test_cases_in_chain": len(tc_ids),
+        "defects_total": len(defects),
+        "defects_in_chain": sum(len(v) for v in defects_by_tc.values()),
+        "orphan_defects": len(orphan_defects),
+    }
+
+    return {
+        "user_stories": user_stories,
+        "summary": summary,
+        "orphan_defects": [
+            {
+                "id": d.id,
+                "code": d.code,
+                "title": d.title,
+                "status": _enum_str(d.status),
+                "severity": _enum_str(d.severity),
+            }
+            for d in orphan_defects
+        ],
+    }
