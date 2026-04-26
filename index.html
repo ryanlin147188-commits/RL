@@ -3464,8 +3464,45 @@ driver.swipe(100, 800, 100, 200, 500)"
                             <select id="reqTestcases" multiple aria-label="關聯測試案例" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white" size="6"></select>
                             <p class="text-[10px] text-stone-500 mt-0.5">儲存時會整批替換此需求的關聯案例</p>
                         </div>
-                        <div class="flex justify-end gap-2 pt-2"><button type="button" onclick="closeRequirementModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button><button type="submit" class="px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button></div>
+                        <div class="flex justify-between items-center gap-2 pt-2 flex-wrap">
+                            <button type="button" onclick="aiGenerateForRequirement()" id="reqAiGenBtn"
+                                class="px-3 py-2 bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:from-violet-600 hover:to-fuchsia-600 text-white rounded-md text-sm font-semibold shadow-sm transition flex items-center gap-1.5"
+                                title="用 AI 從本需求生成測試案例骨架（需先儲存需求）">
+                                <i class="fa-solid fa-wand-magic-sparkles"></i> AI 生成測試案例
+                            </button>
+                            <div class="flex gap-2 ml-auto">
+                                <button type="button" onclick="closeRequirementModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button>
+                                <button type="submit" class="px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button>
+                            </div>
+                        </div>
                     </form>
+                </div>
+            </div>
+
+            <!-- AI 生成結果 Modal -->
+            <div id="aiGenResultModal" class="hidden fixed inset-0 z-[160] bg-black/50 flex items-center justify-center p-4">
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl border border-violet-200 max-h-[92vh] flex flex-col">
+                    <div class="px-6 py-4 border-b border-stone-200 bg-gradient-to-r from-violet-50 to-fuchsia-50 flex items-center justify-between gap-3">
+                        <h3 class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-wand-magic-sparkles text-violet-500"></i> AI 生成結果</h3>
+                        <div class="flex items-center gap-3 text-[11px] text-stone-500">
+                            <span><b>Provider：</b><span id="aiGenResultProvider">—</span></span>
+                            <span><b>Model：</b><span id="aiGenResultModel" class="font-mono">—</span></span>
+                            <button type="button" onclick="closeAiGenResultModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark text-lg"></i></button>
+                        </div>
+                    </div>
+                    <div class="px-6 py-3 border-b border-stone-100 flex items-center gap-2 flex-wrap shrink-0">
+                        <button type="button" onclick="aiSelectAll(true)" class="text-xs px-2.5 py-1 border border-stone-300 rounded hover:bg-violet-50">全選</button>
+                        <button type="button" onclick="aiSelectAll(false)" class="text-xs px-2.5 py-1 border border-stone-300 rounded hover:bg-violet-50">全不選</button>
+                        <span id="aiGenSelCount" class="text-[11px] text-stone-500">已選 0 / 0</span>
+                        <span class="text-[11px] text-stone-400 ml-auto">套用後會在「測試案例」樹下建立節點，並自動連結到本需求</span>
+                    </div>
+                    <div id="aiGenResultBody" class="flex-1 overflow-y-auto p-6 space-y-3"></div>
+                    <div class="px-6 py-3 border-t border-stone-200 bg-stone-50 flex items-center justify-end gap-2">
+                        <button type="button" onclick="closeAiGenResultModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button>
+                        <button type="button" onclick="aiApplySelected()" id="aiApplyBtn" class="px-4 py-2 bg-violet-500 hover:bg-violet-600 text-white rounded-md text-sm font-semibold disabled:opacity-50">
+                            <i class="fa-solid fa-circle-check"></i> 套用選取項目
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -6795,19 +6832,39 @@ driver.swipe(100, 800, 100, 200, 500)"
             catch (_) { showToast('複製失敗，請手動選取指令', 'error'); }
         }
 
-        window.onload = () => {
+        window.onload = async () => {
             // 第一步：檢查登入狀態。未登入 → 顯示認證覆蓋層並停止初始化。
             authBootstrap();
             if (!authIsLoggedIn()) {
                 authShowOverlay();
                 return;
             }
-            // 已登入 → 正常初始化平台
+            // 已登入：先驗證 token 還有效（會自動 silent refresh）
+            try {
+                const r = await window.fetch('/api/auth/me');
+                if (!r.ok) {
+                    // fetch wrapper 已經顯示了 overlay；這裡直接 return 即可
+                    return;
+                }
+                const me = await r.json();
+                // 把後端最新的 displayName / email 同步進 session 快取
+                const s = _authReadSession() || {};
+                _authWriteSession({
+                    ...s,
+                    username: me.username,
+                    displayName: me.display_name || s.displayName || me.username,
+                    email: me.email || s.email || '',
+                });
+            } catch (_) {
+                authShowOverlay();
+                return;
+            }
+            // 通過驗證 → 正常初始化平台
             renderExecutionModeButton();
             updateUserMenuUI();
             initProjects().then(() => {
-                try { showHomeView(); } catch (_) { /* initProjects 若失敗仍顯示 emptyWorkspace */ }
-            }).catch(() => { /* 靜默：initProjects 錯誤有自己的 toast */ });
+                try { showHomeView(); } catch (_) {}
+            }).catch(() => {});
         };
 
         // ==================== 使用者認證（Client-Side Demo） ====================
@@ -6823,22 +6880,84 @@ driver.swipe(100, 800, 100, 200, 500)"
         };
 
         function authBootstrap() {
-            // 首次啟動時，若 users 清單為空則自動種入 admin / admin123
-            try {
-                const raw = localStorage.getItem(AUTH_KEYS.users);
-                const users = raw ? JSON.parse(raw) : [];
-                if (!Array.isArray(users) || users.length === 0) {
-                    const defaultUser = {
-                        username: 'admin',
-                        password: 'admin123',
-                        email: 'admin@example.com',
-                        displayName: '系統管理員',
-                        createdAt: new Date().toISOString(),
-                    };
-                    localStorage.setItem(AUTH_KEYS.users, JSON.stringify([defaultUser]));
-                }
-            } catch (_) { /* 忽略 localStorage 讀寫錯誤 */ }
+            // 後端版本：不需要再 seed users 到 localStorage（admin/admin123 由後端 seed）
+            // 只清掉舊版本可能殘留的 plaintext users（升級時的 cleanup）
+            try { localStorage.removeItem(AUTH_KEYS.users); } catch (_) {}
         }
+
+        // ── 後端 token 管理 ──────────────────────────────────────────────
+        // access_token / refresh_token 存 localStorage；fetch 自動帶上 Bearer header；
+        // 401 時嘗試 refresh，refresh 也壞了就跳登入畫面。
+        const AUTH_TOKEN_KEYS = {
+            access: 'autotest.auth.access_token',
+            refresh: 'autotest.auth.refresh_token',
+            expiresAt: 'autotest.auth.access_expires_at',
+        };
+        function authSetTokens(access, refresh, expiresInSec) {
+            try {
+                localStorage.setItem(AUTH_TOKEN_KEYS.access, access || '');
+                if (refresh) localStorage.setItem(AUTH_TOKEN_KEYS.refresh, refresh);
+                if (expiresInSec) localStorage.setItem(AUTH_TOKEN_KEYS.expiresAt, String(Date.now() + expiresInSec * 1000));
+            } catch (_) {}
+        }
+        function authGetAccessToken() { try { return localStorage.getItem(AUTH_TOKEN_KEYS.access); } catch (_) { return null; } }
+        function authGetRefreshToken() { try { return localStorage.getItem(AUTH_TOKEN_KEYS.refresh); } catch (_) { return null; } }
+        function authClearTokens() {
+            try {
+                localStorage.removeItem(AUTH_TOKEN_KEYS.access);
+                localStorage.removeItem(AUTH_TOKEN_KEYS.refresh);
+                localStorage.removeItem(AUTH_TOKEN_KEYS.expiresAt);
+            } catch (_) {}
+        }
+
+        // 包裹原生 fetch：自動加 Authorization；遇到 401 嘗試一次 silent refresh
+        const _origFetch = window.fetch.bind(window);
+        let _refreshing = null;  // pending refresh promise（避免並發呼叫多打 refresh）
+        async function _doRefresh() {
+            if (_refreshing) return _refreshing;
+            const rt = authGetRefreshToken();
+            if (!rt) return Promise.resolve(false);
+            _refreshing = (async () => {
+                try {
+                    const r = await _origFetch('/api/auth/refresh', {
+                        method: 'POST', headers: {'Content-Type':'application/json'},
+                        body: JSON.stringify({ refresh_token: rt }),
+                    });
+                    if (!r.ok) return false;
+                    const d = await r.json();
+                    authSetTokens(d.access_token, d.refresh_token, d.expires_in);
+                    return true;
+                } catch (_) { return false; }
+                finally { _refreshing = null; }
+            })();
+            return _refreshing;
+        }
+        window.fetch = async function authFetch(input, init) {
+            init = init || {};
+            const headers = new Headers(init.headers || (typeof input === 'object' && input.headers) || {});
+            const tok = authGetAccessToken();
+            if (tok && !headers.has('Authorization')) {
+                headers.set('Authorization', 'Bearer ' + tok);
+            }
+            init.headers = headers;
+            let resp = await _origFetch(input, init);
+            // 401 → 試 refresh 一次
+            if (resp.status === 401 && tok) {
+                const ok = await _doRefresh();
+                if (ok) {
+                    headers.set('Authorization', 'Bearer ' + authGetAccessToken());
+                    init.headers = headers;
+                    resp = await _origFetch(input, init);
+                }
+                if (resp.status === 401) {
+                    // refresh 也失敗 → 清 token + 顯示登入畫面
+                    authClearTokens();
+                    _authWriteSession(null);
+                    try { authShowOverlay(); } catch (_) {}
+                }
+            }
+            return resp;
+        };
 
         function _authReadUsers() {
             try { return JSON.parse(localStorage.getItem(AUTH_KEYS.users) || '[]'); }
@@ -6859,17 +6978,24 @@ driver.swipe(100, 800, 100, 200, 500)"
         }
 
         function authIsLoggedIn() {
-            const s = _authReadSession();
-            return !!(s && s.username);
+            // 後端 JWT 版本：必須有 access token 才算登入；session 只是 UI 的快取
+            return !!(authGetAccessToken() && _authReadSession());
         }
         function authCurrentUsername() {
             const s = _authReadSession();
             return s ? s.username : null;
         }
         function authCurrentUser() {
-            const uname = authCurrentUsername();
-            if (!uname) return null;
-            return _authReadUsers().find(u => u.username === uname) || null;
+            // 後端版本：直接從 session 讀取登入時拿到的使用者資訊
+            const s = _authReadSession();
+            if (!s || !s.username) return null;
+            return {
+                username: s.username,
+                displayName: s.displayName || s.username,
+                email: s.email || '',
+                createdAt: s.loginAt,
+                loginCount: s.loginCount || 0,
+            };
         }
 
         function authShowOverlay() {
@@ -6900,29 +7026,48 @@ driver.swipe(100, 800, 100, 200, 500)"
             }
         }
 
-        function authHandleLogin(ev) {
+        async function authHandleLogin(ev) {
             ev.preventDefault();
             const uname = document.getElementById('loginUsername').value.trim();
             const pwd = document.getElementById('loginPassword').value;
-            const users = _authReadUsers();
-            const match = users.find(u => u.username === uname && u.password === pwd);
-            if (!match) {
-                showToast('帳號或密碼錯誤', 'error');
-                return false;
+            try {
+                // 注意：login 不需要 token，但 _origFetch 也行；用 window.fetch (有包裝過) 也 OK
+                // 因為它會發現沒 token 就直接打請求；後端 /api/auth/login 在 whitelist
+                const r = await window.fetch('/api/auth/login', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ username: uname, password: pwd }),
+                });
+                if (!r.ok) {
+                    const detail = (await r.json().catch(() => ({}))).detail || '帳號或密碼錯誤';
+                    showToast(detail, 'error');
+                    return false;
+                }
+                const data = await r.json();
+                authSetTokens(data.access_token, data.refresh_token, data.expires_in);
+                // 拿使用者資訊
+                let me = { username: uname, display_name: uname, email: '' };
+                try {
+                    const meRes = await window.fetch('/api/auth/me');
+                    if (meRes.ok) me = await meRes.json();
+                } catch (_) {}
+                const now = new Date().toISOString();
+                const prev = _authReadSession();
+                const prevCount = (prev && prev.username === uname) ? (prev.loginCount || 0) : 0;
+                _authWriteSession({
+                    username: me.username || uname,
+                    displayName: me.display_name || uname,
+                    email: me.email || '',
+                    loginAt: now,
+                    loginCount: prevCount + 1,
+                });
+                showToast(`歡迎回來，${me.display_name || uname}`, 'success');
+                authHideOverlay();
+                renderExecutionModeButton();
+                updateUserMenuUI();
+                initProjects().then(() => { try { showHomeView(); } catch (_) {} }).catch(() => {});
+            } catch (e) {
+                showToast('登入失敗：' + e.message, 'error');
             }
-            // 寫入 session
-            const now = new Date().toISOString();
-            const prev = _authReadSession();
-            const prevCount = (prev && prev.username === uname) ? (prev.loginCount || 0) : 0;
-            _authWriteSession({ username: uname, loginAt: now, loginCount: prevCount + 1 });
-            showToast(`歡迎回來，${match.displayName || uname}`, 'success');
-            authHideOverlay();
-            // 觸發正式初始化
-            renderExecutionModeButton();
-            updateUserMenuUI();
-            initProjects().then(() => {
-                try { showHomeView(); } catch (_) { }
-            }).catch(() => { });
             return false;
         }
 
@@ -6940,24 +7085,8 @@ driver.swipe(100, 800, 100, 200, 500)"
                 showToast('兩次密碼輸入不一致', 'error');
                 return false;
             }
-            const users = _authReadUsers();
-            if (users.some(u => u.username === uname)) {
-                showToast('此使用者名稱已被使用', 'error');
-                return false;
-            }
-            users.push({
-                username: uname,
-                password: pwd,
-                email: email || `${uname}@example.com`,
-                displayName: uname,
-                createdAt: new Date().toISOString(),
-            });
-            _authWriteUsers(users);
-            showToast('帳號建立成功，請登入', 'success');
-            switchAuthTab('login');
-            document.getElementById('loginUsername').value = uname;
-            document.getElementById('loginPassword').value = '';
-            document.getElementById('loginPassword').focus();
+            // 後端模式：自助註冊已關閉，請管理員透過「設定 → 使用者」建立帳號
+            showToast('自助註冊已關閉；請聯絡系統管理員建立帳號', 'error');
             return false;
         }
 
@@ -7013,6 +7142,7 @@ driver.swipe(100, 800, 100, 200, 500)"
 
         function authLogout() {
             if (!confirm('確定要登出嗎？')) return;
+            authClearTokens();
             _authWriteSession(null);
             showToast('已登出', 'success');
             // 重新整理頁面以清空所有狀態
@@ -12666,6 +12796,223 @@ gantt
                 if (!r.ok && r.status !== 204) throw new Error('HTTP '+r.status);
                 showToast('已刪除', 'success'); renderAiTokensList();
             } catch (e) { showToast('刪除失敗：'+e.message, 'error'); }
+        }
+
+        // ─── AI 從需求生成測試案例 ──────────────────────────────────────
+        let _aiGenItems = [];           // [{title, ac, steps_md, _selected, _applied}]
+        let _aiGenForReqId = null;      // 當下對應的 Requirement.id
+        let _aiGenScenarios = [];       // 可掛載的 SCENARIO 節點清單
+
+        async function aiGenerateForRequirement() {
+            const reqId = _editingRequirementId;
+            if (!reqId) {
+                showToast('請先儲存需求再使用 AI 生成（需要 requirement.id）', 'error');
+                return;
+            }
+            const btn = document.getElementById('reqAiGenBtn');
+            const orig = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 生成中…';
+            try {
+                const r = await fetch('/api/ai/generate-testcases-from-requirement/' + encodeURIComponent(reqId), {
+                    method: 'POST', headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({ n: 4 }),
+                });
+                if (!r.ok) {
+                    const detail = (await r.json().catch(() => ({}))).detail || ('HTTP ' + r.status);
+                    throw new Error(detail);
+                }
+                const data = await r.json();
+                _aiGenForReqId = reqId;
+                _aiGenItems = (data.generated || []).map(x => ({
+                    ...x, _selected: true, _applied: false, _appliedNodeId: null,
+                }));
+                document.getElementById('aiGenResultProvider').textContent = data.provider || '—';
+                document.getElementById('aiGenResultModel').textContent = data.model || '—';
+                if (!_aiGenItems.length) {
+                    showToast('AI 沒有產生有效的案例；' + (data.error || '請查看 raw 輸出'), 'error');
+                    if (data.raw) console.warn('[AI raw output]', data.raw);
+                    return;
+                }
+                await _loadScenariosForApply();
+                renderAiGenResult();
+                document.getElementById('aiGenResultModal').classList.remove('hidden');
+            } catch (e) {
+                showToast('AI 生成失敗：' + e.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = orig;
+            }
+        }
+
+        async function _loadScenariosForApply() {
+            _aiGenScenarios = [];
+            if (!currentProjectId) return;
+            try {
+                const r = await fetch('/api/projects/' + encodeURIComponent(currentProjectId) + '/tree');
+                if (!r.ok) return;
+                const tree = await r.json();
+                (function walk(nodes, path) {
+                    if (!nodes) return;
+                    for (const n of nodes) {
+                        if (n.level_type === 'SCENARIO') {
+                            _aiGenScenarios.push({
+                                id: n.id, name: n.name,
+                                path: path ? path + ' / ' + n.name : n.name,
+                            });
+                        }
+                        if (n.children && n.children.length) {
+                            walk(n.children, path ? path + ' / ' + n.name : n.name);
+                        }
+                    }
+                })(tree, '');
+            } catch (_) {}
+        }
+
+        function closeAiGenResultModal() {
+            document.getElementById('aiGenResultModal').classList.add('hidden');
+        }
+
+        function aiSelectAll(on) {
+            _aiGenItems.forEach(it => { if (!it._applied) it._selected = !!on; });
+            renderAiGenResult();
+        }
+
+        function aiToggleSel(idx) {
+            const it = _aiGenItems[idx];
+            if (!it || it._applied) return;
+            it._selected = !it._selected;
+            renderAiGenResult();
+        }
+
+        function aiUpdateField(idx, field, val) {
+            const it = _aiGenItems[idx];
+            if (!it) return;
+            it[field] = val;
+        }
+
+        function renderAiGenResult() {
+            const body = document.getElementById('aiGenResultBody');
+            if (!body) return;
+            const total = _aiGenItems.length;
+            const sel = _aiGenItems.filter(x => x._selected && !x._applied).length;
+            document.getElementById('aiGenSelCount').textContent = `已選 ${sel} / ${total}`;
+            const applyBtn = document.getElementById('aiApplyBtn');
+            if (applyBtn) applyBtn.disabled = sel === 0 || _aiGenScenarios.length === 0;
+
+            // 上方掛載目標下拉（沒 SCENARIO 時提示）
+            const scenarioPicker = _aiGenScenarios.length
+                ? `<div class="bg-violet-50/40 border border-violet-100 rounded p-3 mb-3 flex items-center gap-2 flex-wrap">
+                    <label class="text-xs font-semibold text-violet-700">套用到 Scenario：</label>
+                    <select id="aiGenScenarioSel" class="flex-1 min-w-[260px] border border-stone-300 rounded px-2 py-1 text-xs bg-white">
+                        ${_aiGenScenarios.map(s => `<option value="${_esc(s.id)}">${_esc(s.path)}</option>`).join('')}
+                    </select>
+                </div>`
+                : `<div class="bg-amber-50 border border-amber-200 rounded p-3 mb-3 text-xs text-amber-800">
+                    <i class="fa-solid fa-triangle-exclamation"></i> 此專案尚無任何 <b>Scenario</b> 節點；請先到專案目錄建立 Feature → Platform → Page → Scenario 後再回來套用。
+                </div>`;
+
+            body.innerHTML = scenarioPicker + _aiGenItems.map((it, idx) => {
+                const lockCls = it._applied ? 'opacity-60' : '';
+                const checkCls = it._selected ? 'bg-violet-500 border-violet-500 text-white' : 'bg-white border-stone-300';
+                return `<div class="border border-stone-200 rounded-lg p-3 ${lockCls}">
+                    <div class="flex items-start gap-2 mb-2">
+                        <button type="button" onclick="aiToggleSel(${idx})" ${it._applied ? 'disabled' : ''}
+                            class="mt-0.5 w-5 h-5 rounded border ${checkCls} flex items-center justify-center shrink-0">
+                            ${it._selected ? '<i class="fa-solid fa-check text-[10px]"></i>' : ''}
+                        </button>
+                        <div class="flex-1 min-w-0">
+                            <input type="text" value="${_esc(it.title)}" oninput="aiUpdateField(${idx}, 'title', this.value)"
+                                class="w-full px-2 py-1 border border-stone-200 rounded text-sm font-semibold focus:outline-none focus:border-violet-400" ${it._applied ? 'readonly' : ''}>
+                            ${it._applied ? `<div class="text-[11px] text-emerald-600 mt-1"><i class="fa-solid fa-check-circle"></i> 已套用（節點 id: <span class="font-mono">${_esc((it._appliedNodeId||'').slice(0,8))}…</span>）</div>` : ''}
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 ml-7">
+                        <div>
+                            <label class="block text-[11px] font-semibold text-stone-600 mb-1">驗收條件 (AC)</label>
+                            <textarea oninput="aiUpdateField(${idx}, 'ac', this.value)" rows="6"
+                                class="w-full px-2 py-1.5 border border-stone-200 rounded text-xs font-mono focus:outline-none focus:border-violet-400" ${it._applied ? 'readonly' : ''}>${_esc(it.ac)}</textarea>
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold text-stone-600 mb-1">測試步驟 (Markdown)</label>
+                            <textarea oninput="aiUpdateField(${idx}, 'steps_md', this.value)" rows="6"
+                                class="w-full px-2 py-1.5 border border-stone-200 rounded text-xs font-mono focus:outline-none focus:border-violet-400" ${it._applied ? 'readonly' : ''}>${_esc(it.steps_md)}</textarea>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        async function aiApplySelected() {
+            const scenarioSel = document.getElementById('aiGenScenarioSel');
+            const scenarioId = scenarioSel ? scenarioSel.value : '';
+            if (!scenarioId) {
+                showToast('請選擇要套用到的 Scenario', 'error');
+                return;
+            }
+            const toApply = _aiGenItems
+                .map((it, idx) => ({ ...it, idx }))
+                .filter(x => x._selected && !x._applied);
+            if (!toApply.length) { showToast('沒有勾選任何項目', 'error'); return; }
+
+            const applyBtn = document.getElementById('aiApplyBtn');
+            const orig = applyBtn.innerHTML;
+            applyBtn.disabled = true;
+            applyBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 套用中…';
+
+            const newNodeIds = [];
+            try {
+                for (const x of toApply) {
+                    // 1) 建立 testcase node
+                    const nodeRes = await fetch('/api/nodes', {
+                        method: 'POST', headers: {'Content-Type':'application/json'},
+                        body: JSON.stringify({
+                            project_id: currentProjectId,
+                            parent_id: scenarioId,
+                            name: x.title || ('AI 案例 ' + (x.idx + 1)),
+                        }),
+                    });
+                    if (!nodeRes.ok) throw new Error('建立節點失敗：HTTP ' + nodeRes.status);
+                    const node = await nodeRes.json();
+                    // 2) 寫入 ac_text + steps_json（簡單 MVP：把 AC + Markdown steps 都放 ac_text）
+                    const fullAc = (x.ac || '') + '\n\n' + (x.steps_md || '');
+                    const tcRes = await fetch('/api/testcases/' + encodeURIComponent(node.id), {
+                        method: 'PUT', headers: {'Content-Type':'application/json'},
+                        body: JSON.stringify({ ac_text: fullAc.trim(), setup_text: '', steps_json: [], ddt_json: { headers: [], rows: [] } }),
+                    });
+                    if (!tcRes.ok) throw new Error('寫入內容失敗：HTTP ' + tcRes.status);
+                    _aiGenItems[x.idx]._applied = true;
+                    _aiGenItems[x.idx]._appliedNodeId = node.id;
+                    newNodeIds.push(node.id);
+                }
+                // 3) 把新建的 testcase 加入需求的 linked_testcase_ids
+                if (_aiGenForReqId && newNodeIds.length) {
+                    // 取現有 linked_testcase_ids，加上新的，整批 PUT
+                    let prev = [];
+                    try {
+                        const reqRes = await fetch('/api/requirements/' + _aiGenForReqId);
+                        if (reqRes.ok) {
+                            const reqBody = await reqRes.json();
+                            prev = reqBody.linked_testcase_ids || [];
+                        }
+                    } catch (_) {}
+                    const merged = Array.from(new Set([...prev, ...newNodeIds]));
+                    await fetch('/api/requirements/' + _aiGenForReqId + '/links', {
+                        method: 'PUT', headers: {'Content-Type':'application/json'},
+                        body: JSON.stringify({ testcase_node_ids: merged }),
+                    });
+                }
+                showToast(`已套用 ${newNodeIds.length} 個 AI 生成的測試案例`, 'success');
+                renderAiGenResult();
+                // 重新整理需求列表 / 樹
+                if (typeof renderRequirementsList === 'function') renderRequirementsList();
+                if (typeof loadProjectTree === 'function') loadProjectTree();
+            } catch (e) {
+                showToast('套用失敗：' + e.message, 'error');
+            } finally {
+                applyBtn.disabled = false;
+                applyBtn.innerHTML = orig;
+            }
         }
 
         // ─── 首頁：行事曆 + 待辦 ─────────────────────────────────────

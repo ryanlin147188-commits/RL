@@ -8,13 +8,14 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.database import init_db
-from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings, schedules, local_runner, test_rounds, project_settings, screenshot_baselines, system, defects, test_milestones, test_plans, requirements, test_data_sets, test_documents, wbs_items, settings as app_settings, todos
-# 確保 13 個新增 model 在 init_db() 前已 import 註冊到 Base.metadata
+from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings, schedules, local_runner, test_rounds, project_settings, screenshot_baselines, system, defects, test_milestones, test_plans, requirements, test_data_sets, test_documents, wbs_items, settings as app_settings, todos, auth, ai
+# 確保新增 model 在 init_db() 前已 import 註冊到 Base.metadata
 from app.models import (  # noqa: F401
     Defect, TestMilestone, TestPlan, Requirement, RequirementTestcaseLink,
     TestDataSet, TestDocument, WbsItem,
-    Role, NotificationPreference, EmailConfig, AiTokenConfig, TodoItem,
+    Role, NotificationPreference, EmailConfig, AiTokenConfig, TodoItem, User,
 )
+from app.middleware import AuthMiddleware
 from app.services.schedule_service import scheduler_loop
 
 
@@ -81,6 +82,35 @@ async def _seed_default_roles() -> None:
         await session.commit()
 
 
+async def _seed_default_admin() -> None:
+    """確保 admin/admin123 預設帳號存在（is_superuser=True）；只在沒任何 user 時建立。"""
+    from sqlalchemy import select, func
+    from app.database import AsyncSessionLocal
+    from app.auth.security import hash_password
+
+    async with AsyncSessionLocal() as session:
+        existing_count = (
+            await session.execute(select(func.count(User.username)))
+        ).scalar_one_or_none() or 0
+        if existing_count > 0:
+            return
+        # 嘗試找 Admin role 來掛上去
+        admin_role = (
+            await session.execute(select(Role).where(Role.name == "Admin"))
+        ).scalar_one_or_none()
+        admin = User(
+            username="admin",
+            display_name="系統管理員",
+            email="admin@example.com",
+            password_hash=hash_password("admin123"),
+            role_id=admin_role.id if admin_role else None,
+            is_superuser=True,
+            is_active=True,
+        )
+        session.add(admin)
+        await session.commit()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup：建立 PIC 資料夾 + 自動建表 + 啟動排程背景任務
@@ -91,6 +121,11 @@ async def lifespan(app: FastAPI):
     except Exception as e:  # 不要因為 seed 失敗而擋住服務啟動
         import logging
         logging.getLogger(__name__).warning("seed default roles failed: %s", e)
+    try:
+        await _seed_default_admin()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("seed default admin failed: %s", e)
     scheduler_task = asyncio.create_task(scheduler_loop())
     try:
         yield
@@ -117,6 +152,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Auth middleware：在 CORS 之後加，確保 OPTIONS 預檢已被 CORS 處理
+app.add_middleware(AuthMiddleware)
 
 # 提供靜態截圖檔案
 app.mount("/pics", StaticFiles(directory=settings.PIC_FOLDER), name="pics")
@@ -146,6 +184,8 @@ app.include_router(test_documents.router,  prefix="/api", tags=["Q · 測試文�
 app.include_router(wbs_items.router,       prefix="/api", tags=["R · WBS"])
 app.include_router(app_settings.router,    prefix="/api", tags=["S · 設定"])
 app.include_router(todos.router,           prefix="/api", tags=["T · 待辦"])
+app.include_router(auth.router,            prefix="/api", tags=["U · 認證"])
+app.include_router(ai.router,              prefix="/api", tags=["V · AI"])
 
 
 @app.get("/", tags=["Health"])
