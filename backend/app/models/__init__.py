@@ -11,11 +11,16 @@ from .requirement import (
     RequirementStatus,
     RequirementTestcaseLink,
 )
+from .ai_token_config import AiProvider, AiTokenConfig
+from .email_config import EmailConfig
+from .notification_preference import NotificationPreference
+from .role import Role
 from .test_data_set import DataSetCategory, TestDataSet
 from .test_document import DocumentCategory, TestDocument
 from .test_milestone import MilestoneStatus, TestMilestone
 from .test_plan import TestPlan, TestPlanStatus
 from .testcase_content import TestcaseContent
+from .todo_item import TodoItem, TodoPriority, TodoStatus
 from .tree_node import LevelType, TreeNode
 from .wbs_item import WbsItem, WbsStatus
 
@@ -39,4 +44,8 @@ __all__ = [
     "TestDataSet", "DataSetCategory",
     "TestDocument", "DocumentCategory",
     "WbsItem", "WbsStatus",
+    # Settings + todos
+    "Role", "NotificationPreference", "EmailConfig",
+    "AiTokenConfig", "AiProvider",
+    "TodoItem", "TodoStatus", "TodoPriority",
 ]

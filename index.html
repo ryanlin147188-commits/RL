@@ -539,7 +539,7 @@
             </div>
             <!-- 右側使用者區：名稱 / 登出 / 暗黑切換 -->
             <div class="flex items-center gap-3 md:gap-4">
-                <button type="button" id="userMenuBtn" onclick="showUserSettingsView()" aria-label="使用者設定" title="點擊進入使用者設定"
+                <button type="button" id="userMenuBtn" onclick="showUserSettingsView()" aria-label="設定" title="點擊進入設定"
                     class="flex items-center gap-2 cursor-pointer hover:bg-amber-50 p-1 rounded transition focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400">
                     <div id="userMenuAvatar" class="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white font-bold shadow-sm shrink-0">A</div>
                     <span id="userMenuName" class="hidden sm:inline text-sm font-semibold text-stone-700">admin</span>
@@ -2203,6 +2203,102 @@ driver.swipe(100, 800, 100, 200, 500)"
                     </div>
                 </section>
 
+                <!-- 待辦 + 行事曆（並排，行事曆只顯示當月） -->
+                <section class="max-w-6xl mx-auto mb-8">
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                        <!-- 待辦 KPI 與分桶清單 -->
+                        <div class="lg:col-span-2 bg-white rounded-xl border border-amber-100 shadow-sm p-4">
+                            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                                <h3 class="text-sm font-bold text-stone-500 uppercase tracking-wider flex items-center gap-2"><i class="fa-solid fa-list-check text-amber-500"></i> 待辦事項</h3>
+                                <div class="flex items-center gap-2">
+                                    <button onclick="reloadHomeTodos()" class="text-xs px-2 py-1 border border-stone-300 rounded hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
+                                    <button onclick="openTodoModal()" class="text-xs px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold"><i class="fa-solid fa-plus"></i> 新增待辦</button>
+                                </div>
+                            </div>
+                            <!-- KPI -->
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+                                <button onclick="setHomeTodoBucket('overdue')" id="todoBucketOverdueBtn" class="text-left bg-rose-50 border border-rose-200 hover:border-rose-400 rounded-lg p-3 transition">
+                                    <div class="text-[11px] text-rose-600 flex items-center gap-1"><i class="fa-solid fa-clock-rotate-left"></i> 過期</div>
+                                    <div class="text-2xl font-bold text-rose-700" id="todoKpiOverdue">—</div>
+                                </button>
+                                <button onclick="setHomeTodoBucket('due_soon')" id="todoBucketDueSoonBtn" class="text-left bg-amber-50 border border-amber-200 hover:border-amber-400 rounded-lg p-3 transition">
+                                    <div class="text-[11px] text-amber-700 flex items-center gap-1"><i class="fa-regular fa-bell"></i> 快到期 (≤3天)</div>
+                                    <div class="text-2xl font-bold text-amber-700" id="todoKpiDueSoon">—</div>
+                                </button>
+                                <button onclick="setHomeTodoBucket('upcoming')" id="todoBucketUpcomingBtn" class="text-left bg-blue-50 border border-blue-200 hover:border-blue-400 rounded-lg p-3 transition">
+                                    <div class="text-[11px] text-blue-700 flex items-center gap-1"><i class="fa-regular fa-calendar"></i> 待辦</div>
+                                    <div class="text-2xl font-bold text-blue-700" id="todoKpiUpcoming">—</div>
+                                </button>
+                                <button onclick="setHomeTodoBucket('done')" id="todoBucketDoneBtn" class="text-left bg-emerald-50 border border-emerald-200 hover:border-emerald-400 rounded-lg p-3 transition">
+                                    <div class="text-[11px] text-emerald-700 flex items-center gap-1"><i class="fa-solid fa-check"></i> 已完成</div>
+                                    <div class="text-2xl font-bold text-emerald-700" id="todoKpiDone">—</div>
+                                </button>
+                            </div>
+                            <div id="homeTodoList" class="border border-stone-100 rounded-md max-h-[480px] overflow-y-auto"></div>
+                        </div>
+
+                        <!-- 行事曆 -->
+                        <div class="bg-white rounded-xl border border-amber-100 shadow-sm p-4">
+                            <div class="flex items-center justify-between mb-3">
+                                <h3 class="text-sm font-bold text-stone-500 uppercase tracking-wider flex items-center gap-2"><i class="fa-regular fa-calendar text-amber-500"></i> 行事曆</h3>
+                                <div class="flex items-center gap-1">
+                                    <button onclick="calMove(-1)" aria-label="上個月" class="w-7 h-7 flex items-center justify-center hover:bg-amber-50 rounded text-stone-500"><i class="fa-solid fa-chevron-left text-xs"></i></button>
+                                    <span id="calMonthLabel" class="text-sm font-bold text-stone-700 px-2 min-w-[6em] text-center">2026 / 04</span>
+                                    <button onclick="calMove(1)" aria-label="下個月" class="w-7 h-7 flex items-center justify-center hover:bg-amber-50 rounded text-stone-500"><i class="fa-solid fa-chevron-right text-xs"></i></button>
+                                    <button onclick="calMove(0)" aria-label="回到今天" class="text-xs ml-1 px-2 py-1 border border-stone-300 rounded hover:bg-amber-50">今天</button>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-7 text-[10px] text-center text-stone-400 mb-1 select-none">
+                                <div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div>
+                            </div>
+                            <div id="calGrid" class="grid grid-cols-7 gap-0.5 text-xs"></div>
+                            <div class="text-[10px] text-stone-500 mt-3 flex flex-wrap gap-2 items-center">
+                                <span><span class="inline-block w-2 h-2 bg-rose-500 rounded-full"></span> 過期</span>
+                                <span><span class="inline-block w-2 h-2 bg-amber-500 rounded-full"></span> 快到期</span>
+                                <span><span class="inline-block w-2 h-2 bg-blue-500 rounded-full"></span> 待辦</span>
+                                <span><span class="inline-block w-2 h-2 bg-emerald-500 rounded-full"></span> 完成</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 待辦 Modal -->
+                <div id="todoModal" class="hidden fixed inset-0 z-[160] bg-black/40 flex items-center justify-center p-4">
+                    <div class="bg-white rounded-xl shadow-2xl w-full max-w-xl border border-amber-200 max-h-[90vh] overflow-y-auto">
+                        <div class="px-6 py-4 border-b border-stone-200 bg-amber-50/60 flex items-center justify-between">
+                            <h3 id="todoModalTitle" class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-list-check text-amber-500"></i> 新增待辦</h3>
+                            <button type="button" onclick="closeTodoModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        <form onsubmit="return todoSubmit(event)" class="p-6 space-y-3">
+                            <div><label for="todoTitle" class="block text-xs font-semibold text-stone-600 mb-1">標題 *</label><input type="text" id="todoTitle" aria-label="標題" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div><label for="todoDue" class="block text-xs font-semibold text-stone-600 mb-1">到期日</label><span class="date-zh"><input type="date" id="todoDue" aria-label="到期日" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></span></div>
+                                <div><label for="todoStatus" class="block text-xs font-semibold text-stone-600 mb-1">狀態</label>
+                                    <select id="todoStatus" aria-label="狀態" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
+                                        <option value="Todo" selected>待辦</option>
+                                        <option value="InProgress">進行中</option>
+                                        <option value="Done">已完成</option>
+                                        <option value="Cancelled">已取消</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div><label for="todoPriority" class="block text-xs font-semibold text-stone-600 mb-1">優先</label>
+                                    <select id="todoPriority" aria-label="優先" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
+                                        <option value="P0">P0 (最高)</option>
+                                        <option value="P1">P1 (高)</option>
+                                        <option value="P2" selected>P2 (中)</option>
+                                        <option value="P3">P3 (低)</option>
+                                    </select>
+                                </div>
+                                <div><label for="todoAssignee" class="block text-xs font-semibold text-stone-600 mb-1">負責人</label><input type="text" id="todoAssignee" aria-label="負責人" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                            </div>
+                            <div><label for="todoDesc" class="block text-xs font-semibold text-stone-600 mb-1">說明</label><textarea id="todoDesc" aria-label="說明" rows="3" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
+                            <div class="flex justify-end gap-2 pt-2"><button type="button" onclick="closeTodoModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button><button type="submit" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button></div>
+                        </form>
+                    </div>
+                </div>
+
                 <!-- 最近測試案例（預設顯示最近 10 筆） -->
                 <section class="max-w-6xl mx-auto mb-8">
                     <div class="flex items-center justify-between mb-3">
@@ -2353,7 +2449,19 @@ driver.swipe(100, 800, 100, 200, 500)"
 
             <!-- 視圖：使用者設定 -->
             <div id="userSettingsWorkspace" class="flex-1 overflow-y-auto p-6 bg-amber-50/30 hidden">
-                <div class="max-w-4xl mx-auto space-y-6">
+                <div class="max-w-5xl mx-auto">
+                    <!-- 6 個分頁切換 -->
+                    <div class="bg-white rounded-lg border border-amber-100 shadow-sm p-2 mb-4 flex gap-1 flex-wrap">
+                        <button id="setTabUser"     onclick="settingsSwitchTab('user')"     class="px-3 py-1.5 text-sm font-medium rounded text-amber-700 bg-amber-50 border border-amber-300"><i class="fa-solid fa-user-circle"></i> 使用者設定</button>
+                        <button id="setTabPerms"    onclick="settingsSwitchTab('perms')"    class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-shield"></i> 權限管理</button>
+                        <button id="setTabRoles"    onclick="settingsSwitchTab('roles')"    class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-user-tag"></i> 角色管理</button>
+                        <button id="setTabNotif"    onclick="settingsSwitchTab('notif')"    class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-bell"></i> 通知設定</button>
+                        <button id="setTabEmail"    onclick="settingsSwitchTab('email')"    class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-envelope"></i> 電子郵件</button>
+                        <button id="setTabAi"       onclick="settingsSwitchTab('ai')"       class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-robot"></i> AI Token</button>
+                    </div>
+
+                    <!-- ─── Pane 1: 使用者設定（保留原本內容） ─── -->
+                    <div id="setPaneUser" class="space-y-6">
                     <!-- 帳戶資訊卡 -->
                     <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-6">
                         <h3 class="font-bold text-stone-700 text-base mb-4 flex items-center gap-2">
@@ -2506,6 +2614,156 @@ driver.swipe(100, 800, 100, 200, 500)"
                             </button>
                         </div>
                     </section>
+                    </div>
+
+                    <!-- ─── Pane 2: 權限管理（唯讀清單；可指派給角色） ─── -->
+                    <div id="setPanePerms" class="hidden space-y-4">
+                        <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-6">
+                            <h3 class="font-bold text-stone-700 text-base mb-2 flex items-center gap-2"><i class="fa-solid fa-shield text-amber-500"></i> 系統權限清單</h3>
+                            <p class="text-xs text-stone-500 mb-4">這份權限清單由後端定義；要把哪些權限給誰請到「角色管理」分頁勾選 → 然後把使用者指派到該角色。</p>
+                            <div id="permsCatalogue" class="space-y-4"></div>
+                        </section>
+                    </div>
+
+                    <!-- ─── Pane 3: 角色管理 ─── -->
+                    <div id="setPaneRoles" class="hidden space-y-4">
+                        <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-4">
+                            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                                <h3 class="font-bold text-stone-700 text-base flex items-center gap-2"><i class="fa-solid fa-user-tag text-amber-500"></i> 角色與權限</h3>
+                                <div class="flex items-center gap-2">
+                                    <button onclick="renderRolesList()" class="text-xs px-2.5 py-1.5 border border-stone-300 rounded hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
+                                    <button onclick="openRoleModal()" class="text-xs px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold"><i class="fa-solid fa-plus"></i> 新增角色</button>
+                                </div>
+                            </div>
+                            <div class="overflow-hidden border border-stone-100 rounded-md">
+                                <table class="w-full text-sm">
+                                    <thead class="bg-amber-50/60 text-stone-600 text-xs uppercase">
+                                        <tr><th class="p-3 text-left">角色名稱</th><th class="p-3 text-left">說明</th><th class="p-3 w-28 text-center">權限數</th><th class="p-3 w-24 text-center">類型</th><th class="p-3 w-28 text-center">操作</th></tr>
+                                    </thead>
+                                    <tbody id="rolesListBody" class="divide-y divide-stone-100"></tbody>
+                                </table>
+                            </div>
+                        </section>
+                    </div>
+
+                    <!-- ─── Pane 4: 通知設定（per-user grid） ─── -->
+                    <div id="setPaneNotif" class="hidden space-y-4">
+                        <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-6">
+                            <h3 class="font-bold text-stone-700 text-base mb-2 flex items-center gap-2"><i class="fa-solid fa-bell text-amber-500"></i> 通知設定 <span class="text-xs font-normal text-stone-500 ml-2">(<span id="notifPrefUsername">—</span>)</span></h3>
+                            <p class="text-xs text-stone-500 mb-4">為每個事件選擇通知通道；變更後請按下方「儲存」。</p>
+                            <div class="overflow-hidden border border-stone-100 rounded-md">
+                                <table class="w-full text-sm">
+                                    <thead class="bg-amber-50/60 text-stone-600 text-xs uppercase">
+                                        <tr><th class="p-3 text-left">事件</th><th class="p-3 w-24 text-center">站內通知</th><th class="p-3 w-24 text-center">Email</th></tr>
+                                    </thead>
+                                    <tbody id="notifEventsBody" class="divide-y divide-stone-100"></tbody>
+                                </table>
+                            </div>
+                            <div class="flex justify-end mt-4">
+                                <button onclick="saveNotificationPrefs()" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-floppy-disk"></i> 儲存通知設定</button>
+                            </div>
+                        </section>
+                    </div>
+
+                    <!-- ─── Pane 5: 電子郵件（SMTP） ─── -->
+                    <div id="setPaneEmail" class="hidden space-y-4">
+                        <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-6">
+                            <h3 class="font-bold text-stone-700 text-base mb-4 flex items-center gap-2"><i class="fa-solid fa-envelope text-amber-500"></i> SMTP 伺服器設定</h3>
+                            <form onsubmit="return saveEmailConfig(event)" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div><label for="emCfgHost" class="block text-xs font-semibold text-stone-600 mb-1">SMTP 主機</label><input type="text" id="emCfgHost" placeholder="smtp.example.com" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                                <div><label for="emCfgPort" class="block text-xs font-semibold text-stone-600 mb-1">SMTP 埠號</label><input type="number" id="emCfgPort" value="587" min="1" max="65535" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                                <div><label for="emCfgUser" class="block text-xs font-semibold text-stone-600 mb-1">SMTP 使用者</label><input type="text" id="emCfgUser" autocomplete="username" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                                <div><label for="emCfgPwd" class="block text-xs font-semibold text-stone-600 mb-1">SMTP 密碼</label><input type="password" id="emCfgPwd" autocomplete="new-password" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                                <div><label for="emCfgFrom" class="block text-xs font-semibold text-stone-600 mb-1">寄件人 Email</label><input type="email" id="emCfgFrom" placeholder="autotest@example.com" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                                <div><label for="emCfgFromName" class="block text-xs font-semibold text-stone-600 mb-1">寄件人顯示名稱</label><input type="text" id="emCfgFromName" placeholder="AutoTest" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                                <div class="md:col-span-2 flex items-center gap-6 mt-1">
+                                    <label class="flex items-center gap-2 cursor-pointer text-sm text-stone-700"><input type="checkbox" id="emCfgTls" class="rounded border-stone-300 text-amber-500 focus:ring-amber-400"> 使用 TLS / STARTTLS</label>
+                                    <label class="flex items-center gap-2 cursor-pointer text-sm text-stone-700"><input type="checkbox" id="emCfgEnabled" class="rounded border-stone-300 text-amber-500 focus:ring-amber-400"> 啟用 Email 通知</label>
+                                </div>
+                                <div class="md:col-span-2 flex justify-end gap-2 mt-2">
+                                    <button type="submit" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-floppy-disk"></i> 儲存設定</button>
+                                </div>
+                            </form>
+                            <p class="text-[10px] text-stone-500 mt-3"><i class="fa-solid fa-circle-info"></i> 密碼以明文儲存於後端 DB（生產環境建議搭配 KMS 加密；目前為簡化實作）</p>
+                        </section>
+                    </div>
+
+                    <!-- ─── Pane 6: AI Token ─── -->
+                    <div id="setPaneAi" class="hidden space-y-4">
+                        <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-4">
+                            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                                <h3 class="font-bold text-stone-700 text-base flex items-center gap-2"><i class="fa-solid fa-robot text-amber-500"></i> AI Token 管理</h3>
+                                <div class="flex items-center gap-2">
+                                    <button onclick="renderAiTokensList()" class="text-xs px-2.5 py-1.5 border border-stone-300 rounded hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
+                                    <button onclick="openAiTokenModal()" class="text-xs px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold"><i class="fa-solid fa-plus"></i> 新增 Token</button>
+                                </div>
+                            </div>
+                            <p class="text-xs text-stone-500 mb-3">支援 <b>OpenAI (GPT)</b>、<b>Anthropic (Claude)</b>、<b>Google (Gemini)</b>、<b>本地模型</b>（Ollama / vLLM / LMStudio 等 OpenAI-compatible API）。同 provider 內可有多個 Token，但只有一個能設為預設。</p>
+                            <div class="overflow-hidden border border-stone-100 rounded-md">
+                                <table class="w-full text-sm">
+                                    <thead class="bg-amber-50/60 text-stone-600 text-xs uppercase">
+                                        <tr><th class="p-3 text-left w-28">Provider</th><th class="p-3 text-left">名稱 / 模型</th><th class="p-3 text-left">Base URL</th><th class="p-3 w-20 text-center">啟用</th><th class="p-3 w-20 text-center">預設</th><th class="p-3 w-28 text-center">操作</th></tr>
+                                    </thead>
+                                    <tbody id="aiTokensListBody" class="divide-y divide-stone-100"></tbody>
+                                </table>
+                            </div>
+                        </section>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 角色 Modal -->
+            <div id="roleModal" class="hidden fixed inset-0 z-[150] bg-black/40 flex items-center justify-center p-4">
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-3xl border border-amber-200 max-h-[92vh] overflow-y-auto">
+                    <div class="px-6 py-4 border-b border-stone-200 bg-amber-50/60 flex items-center justify-between">
+                        <h3 id="roleModalTitle" class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-user-tag text-amber-500"></i> 新增角色</h3>
+                        <button type="button" onclick="closeRoleModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <form onsubmit="return roleSubmit(event)" class="p-6 space-y-3">
+                        <div class="grid grid-cols-2 gap-3">
+                            <div><label for="roleName" class="block text-xs font-semibold text-stone-600 mb-1">角色名稱 *</label><input type="text" id="roleName" aria-label="角色名稱" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                            <div><label for="roleDesc" class="block text-xs font-semibold text-stone-600 mb-1">說明</label><input type="text" id="roleDesc" aria-label="說明" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-stone-600 mb-1">權限（依分組勾選）</label>
+                            <div id="rolePermsBox" class="border border-stone-200 rounded p-3 max-h-[55vh] overflow-y-auto bg-stone-50/40 space-y-3"></div>
+                        </div>
+                        <div class="flex justify-end gap-2 pt-2"><button type="button" onclick="closeRoleModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button><button type="submit" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button></div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- AI Token Modal -->
+            <div id="aiTokenModal" class="hidden fixed inset-0 z-[150] bg-black/40 flex items-center justify-center p-4">
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl border border-amber-200 max-h-[92vh] overflow-y-auto">
+                    <div class="px-6 py-4 border-b border-stone-200 bg-amber-50/60 flex items-center justify-between">
+                        <h3 id="aiTokenModalTitle" class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-robot text-amber-500"></i> 新增 AI Token</h3>
+                        <button type="button" onclick="closeAiTokenModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <form onsubmit="return aiTokenSubmit(event)" class="p-6 space-y-3">
+                        <div class="grid grid-cols-2 gap-3">
+                            <div><label for="aiTokName" class="block text-xs font-semibold text-stone-600 mb-1">名稱 *</label><input type="text" id="aiTokName" aria-label="名稱" required placeholder="例：dev-gpt4-mini" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                            <div><label for="aiTokProvider" class="block text-xs font-semibold text-stone-600 mb-1">Provider</label>
+                                <select id="aiTokProvider" aria-label="Provider" onchange="aiTokenOnProviderChange()" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
+                                    <option value="OpenAI">OpenAI (GPT-3.5 / 4 / 4o)</option>
+                                    <option value="Anthropic">Anthropic (Claude)</option>
+                                    <option value="Google">Google (Gemini)</option>
+                                    <option value="Local">本地模型 (Ollama / vLLM / LMStudio)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div><label for="aiTokKey" class="block text-xs font-semibold text-stone-600 mb-1">API Key</label><input type="password" id="aiTokKey" aria-label="API Key" autocomplete="new-password" placeholder="sk-... / sk-ant-... / AIza... (Local 可留空)" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm font-mono"></div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div><label for="aiTokBase" class="block text-xs font-semibold text-stone-600 mb-1">Base URL</label><input type="url" id="aiTokBase" aria-label="Base URL" placeholder="https://api.openai.com/v1" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm font-mono"></div>
+                            <div><label for="aiTokModel" class="block text-xs font-semibold text-stone-600 mb-1">模型</label><input type="text" id="aiTokModel" aria-label="模型" placeholder="gpt-4o-mini / claude-3-5-sonnet / gemini-1.5-pro / llama3.1" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm font-mono"></div>
+                        </div>
+                        <div><label for="aiTokDesc" class="block text-xs font-semibold text-stone-600 mb-1">說明</label><input type="text" id="aiTokDesc" aria-label="說明" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                        <div class="flex items-center gap-6">
+                            <label class="flex items-center gap-2 cursor-pointer text-sm text-stone-700"><input type="checkbox" id="aiTokEnabled" checked class="rounded border-stone-300 text-amber-500 focus:ring-amber-400"> 啟用</label>
+                            <label class="flex items-center gap-2 cursor-pointer text-sm text-stone-700"><input type="checkbox" id="aiTokDefault" class="rounded border-stone-300 text-amber-500 focus:ring-amber-400"> 設為此 Provider 的預設</label>
+                        </div>
+                        <div class="flex justify-end gap-2 pt-2"><button type="button" onclick="closeAiTokenModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button><button type="submit" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button></div>
+                    </form>
                 </div>
             </div>
 
@@ -6976,6 +7234,8 @@ driver.swipe(100, 800, 100, 200, 500)"
             currentTestCase = null;
             updateHomeStats();
             startSystemStatusPolling();
+            // 載入待辦 + 行事曆
+            try { reloadHomeTodos(); setHomeTodoBucket('overdue'); } catch (_) {}
         }
 
         // 更新首頁的專案統計資訊（從現有的記憶體狀態計算，無需 API）
@@ -12070,6 +12330,538 @@ gantt
                 showToast('已刪除', 'success');
                 await loadWbsAndRender();
             } catch (e) { showToast('刪除失敗：' + e.message, 'error'); }
+        }
+
+        // ─── 設定（Settings）── 6 個 tab：使用者 / 權限 / 角色 / 通知 / 電子郵件 / AI Token
+        const _SETTINGS_TABS = ['user','perms','roles','notif','email','ai'];
+        const _SETTINGS_TAB_BTN_ON  = 'px-3 py-1.5 text-sm font-medium rounded text-amber-700 bg-amber-50 border border-amber-300';
+        const _SETTINGS_TAB_BTN_OFF = 'px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50';
+        function settingsSwitchTab(name) {
+            _SETTINGS_TABS.forEach(t => {
+                const btn = document.getElementById('setTab' + t.charAt(0).toUpperCase() + t.slice(1));
+                const pane = document.getElementById('setPane' + t.charAt(0).toUpperCase() + t.slice(1));
+                if (!btn || !pane) return;
+                if (t === name) {
+                    btn.className = _SETTINGS_TAB_BTN_ON;
+                    pane.classList.remove('hidden');
+                } else {
+                    btn.className = _SETTINGS_TAB_BTN_OFF;
+                    pane.classList.add('hidden');
+                }
+            });
+            // lazy load 各分頁資料
+            if (name === 'perms') renderPermissionCatalogue();
+            else if (name === 'roles') renderRolesList();
+            else if (name === 'notif') loadNotificationPrefs();
+            else if (name === 'email') loadEmailConfig();
+            else if (name === 'ai') renderAiTokensList();
+        }
+
+        // ─── 權限清單（唯讀） ─────────────────────────────────────────
+        let _permsCatalogue = [];
+        async function fetchPermissionCatalogue() {
+            if (_permsCatalogue.length) return _permsCatalogue;
+            try {
+                const r = await fetch('/api/settings/permissions/catalogue');
+                if (!r.ok) throw new Error('HTTP '+r.status);
+                _permsCatalogue = (await r.json()).items || [];
+            } catch (e) { _permsCatalogue = []; }
+            return _permsCatalogue;
+        }
+        async function renderPermissionCatalogue() {
+            const box = document.getElementById('permsCatalogue');
+            if (!box) return;
+            const items = await fetchPermissionCatalogue();
+            const groups = {};
+            items.forEach(it => { (groups[it.group] = groups[it.group] || []).push(it); });
+            box.innerHTML = Object.entries(groups).map(([g, arr]) => `
+                <div class="border border-stone-100 rounded-md p-3">
+                    <div class="text-xs font-bold text-amber-700 mb-2">${_esc(g)}</div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+                        ${arr.map(p => `<div class="text-xs"><span class="font-mono text-stone-400">${_esc(p.key)}</span> · ${_esc(p.label)}</div>`).join('')}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // ─── 角色管理 ────────────────────────────────────────────────
+        let _rolesCache = [];
+        let _editingRoleId = null;
+        async function renderRolesList() {
+            const tbody = document.getElementById('rolesListBody');
+            if (!tbody) return;
+            tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-stone-400">載入中…</td></tr>';
+            try {
+                const r = await fetch('/api/settings/roles');
+                if (!r.ok) throw new Error('HTTP '+r.status);
+                _rolesCache = await r.json();
+                if (!_rolesCache.length) { tbody.innerHTML = '<tr><td colspan="5" class="p-6 text-center text-stone-400">尚無角色</td></tr>'; return; }
+                tbody.innerHTML = _rolesCache.map(role => `<tr class="hover:bg-amber-50/30">
+                    <td class="p-3 font-semibold text-stone-800">${_esc(role.name)}</td>
+                    <td class="p-3 text-xs text-stone-600">${_esc(role.description || '—')}</td>
+                    <td class="p-3 text-center text-xs font-mono">${(role.permissions_json||[]).length}</td>
+                    <td class="p-3 text-center"><span class="text-[10px] px-1.5 py-0.5 rounded ${role.is_system ? 'bg-stone-100 text-stone-600' : 'bg-amber-100 text-amber-700'}">${role.is_system ? '系統' : '自訂'}</span></td>
+                    <td class="p-3 text-center whitespace-nowrap space-x-1">
+                        <button onclick="openRoleModal('${_esc(role.id)}')" title="編輯" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded"><i class="fa-solid fa-pen"></i></button>
+                        ${!role.is_system ? `<button onclick="deleteRole('${_esc(role.id)}','${_esc(role.name)}')" title="刪除" class="text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded"><i class="fa-solid fa-trash"></i></button>` : ''}
+                    </td>
+                </tr>`).join('');
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-red-500">載入失敗：${_esc(e.message)}</td></tr>`;
+            }
+        }
+        async function openRoleModal(id) {
+            _editingRoleId = id || null;
+            const role = id ? _rolesCache.find(x => x.id === id) : null;
+            document.getElementById('roleModalTitle').innerHTML = role
+                ? `<i class="fa-solid fa-user-tag text-amber-500"></i> 編輯角色 ${_esc(role.name)}`
+                : '<i class="fa-solid fa-user-tag text-amber-500"></i> 新增角色';
+            document.getElementById('roleName').value = role?.name || '';
+            document.getElementById('roleDesc').value = role?.description || '';
+            document.getElementById('roleName').readOnly = !!role?.is_system;
+            // 渲染權限 checkbox 分組
+            const items = await fetchPermissionCatalogue();
+            const granted = new Set(role?.permissions_json || []);
+            const groups = {};
+            items.forEach(it => { (groups[it.group] = groups[it.group] || []).push(it); });
+            const box = document.getElementById('rolePermsBox');
+            box.innerHTML = Object.entries(groups).map(([g, arr]) => `
+                <div>
+                    <div class="text-xs font-bold text-amber-700 mb-1.5 flex items-center gap-2">
+                        ${_esc(g)}
+                        <button type="button" onclick="rolePermToggleGroup(this, true)" class="text-[10px] px-1.5 py-0.5 border border-stone-300 rounded hover:bg-amber-50">全選</button>
+                        <button type="button" onclick="rolePermToggleGroup(this, false)" class="text-[10px] px-1.5 py-0.5 border border-stone-300 rounded hover:bg-amber-50">全不選</button>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-1">
+                        ${arr.map(p => `<label class="flex items-center gap-2 text-xs cursor-pointer hover:bg-white px-1.5 py-0.5 rounded">
+                            <input type="checkbox" data-perm="${_esc(p.key)}" ${granted.has(p.key)?'checked':''} class="role-perm-cb rounded border-stone-300 text-amber-500 focus:ring-amber-400">
+                            <span class="text-stone-700">${_esc(p.label)}</span>
+                            <span class="font-mono text-[10px] text-stone-400 ml-auto">${_esc(p.key)}</span>
+                        </label>`).join('')}
+                    </div>
+                </div>
+            `).join('');
+            document.getElementById('roleModal').classList.remove('hidden');
+        }
+        function rolePermToggleGroup(btn, on) {
+            const group = btn.closest('div').parentElement;
+            group.querySelectorAll('.role-perm-cb').forEach(cb => { cb.checked = on; });
+        }
+        function closeRoleModal() { document.getElementById('roleModal').classList.add('hidden'); _editingRoleId = null; }
+        async function roleSubmit(ev) {
+            ev.preventDefault();
+            const perms = Array.from(document.querySelectorAll('.role-perm-cb'))
+                .filter(cb => cb.checked).map(cb => cb.dataset.perm);
+            const payload = {
+                name: document.getElementById('roleName').value.trim(),
+                description: document.getElementById('roleDesc').value.trim() || null,
+                permissions_json: perms,
+            };
+            try {
+                const url = _editingRoleId ? '/api/settings/roles/'+_editingRoleId : '/api/settings/roles';
+                const method = _editingRoleId ? 'PUT' : 'POST';
+                const r = await fetch(url, { method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+                if (!r.ok) {
+                    let detail = 'HTTP '+r.status;
+                    try { detail = (await r.json()).detail || detail; } catch (_) {}
+                    throw new Error(detail);
+                }
+                showToast(_editingRoleId ? '已更新' : '已建立', 'success');
+                closeRoleModal();
+                renderRolesList();
+            } catch (e) { showToast('儲存失敗：'+e.message, 'error'); }
+            return false;
+        }
+        async function deleteRole(id, name) {
+            if (!confirm(`確定刪除角色「${name}」？`)) return;
+            try {
+                const r = await fetch('/api/settings/roles/'+id, { method:'DELETE' });
+                if (!r.ok && r.status !== 204) {
+                    let detail = 'HTTP '+r.status;
+                    try { detail = (await r.json()).detail || detail; } catch (_) {}
+                    throw new Error(detail);
+                }
+                showToast('已刪除', 'success'); renderRolesList();
+            } catch (e) { showToast('刪除失敗：'+e.message, 'error'); }
+        }
+
+        // ─── 通知設定（per-username） ────────────────────────────────
+        let _notifEvents = [];
+        async function loadNotificationPrefs() {
+            const username = (typeof authCurrentUsername === 'function' ? (authCurrentUsername()||'admin') : 'admin');
+            document.getElementById('notifPrefUsername').textContent = username;
+            const tbody = document.getElementById('notifEventsBody');
+            tbody.innerHTML = '<tr><td colspan="3" class="p-4 text-center text-stone-400">載入中…</td></tr>';
+            try {
+                if (!_notifEvents.length) {
+                    const cat = await fetch('/api/settings/notifications/catalogue').then(r => r.json());
+                    _notifEvents = cat.items || [];
+                }
+                const pref = await fetch('/api/settings/notifications/by-username/' + encodeURIComponent(username)).then(r => r.json());
+                const events = pref.events_json || {};
+                const groups = {};
+                _notifEvents.forEach(e => { (groups[e.group] = groups[e.group] || []).push(e); });
+                let html = '';
+                for (const [g, arr] of Object.entries(groups)) {
+                    html += `<tr class="bg-stone-50"><td colspan="3" class="px-3 py-1.5 text-[10px] font-bold text-amber-700 uppercase">${_esc(g)}</td></tr>`;
+                    arr.forEach(ev => {
+                        const cur = events[ev.key] || {};
+                        html += `<tr class="hover:bg-amber-50/30">
+                            <td class="px-3 py-2 text-stone-700">${_esc(ev.label)}<div class="text-[10px] font-mono text-stone-400">${_esc(ev.key)}</div></td>
+                            <td class="px-3 py-2 text-center"><input type="checkbox" data-evkey="${_esc(ev.key)}" data-channel="in_app" ${cur.in_app?'checked':''} class="notif-cb rounded border-stone-300 text-amber-500 focus:ring-amber-400"></td>
+                            <td class="px-3 py-2 text-center"><input type="checkbox" data-evkey="${_esc(ev.key)}" data-channel="email" ${cur.email?'checked':''} class="notif-cb rounded border-stone-300 text-amber-500 focus:ring-amber-400"></td>
+                        </tr>`;
+                    });
+                }
+                tbody.innerHTML = html;
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="3" class="p-4 text-center text-red-500">載入失敗：${_esc(e.message)}</td></tr>`;
+            }
+        }
+        async function saveNotificationPrefs() {
+            const username = (typeof authCurrentUsername === 'function' ? (authCurrentUsername()||'admin') : 'admin');
+            const events = {};
+            document.querySelectorAll('.notif-cb').forEach(cb => {
+                const k = cb.dataset.evkey; const ch = cb.dataset.channel;
+                events[k] = events[k] || {};
+                events[k][ch] = cb.checked;
+            });
+            try {
+                const r = await fetch('/api/settings/notifications/by-username/' + encodeURIComponent(username), {
+                    method:'PUT', headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({ events_json: events }),
+                });
+                if (!r.ok) throw new Error('HTTP '+r.status);
+                showToast('通知設定已儲存', 'success');
+            } catch (e) { showToast('儲存失敗：'+e.message, 'error'); }
+        }
+
+        // ─── 電子郵件 SMTP 設定 ───────────────────────────────────────
+        async function loadEmailConfig() {
+            try {
+                const r = await fetch('/api/settings/email');
+                if (!r.ok) throw new Error('HTTP '+r.status);
+                const cfg = await r.json();
+                document.getElementById('emCfgHost').value = cfg.smtp_host || '';
+                document.getElementById('emCfgPort').value = cfg.smtp_port ?? 587;
+                document.getElementById('emCfgUser').value = cfg.smtp_user || '';
+                document.getElementById('emCfgPwd').value = cfg.smtp_password || '';
+                document.getElementById('emCfgFrom').value = cfg.from_address || '';
+                document.getElementById('emCfgFromName').value = cfg.from_name || 'AutoTest';
+                document.getElementById('emCfgTls').checked = !!cfg.use_tls;
+                document.getElementById('emCfgEnabled').checked = !!cfg.enabled;
+            } catch (e) { showToast('載入失敗：'+e.message, 'error'); }
+        }
+        async function saveEmailConfig(ev) {
+            ev.preventDefault();
+            const payload = {
+                smtp_host: document.getElementById('emCfgHost').value.trim() || null,
+                smtp_port: parseInt(document.getElementById('emCfgPort').value, 10) || 587,
+                smtp_user: document.getElementById('emCfgUser').value.trim() || null,
+                smtp_password: document.getElementById('emCfgPwd').value || null,
+                from_address: document.getElementById('emCfgFrom').value.trim() || null,
+                from_name: document.getElementById('emCfgFromName').value.trim() || 'AutoTest',
+                use_tls: document.getElementById('emCfgTls').checked,
+                enabled: document.getElementById('emCfgEnabled').checked,
+            };
+            try {
+                const r = await fetch('/api/settings/email', { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+                if (!r.ok) throw new Error('HTTP '+r.status);
+                showToast('SMTP 設定已儲存', 'success');
+            } catch (e) { showToast('儲存失敗：'+e.message, 'error'); }
+            return false;
+        }
+
+        // ─── AI Token ────────────────────────────────────────────────
+        const _AI_PROVIDER_DEFAULTS = {
+            OpenAI:    { base_url: 'https://api.openai.com/v1', model: 'gpt-4o-mini' },
+            Anthropic: { base_url: 'https://api.anthropic.com',  model: 'claude-3-5-sonnet-20241022' },
+            Google:    { base_url: 'https://generativelanguage.googleapis.com/v1beta', model: 'gemini-1.5-pro' },
+            Local:     { base_url: 'http://localhost:11434/v1',  model: 'llama3.1' },
+        };
+        let _aiTokensCache = [];
+        let _editingAiTokenId = null;
+        function aiTokenOnProviderChange() {
+            const prov = document.getElementById('aiTokProvider').value;
+            const def = _AI_PROVIDER_DEFAULTS[prov] || {};
+            const baseEl = document.getElementById('aiTokBase');
+            const modelEl = document.getElementById('aiTokModel');
+            if (baseEl && !baseEl.value) baseEl.value = def.base_url || '';
+            if (modelEl && !modelEl.value) modelEl.value = def.model || '';
+        }
+        async function renderAiTokensList() {
+            const tbody = document.getElementById('aiTokensListBody');
+            if (!tbody) return;
+            tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-stone-400">載入中…</td></tr>';
+            try {
+                const r = await fetch('/api/settings/ai-tokens');
+                if (!r.ok) throw new Error('HTTP '+r.status);
+                _aiTokensCache = await r.json();
+                if (!_aiTokensCache.length) { tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-stone-400">尚無 AI Token</td></tr>'; return; }
+                const provLabel = { OpenAI:'OpenAI (GPT)', Anthropic:'Anthropic (Claude)', Google:'Google (Gemini)', Local:'本地模型' };
+                const provColor = { OpenAI:'bg-emerald-100 text-emerald-700', Anthropic:'bg-orange-100 text-orange-700', Google:'bg-blue-100 text-blue-700', Local:'bg-purple-100 text-purple-700' };
+                tbody.innerHTML = _aiTokensCache.map(t => `<tr class="hover:bg-amber-50/30">
+                    <td class="p-3"><span class="text-xs px-2 py-0.5 rounded font-medium ${provColor[t.provider]||'bg-stone-100'}">${_esc(provLabel[t.provider]||t.provider)}</span></td>
+                    <td class="p-3"><div class="font-semibold text-stone-800">${_esc(t.name)}</div><div class="text-[10px] font-mono text-stone-400">${_esc(t.model||'')}</div></td>
+                    <td class="p-3 text-xs font-mono text-stone-500 break-all">${_esc(t.base_url||'—')}</td>
+                    <td class="p-3 text-center">${t.enabled ? '<i class="fa-solid fa-circle-check text-emerald-500"></i>' : '<i class="fa-regular fa-circle text-stone-300"></i>'}</td>
+                    <td class="p-3 text-center">${t.is_default ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-200">預設</span>' : ''}</td>
+                    <td class="p-3 text-center whitespace-nowrap space-x-1">
+                        <button onclick="openAiTokenModal('${_esc(t.id)}')" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded"><i class="fa-solid fa-pen"></i></button>
+                        <button onclick="deleteAiToken('${_esc(t.id)}','${_esc(t.name)}')" class="text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                </tr>`).join('');
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-red-500">載入失敗：${_esc(e.message)}</td></tr>`;
+            }
+        }
+        function openAiTokenModal(id) {
+            _editingAiTokenId = id || null;
+            const t = id ? _aiTokensCache.find(x => x.id === id) : null;
+            document.getElementById('aiTokenModalTitle').innerHTML = t
+                ? `<i class="fa-solid fa-robot text-amber-500"></i> 編輯 AI Token · ${_esc(t.name)}`
+                : '<i class="fa-solid fa-robot text-amber-500"></i> 新增 AI Token';
+            document.getElementById('aiTokName').value = t?.name || '';
+            document.getElementById('aiTokProvider').value = t?.provider || 'OpenAI';
+            document.getElementById('aiTokKey').value = t?.api_key || '';
+            document.getElementById('aiTokBase').value = t?.base_url || _AI_PROVIDER_DEFAULTS.OpenAI.base_url;
+            document.getElementById('aiTokModel').value = t?.model || _AI_PROVIDER_DEFAULTS.OpenAI.model;
+            document.getElementById('aiTokDesc').value = t?.description || '';
+            document.getElementById('aiTokEnabled').checked = t ? !!t.enabled : true;
+            document.getElementById('aiTokDefault').checked = !!t?.is_default;
+            document.getElementById('aiTokenModal').classList.remove('hidden');
+        }
+        function closeAiTokenModal() { document.getElementById('aiTokenModal').classList.add('hidden'); _editingAiTokenId = null; }
+        async function aiTokenSubmit(ev) {
+            ev.preventDefault();
+            const payload = {
+                name: document.getElementById('aiTokName').value.trim(),
+                provider: document.getElementById('aiTokProvider').value,
+                api_key: document.getElementById('aiTokKey').value || null,
+                base_url: document.getElementById('aiTokBase').value.trim() || null,
+                model: document.getElementById('aiTokModel').value.trim() || null,
+                description: document.getElementById('aiTokDesc').value.trim() || null,
+                enabled: document.getElementById('aiTokEnabled').checked,
+                is_default: document.getElementById('aiTokDefault').checked,
+            };
+            try {
+                const url = _editingAiTokenId ? '/api/settings/ai-tokens/'+_editingAiTokenId : '/api/settings/ai-tokens';
+                const method = _editingAiTokenId ? 'PUT' : 'POST';
+                const r = await fetch(url, { method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+                if (!r.ok) {
+                    let detail = 'HTTP '+r.status;
+                    try { detail = (await r.json()).detail || detail; } catch (_) {}
+                    throw new Error(detail);
+                }
+                showToast(_editingAiTokenId ? '已更新' : '已建立', 'success');
+                closeAiTokenModal();
+                renderAiTokensList();
+            } catch (e) { showToast('儲存失敗：'+e.message, 'error'); }
+            return false;
+        }
+        async function deleteAiToken(id, name) {
+            if (!confirm(`確定刪除 AI Token「${name}」？`)) return;
+            try {
+                const r = await fetch('/api/settings/ai-tokens/'+id, { method:'DELETE' });
+                if (!r.ok && r.status !== 204) throw new Error('HTTP '+r.status);
+                showToast('已刪除', 'success'); renderAiTokensList();
+            } catch (e) { showToast('刪除失敗：'+e.message, 'error'); }
+        }
+
+        // ─── 首頁：行事曆 + 待辦 ─────────────────────────────────────
+        let _calCursor = new Date(); _calCursor.setDate(1);
+        let _homeTodos = [];
+        let _homeTodoBucket = 'overdue';   // 預設先看「過期」
+        let _editingTodoId = null;
+
+        function calMove(delta) {
+            if (delta === 0) {
+                _calCursor = new Date(); _calCursor.setDate(1);
+            } else {
+                _calCursor.setMonth(_calCursor.getMonth() + delta);
+            }
+            renderHomeCalendar();
+        }
+
+        function renderHomeCalendar() {
+            const grid = document.getElementById('calGrid');
+            const label = document.getElementById('calMonthLabel');
+            if (!grid || !label) return;
+            const y = _calCursor.getFullYear();
+            const m = _calCursor.getMonth();
+            label.textContent = y + ' / ' + String(m+1).padStart(2,'0');
+            // 該月第一天的星期 + 該月天數
+            const first = new Date(y, m, 1);
+            const last = new Date(y, m+1, 0);
+            const startOffset = first.getDay(); // 0=Sun
+            const totalDays = last.getDate();
+            const todayStr = new Date().toISOString().slice(0,10);
+            // 把 todos 依到期日分組
+            const byDate = {};
+            (_homeTodos || []).forEach(t => {
+                if (!t.due_date) return;
+                (byDate[t.due_date] = byDate[t.due_date] || []).push(t);
+            });
+            const cells = [];
+            // 前面補空格
+            for (let i = 0; i < startOffset; i++) cells.push(`<div class="aspect-square"></div>`);
+            for (let d = 1; d <= totalDays; d++) {
+                const ds = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                const items = byDate[ds] || [];
+                const isToday = ds === todayStr;
+                let dotsHtml = '';
+                if (items.length) {
+                    const colors = items.slice(0, 4).map(t => {
+                        if (t.status === 'Done' || t.status === 'Cancelled') return 'bg-emerald-500';
+                        if (t.is_overdue) return 'bg-rose-500';
+                        if (t.days_to_due != null && t.days_to_due <= 3) return 'bg-amber-500';
+                        return 'bg-blue-500';
+                    });
+                    dotsHtml = `<div class="absolute bottom-0.5 left-0 right-0 flex justify-center gap-0.5">${colors.map(c => `<span class="w-1.5 h-1.5 rounded-full ${c}"></span>`).join('')}</div>`;
+                }
+                const titleAttr = items.length ? ` title="${_esc(items.map(t => '• ' + t.title).join('\n'))}"` : '';
+                cells.push(`<div class="relative aspect-square border border-stone-100 rounded p-1 cursor-pointer hover:bg-amber-50 ${isToday ? 'bg-amber-50/60 border-amber-300' : 'bg-white'}" onclick="calCellClick('${ds}')"${titleAttr}>
+                    <div class="text-[10px] ${isToday ? 'font-bold text-amber-700' : 'text-stone-500'}">${d}</div>
+                    ${items.length ? `<div class="text-[9px] text-stone-400 leading-tight line-clamp-2 mt-0.5">${_esc(items[0].title)}</div>` : ''}
+                    ${dotsHtml}
+                </div>`);
+            }
+            grid.innerHTML = cells.join('');
+        }
+
+        function calCellClick(dateStr) {
+            // 點某天 → 開新增 todo 並預填到期日
+            openTodoModal(null, dateStr);
+        }
+
+        async function reloadHomeTodos() {
+            try {
+                const [list, summary] = await Promise.all([
+                    fetch('/api/todos').then(r => r.json()),
+                    fetch('/api/todos/summary').then(r => r.json()),
+                ]);
+                _homeTodos = list;
+                document.getElementById('todoKpiOverdue').textContent  = summary.overdue ?? 0;
+                document.getElementById('todoKpiDueSoon').textContent  = summary.due_soon ?? 0;
+                document.getElementById('todoKpiUpcoming').textContent = (summary.todo ?? 0) + (summary.in_progress ?? 0) - (summary.due_soon ?? 0);
+                document.getElementById('todoKpiDone').textContent     = summary.done ?? 0;
+                renderHomeCalendar();
+                renderHomeTodoList();
+            } catch (e) {
+                document.getElementById('homeTodoList').innerHTML = `<div class="p-6 text-center text-red-500 text-sm">載入失敗：${_esc(e.message)}</div>`;
+            }
+        }
+
+        function setHomeTodoBucket(b) {
+            _homeTodoBucket = b;
+            // 視覺：把選中的 KPI 卡 ring 起來
+            ['overdue','due_soon','upcoming','done'].forEach(x => {
+                const el = document.getElementById('todoBucket' + x.charAt(0).toUpperCase() + x.slice(1).replace('_s','S').replace('_d','D') + 'Btn');
+                if (el) el.classList.remove('ring-2','ring-amber-400');
+            });
+            const cur = document.getElementById('todoBucket' + b.charAt(0).toUpperCase() + b.slice(1).replace('_s','S').replace('_d','D') + 'Btn');
+            if (cur) cur.classList.add('ring-2','ring-amber-400');
+            renderHomeTodoList();
+        }
+
+        function _filterByBucket(items, bucket) {
+            return items.filter(t => {
+                const isDone = t.status === 'Done' || t.status === 'Cancelled';
+                if (bucket === 'overdue')  return t.is_overdue && !isDone;
+                if (bucket === 'due_soon') return !t.is_overdue && t.days_to_due != null && t.days_to_due <= 3 && !isDone;
+                if (bucket === 'upcoming') return !isDone && (t.days_to_due == null || t.days_to_due > 3);
+                if (bucket === 'done')     return isDone;
+                return true;
+            });
+        }
+
+        function renderHomeTodoList() {
+            const box = document.getElementById('homeTodoList');
+            if (!box) return;
+            const filtered = _filterByBucket(_homeTodos || [], _homeTodoBucket);
+            if (!filtered.length) {
+                box.innerHTML = '<div class="p-6 text-center text-stone-400 text-sm">本分桶無待辦</div>';
+                return;
+            }
+            const stColor = { Todo:'bg-blue-100 text-blue-700', InProgress:'bg-amber-100 text-amber-700', Done:'bg-emerald-100 text-emerald-700', Cancelled:'bg-stone-200 text-stone-500' };
+            const stLabel = { Todo:'待辦', InProgress:'進行中', Done:'已完成', Cancelled:'已取消' };
+            const prColor = { P0:'bg-red-100 text-red-700', P1:'bg-orange-100 text-orange-700', P2:'bg-amber-100 text-amber-700', P3:'bg-stone-100 text-stone-600' };
+            box.innerHTML = filtered.map(t => {
+                let dueBadge = '';
+                if (t.due_date) {
+                    if (t.is_overdue) dueBadge = `<span class="text-[10px] px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 border border-rose-200" title="已過期 ${Math.abs(t.days_to_due)} 天">過期 ${Math.abs(t.days_to_due)} 天</span>`;
+                    else if (t.days_to_due === 0) dueBadge = `<span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-200">今天到期</span>`;
+                    else if (t.days_to_due != null && t.days_to_due <= 3) dueBadge = `<span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-200">${t.days_to_due} 天後</span>`;
+                    else if (t.days_to_due != null) dueBadge = `<span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">${t.days_to_due} 天後</span>`;
+                }
+                return `<div class="flex items-start gap-3 px-3 py-2 border-b border-stone-100 hover:bg-amber-50/30">
+                    <input type="checkbox" ${t.status==='Done'?'checked':''} onchange="todoQuickToggle('${_esc(t.id)}', this.checked)" class="mt-1 rounded border-stone-300 text-amber-500 focus:ring-amber-400">
+                    <button type="button" onclick="openTodoModal('${_esc(t.id)}')" class="flex-1 min-w-0 text-left">
+                        <div class="text-sm font-semibold text-stone-800 ${t.status==='Done'?'line-through text-stone-400':''} truncate">${_esc(t.title)}</div>
+                        <div class="flex items-center gap-1.5 mt-1 flex-wrap">
+                            <span class="text-[10px] px-1.5 py-0.5 rounded ${stColor[t.status]||''}">${_esc(stLabel[t.status]||t.status)}</span>
+                            <span class="text-[10px] px-1.5 py-0.5 rounded ${prColor[t.priority]||''}">${_esc(t.priority)}</span>
+                            ${dueBadge}
+                            ${t.assignee ? `<span class="text-[10px] text-stone-500"><i class="fa-regular fa-user"></i> ${_esc(t.assignee)}</span>` : ''}
+                            ${t.due_date ? `<span class="text-[10px] font-mono text-stone-400">${_esc(t.due_date)}</span>` : ''}
+                        </div>
+                    </button>
+                    <button type="button" onclick="deleteTodo('${_esc(t.id)}')" title="刪除" class="text-stone-300 hover:text-red-500"><i class="fa-solid fa-trash text-xs"></i></button>
+                </div>`;
+            }).join('');
+        }
+
+        function openTodoModal(id, defaultDue) {
+            _editingTodoId = id || null;
+            const t = id ? _homeTodos.find(x => x.id === id) : null;
+            document.getElementById('todoModalTitle').innerHTML = t
+                ? '<i class="fa-solid fa-list-check text-amber-500"></i> 編輯待辦'
+                : '<i class="fa-solid fa-list-check text-amber-500"></i> 新增待辦';
+            document.getElementById('todoTitle').value = t?.title || '';
+            document.getElementById('todoDue').value = t?.due_date || defaultDue || '';
+            document.getElementById('todoStatus').value = t?.status || 'Todo';
+            document.getElementById('todoPriority').value = t?.priority || 'P2';
+            document.getElementById('todoAssignee').value = t?.assignee || (typeof authCurrentUsername === 'function' ? (authCurrentUsername()||'') : '');
+            document.getElementById('todoDesc').value = t?.description || '';
+            document.getElementById('todoModal').classList.remove('hidden');
+        }
+        function closeTodoModal() { document.getElementById('todoModal').classList.add('hidden'); _editingTodoId = null; }
+        async function todoSubmit(ev) {
+            ev.preventDefault();
+            const payload = {
+                title: document.getElementById('todoTitle').value.trim(),
+                due_date: document.getElementById('todoDue').value || null,
+                status: document.getElementById('todoStatus').value,
+                priority: document.getElementById('todoPriority').value,
+                assignee: document.getElementById('todoAssignee').value.trim() || null,
+                description: document.getElementById('todoDesc').value || null,
+            };
+            try {
+                const url = _editingTodoId ? '/api/todos/'+_editingTodoId : '/api/todos';
+                const method = _editingTodoId ? 'PUT' : 'POST';
+                const r = await fetch(url, { method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+                if (!r.ok) throw new Error('HTTP '+r.status);
+                showToast(_editingTodoId ? '已更新' : '已建立', 'success');
+                closeTodoModal();
+                reloadHomeTodos();
+            } catch (e) { showToast('儲存失敗：'+e.message, 'error'); }
+            return false;
+        }
+        async function todoQuickToggle(id, checked) {
+            try {
+                const r = await fetch('/api/todos/'+id, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status: checked ? 'Done' : 'Todo' }) });
+                if (!r.ok) throw new Error('HTTP '+r.status);
+                reloadHomeTodos();
+            } catch (e) { showToast('更新失敗：'+e.message, 'error'); }
+        }
+        async function deleteTodo(id) {
+            if (!confirm('確定刪除這個待辦？')) return;
+            try {
+                const r = await fetch('/api/todos/'+id, { method:'DELETE' });
+                if (!r.ok && r.status !== 204) throw new Error('HTTP '+r.status);
+                showToast('已刪除', 'success');
+                reloadHomeTodos();
+            } catch (e) { showToast('刪除失敗：'+e.message, 'error'); }
         }
 
         // 預設新文件範本：讓使用者一進來就有一份完整 markdown + mermaid 範例

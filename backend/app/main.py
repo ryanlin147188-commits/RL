@@ -8,10 +8,77 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.database import init_db
-from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings, schedules, local_runner, test_rounds, project_settings, screenshot_baselines, system, defects, test_milestones, test_plans, requirements, test_data_sets, test_documents, wbs_items
-# 確保 8 個新增 model 在 init_db() 前已 import 註冊到 Base.metadata
-from app.models import Defect, TestMilestone, TestPlan, Requirement, RequirementTestcaseLink, TestDataSet, TestDocument, WbsItem  # noqa: F401
+from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings, schedules, local_runner, test_rounds, project_settings, screenshot_baselines, system, defects, test_milestones, test_plans, requirements, test_data_sets, test_documents, wbs_items, settings as app_settings, todos
+# 確保 13 個新增 model 在 init_db() 前已 import 註冊到 Base.metadata
+from app.models import (  # noqa: F401
+    Defect, TestMilestone, TestPlan, Requirement, RequirementTestcaseLink,
+    TestDataSet, TestDocument, WbsItem,
+    Role, NotificationPreference, EmailConfig, AiTokenConfig, TodoItem,
+)
 from app.services.schedule_service import scheduler_loop
+
+
+async def _seed_default_roles() -> None:
+    """確保 3 個系統內建角色（Admin / QA / Viewer）存在；不存在才建立。"""
+    from sqlalchemy import select
+    from app.database import AsyncSessionLocal
+
+    DEFAULTS = [
+        {
+            "name": "Admin",
+            "description": "系統管理員 — 全部權限",
+            "permissions_json": [
+                "project.read", "project.write", "project.delete",
+                "testcase.read", "testcase.write", "testcase.delete", "testcase.execute",
+                "defect.read", "defect.write", "defect.delete",
+                "requirement.read", "requirement.write", "requirement.delete",
+                "plan.read", "plan.write", "plan.approve",
+                "wbs.read", "wbs.write",
+                "document.read", "document.write",
+                "report.read",
+                "settings.read", "settings.write",
+                "user.manage", "role.manage",
+            ],
+        },
+        {
+            "name": "QA",
+            "description": "測試人員 — 撰寫 / 執行測試 + 缺陷管理",
+            "permissions_json": [
+                "project.read",
+                "testcase.read", "testcase.write", "testcase.execute",
+                "defect.read", "defect.write",
+                "requirement.read",
+                "plan.read", "plan.write",
+                "wbs.read",
+                "document.read", "document.write",
+                "report.read",
+                "settings.read",
+            ],
+        },
+        {
+            "name": "Viewer",
+            "description": "檢視者 — 只讀全部",
+            "permissions_json": [
+                "project.read", "testcase.read", "defect.read",
+                "requirement.read", "plan.read", "wbs.read",
+                "document.read", "report.read", "settings.read",
+            ],
+        },
+    ]
+
+    async with AsyncSessionLocal() as session:
+        for spec in DEFAULTS:
+            existing = (
+                await session.execute(select(Role).where(Role.name == spec["name"]))
+            ).scalar_one_or_none()
+            if existing is None:
+                session.add(Role(
+                    name=spec["name"],
+                    description=spec["description"],
+                    permissions_json=spec["permissions_json"],
+                    is_system=True,
+                ))
+        await session.commit()
 
 
 @asynccontextmanager
@@ -19,6 +86,11 @@ async def lifespan(app: FastAPI):
     # Startup：建立 PIC 資料夾 + 自動建表 + 啟動排程背景任務
     os.makedirs(settings.PIC_FOLDER, exist_ok=True)
     await init_db()
+    try:
+        await _seed_default_roles()
+    except Exception as e:  # 不要因為 seed 失敗而擋住服務啟動
+        import logging
+        logging.getLogger(__name__).warning("seed default roles failed: %s", e)
     scheduler_task = asyncio.create_task(scheduler_loop())
     try:
         yield
@@ -72,6 +144,8 @@ app.include_router(requirements.router,    prefix="/api", tags=["O · 需求 / R
 app.include_router(test_data_sets.router,  prefix="/api", tags=["P · 測試資料集 (DDT)"])
 app.include_router(test_documents.router,  prefix="/api", tags=["Q · 測試文件"])
 app.include_router(wbs_items.router,       prefix="/api", tags=["R · WBS"])
+app.include_router(app_settings.router,    prefix="/api", tags=["S · 設定"])
+app.include_router(todos.router,           prefix="/api", tags=["T · 待辦"])
 
 
 @app.get("/", tags=["Health"])
