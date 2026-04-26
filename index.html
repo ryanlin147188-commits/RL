@@ -356,6 +356,17 @@
                 <button type="submit" class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-lg font-semibold text-sm shadow-md transition flex items-center justify-center gap-2">
                     <i class="fa-solid fa-right-to-bracket"></i> 登入
                 </button>
+
+                <!-- SSO 區塊：根據後端 enabled providers 動態插入 -->
+                <div id="ssoButtonsBlock" class="hidden">
+                    <div class="flex items-center gap-3 my-3">
+                        <span class="flex-1 h-px bg-stone-200"></span>
+                        <span class="text-[10px] text-stone-400 uppercase tracking-wider">SSO</span>
+                        <span class="flex-1 h-px bg-stone-200"></span>
+                    </div>
+                    <div id="ssoButtons" class="space-y-2"></div>
+                </div>
+
                 <div class="text-[11px] text-stone-500 bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
                     <i class="fa-solid fa-circle-info text-amber-500 mt-0.5"></i>
                     <div>
@@ -625,8 +636,45 @@
              ≥ md：header 兩排 = 56 + 48 = 104px；用 top-[104px]
              < md：只有上排 56px（hamburger 抽屜情境）；用 top-14 -->
         <aside id="sidebar" class="bg-amber-50/40 border-r border-amber-100 flex flex-col shrink-0 shadow-[2px_0_5px_rgba(0,0,0,0.02)] z-50 fixed md:relative top-14 bottom-0 md:top-auto md:bottom-auto md:inset-y-0 left-0 transform -translate-x-full md:translate-x-0 transition-transform duration-300 w-[85vw] max-w-[360px] md:max-w-none md:w-auto">
+            <!-- 行動裝置專屬：把上方 nav 的所有按鈕重複放在這裡，避免 < md 完全沒有 nav -->
+            <div class="md:hidden border-b border-stone-200 bg-stone-50/50 p-3 space-y-3">
+                <div>
+                    <div class="text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-1.5"><span data-i18n="nav.section.planning">規劃</span></div>
+                    <div class="grid grid-cols-2 gap-1">
+                        <button onclick="showTestProjectsView(); closeMobileSidebar()" class="text-left px-2 py-1.5 text-xs rounded hover:bg-amber-100 text-stone-700 flex items-center gap-1.5"><i class="fa-solid fa-folder-tree text-amber-600 w-4"></i><span data-i18n="nav.testProjects">測試專案</span></button>
+                        <button onclick="showWbsView(); closeMobileSidebar()" class="text-left px-2 py-1.5 text-xs rounded hover:bg-amber-100 text-stone-700 flex items-center gap-1.5"><i class="fa-solid fa-sitemap text-yellow-600 w-4"></i><span data-i18n="nav.wbs">WBS</span></button>
+                        <button onclick="showTestPlanView(); closeMobileSidebar()" class="text-left px-2 py-1.5 text-xs rounded hover:bg-amber-100 text-stone-700 flex items-center gap-1.5"><i class="fa-solid fa-clipboard-list text-blue-600 w-4"></i><span data-i18n="nav.testPlan">測試計畫</span></button>
+                        <button onclick="showRequirementsView(); closeMobileSidebar()" class="text-left px-2 py-1.5 text-xs rounded hover:bg-amber-100 text-stone-700 flex items-center gap-1.5"><i class="fa-solid fa-diagram-project text-cyan-600 w-4"></i><span data-i18n="nav.requirements">需求/RTM</span></button>
+                        <button onclick="showTestCasesView(); closeMobileSidebar()" class="text-left px-2 py-1.5 text-xs rounded hover:bg-amber-100 text-stone-700 flex items-center gap-1.5"><i class="fa-solid fa-list-check text-blue-600 w-4"></i><span data-i18n="nav.testCases">測試案例</span></button>
+                        <button onclick="showTestDataSetsView(); closeMobileSidebar()" class="text-left px-2 py-1.5 text-xs rounded hover:bg-amber-100 text-stone-700 flex items-center gap-1.5"><i class="fa-solid fa-table text-violet-600 w-4"></i><span data-i18n="nav.dataSets">測試資料集</span></button>
+                        <button onclick="showTestDocumentsView(); closeMobileSidebar()" class="text-left px-2 py-1.5 text-xs rounded hover:bg-amber-100 text-stone-700 flex items-center gap-1.5 col-span-2"><i class="fa-solid fa-file-lines text-pink-600 w-4"></i><span data-i18n="nav.documents">測試文件</span></button>
+                    </div>
+                </div>
+                <div>
+                    <div class="text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-1.5"><span data-i18n="nav.section.execution">執行 / 監控</span></div>
+                    <div class="grid grid-cols-2 gap-1">
+                        <button onclick="showTestMilestonesView(); closeMobileSidebar()" class="text-left px-2 py-1.5 text-xs rounded hover:bg-amber-100 text-stone-700 flex items-center gap-1.5"><i class="fa-regular fa-calendar text-teal-600 w-4"></i><span data-i18n="nav.milestones">測試時程</span></button>
+                        <button onclick="showTestRoundView(); closeMobileSidebar()" class="text-left px-2 py-1.5 text-xs rounded hover:bg-amber-100 text-stone-700 flex items-center gap-1.5"><i class="fa-solid fa-layer-group text-purple-600 w-4"></i><span data-i18n="nav.testRound">測試回合</span></button>
+                        <button onclick="showScheduleView(); closeMobileSidebar()" class="text-left px-2 py-1.5 text-xs rounded hover:bg-amber-100 text-stone-700 flex items-center gap-1.5"><i class="fa-solid fa-calendar-days text-emerald-600 w-4"></i><span data-i18n="nav.schedule">測試排程</span></button>
+                        <button onclick="showRecorderView(); closeMobileSidebar()" class="text-left px-2 py-1.5 text-xs rounded hover:bg-amber-100 text-stone-700 flex items-center gap-1.5"><i class="fa-solid fa-video text-rose-600 w-4"></i><span data-i18n="nav.recorder">測試錄製</span></button>
+                        <button onclick="showTestKanbanView(); closeMobileSidebar()" class="text-left px-2 py-1.5 text-xs rounded hover:bg-amber-100 text-stone-700 flex items-center gap-1.5"><i class="fa-solid fa-columns text-orange-600 w-4"></i><span data-i18n="nav.kanban">測試看版</span></button>
+                        <button onclick="showReportView(); closeMobileSidebar()" class="text-left px-2 py-1.5 text-xs rounded hover:bg-amber-100 text-stone-700 flex items-center gap-1.5"><i class="fa-solid fa-chart-pie text-blue-600 w-4"></i><span data-i18n="nav.reports">測試報告</span></button>
+                        <button onclick="showDefectsView(); closeMobileSidebar()" class="text-left px-2 py-1.5 text-xs rounded hover:bg-amber-100 text-stone-700 flex items-center gap-1.5 col-span-2"><i class="fa-solid fa-bug text-red-600 w-4"></i><span data-i18n="nav.defects">缺陷管理</span></button>
+                    </div>
+                </div>
+                <div>
+                    <div class="text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-1.5"><span data-i18n="nav.section.settings">設定</span></div>
+                    <div class="grid grid-cols-2 gap-1">
+                        <button onclick="showDevicesView(); closeMobileSidebar()" class="text-left px-2 py-1.5 text-xs rounded hover:bg-amber-100 text-stone-700 flex items-center gap-1.5"><i class="fa-solid fa-mobile-screen text-rose-600 w-4"></i><span data-i18n="nav.devices">設備資訊</span></button>
+                        <button onclick="showEnvVarsView(); closeMobileSidebar()" class="text-left px-2 py-1.5 text-xs rounded hover:bg-amber-100 text-stone-700 flex items-center gap-1.5"><i class="fa-solid fa-key text-emerald-600 w-4"></i><span data-i18n="nav.envVars">環境變數</span></button>
+                        <button onclick="showDbConfigView(); closeMobileSidebar()" class="text-left px-2 py-1.5 text-xs rounded hover:bg-amber-100 text-stone-700 flex items-center gap-1.5"><i class="fa-solid fa-database text-indigo-600 w-4"></i><span data-i18n="nav.dbConfig">DB資訊</span></button>
+                        <button onclick="showMockView(); closeMobileSidebar()" class="text-left px-2 py-1.5 text-xs rounded hover:bg-amber-100 text-stone-700 flex items-center gap-1.5"><i class="fa-solid fa-plug text-amber-600 w-4"></i><span data-i18n="nav.mock">Mock</span></button>
+                    </div>
+                </div>
+            </div>
+
             <div class="p-4 border-b border-slate-200 flex flex-col gap-3 bg-white z-10">
-                
+
                 <!-- 專案目錄 Header：右側為「新增專案」icon（對齊下方刪除專案欄位上方）-->
                 <div class="flex justify-between items-center mb-1">
                     <h2 class="font-semibold text-sm text-stone-600 uppercase tracking-wider">專案目錄</h2>
@@ -2464,6 +2512,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                         <button id="setTabAi"       onclick="settingsSwitchTab('ai')"       class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-robot"></i> <span data-i18n="settings.tab.ai">AI Token</span></button>
                         <button id="setTabOrgs"     onclick="settingsSwitchTab('orgs')"     class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-building"></i> <span data-i18n="settings.tab.orgs">組織</span></button>
                         <button id="setTabAudit"    onclick="settingsSwitchTab('audit')"    class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-clipboard-check"></i> <span data-i18n="settings.tab.audit">審計紀錄</span></button>
+                        <button id="setTabSso"      onclick="settingsSwitchTab('sso')"      class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-key"></i> SSO</button>
                     </div>
 
                     <!-- ─── Pane 1: 使用者設定（保留原本內容） ─── -->
@@ -2750,9 +2799,9 @@ driver.swipe(100, 800, 100, 200, 500)"
                         <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-4">
                             <div class="flex items-center gap-2 mb-3 flex-wrap">
                                 <h3 class="font-bold text-stone-700 text-base flex items-center gap-2"><i class="fa-solid fa-clipboard-check text-amber-500"></i> 審計紀錄</h3>
-                                <input id="auditFilterUser" type="text" placeholder="使用者" class="text-xs px-2 py-1 border border-stone-300 rounded">
-                                <input id="auditFilterEntity" type="text" placeholder="實體 (如 projects)" class="text-xs px-2 py-1 border border-stone-300 rounded">
-                                <select id="auditFilterMethod" class="text-xs px-2 py-1 border border-stone-300 rounded bg-white">
+                                <input id="auditFilterUser" type="text" placeholder="使用者" aria-label="依使用者過濾" class="text-xs px-2 py-1 border border-stone-300 rounded">
+                                <input id="auditFilterEntity" type="text" placeholder="實體 (如 projects)" aria-label="依實體過濾" class="text-xs px-2 py-1 border border-stone-300 rounded">
+                                <select id="auditFilterMethod" aria-label="依 HTTP method 過濾" title="依 HTTP method 過濾" class="text-xs px-2 py-1 border border-stone-300 rounded bg-white">
                                     <option value="">全部 method</option>
                                     <option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option>
                                 </select>
@@ -2770,6 +2819,69 @@ driver.swipe(100, 800, 100, 200, 500)"
                             </div>
                         </section>
                     </div>
+
+                    <!-- ─── Pane 9: SSO / OIDC ─── -->
+                    <div id="setPaneSso" class="hidden space-y-4">
+                        <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-4">
+                            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                                <h3 class="font-bold text-stone-700 text-base flex items-center gap-2"><i class="fa-solid fa-key text-amber-500"></i> SSO / OIDC 提供者</h3>
+                                <div class="flex items-center gap-2">
+                                    <button onclick="renderOidcProvidersList()" class="text-xs px-2.5 py-1.5 border border-stone-300 rounded hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
+                                    <button onclick="openOidcProviderModal()" class="text-xs px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold"><i class="fa-solid fa-plus"></i> 新增 SSO</button>
+                                </div>
+                            </div>
+                            <p class="text-xs text-stone-500 mb-3">每個 SSO 提供者對應一個外部 IdP（Google / Azure AD / Okta / Auth0 …）。最簡設定：在 IdP 申請一個 OIDC client，把 redirect URI 設為 <code class="bg-stone-100 px-1 py-0.5 rounded font-mono">http://&lt;這台&gt;/api/auth/oidc/callback</code>，再把 IdP 的 discovery URL（通常是 <code class="bg-stone-100 px-1 py-0.5 rounded font-mono">.../.well-known/openid-configuration</code>）填到下方即可。</p>
+                            <div class="overflow-hidden border border-stone-100 rounded-md">
+                                <table class="w-full text-sm">
+                                    <thead class="bg-amber-50/60 text-stone-600 text-xs uppercase">
+                                        <tr><th class="p-3 text-left">名稱</th><th class="p-3 w-28 font-mono text-left">slug</th><th class="p-3 text-left">Discovery / Issuer</th><th class="p-3 w-20 text-center">啟用</th><th class="p-3 w-28 text-center">操作</th></tr>
+                                    </thead>
+                                    <tbody id="oidcProvidersListBody" class="divide-y divide-stone-100"></tbody>
+                                </table>
+                            </div>
+                        </section>
+                    </div>
+                </div>
+            </div>
+
+            <!-- OIDC Provider Modal -->
+            <div id="oidcProviderModal" class="hidden fixed inset-0 z-[150] bg-black/40 flex items-center justify-center p-4">
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl border border-amber-200 max-h-[92vh] overflow-y-auto">
+                    <div class="px-6 py-4 border-b border-stone-200 bg-amber-50/60 flex items-center justify-between">
+                        <h3 id="oidcProviderModalTitle" class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-key text-amber-500"></i> 新增 SSO 提供者</h3>
+                        <button type="button" onclick="closeOidcProviderModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <form onsubmit="return oidcProviderSubmit(event)" class="p-6 space-y-3">
+                        <div class="grid grid-cols-2 gap-3">
+                            <div><label for="oidcName" class="block text-xs font-semibold text-stone-600 mb-1">名稱（顯示在登入按鈕） *</label><input type="text" id="oidcName" required placeholder="Google / Azure AD / Company SSO" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                            <div><label for="oidcSlug" class="block text-xs font-semibold text-stone-600 mb-1">slug *</label><input type="text" id="oidcSlug" required placeholder="google" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm font-mono"></div>
+                        </div>
+                        <div>
+                            <label for="oidcDiscovery" class="block text-xs font-semibold text-stone-600 mb-1">Discovery URL（推薦）</label>
+                            <input type="url" id="oidcDiscovery" placeholder="https://accounts.google.com/.well-known/openid-configuration" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm font-mono">
+                            <p class="text-[10px] text-stone-500 mt-0.5">填了之後 authorize/token/jwks 端點會自動抓；不需要再手動填下方欄位。</p>
+                        </div>
+                        <details class="border border-stone-200 rounded p-2">
+                            <summary class="text-xs text-stone-600 cursor-pointer">手動填 endpoint（discovery 不可用時）</summary>
+                            <div class="mt-2 space-y-2">
+                                <div><label for="oidcIssuer" class="block text-[11px] font-semibold text-stone-600 mb-0.5">Issuer</label><input type="text" id="oidcIssuer" class="w-full px-2 py-1 border border-stone-300 rounded text-xs font-mono"></div>
+                                <div><label for="oidcAuth" class="block text-[11px] font-semibold text-stone-600 mb-0.5">authorize_url</label><input type="url" id="oidcAuth" class="w-full px-2 py-1 border border-stone-300 rounded text-xs font-mono"></div>
+                                <div><label for="oidcToken" class="block text-[11px] font-semibold text-stone-600 mb-0.5">token_url</label><input type="url" id="oidcToken" class="w-full px-2 py-1 border border-stone-300 rounded text-xs font-mono"></div>
+                                <div><label for="oidcJwks" class="block text-[11px] font-semibold text-stone-600 mb-0.5">jwks_url</label><input type="url" id="oidcJwks" class="w-full px-2 py-1 border border-stone-300 rounded text-xs font-mono"></div>
+                            </div>
+                        </details>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div><label for="oidcClientId" class="block text-xs font-semibold text-stone-600 mb-1">Client ID *</label><input type="text" id="oidcClientId" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm font-mono"></div>
+                            <div><label for="oidcClientSecret" class="block text-xs font-semibold text-stone-600 mb-1">Client Secret</label><input type="password" id="oidcClientSecret" autocomplete="new-password" placeholder="留空表示不變更" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm font-mono"></div>
+                        </div>
+                        <div><label for="oidcScopes" class="block text-xs font-semibold text-stone-600 mb-1">Scopes</label><input type="text" id="oidcScopes" placeholder="openid email profile" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm font-mono"></div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div><label for="oidcButtonIcon" class="block text-xs font-semibold text-stone-600 mb-1">按鈕圖示（FontAwesome class）</label><input type="text" id="oidcButtonIcon" placeholder="fa-brands fa-google" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm font-mono"></div>
+                            <div><label for="oidcButtonLabel" class="block text-xs font-semibold text-stone-600 mb-1">按鈕文字（可選）</label><input type="text" id="oidcButtonLabel" placeholder="Sign in with Google" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                        </div>
+                        <label class="flex items-center gap-2 cursor-pointer text-sm text-stone-700"><input type="checkbox" id="oidcEnabled" class="rounded border-stone-300 text-amber-500 focus:ring-amber-400"> 啟用（登入頁顯示）</label>
+                        <div class="flex justify-end gap-2 pt-2"><button type="button" onclick="closeOidcProviderModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button><button type="submit" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button></div>
+                    </form>
                 </div>
             </div>
 
@@ -7040,6 +7152,8 @@ driver.swipe(100, 800, 100, 200, 500)"
         window.onload = async () => {
             // 套用語系（從 localStorage 讀回去過的語言；預設 zh-TW）
             try { i18nApply(); } catch (_) {}
+            // 處理 OIDC callback（網址 hash 帶 token） — 成功就直接進首頁，不再走下面的流程
+            try { if (handleOidcCallbackFromHash()) return; } catch (_) {}
             // 第一步：檢查登入狀態。未登入 → 顯示認證覆蓋層並停止初始化。
             authBootstrap();
             if (!authIsLoggedIn()) {
@@ -7207,6 +7321,8 @@ driver.swipe(100, 800, 100, 200, 500)"
 
         function authShowOverlay() {
             document.getElementById('authOverlay').classList.remove('hidden');
+            // 把 enabled SSO providers 拉下來畫成按鈕（沒有就保持隱藏）
+            try { if (typeof loadSsoButtons === 'function') loadSsoButtons(); } catch (_) {}
         }
         function authHideOverlay() {
             document.getElementById('authOverlay').classList.add('hidden');
@@ -12669,8 +12785,8 @@ gantt
             } catch (e) { showToast('刪除失敗：' + e.message, 'error'); }
         }
 
-        // ─── 設定（Settings）── 8 個 tab
-        const _SETTINGS_TABS = ['user','perms','roles','notif','email','ai','orgs','audit'];
+        // ─── 設定（Settings）── 9 個 tab
+        const _SETTINGS_TABS = ['user','perms','roles','notif','email','ai','orgs','audit','sso'];
         const _SETTINGS_TAB_BTN_ON  = 'px-3 py-1.5 text-sm font-medium rounded text-amber-700 bg-amber-50 border border-amber-300';
         const _SETTINGS_TAB_BTN_OFF = 'px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50';
         function settingsSwitchTab(name) {
@@ -12694,6 +12810,7 @@ gantt
             else if (name === 'ai') renderAiTokensList();
             else if (name === 'orgs') renderOrgsList();
             else if (name === 'audit') loadAuditLogs(true);
+            else if (name === 'sso') renderOidcProvidersList();
         }
 
         // ─── 權限清單（唯讀） ─────────────────────────────────────────
@@ -13152,6 +13269,167 @@ gantt
             } catch (err) {
                 body.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-red-500">載入失敗：${_esc(err.message)}</td></tr>`;
             }
+        }
+
+        // ─── SSO / OIDC（admin CRUD） ────────────────────────────────
+        let _oidcProvidersCache = [];
+        let _editingOidcProviderId = null;
+
+        async function renderOidcProvidersList() {
+            const body = document.getElementById('oidcProvidersListBody');
+            if (!body) return;
+            body.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-stone-400">載入中…</td></tr>';
+            try {
+                const r = await fetch('/api/settings/oidc-providers');
+                if (!r.ok) throw new Error('HTTP '+r.status);
+                _oidcProvidersCache = await r.json();
+                if (!_oidcProvidersCache.length) {
+                    body.innerHTML = '<tr><td colspan="5" class="p-6 text-center text-stone-400">尚無 SSO 提供者</td></tr>';
+                    return;
+                }
+                body.innerHTML = _oidcProvidersCache.map(p => {
+                    const issuer = p.issuer || (p.discovery_url || '').replace(/\/.well-known.*$/,'') || '—';
+                    return `<tr class="hover:bg-amber-50/30">
+                        <td class="p-3 font-semibold text-stone-800">
+                            <div class="flex items-center gap-2"><i class="${_esc(p.button_icon||'fa-solid fa-key')}"></i> ${_esc(p.name)}</div>
+                        </td>
+                        <td class="p-3 font-mono text-xs text-stone-500">${_esc(p.slug)}</td>
+                        <td class="p-3 text-xs text-stone-600 break-all">${_esc(issuer)}</td>
+                        <td class="p-3 text-center">${p.enabled ? '<i class="fa-solid fa-circle-check text-emerald-500"></i>' : '<i class="fa-regular fa-circle text-stone-300"></i>'}</td>
+                        <td class="p-3 text-center whitespace-nowrap space-x-1">
+                            <button onclick="openOidcProviderModal('${_esc(p.id)}')" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded"><i class="fa-solid fa-pen"></i></button>
+                            <button onclick="deleteOidcProvider('${_esc(p.id)}','${_esc(p.name)}')" class="text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                    </tr>`;
+                }).join('');
+            } catch (e) {
+                body.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-red-500">載入失敗：${_esc(e.message)}</td></tr>`;
+            }
+        }
+
+        function openOidcProviderModal(id) {
+            _editingOidcProviderId = id || null;
+            const p = id ? _oidcProvidersCache.find(x => x.id === id) : null;
+            document.getElementById('oidcProviderModalTitle').innerHTML = p
+                ? `<i class="fa-solid fa-key text-amber-500"></i> 編輯 SSO · ${_esc(p.name)}`
+                : '<i class="fa-solid fa-key text-amber-500"></i> 新增 SSO 提供者';
+            document.getElementById('oidcName').value = p?.name || '';
+            document.getElementById('oidcSlug').value = p?.slug || '';
+            document.getElementById('oidcDiscovery').value = p?.discovery_url || '';
+            document.getElementById('oidcIssuer').value = p?.issuer || '';
+            document.getElementById('oidcAuth').value = p?.authorize_url || '';
+            document.getElementById('oidcToken').value = p?.token_url || '';
+            document.getElementById('oidcJwks').value = p?.jwks_url || '';
+            document.getElementById('oidcClientId').value = p?.client_id || '';
+            document.getElementById('oidcClientSecret').value = '';   // 不顯示既有秘密
+            document.getElementById('oidcScopes').value = p?.scopes || 'openid email profile';
+            document.getElementById('oidcButtonIcon').value = p?.button_icon || 'fa-solid fa-key';
+            document.getElementById('oidcButtonLabel').value = p?.button_label || '';
+            document.getElementById('oidcEnabled').checked = !!p?.enabled;
+            document.getElementById('oidcProviderModal').classList.remove('hidden');
+        }
+        function closeOidcProviderModal() { document.getElementById('oidcProviderModal').classList.add('hidden'); _editingOidcProviderId = null; }
+        async function oidcProviderSubmit(ev) {
+            ev.preventDefault();
+            const payload = {
+                name: document.getElementById('oidcName').value.trim(),
+                slug: document.getElementById('oidcSlug').value.trim().toLowerCase(),
+                discovery_url: document.getElementById('oidcDiscovery').value.trim() || null,
+                issuer: document.getElementById('oidcIssuer').value.trim() || null,
+                authorize_url: document.getElementById('oidcAuth').value.trim() || null,
+                token_url: document.getElementById('oidcToken').value.trim() || null,
+                jwks_url: document.getElementById('oidcJwks').value.trim() || null,
+                client_id: document.getElementById('oidcClientId').value.trim(),
+                client_secret: document.getElementById('oidcClientSecret').value || '',
+                scopes: document.getElementById('oidcScopes').value.trim() || 'openid email profile',
+                button_icon: document.getElementById('oidcButtonIcon').value.trim() || 'fa-solid fa-key',
+                button_label: document.getElementById('oidcButtonLabel').value.trim() || null,
+                enabled: document.getElementById('oidcEnabled').checked,
+            };
+            try {
+                const url = _editingOidcProviderId ? '/api/settings/oidc-providers/'+_editingOidcProviderId : '/api/settings/oidc-providers';
+                const method = _editingOidcProviderId ? 'PUT' : 'POST';
+                const r = await fetch(url, { method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+                if (!r.ok) {
+                    let detail = 'HTTP '+r.status;
+                    try { detail = (await r.json()).detail || detail; } catch (_) {}
+                    throw new Error(detail);
+                }
+                showToast(_editingOidcProviderId ? '已更新' : '已建立', 'success');
+                closeOidcProviderModal();
+                renderOidcProvidersList();
+            } catch (e) { showToast('儲存失敗：'+e.message, 'error'); }
+            return false;
+        }
+        async function deleteOidcProvider(id, name) {
+            if (!confirm(`確定刪除 SSO 提供者「${name}」？已用該 SSO 註冊的使用者帳號不會被刪除。`)) return;
+            try {
+                const r = await fetch('/api/settings/oidc-providers/'+id, { method:'DELETE' });
+                if (!r.ok && r.status !== 204) throw new Error('HTTP '+r.status);
+                showToast('已刪除', 'success'); renderOidcProvidersList();
+            } catch (e) { showToast('刪除失敗：'+e.message, 'error'); }
+        }
+
+        // ─── 登入頁的 SSO 按鈕：開機時拉一次 enabled 列表 ─────────────
+        async function loadSsoButtons() {
+            const block = document.getElementById('ssoButtonsBlock');
+            const wrap = document.getElementById('ssoButtons');
+            if (!block || !wrap) return;
+            try {
+                // 注意：這支端點不需 token；用 _origFetch 避免 401-then-retry 流程
+                const fn = (typeof _origFetch === 'function') ? _origFetch : fetch;
+                const r = await fn('/api/auth/oidc/providers');
+                if (!r.ok) { block.classList.add('hidden'); return; }
+                const providers = await r.json();
+                if (!providers.length) { block.classList.add('hidden'); return; }
+                wrap.innerHTML = providers.map(p => `
+                    <a href="/api/auth/oidc/login/${encodeURIComponent(p.id)}?redirect_to=${encodeURIComponent(location.origin + '/')}"
+                        class="w-full py-2 px-3 border border-stone-300 rounded-lg text-sm font-medium text-stone-700 hover:bg-stone-50 transition flex items-center justify-center gap-2">
+                        <i class="${_esc(p.button_icon || 'fa-solid fa-key')}"></i>
+                        <span>${_esc(p.button_label || ('Sign in with ' + p.name))}</span>
+                    </a>
+                `).join('');
+                block.classList.remove('hidden');
+            } catch (_) { block.classList.add('hidden'); }
+        }
+
+        // ─── 處理 OIDC callback：URL hash 內帶 access_token / refresh_token → 存起來 + 進首頁 ──
+        function handleOidcCallbackFromHash() {
+            const hash = (location.hash || '').replace(/^#/, '');
+            if (!hash) return false;
+            const params = new URLSearchParams(hash);
+            if (params.get('oidc_login') !== '1') return false;
+            const at = params.get('access_token');
+            const rt = params.get('refresh_token');
+            if (!at || !rt) return false;
+            // 跟 password login 一樣，把 token 存起來
+            authSetTokens(at, rt, 7200);
+            // 拉 /auth/me 補 session 快取
+            (async () => {
+                try {
+                    const r = await fetch('/api/auth/me');
+                    if (r.ok) {
+                        const me = await r.json();
+                        const prev = _authReadSession() || {};
+                        const now = new Date().toISOString();
+                        _authWriteSession({
+                            ...prev, username: me.username,
+                            displayName: me.display_name || me.username,
+                            email: me.email || '',
+                            loginAt: now,
+                            loginCount: (prev.loginCount || 0) + 1,
+                        });
+                    }
+                } catch (_) {}
+                // 清掉 hash，避免 token 留在 URL
+                history.replaceState(null, '', location.pathname + location.search);
+                showToast('SSO 登入成功', 'success');
+                authHideOverlay();
+                renderExecutionModeButton();
+                updateUserMenuUI();
+                initProjects().then(() => { try { showHomeView(); } catch (_) {} }).catch(() => {});
+            })();
+            return true;
         }
 
         // ─── AI 從需求生成測試案例 ──────────────────────────────────────
