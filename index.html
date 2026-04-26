@@ -11142,9 +11142,21 @@ gantt
             document.getElementById('dsName').value = r?.name || '';
             document.getElementById('dsOwner').value = r?.owner || (typeof authCurrentUsername === 'function' ? (authCurrentUsername()||'') : '');
             document.getElementById('dsDesc').value = r?.description || '';
+            // 防禦性：清空檔案輸入，避免上一次選擇的檔案影響本次
+            const fileInput = document.getElementById('dsJsonImportInput');
+            if (fileInput) fileInput.value = '';
             // 預設欄位 = No | Key | Value（與舊版 inline DDT 保持一致）
             _dsCols = Array.isArray(r?.columns_json) && r.columns_json.length ? [...r.columns_json] : ['No', 'Key', 'Value'];
-            _dsRows = Array.isArray(r?.rows_json) ? r.rows_json.map(x => ({...x})) : [];
+            // 還原既有 rows；若是「新增」模式且資料集尚無資料 → 帶入一列空白範本，
+            // 讓使用者一打開就能看到預設欄位 No / Key / Value 並可以直接輸入
+            const existing = Array.isArray(r?.rows_json) ? r.rows_json.map(x => ({...x})) : [];
+            if (existing.length) {
+                _dsRows = existing;
+            } else {
+                const blank = {};
+                _dsCols.forEach(c => blank[c] = '');
+                _dsRows = [blank];
+            }
             renderDataSetGrid();
             document.getElementById('testDataSetModal').classList.remove('hidden');
         }
@@ -11309,13 +11321,20 @@ gantt
 
         async function dataSetSubmit(ev) {
             ev.preventDefault();
+            // 儲存前過濾掉「整列都是空白」的範本列，避免存入無意義的空列
+            const cleanRows = (_dsRows || []).filter(row => {
+                return _dsCols.some(c => {
+                    const v = row[c];
+                    return v != null && String(v).trim() !== '';
+                });
+            });
             const payload = {
                 project_id: currentProjectId,
                 name: document.getElementById('dsName').value.trim(),
                 description: document.getElementById('dsDesc').value || null,
                 owner: document.getElementById('dsOwner').value.trim() || null,
                 columns_json: _dsCols,
-                rows_json: _dsRows,
+                rows_json: cleanRows,
             };
             try {
                 const url = _editingDataSetId ? '/api/data-sets/'+_editingDataSetId : '/api/data-sets';
