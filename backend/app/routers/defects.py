@@ -10,6 +10,7 @@ from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
+from app.common import Pagination
 from app.database import get_db
 from app.models.defect import Defect, DefectSeverity, DefectPriority, DefectStatus
 from app.schemas.defect import (
@@ -46,6 +47,7 @@ async def list_defects(
     project_id: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
     severity: Optional[str] = Query(None),
+    page: Pagination = Depends(Pagination.from_query),
     db: AsyncSession = Depends(get_db),
 ):
     stmt = select(Defect).order_by(desc(Defect.created_at))
@@ -55,6 +57,7 @@ async def list_defects(
         stmt = stmt.where(Defect.status == DefectStatus(status))
     if severity:
         stmt = stmt.where(Defect.severity == DefectSeverity(severity))
+    stmt = page.apply(stmt)
     rows = (await db.execute(stmt)).scalars().all()
     return list(rows)
 

@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.common import Pagination
 from app.database import get_db
 from app.models.defect import Defect
 from app.models.execution_report import ExecutionReport
@@ -74,11 +75,13 @@ async def _to_response(db: AsyncSession, r: Requirement) -> RequirementResponse:
 @router.get("/requirements", response_model=list[RequirementResponse], tags=["O · 需求 / RTM"])
 async def list_requirements(
     project_id: Optional[str] = Query(None),
+    page: Pagination = Depends(Pagination.from_query),
     db: AsyncSession = Depends(get_db),
 ):
     stmt = select(Requirement).order_by(Requirement.code)
     if project_id:
         stmt = stmt.where(Requirement.project_id == project_id)
+    stmt = page.apply(stmt)
     rows = (await db.execute(stmt)).scalars().all()
     return [await _to_response(db, r) for r in rows]
 
@@ -203,20 +206,19 @@ async def rtm_matrix(
         # (簡化：取最新 ExecutionStepLog by testcase_node_id)
         if links:
             tc_ids = list({l.testcase_node_id for l in links})
-            # 對每個 tc 抓最近一個 step（按 created_at 倒序）
-            # 為了避免 N+1，這裡做 distinct on：取每 testcase_node_id 一筆最新
-            latest_status: dict[str, str] = {}
+            # 改成單次 query：用 PostgreSQL DISTINCT ON 取每個 testcase_node_id
+            # 最新一筆 step 的 status（過去是 N+1：每個 tc 跑一次 LIMIT 1）
             from sqlalchemy import desc as sql_desc
-            for tc_id in tc_ids:
-                row = (await db.execute(
-                    select(ExecutionStepLog.status)
-                    .where(ExecutionStepLog.testcase_node_id == tc_id)
-                    .order_by(sql_desc(ExecutionStepLog.id))
-                    .limit(1)
-                )).first()
-                if row:
-                    s = row[0]
-                    latest_status[tc_id] = s.value if hasattr(s, "value") else str(s)
+            latest_status: dict[str, str] = {}
+            if tc_ids:
+                rows = (await db.execute(
+                    select(ExecutionStepLog.testcase_node_id, ExecutionStepLog.status)
+                    .where(ExecutionStepLog.testcase_node_id.in_(tc_ids))
+                    .order_by(ExecutionStepLog.testcase_node_id, sql_desc(ExecutionStepLog.id))
+                    .distinct(ExecutionStepLog.testcase_node_id)
+                )).all()
+                for tc_id, status_val in rows:
+                    latest_status[tc_id] = status_val.value if hasattr(status_val, "value") else str(status_val)
             for l in links:
                 cells.append(RtmCell(
                     requirement_id=l.requirement_id,
@@ -281,18 +283,17 @@ async def rtm_chain(
         )).scalars().all()
         tcs_by_id = {t.id: t for t in tc_rows}
 
-    # 4) 每個 testcase 的最新執行狀態
+    # 4) 每個 testcase 的最新執行狀態（單次 query 用 DISTINCT ON 取代 N 次 LIMIT 1）
     latest_status: dict[str, str] = {}
-    for tc_id in tc_ids:
-        row = (await db.execute(
-            select(ExecutionStepLog.status)
-            .where(ExecutionStepLog.testcase_node_id == tc_id)
-            .order_by(sql_desc(ExecutionStepLog.id))
-            .limit(1)
-        )).first()
-        if row:
-            s = row[0]
-            latest_status[tc_id] = s.value if hasattr(s, "value") else str(s)
+    if tc_ids:
+        rows = (await db.execute(
+            select(ExecutionStepLog.testcase_node_id, ExecutionStepLog.status)
+            .where(ExecutionStepLog.testcase_node_id.in_(tc_ids))
+            .order_by(ExecutionStepLog.testcase_node_id, sql_desc(ExecutionStepLog.id))
+            .distinct(ExecutionStepLog.testcase_node_id)
+        )).all()
+        for tc_id, status_val in rows:
+            latest_status[tc_id] = status_val.value if hasattr(status_val, "value") else str(status_val)
 
     # 5) 該專案所有 defect
     defects = (await db.execute(

@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import asc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.common import Pagination
 from app.database import get_db
 from app.models.wbs_item import WbsItem, WbsStatus
 from app.schemas.wbs_item import WbsItemCreate, WbsItemResponse, WbsItemUpdate
@@ -35,6 +36,7 @@ def _resolve_status(val, default):
 async def list_wbs(
     project_id: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
+    page: Pagination = Depends(Pagination.from_query),
     db: AsyncSession = Depends(get_db),
 ):
     """整批回傳 — 前端依 parent_id 自行組樹。"""
@@ -43,6 +45,7 @@ async def list_wbs(
         stmt = stmt.where(WbsItem.project_id == project_id)
     if status:
         stmt = stmt.where(WbsItem.status == WbsStatus(status))
+    stmt = page.apply(stmt)
     rows = (await db.execute(stmt)).scalars().all()
     return list(rows)
 

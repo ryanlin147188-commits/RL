@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import asc, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.common import Pagination
 from app.database import get_db
 from app.models.todo_item import TodoItem, TodoPriority, TodoStatus
 from app.schemas.settings import (
@@ -78,6 +79,7 @@ async def list_todos(
         None,
         description="overdue / due_soon (≤3 天) / upcoming / done。覆蓋 status 過濾。",
     ),
+    page: Pagination = Depends(Pagination.from_query),
     db: AsyncSession = Depends(get_db),
 ):
     stmt = select(TodoItem).order_by(asc(TodoItem.due_date), desc(TodoItem.created_at))
@@ -87,6 +89,7 @@ async def list_todos(
         stmt = stmt.where(TodoItem.assignee == assignee)
     if status:
         stmt = stmt.where(TodoItem.status == TodoStatus(status))
+    stmt = page.apply(stmt)
     rows = (await db.execute(stmt)).scalars().all()
     enriched = [_enrich(t) for t in rows]
 

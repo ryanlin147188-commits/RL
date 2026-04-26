@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.common import Pagination
 from app.database import get_db
 from app.models.test_plan import TestPlan, TestPlanStatus
 from app.schemas.test_plan import TestPlanCreate, TestPlanResponse, TestPlanUpdate
@@ -36,6 +37,7 @@ def _resolve_status(val, default):
 async def list_plans(
     project_id: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
+    page: Pagination = Depends(Pagination.from_query),
     db: AsyncSession = Depends(get_db),
 ):
     stmt = select(TestPlan).order_by(desc(TestPlan.created_at))
@@ -43,6 +45,7 @@ async def list_plans(
         stmt = stmt.where(TestPlan.project_id == project_id)
     if status:
         stmt = stmt.where(TestPlan.status == TestPlanStatus(status))
+    stmt = page.apply(stmt)
     rows = (await db.execute(stmt)).scalars().all()
     return list(rows)
 

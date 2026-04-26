@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.common import Pagination
 from app.database import get_db
 from app.models.test_data_set import DataSetCategory, TestDataSet
 from app.schemas.test_data_set import (
@@ -39,6 +40,7 @@ def _resolve_category(val, default):
 async def list_data_sets(
     project_id: Optional[str] = Query(None),
     category: Optional[str] = Query(None),
+    page: Pagination = Depends(Pagination.from_query),
     db: AsyncSession = Depends(get_db),
 ):
     stmt = select(TestDataSet).order_by(desc(TestDataSet.created_at))
@@ -46,6 +48,7 @@ async def list_data_sets(
         stmt = stmt.where(TestDataSet.project_id == project_id)
     if category:
         stmt = stmt.where(TestDataSet.category == DataSetCategory(category))
+    stmt = page.apply(stmt)
     rows = (await db.execute(stmt)).scalars().all()
     return list(rows)
 
