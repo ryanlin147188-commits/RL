@@ -26,6 +26,7 @@ _PUBLIC_PATTERNS: list[re.Pattern] = [
     re.compile(r"^/openapi\.json$"),
     re.compile(r"^/api/auth/login$"),
     re.compile(r"^/api/auth/refresh$"),
+    re.compile(r"^/api/auth/register$"),
     # OIDC SSO：登入流程整段都不需要既有 token
     re.compile(r"^/api/auth/oidc/providers$"),
     re.compile(r"^/api/auth/oidc/login(/|$)"),

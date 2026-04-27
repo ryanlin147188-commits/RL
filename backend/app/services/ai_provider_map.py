@@ -82,9 +82,16 @@ def resolve(provider_name: str, base_url_override: Optional[str] = None) -> Prov
     return spec
 
 
-def known_providers() -> list[str]:
-    """前端 datalist 提示用的常見名字(顯示用駝峰命名)。"""
+def known_providers() -> list[dict]:
+    """前端下拉用的 4 家固定 provider:GPT / Claude / Gemini / 本地。
+
+    `value` 是後端 _PROVIDERS dict 的 key(會用來解析 base_url 與 API 風格);
+    `label` 是 UI 顯示文字。其他舊 provider(DeepSeek/Groq/OpenRouter/...)
+    仍保留在 _PROVIDERS dict 中以相容既存資料,但不再讓使用者新建。
+    """
     return [
-        "OpenAI", "Anthropic", "DeepSeek", "Groq", "OpenRouter",
-        "Together", "Mistral", "xAI", "Google", "Ollama", "LM Studio",
+        {"value": "OpenAI",    "label": "GPT (OpenAI)"},
+        {"value": "Anthropic", "label": "Claude (Anthropic)"},
+        {"value": "Google",    "label": "Gemini (Google)"},
+        {"value": "Ollama",    "label": "本地 (Ollama / LM Studio)"},
     ]

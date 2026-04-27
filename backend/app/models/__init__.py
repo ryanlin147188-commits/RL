@@ -16,10 +16,12 @@ from .ai_token_config import AiProvider, AiTokenConfig
 from .audit_log import AuditLog
 from .db_config import DbConfig
 from .email_config import EmailConfig
+from .group import Group, GroupMembership
 from .mock_endpoint import MockEndpoint
 from .notification import Notification
 from .notification_preference import NotificationPreference
 from .oidc_provider import OidcProvider
+from .org_invite import OrgInvite
 from .organization import Organization
 from .role import Role
 from .user import User
@@ -61,9 +63,11 @@ __all__ = [
     "TodoLink", "ALLOWED_TARGET_TYPES",
     "User",
     # Multi-tenancy + audit
-    "Organization", "AuditLog",
+    "Organization", "AuditLog", "OrgInvite",
     # SSO / OIDC
     "OidcProvider",
     # Mock + DB connection persistence (取代 localStorage)
     "MockEndpoint", "DbConfig",
+    # Groups (團隊群組,可巢狀,可作為 todo assignee)
+    "Group", "GroupMembership",
 ]

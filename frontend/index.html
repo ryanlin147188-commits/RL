@@ -553,6 +553,12 @@
                         </button>
                     </div>
                 </div>
+                <div>
+                    <label for="regInviteToken" class="block text-xs font-semibold text-stone-600 mb-1.5">邀請碼 <span class="text-stone-400 font-normal">(若沒有,系統會用 Email 後綴自動歸屬)</span></label>
+                    <input type="text" id="regInviteToken" autocomplete="off" placeholder="貼上管理員給你的邀請碼"
+                        class="w-full px-3 py-2.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition font-mono">
+                    <p class="text-[10px] text-stone-500 mt-1">沒有邀請碼且 Email 後綴沒被任何組織註冊 → 註冊會被拒絕</p>
+                </div>
                 <button type="submit" class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-lg font-semibold text-sm shadow-md transition flex items-center justify-center gap-2">
                     <i class="fa-solid fa-user-plus"></i> 建立帳號
                 </button>
@@ -851,7 +857,13 @@
                             <option value="P3">P3 (低)</option>
                         </select>
                     </div>
-                    <div><label for="todoAssignee" class="block text-xs font-semibold text-stone-600 mb-1">負責人</label><input type="text" id="todoAssignee" aria-label="負責人" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                    <div>
+                        <label for="todoAssignee" class="block text-xs font-semibold text-stone-600 mb-1">負責人</label>
+                        <select id="todoAssignee" aria-label="負責人" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
+                            <option value="">— 不指派 —</option>
+                        </select>
+                        <input type="hidden" id="todoAssigneeType" value="user">
+                    </div>
                 </div>
                 <div>
                     <label for="todoSprint" class="block text-xs font-semibold text-stone-600 mb-1">Sprint(留空 = Backlog)</label>
@@ -2699,6 +2711,8 @@ driver.swipe(100, 800, 100, 200, 500)"
                         <button id="setTabNotif"    onclick="settingsSwitchTab('notif')"    class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-bell"></i> <span data-i18n="settings.tab.notif">通知設定</span></button>
                         <button id="setTabEmail"    onclick="settingsSwitchTab('email')"    class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-envelope"></i> <span data-i18n="settings.tab.email">電子郵件</span></button>
                         <button id="setTabAi"       onclick="settingsSwitchTab('ai')"       class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-robot"></i> <span data-i18n="settings.tab.ai">AI Token</span></button>
+                        <button id="setTabGroups"   onclick="settingsSwitchTab('groups')"   class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-people-group"></i> <span data-i18n="settings.tab.groups">群組</span></button>
+                        <button id="setTabInvites"  onclick="settingsSwitchTab('invites')"  class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-envelope-open-text"></i> <span data-i18n="settings.tab.invites">邀請</span></button>
                     </div>
 
                     <!-- ─── Pane 1: 使用者設定（保留原本內容） ─── -->
@@ -2950,6 +2964,100 @@ driver.swipe(100, 800, 100, 200, 500)"
                         </section>
                     </div>
 
+                    <!-- ─── Pane 8: 邀請 + Email Domain 自動歸屬 ─── -->
+                    <div id="setPaneInvites" class="hidden space-y-4">
+                        <!-- Email Domain 自動歸屬:本 org 的 email 後綴白名單 -->
+                        <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-4">
+                            <h3 class="font-bold text-stone-700 text-base flex items-center gap-2 mb-2"><i class="fa-solid fa-at text-amber-500"></i> Email Domain 自動歸屬</h3>
+                            <p class="text-xs text-stone-500 mb-3">註冊時若 Email 後綴(例:<code class="bg-stone-100 px-1 rounded">@acme.com</code>)在這份清單裡,新使用者會自動加入本組織。多個 domain 用逗號分隔。</p>
+                            <div class="flex items-center gap-2">
+                                <input type="text" id="orgEmailDomains" placeholder="acme.com, acme.io, sub.example.org"
+                                    class="flex-1 px-3 py-2 border border-stone-300 rounded-md text-sm font-mono">
+                                <button onclick="saveOrgEmailDomains()" class="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded text-xs font-semibold whitespace-nowrap"><i class="fa-solid fa-floppy-disk"></i> 儲存</button>
+                            </div>
+                            <p id="orgEmailDomainsHint" class="text-[10px] text-stone-400 mt-1">—</p>
+                        </section>
+                        <!-- 邀請碼列表 -->
+                        <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-4">
+                            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                                <h3 class="font-bold text-stone-700 text-base flex items-center gap-2"><i class="fa-solid fa-envelope-open-text text-amber-500"></i> 邀請碼</h3>
+                                <div class="flex items-center gap-2">
+                                    <button onclick="renderInvitesView()" class="text-xs px-2.5 py-1.5 border border-stone-300 rounded hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
+                                    <button onclick="openInviteModal()" class="text-xs px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold"><i class="fa-solid fa-plus"></i> 產生邀請碼</button>
+                                </div>
+                            </div>
+                            <p class="text-xs text-stone-500 mb-3">每個邀請碼單次使用;有效期內若還沒被人 redeem,可隨時撤銷。可指定 Email(限該 Email 才能用)、起始角色、起始群組。</p>
+                            <div class="overflow-x-auto border border-stone-100 rounded-md">
+                                <table class="w-full text-sm">
+                                    <thead class="bg-amber-50/60 text-stone-600 text-xs uppercase">
+                                        <tr><th class="p-3 text-left w-32">狀態</th><th class="p-3 text-left">Email / 備註</th><th class="p-3 w-32">角色</th><th class="p-3 w-32">起始群組</th><th class="p-3 w-32">過期</th><th class="p-3 w-32 text-center">操作</th></tr>
+                                    </thead>
+                                    <tbody id="invitesListBody" class="divide-y divide-stone-100"></tbody>
+                                </table>
+                            </div>
+                        </section>
+                    </div>
+
+                    <!-- ─── Pane 7: 群組(團隊群組,可巢狀,可作為 todo 指派目標)─── -->
+                    <div id="setPaneGroups" class="hidden space-y-4">
+                        <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-4">
+                            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                                <h3 class="font-bold text-stone-700 text-base flex items-center gap-2"><i class="fa-solid fa-people-group text-amber-500"></i> 團隊群組</h3>
+                                <div class="flex items-center gap-2">
+                                    <button onclick="renderGroupsView()" class="text-xs px-2.5 py-1.5 border border-stone-300 rounded hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
+                                    <button onclick="openGroupModal()" class="text-xs px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold"><i class="fa-solid fa-plus"></i> 新增群組</button>
+                                </div>
+                            </div>
+                            <p class="text-xs text-stone-500 mb-3">群組 ≠ 角色;角色管權限,群組管成員集合。同 org 內可巢狀(子群組會繼承父群組的指派通知)。建立群組後可從待辦的「負責人」下拉選擇,通知會 fan-out 給所有成員。</p>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <!-- 左欄:群組樹 -->
+                                <div class="border border-stone-200 rounded-md bg-stone-50/40 p-3 space-y-1 max-h-[60vh] overflow-y-auto">
+                                    <div class="text-[11px] font-semibold text-stone-500 mb-2">群組(共 <span id="groupsListCount">0</span>)</div>
+                                    <div id="groupsTree" class="space-y-1">
+                                        <div class="text-xs text-stone-400 p-3 text-center">載入中…</div>
+                                    </div>
+                                </div>
+                                <!-- 右欄(2/3 寬):選中群組詳細 -->
+                                <div class="md:col-span-2 border border-stone-200 rounded-md bg-white p-4">
+                                    <div id="groupDetailEmpty" class="text-sm text-stone-400 p-8 text-center">
+                                        <i class="fa-solid fa-hand-pointer text-2xl mb-2 block"></i>
+                                        從左側選一個群組來檢視 / 編輯成員
+                                    </div>
+                                    <div id="groupDetail" class="hidden space-y-3">
+                                        <div class="flex items-start justify-between gap-2 pb-3 border-b border-stone-200">
+                                            <div class="flex-1">
+                                                <h4 class="font-bold text-stone-800 text-sm flex items-center gap-2"><i class="fa-solid fa-users text-amber-500"></i> <span id="groupDetailName">—</span></h4>
+                                                <div class="text-[11px] text-stone-500 mt-0.5"><span id="groupDetailType">—</span> · <span id="groupDetailParent">—</span></div>
+                                                <div id="groupDetailDesc" class="text-xs text-stone-600 mt-1"></div>
+                                            </div>
+                                            <div class="flex flex-col gap-1">
+                                                <button onclick="editCurrentGroup()" class="text-[11px] px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded"><i class="fa-solid fa-pen"></i> 編輯</button>
+                                                <button onclick="deleteCurrentGroup()" class="text-[11px] px-2 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded"><i class="fa-solid fa-trash"></i> 刪除</button>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div class="flex items-center justify-between mb-2">
+                                                <h5 class="font-semibold text-stone-700 text-xs">成員(共 <span id="groupMembersCount">0</span>)</h5>
+                                            </div>
+                                            <div id="groupMembersList" class="space-y-1.5 mb-3"></div>
+                                            <div class="flex items-center gap-2 pt-2 border-t border-stone-200">
+                                                <select id="groupAddMemberSelect" aria-label="新增成員" class="flex-1 px-2 py-1.5 border border-stone-300 rounded text-xs bg-white">
+                                                    <option value="">— 選擇使用者 —</option>
+                                                </select>
+                                                <select id="groupAddMemberRole" aria-label="角色" class="px-2 py-1.5 border border-stone-300 rounded text-xs bg-white">
+                                                    <option value="member">成員</option>
+                                                    <option value="admin">管理員</option>
+                                                    <option value="owner">擁有者</option>
+                                                </select>
+                                                <button onclick="addGroupMember()" class="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded text-xs font-medium"><i class="fa-solid fa-plus"></i> 加入</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+
                     <!-- ─── Pane 6: AI Token ─── -->
                     <div id="setPaneAi" class="hidden space-y-4">
                         <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-4">
@@ -2960,7 +3068,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                                     <button onclick="openAiTokenModal()" class="text-xs px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold"><i class="fa-solid fa-plus"></i> 新增 Token</button>
                                 </div>
                             </div>
-                            <p class="text-xs text-stone-500 mb-3">填 <b>AI 公司名稱</b>(OpenAI / Anthropic / DeepSeek / Groq / OpenRouter / Ollama / 任何 OpenAI-compatible)+ <b>API key</b>,按「拉模型清單」即可選用該公司提供的模型。同 provider 內可多個 Token,但只能一個是預設。</p>
+                            <p class="text-xs text-stone-500 mb-3">選 <b>AI 公司</b>(GPT / Claude / Gemini / 本地)+ <b>API key</b>,按「拉模型清單」即可選用該公司提供的模型。同 provider 內可多個 Token,但只能一個是預設。</p>
                             <div class="overflow-hidden border border-stone-100 rounded-md">
                                 <table class="w-full text-sm">
                                     <thead class="bg-amber-50/60 text-stone-600 text-xs uppercase">
@@ -3004,25 +3112,16 @@ driver.swipe(100, 800, 100, 200, 500)"
                         <div class="grid grid-cols-2 gap-3">
                             <div><label for="aiTokName" class="block text-xs font-semibold text-stone-600 mb-1">名稱 *</label><input type="text" id="aiTokName" aria-label="名稱" required placeholder="例:dev-gpt4-mini" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
                             <div>
-                                <label for="aiTokProvider" class="block text-xs font-semibold text-stone-600 mb-1">AI 公司名稱 *</label>
+                                <label for="aiTokProvider" class="block text-xs font-semibold text-stone-600 mb-1">AI 公司 *</label>
                                 <select id="aiTokProvider" required onchange="aiTokenOnProviderChange()" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
-                                    <option value="OpenAI">OpenAI</option>
-                                    <option value="Anthropic">Anthropic</option>
-                                    <option value="DeepSeek">DeepSeek</option>
-                                    <option value="Groq">Groq</option>
-                                    <option value="OpenRouter">OpenRouter</option>
-                                    <option value="Together">Together AI</option>
-                                    <option value="Mistral">Mistral</option>
-                                    <option value="xAI">xAI (Grok)</option>
-                                    <option value="Google">Google (Gemini)</option>
-                                    <option value="Ollama">Ollama (本地)</option>
-                                    <option value="LM Studio">LM Studio (本地)</option>
-                                    <option value="__custom__">— 自訂(自架 OpenAI-compatible)—</option>
+                                    <option value="OpenAI">GPT (OpenAI)</option>
+                                    <option value="Anthropic">Claude (Anthropic)</option>
+                                    <option value="Google">Gemini (Google)</option>
+                                    <option value="Ollama">本地 (Ollama / LM Studio)</option>
                                 </select>
-                                <input type="text" id="aiTokProviderCustom" placeholder="自訂公司名稱" class="hidden mt-1.5 w-full px-3 py-2 border border-stone-300 rounded-md text-sm">
                             </div>
                         </div>
-                        <div><label for="aiTokKey" class="block text-xs font-semibold text-stone-600 mb-1">API Key</label><input type="password" id="aiTokKey" aria-label="API Key" autocomplete="new-password" placeholder="sk-... / sk-ant-... (本地 Ollama 可留空)" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm font-mono"></div>
+                        <div><label for="aiTokKey" class="block text-xs font-semibold text-stone-600 mb-1">API Key</label><input type="password" id="aiTokKey" aria-label="API Key" autocomplete="new-password" placeholder="sk-... / sk-ant-... / AIza... (本地可留空)" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm font-mono"></div>
                         <div>
                             <div class="flex items-center justify-between mb-1">
                                 <label for="aiTokModel" class="block text-xs font-semibold text-stone-600">AI 名稱(模型)*</label>
@@ -3056,6 +3155,131 @@ driver.swipe(100, 800, 100, 200, 500)"
                         </div>
                         <div class="flex justify-end gap-2 pt-2"><button type="button" onclick="closeAiTokenModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button><button type="submit" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button></div>
                     </form>
+                </div>
+            </div>
+
+            <!-- 群組 Modal(新增 / 編輯) -->
+            <div id="groupModal" class="hidden fixed inset-0 z-[150] bg-black/40 flex items-center justify-center p-4">
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-xl border border-amber-200 max-h-[92vh] overflow-y-auto">
+                    <div class="px-6 py-4 border-b border-stone-200 bg-amber-50/60 flex items-center justify-between">
+                        <h3 id="groupModalTitle" class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-people-group text-amber-500"></i> 新增群組</h3>
+                        <button type="button" onclick="closeGroupModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <form onsubmit="return groupSubmit(event)" class="p-6 space-y-3">
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label for="groupName" class="block text-xs font-semibold text-stone-600 mb-1">群組名稱 *</label>
+                                <input type="text" id="groupName" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm">
+                            </div>
+                            <div>
+                                <label for="groupType" class="block text-xs font-semibold text-stone-600 mb-1">類型</label>
+                                <select id="groupType" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
+                                    <option value="team">team(團隊)</option>
+                                    <option value="squad">squad(小組)</option>
+                                    <option value="dept">dept(部門)</option>
+                                    <option value="project">project(專案)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label for="groupParent" class="block text-xs font-semibold text-stone-600 mb-1">父群組(留空 = 頂層)</label>
+                            <select id="groupParent" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
+                                <option value="">— 無 (頂層) —</option>
+                            </select>
+                            <p class="text-[10px] text-stone-400 mt-0.5">巢狀群組:子群組成員會在父群組被指派時也收到通知</p>
+                        </div>
+                        <div>
+                            <label for="groupDesc" class="block text-xs font-semibold text-stone-600 mb-1">說明</label>
+                            <textarea id="groupDesc" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea>
+                        </div>
+                        <div id="groupInitialMembersBox">
+                            <label class="block text-xs font-semibold text-stone-600 mb-1">起始成員(可多選;建立者自動是 owner)</label>
+                            <select id="groupInitialMembers" multiple size="6" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"></select>
+                        </div>
+                        <div class="flex justify-end gap-2 pt-2">
+                            <button type="button" onclick="closeGroupModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button>
+                            <button type="submit" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- 邀請碼 Modal(產生新邀請) -->
+            <div id="inviteModal" class="hidden fixed inset-0 z-[150] bg-black/40 flex items-center justify-center p-4">
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg border border-amber-200 max-h-[92vh] overflow-y-auto">
+                    <div class="px-6 py-4 border-b border-stone-200 bg-amber-50/60 flex items-center justify-between">
+                        <h3 class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-envelope-open-text text-amber-500"></i> 產生邀請碼</h3>
+                        <button type="button" onclick="closeInviteModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <form onsubmit="return inviteSubmit(event)" class="p-6 space-y-3">
+                        <div>
+                            <label for="inviteEmail" class="block text-xs font-semibold text-stone-600 mb-1">限定 Email <span class="text-stone-400 font-normal">(留空 = 任何 Email)</span></label>
+                            <input type="email" id="inviteEmail" placeholder="alice@acme.com"
+                                class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm">
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label for="inviteRole" class="block text-xs font-semibold text-stone-600 mb-1">起始角色</label>
+                                <select id="inviteRole" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
+                                    <option value="">— 預設(Viewer)—</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="inviteGroup" class="block text-xs font-semibold text-stone-600 mb-1">起始群組</label>
+                                <select id="inviteGroup" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
+                                    <option value="">— 不加入群組 —</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label for="inviteExpires" class="block text-xs font-semibold text-stone-600 mb-1">有效天數</label>
+                            <input type="number" id="inviteExpires" value="7" min="1" max="365"
+                                class="w-32 px-3 py-2 border border-stone-300 rounded-md text-sm">
+                        </div>
+                        <div>
+                            <label for="inviteNote" class="block text-xs font-semibold text-stone-600 mb-1">備註</label>
+                            <input type="text" id="inviteNote" placeholder="例:給 QA 新人 Alice"
+                                class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm">
+                        </div>
+                        <div class="flex justify-end gap-2 pt-2">
+                            <button type="button" onclick="closeInviteModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button>
+                            <button type="submit" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-key"></i> 產生</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- 邀請碼產生後 — 展示給管理者複製 -->
+            <div id="inviteShowModal" class="hidden fixed inset-0 z-[160] bg-black/40 flex items-center justify-center p-4">
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg border border-emerald-200 overflow-hidden">
+                    <div class="px-6 py-4 border-b border-stone-200 bg-emerald-50/60 flex items-center justify-between">
+                        <h3 class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-circle-check text-emerald-500"></i> 邀請碼已產生</h3>
+                        <button type="button" onclick="closeInviteShowModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <div class="p-6 space-y-3">
+                        <p class="text-xs text-stone-600">把下列邀請碼或連結複製給對方,他們在註冊頁的「邀請碼」欄位貼上即可加入本組織。</p>
+                        <div>
+                            <label class="block text-xs font-semibold text-stone-600 mb-1">邀請碼</label>
+                            <div class="flex items-center gap-2">
+                                <input id="inviteShowToken" type="text" readonly class="flex-1 px-3 py-2 border border-stone-300 rounded-md text-sm font-mono bg-stone-50">
+                                <button onclick="_copyText(document.getElementById('inviteShowToken').value)" class="px-3 py-2 border border-stone-300 rounded-md text-xs hover:bg-amber-50"><i class="fa-solid fa-copy"></i> 複製</button>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-stone-600 mb-1">註冊連結(預設帶入邀請碼)</label>
+                            <div class="flex items-center gap-2">
+                                <input id="inviteShowLink" type="text" readonly class="flex-1 px-3 py-2 border border-stone-300 rounded-md text-sm font-mono bg-stone-50">
+                                <button onclick="_copyText(document.getElementById('inviteShowLink').value)" class="px-3 py-2 border border-stone-300 rounded-md text-xs hover:bg-amber-50"><i class="fa-solid fa-copy"></i> 複製</button>
+                            </div>
+                        </div>
+                        <div class="text-[11px] text-stone-500 bg-amber-50 border border-amber-200 rounded p-2 flex items-start gap-2">
+                            <i class="fa-solid fa-triangle-exclamation text-amber-500 mt-0.5"></i>
+                            <span>邀請碼只能單次使用。請妥善保存(關閉視窗後無法再次取得;但可在邀請列表看到 token)。</span>
+                        </div>
+                        <div class="flex justify-end pt-2">
+                            <button onclick="closeInviteShowModal()" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold">完成</button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -6733,6 +6957,8 @@ driver.swipe(100, 800, 100, 200, 500)"
             'view.reports.title': { 'zh-TW': '自動化測試執行報告', 'en': 'Test Reports' },
             'view.defects.title': { 'zh-TW': '缺陷管理', 'en': 'Defect Management' },
             'settings.tab.perms': { 'zh-TW': '權限管理', 'en': 'Permissions' },
+            'settings.tab.groups': { 'zh-TW': '群組', 'en': 'Groups' },
+            'settings.tab.invites': { 'zh-TW': '邀請', 'en': 'Invites' },
             'settings.tab.roles': { 'zh-TW': '角色管理', 'en': 'Roles' },
             'settings.tab.notif': { 'zh-TW': '通知設定', 'en': 'Notifications' },
             'settings.tab.email': { 'zh-TW': '電子郵件', 'en': 'Email' },
@@ -6935,7 +7161,7 @@ driver.swipe(100, 800, 100, 200, 500)"
         'http://&lt;這台&gt;/api/auth/oidc/callback': 'http://&lt;this-host&gt;/api/auth/oidc/callback',
         'macOS / Linux bash 一鍵錄製加上傳指令': 'macOS / Linux bash one-click record & upload',
         'macOS / Ubuntu / Linux (bash / zsh) — 一鍵指令': 'macOS / Ubuntu / Linux (bash / zsh) — one-click',
-        'sk-... / sk-ant-... / AIza... (Local 可留空)': 'sk-… / sk-ant-… / AIza… (Local can be empty)',
+        'sk-... / sk-ant-... / AIza... (本地可留空)': 'sk-… / sk-ant-… / AIza… (Local can be empty)',
         'slug *（小寫英數底線連字號；建立後不可更改）': 'slug * (lowercase alnum/_/-, immutable after creation)',
         'utf8mb4 或 require / disable': 'utf8mb4 or require / disable',
         '— 請選擇 —': '— Please select —',
@@ -8875,6 +9101,19 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('authOverlay').classList.remove('hidden');
             // 把 enabled SSO providers 拉下來畫成按鈕（沒有就保持隱藏）
             try { if (typeof loadSsoButtons === 'function') loadSsoButtons(); } catch (_) {}
+            // URL 帶 ?invite=XXX 或 #register → 自動切到註冊頁並帶入邀請碼
+            try {
+                const params = new URLSearchParams(window.location.search);
+                const invite = params.get('invite');
+                const wantRegister = invite || (window.location.hash || '').toLowerCase() === '#register';
+                if (wantRegister) {
+                    switchAuthTab('register');
+                    if (invite) {
+                        const tk = document.getElementById('regInviteToken');
+                        if (tk) tk.value = invite;
+                    }
+                }
+            } catch (_) {}
         }
         function authHideOverlay() {
             document.getElementById('authOverlay').classList.add('hidden');
@@ -8946,22 +9185,64 @@ driver.swipe(100, 800, 100, 200, 500)"
             return false;
         }
 
-        function authHandleRegister(ev) {
+        async function authHandleRegister(ev) {
             ev.preventDefault();
             const uname = document.getElementById('regUsername').value.trim();
             const email = document.getElementById('regEmail').value.trim();
             const pwd = document.getElementById('regPassword').value;
             const pwd2 = document.getElementById('regPassword2').value;
+            const inviteToken = (document.getElementById('regInviteToken')?.value || '').trim();
             if (!/^[A-Za-z0-9_]{3,32}$/.test(uname)) {
-                showToast('使用者名稱格式不符（3-32 字元，英數底線）', 'error');
+                showToast('使用者名稱格式不符(3-32 字元,英數底線)', 'error');
                 return false;
             }
             if (pwd !== pwd2) {
                 showToast('兩次密碼輸入不一致', 'error');
                 return false;
             }
-            // 後端模式：自助註冊已關閉，請管理員透過「設定 → 使用者」建立帳號
-            showToast('自助註冊已關閉；請聯絡系統管理員建立帳號', 'error');
+            if (!inviteToken && !email) {
+                showToast('請填邀請碼或 Email(由 Email 後綴自動歸屬到對應組織)', 'error');
+                return false;
+            }
+            try {
+                const r = await window.fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        username: uname,
+                        password: pwd,
+                        email: email || null,
+                        invite_token: inviteToken || null,
+                    }),
+                });
+                if (!r.ok) {
+                    const detail = (await r.json().catch(() => ({}))).detail || '註冊失敗';
+                    showToast(detail, 'error');
+                    return false;
+                }
+                const data = await r.json();
+                authSetTokens(data.access_token, data.refresh_token, data.expires_in);
+                let me = { username: uname, display_name: uname, email };
+                try {
+                    const meRes = await window.fetch('/api/auth/me');
+                    if (meRes.ok) me = await meRes.json();
+                } catch (_) {}
+                const now = new Date().toISOString();
+                _authWriteSession({
+                    username: me.username || uname,
+                    displayName: me.display_name || uname,
+                    email: me.email || email,
+                    loginAt: now,
+                    loginCount: 1,
+                });
+                showToast(`註冊成功!歡迎 ${me.display_name || uname}`, 'success');
+                authHideOverlay();
+                renderExecutionModeButton();
+                updateUserMenuUI();
+                initProjects().then(() => { try { showHomeView(); } catch (_) {} }).catch(() => {});
+            } catch (e) {
+                showToast('註冊失敗:' + (e.message || e), 'error');
+            }
             return false;
         }
 
@@ -14696,7 +14977,7 @@ gantt
         }
 
         // ─── 設定（Settings）── 9 個 tab
-        const _SETTINGS_TABS = ['user','perms','roles','notif','email','ai'];
+        const _SETTINGS_TABS = ['user','perms','roles','notif','email','ai','groups','invites'];
         const _SETTINGS_TAB_BTN_ON  = 'px-3 py-1.5 text-sm font-medium rounded text-amber-700 bg-amber-50 border border-amber-300';
         const _SETTINGS_TAB_BTN_OFF = 'px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50';
         function settingsSwitchTab(name) {
@@ -14718,6 +14999,8 @@ gantt
             else if (name === 'notif') loadNotificationPrefs();
             else if (name === 'email') loadEmailConfig();
             else if (name === 'ai') renderAiTokensList();
+            else if (name === 'groups') renderGroupsView();
+            else if (name === 'invites') renderInvitesView();
         }
 
         // ─── 權限清單（唯讀） ─────────────────────────────────────────
@@ -14940,18 +15223,8 @@ gantt
         let _editingAiTokenId = null;
         let _aiTokenModelsCache = [];   // [{id, name, supports_reasoning_effort, ...}] 來自最後一次 fetch-models
 
-        // 切公司:選「自訂」就顯示輸入框,清模型清單
+        // 切公司 → 清模型清單(舊資料相容用的隱藏 option 也一併清掉)
         function aiTokenOnProviderChange() {
-            const sel = document.getElementById('aiTokProvider');
-            const customInp = document.getElementById('aiTokProviderCustom');
-            if (sel.value === '__custom__') {
-                customInp.classList.remove('hidden');
-                customInp.focus();
-            } else {
-                customInp.classList.add('hidden');
-                customInp.value = '';
-            }
-            // 切公司一定要重抓模型清單
             const modelSel = document.getElementById('aiTokModel');
             modelSel.innerHTML = '<option value="">— 請按「拉模型清單」 —</option>';
             document.getElementById('aiTokModelsHint').textContent = '尚未拉取模型清單';
@@ -14959,11 +15232,9 @@ gantt
             aiTokenOnModelChange();
         }
 
-        // 取「目前實際使用」的 provider 字串(下拉值,自訂 → 取輸入框)
+        // 取目前下拉的 provider 值;固定 4 家:OpenAI / Anthropic / Google / Ollama
         function _aiTokenProviderName() {
-            const v = document.getElementById('aiTokProvider').value;
-            if (v === '__custom__') return document.getElementById('aiTokProviderCustom').value.trim();
-            return v;
+            return document.getElementById('aiTokProvider').value;
         }
 
         // 模型變動 → 依 supports_reasoning_effort 啟用 / 停用思考程度
@@ -15003,6 +15274,433 @@ gantt
             }
         }
 
+        // ═══════════════════════════════════════════════════════════════
+        // 團隊群組(設定頁第 7 個 tab)
+        // ═══════════════════════════════════════════════════════════════
+        let _groupsCache = [];           // 全部群組(平面 list)
+        let _selectedGroupId = null;
+        let _editingGroupId = null;
+
+        async function renderGroupsView() {
+            const tree = document.getElementById('groupsTree');
+            const cnt = document.getElementById('groupsListCount');
+            if (!tree) return;
+            tree.innerHTML = '<div class="text-xs text-stone-400 p-3 text-center">載入中…</div>';
+            try {
+                const r = await fetch('/api/settings/groups');
+                if (!r.ok) throw new Error('HTTP '+r.status);
+                _groupsCache = await r.json();
+                if (cnt) cnt.textContent = _groupsCache.length;
+                _renderGroupTree();
+                // 維持選中(若該群組還在)
+                if (_selectedGroupId && _groupsCache.some(g => g.id === _selectedGroupId)) {
+                    selectGroup(_selectedGroupId);
+                } else {
+                    document.getElementById('groupDetail').classList.add('hidden');
+                    document.getElementById('groupDetailEmpty').classList.remove('hidden');
+                    _selectedGroupId = null;
+                }
+            } catch (e) {
+                tree.innerHTML = `<div class="text-xs text-red-500 p-3 text-center">載入失敗:${_esc(e.message)}</div>`;
+            }
+        }
+
+        function _renderGroupTree() {
+            const tree = document.getElementById('groupsTree');
+            if (!tree) return;
+            if (!_groupsCache.length) {
+                tree.innerHTML = '<div class="text-xs text-stone-400 p-3 text-center">尚無群組</div>';
+                return;
+            }
+            // 建 id→item map + children index
+            const byId = Object.fromEntries(_groupsCache.map(g => [g.id, { ...g, children: [] }]));
+            Object.values(byId).forEach(g => {
+                if (g.parent_id && byId[g.parent_id]) byId[g.parent_id].children.push(g);
+            });
+            const roots = Object.values(byId).filter(g => !g.parent_id || !byId[g.parent_id]);
+
+            const renderNode = (g, depth) => {
+                const isSelected = g.id === _selectedGroupId;
+                const padLeft = 8 + depth * 16;
+                const typeBadge = `<span class="text-[9px] px-1 py-0.5 rounded bg-stone-100 text-stone-500 ml-1">${_esc(g.group_type || 'team')}</span>`;
+                const html = `<div class="cursor-pointer rounded ${isSelected ? 'bg-amber-100 text-amber-800' : 'hover:bg-stone-100'}"
+                    style="padding:6px 8px 6px ${padLeft}px"
+                    onclick="selectGroup('${_esc(g.id)}')">
+                    <i class="fa-solid fa-folder-tree text-[10px] text-stone-400 mr-1"></i>
+                    <span class="text-xs font-medium">${_esc(g.name)}</span>
+                    ${typeBadge}
+                    <span class="text-[10px] text-stone-400 ml-1">(${g.member_count || 0})</span>
+                </div>`;
+                return html + g.children.map(c => renderNode(c, depth + 1)).join('');
+            };
+            tree.innerHTML = roots.map(g => renderNode(g, 0)).join('');
+        }
+
+        async function selectGroup(id) {
+            _selectedGroupId = id;
+            const g = _groupsCache.find(x => x.id === id);
+            if (!g) return;
+            _renderGroupTree();
+            document.getElementById('groupDetailEmpty').classList.add('hidden');
+            document.getElementById('groupDetail').classList.remove('hidden');
+            document.getElementById('groupDetailName').textContent = g.name;
+            document.getElementById('groupDetailType').textContent = g.group_type || 'team';
+            const parent = g.parent_id ? _groupsCache.find(p => p.id === g.parent_id) : null;
+            document.getElementById('groupDetailParent').textContent = parent ? `父群組:${parent.name}` : '頂層';
+            document.getElementById('groupDetailDesc').textContent = g.description || '';
+            await _loadGroupMembers(id);
+        }
+
+        async function _loadGroupMembers(groupId) {
+            const list = document.getElementById('groupMembersList');
+            const cnt = document.getElementById('groupMembersCount');
+            const sel = document.getElementById('groupAddMemberSelect');
+            list.innerHTML = '<div class="text-xs text-stone-400 p-2 text-center">載入中…</div>';
+            try {
+                const r = await fetch(`/api/settings/groups/${encodeURIComponent(groupId)}/members`);
+                if (!r.ok) throw new Error('HTTP '+r.status);
+                const members = await r.json();
+                cnt.textContent = members.length;
+                if (!members.length) {
+                    list.innerHTML = '<div class="text-xs text-stone-400 p-2 text-center">尚無成員</div>';
+                } else {
+                    list.innerHTML = members.map(m => {
+                        const display = m.display_name ? `${_esc(m.display_name)} <span class="text-stone-400">(${_esc(m.username)})</span>` : _esc(m.username);
+                        const roleBadge = {
+                            owner: 'bg-rose-100 text-rose-700',
+                            admin: 'bg-blue-100 text-blue-700',
+                            member: 'bg-stone-100 text-stone-600',
+                        }[m.role_in_group] || 'bg-stone-100 text-stone-600';
+                        return `<div class="flex items-center gap-2 px-2 py-1.5 border border-stone-200 rounded text-xs">
+                            <i class="fa-solid fa-user text-stone-400"></i>
+                            <span class="flex-1">${display}</span>
+                            <span class="text-[10px] px-1.5 py-0.5 rounded ${roleBadge}">${_esc(m.role_in_group)}</span>
+                            <button onclick="removeGroupMember('${_esc(m.username)}')" class="text-rose-500 hover:text-rose-700" title="移除"><i class="fa-solid fa-xmark"></i></button>
+                        </div>`;
+                    }).join('');
+                }
+                // 新增成員下拉:filter 掉已是成員者
+                await _loadAssignableUsers();
+                const memberSet = new Set(members.map(m => m.username));
+                const opts = ['<option value="">— 選擇使用者 —</option>'];
+                (_assignableUsersCache || []).forEach(u => {
+                    if (memberSet.has(u.username)) return;
+                    const label = u.display_name ? `${_esc(u.display_name)} (${_esc(u.username)})` : _esc(u.username);
+                    opts.push(`<option value="${_esc(u.username)}">${label}</option>`);
+                });
+                sel.innerHTML = opts.join('');
+            } catch (e) {
+                list.innerHTML = `<div class="text-xs text-red-500 p-2">載入失敗:${_esc(e.message)}</div>`;
+            }
+        }
+
+        async function addGroupMember() {
+            if (!_selectedGroupId) return;
+            const username = document.getElementById('groupAddMemberSelect').value;
+            const role = document.getElementById('groupAddMemberRole').value;
+            if (!username) { showToast('請選使用者', 'error'); return; }
+            try {
+                const r = await fetch(`/api/settings/groups/${encodeURIComponent(_selectedGroupId)}/members`, {
+                    method: 'POST',
+                    headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({ usernames: [username], role_in_group: role }),
+                });
+                if (!r.ok && r.status !== 201) {
+                    const detail = (await r.json().catch(()=>({}))).detail || ('HTTP '+r.status);
+                    throw new Error(detail);
+                }
+                showToast('已加入', 'success');
+                await _loadGroupMembers(_selectedGroupId);
+                renderGroupsView();  // 更新左欄成員數
+            } catch (e) { showToast('加入失敗:'+e.message, 'error'); }
+        }
+
+        async function removeGroupMember(username) {
+            if (!_selectedGroupId) return;
+            if (!confirm(`確定把「${username}」移出群組?`)) return;
+            try {
+                const r = await fetch(`/api/settings/groups/${encodeURIComponent(_selectedGroupId)}/members/${encodeURIComponent(username)}`, { method: 'DELETE' });
+                if (!r.ok && r.status !== 204) throw new Error('HTTP '+r.status);
+                showToast('已移除', 'success');
+                await _loadGroupMembers(_selectedGroupId);
+                renderGroupsView();
+            } catch (e) { showToast('移除失敗:'+e.message, 'error'); }
+        }
+
+        async function openGroupModal(id) {
+            _editingGroupId = id || null;
+            const g = id ? _groupsCache.find(x => x.id === id) : null;
+            document.getElementById('groupModalTitle').innerHTML = g
+                ? `<i class="fa-solid fa-people-group text-amber-500"></i> 編輯群組 · ${_esc(g.name)}`
+                : '<i class="fa-solid fa-people-group text-amber-500"></i> 新增群組';
+            document.getElementById('groupName').value = g?.name || '';
+            document.getElementById('groupType').value = g?.group_type || 'team';
+            document.getElementById('groupDesc').value = g?.description || '';
+
+            // 父群組下拉:列所有 != 自己 + 非自己後代的群組
+            const parentSel = document.getElementById('groupParent');
+            const excluded = new Set();
+            if (g) {
+                excluded.add(g.id);
+                // 排除所有後代(避免循環)
+                const collect = (pid) => {
+                    _groupsCache.filter(c => c.parent_id === pid).forEach(c => {
+                        excluded.add(c.id);
+                        collect(c.id);
+                    });
+                };
+                collect(g.id);
+            }
+            parentSel.innerHTML = '<option value="">— 無 (頂層) —</option>' +
+                _groupsCache.filter(x => !excluded.has(x.id))
+                    .map(x => `<option value="${_esc(x.id)}">${_esc(x.name)}</option>`).join('');
+            parentSel.value = g?.parent_id || '';
+
+            // 起始成員只在新建時顯示
+            const initialBox = document.getElementById('groupInitialMembersBox');
+            if (g) {
+                initialBox.classList.add('hidden');
+            } else {
+                initialBox.classList.remove('hidden');
+                await _loadAssignableUsers();
+                const sel = document.getElementById('groupInitialMembers');
+                sel.innerHTML = (_assignableUsersCache || []).map(u => {
+                    const label = u.display_name ? `${_esc(u.display_name)} (${_esc(u.username)})` : _esc(u.username);
+                    return `<option value="${_esc(u.username)}">${label}</option>`;
+                }).join('');
+            }
+
+            document.getElementById('groupModal').classList.remove('hidden');
+        }
+        function closeGroupModal() { document.getElementById('groupModal').classList.add('hidden'); _editingGroupId = null; }
+
+        async function groupSubmit(ev) {
+            ev.preventDefault();
+            const name = document.getElementById('groupName').value.trim();
+            if (!name) { showToast('群組名稱必填', 'error'); return false; }
+            const payload = {
+                name,
+                group_type: document.getElementById('groupType').value || 'team',
+                parent_id: document.getElementById('groupParent').value || null,
+                description: document.getElementById('groupDesc').value.trim() || null,
+            };
+            if (!_editingGroupId) {
+                const sel = document.getElementById('groupInitialMembers');
+                payload.initial_members = Array.from(sel.selectedOptions).map(o => o.value);
+            }
+            try {
+                const url = _editingGroupId ? '/api/settings/groups/'+_editingGroupId : '/api/settings/groups';
+                const method = _editingGroupId ? 'PUT' : 'POST';
+                const r = await fetch(url, { method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+                if (!r.ok && r.status !== 201) {
+                    const detail = (await r.json().catch(()=>({}))).detail || ('HTTP '+r.status);
+                    throw new Error(detail);
+                }
+                const saved = await r.json();
+                showToast(_editingGroupId ? '已更新' : '已建立', 'success');
+                closeGroupModal();
+                _selectedGroupId = saved.id || _selectedGroupId;
+                await renderGroupsView();
+            } catch (e) { showToast('儲存失敗:'+e.message, 'error'); }
+            return false;
+        }
+
+        function editCurrentGroup() {
+            if (_selectedGroupId) openGroupModal(_selectedGroupId);
+        }
+        async function deleteCurrentGroup() {
+            if (!_selectedGroupId) return;
+            const g = _groupsCache.find(x => x.id === _selectedGroupId);
+            if (!g) return;
+            if (!confirm(`確定刪除群組「${g.name}」?(子群組會升頂、成員會被解除;不會刪除使用者)`)) return;
+            try {
+                const r = await fetch('/api/settings/groups/'+_selectedGroupId, { method: 'DELETE' });
+                if (!r.ok && r.status !== 204) throw new Error('HTTP '+r.status);
+                showToast('已刪除', 'success');
+                _selectedGroupId = null;
+                await renderGroupsView();
+            } catch (e) { showToast('刪除失敗:'+e.message, 'error'); }
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // 邀請 + Email Domain 自動歸屬(設定頁第 8 個 tab)
+        // ═══════════════════════════════════════════════════════════════
+        let _invitesCache = [];
+        let _currentOrgCache = null;  // 自己 org 的 OrgResponse(取 email_domains 用)
+
+        function _copyText(s) {
+            try {
+                navigator.clipboard.writeText(s);
+                showToast('已複製', 'success');
+            } catch (_) {
+                // fallback
+                const ta = document.createElement('textarea');
+                ta.value = s; document.body.appendChild(ta); ta.select();
+                try { document.execCommand('copy'); showToast('已複製', 'success'); } catch (e) { showToast('複製失敗', 'error'); }
+                document.body.removeChild(ta);
+            }
+        }
+
+        async function _loadCurrentOrg(force) {
+            if (!force && _currentOrgCache) return _currentOrgCache;
+            try {
+                const r = await fetch('/api/organizations/me');
+                if (!r.ok) throw new Error('HTTP '+r.status);
+                _currentOrgCache = await r.json();
+            } catch (_) {
+                _currentOrgCache = null;
+            }
+            return _currentOrgCache;
+        }
+
+        async function renderInvitesView() {
+            // 1) Email Domain 編輯區
+            const inp = document.getElementById('orgEmailDomains');
+            const hint = document.getElementById('orgEmailDomainsHint');
+            await _loadCurrentOrg(true);
+            if (_currentOrgCache) {
+                inp.value = _currentOrgCache.email_domains || '';
+                hint.textContent = `目前所屬組織:${_currentOrgCache.name}(${_currentOrgCache.slug})`;
+            } else {
+                inp.value = '';
+                hint.textContent = '⚠ 無法取得當前組織(可能需要 superuser 權限)';
+            }
+            // 2) 邀請列表
+            const tbody = document.getElementById('invitesListBody');
+            tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-stone-400">載入中…</td></tr>';
+            try {
+                const r = await fetch('/api/invites');
+                if (!r.ok) throw new Error('HTTP '+r.status);
+                _invitesCache = await r.json();
+                if (!_invitesCache.length) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-stone-400">尚無邀請碼</td></tr>';
+                    return;
+                }
+                // 角色 / 群組 名稱對應
+                const roleMap = Object.fromEntries((_rolesCache || []).map(r => [r.id, r.name]));
+                await _loadAssignableGroups();
+                const groupMap = Object.fromEntries((_assignableGroupsCache || []).map(g => [g.id, g.name]));
+                tbody.innerHTML = _invitesCache.map(inv => {
+                    let statusBadge;
+                    if (inv.is_used) statusBadge = '<span class="text-[10px] px-1.5 py-0.5 rounded bg-stone-200 text-stone-600">已使用</span>';
+                    else if (inv.is_expired) statusBadge = '<span class="text-[10px] px-1.5 py-0.5 rounded bg-rose-100 text-rose-700">已過期</span>';
+                    else statusBadge = '<span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">有效</span>';
+                    const usedNote = inv.is_used ? `<div class="text-[10px] text-stone-400">${_esc(inv.used_by||'?')} · ${inv.used_at ? new Date(inv.used_at).toLocaleString('zh-TW') : '—'}</div>` : '';
+                    return `<tr class="hover:bg-amber-50/30">
+                        <td class="p-3 align-top">${statusBadge}${usedNote}</td>
+                        <td class="p-3">
+                            <div class="font-mono text-xs">${_esc(inv.email || '— 任何 Email —')}</div>
+                            ${inv.note ? `<div class="text-[10px] text-stone-500 mt-0.5">${_esc(inv.note)}</div>` : ''}
+                            <div class="text-[10px] font-mono text-stone-400 mt-0.5">${_esc(inv.token.slice(0,16))}…</div>
+                        </td>
+                        <td class="p-3 text-xs">${inv.role_id ? _esc(roleMap[inv.role_id] || '(未知角色)') : '<span class="text-stone-400">預設(Viewer)</span>'}</td>
+                        <td class="p-3 text-xs">${inv.group_id ? _esc(groupMap[inv.group_id] || '(未知群組)') : '<span class="text-stone-400">—</span>'}</td>
+                        <td class="p-3 text-xs">${inv.expires_at ? new Date(inv.expires_at).toLocaleDateString('zh-TW') : '—'}</td>
+                        <td class="p-3 text-center whitespace-nowrap space-x-1">
+                            ${!inv.is_used && !inv.is_expired ? `<button onclick="copyInviteLink('${_esc(inv.token)}')" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded" title="複製連結"><i class="fa-solid fa-link"></i></button>` : ''}
+                            <button onclick="revokeInvite('${_esc(inv.id)}')" class="text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded" title="撤銷"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                    </tr>`;
+                }).join('');
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-red-500">載入失敗:${_esc(e.message)}</td></tr>`;
+            }
+        }
+
+        async function saveOrgEmailDomains() {
+            const org = await _loadCurrentOrg();
+            if (!org) { showToast('無法取得當前組織(需要 superuser 權限)', 'error'); return; }
+            const v = document.getElementById('orgEmailDomains').value.trim();
+            try {
+                const r = await fetch('/api/organizations/'+encodeURIComponent(org.id), {
+                    method: 'PUT',
+                    headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({ email_domains: v }),
+                });
+                if (!r.ok) {
+                    const detail = (await r.json().catch(()=>({}))).detail || ('HTTP '+r.status);
+                    throw new Error(detail);
+                }
+                _currentOrgCache = await r.json();
+                document.getElementById('orgEmailDomains').value = _currentOrgCache.email_domains || '';
+                showToast('已儲存(無效格式 domain 已被剔除)', 'success');
+            } catch (e) { showToast('儲存失敗:'+e.message, 'error'); }
+        }
+
+        async function openInviteModal() {
+            // role 下拉
+            const roleSel = document.getElementById('inviteRole');
+            try {
+                if (!_rolesCache || !_rolesCache.length) {
+                    const r = await fetch('/api/settings/roles');
+                    if (r.ok) _rolesCache = await r.json();
+                }
+            } catch (_) {}
+            roleSel.innerHTML = '<option value="">— 預設(Viewer)—</option>' +
+                (_rolesCache || []).map(r => `<option value="${_esc(r.id)}">${_esc(r.name)}</option>`).join('');
+            // group 下拉
+            const groupSel = document.getElementById('inviteGroup');
+            await _loadAssignableGroups(true);
+            groupSel.innerHTML = '<option value="">— 不加入群組 —</option>' +
+                (_assignableGroupsCache || []).map(g => `<option value="${_esc(g.id)}">${_esc(g.name)}</option>`).join('');
+            // reset
+            document.getElementById('inviteEmail').value = '';
+            document.getElementById('inviteExpires').value = 7;
+            document.getElementById('inviteNote').value = '';
+            roleSel.value = ''; groupSel.value = '';
+            document.getElementById('inviteModal').classList.remove('hidden');
+        }
+        function closeInviteModal() { document.getElementById('inviteModal').classList.add('hidden'); }
+
+        async function inviteSubmit(ev) {
+            ev.preventDefault();
+            const payload = {
+                email: document.getElementById('inviteEmail').value.trim() || null,
+                role_id: document.getElementById('inviteRole').value || null,
+                group_id: document.getElementById('inviteGroup').value || null,
+                expires_in_days: parseInt(document.getElementById('inviteExpires').value || '7', 10),
+                note: document.getElementById('inviteNote').value.trim() || null,
+            };
+            try {
+                const r = await fetch('/api/invites', {
+                    method: 'POST',
+                    headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify(payload),
+                });
+                if (!r.ok && r.status !== 201) {
+                    const detail = (await r.json().catch(()=>({}))).detail || ('HTTP '+r.status);
+                    throw new Error(detail);
+                }
+                const inv = await r.json();
+                closeInviteModal();
+                _showInviteToken(inv.token);
+                renderInvitesView();
+            } catch (e) { showToast('產生失敗:'+e.message, 'error'); }
+            return false;
+        }
+
+        function _showInviteToken(token) {
+            document.getElementById('inviteShowToken').value = token;
+            const link = `${window.location.origin}/?invite=${encodeURIComponent(token)}#register`;
+            document.getElementById('inviteShowLink').value = link;
+            document.getElementById('inviteShowModal').classList.remove('hidden');
+        }
+        function closeInviteShowModal() { document.getElementById('inviteShowModal').classList.add('hidden'); }
+        function copyInviteLink(token) {
+            const link = `${window.location.origin}/?invite=${encodeURIComponent(token)}#register`;
+            _copyText(link);
+        }
+
+        async function revokeInvite(id) {
+            if (!confirm('確定撤銷此邀請碼?(已使用過的也可刪,只是會失去歷史紀錄)')) return;
+            try {
+                const r = await fetch('/api/invites/'+encodeURIComponent(id), { method: 'DELETE' });
+                if (!r.ok && r.status !== 204) throw new Error('HTTP '+r.status);
+                showToast('已撤銷', 'success');
+                renderInvitesView();
+            } catch (e) { showToast('撤銷失敗:'+e.message, 'error'); }
+        }
+
         async function renderAiTokensList() {
             const tbody = document.getElementById('aiTokensListBody');
             if (!tbody) return;
@@ -15034,19 +15732,24 @@ gantt
                 ? `<i class="fa-solid fa-robot text-amber-500"></i> 編輯 AI Token · ${_esc(t.name)}`
                 : '<i class="fa-solid fa-robot text-amber-500"></i> 新增 AI Token';
             document.getElementById('aiTokName').value = t?.name || '';
-            // 公司下拉:若 t.provider 在預設選項裡用該值,否則切「自訂」並填輸入框
+            // 公司下拉只 4 家:OpenAI / Anthropic / Google / Ollama
+            // 編輯舊資料(provider 不在 4 家內,如 DeepSeek/Groq/...)時:
+            //   暫時動態追加一個「⚠ 舊值」option 讓 select 不跳掉,
+            //   再次儲存若使用者沒切就會原樣留下;切 4 家之一後該 option 消失。
             const providerSel = document.getElementById('aiTokProvider');
-            const customInp = document.getElementById('aiTokProviderCustom');
-            const knownOptions = Array.from(providerSel.options).map(o => o.value);
+            // 移除上次留下的 legacy option(每次開 modal 都重來)
+            Array.from(providerSel.querySelectorAll('option[data-legacy="1"]')).forEach(o => o.remove());
             const provider = t?.provider || 'OpenAI';
+            const knownOptions = Array.from(providerSel.options).map(o => o.value);
             if (knownOptions.includes(provider)) {
                 providerSel.value = provider;
-                customInp.classList.add('hidden');
-                customInp.value = '';
             } else {
-                providerSel.value = '__custom__';
-                customInp.classList.remove('hidden');
-                customInp.value = provider;
+                const opt = document.createElement('option');
+                opt.value = provider;
+                opt.textContent = `⚠ 舊值:${provider}(請改選 4 家之一)`;
+                opt.dataset.legacy = '1';
+                providerSel.appendChild(opt);
+                providerSel.value = provider;
             }
             document.getElementById('aiTokKey').value = t?.api_key || '';
             // 模型下拉:有現存值就先 inject 一個 option(避免 select 空白),按 fetch 後重填
@@ -15074,9 +15777,9 @@ gantt
             const provider = _aiTokenProviderName();
             const apiKey = document.getElementById('aiTokKey').value.trim();
             if (!provider) { showToast('請先選 AI 公司', 'error'); return; }
-            const localProviders = ['Ollama', 'LM Studio'];
-            if (!apiKey && !localProviders.includes(provider)) {
-                showToast('請先填 API Key 才能拉模型清單(本地 Ollama / LM Studio 例外)', 'error');
+            // 「本地」走 Ollama spec(host.docker.internal:11434),不需要 API key
+            if (!apiKey && provider !== 'Ollama') {
+                showToast('請先填 API Key 才能拉模型清單(本地模式可不填)', 'error');
                 return;
             }
             const btn = document.getElementById('aiTokFetchModelsBtn');
@@ -15116,7 +15819,7 @@ gantt
         async function aiTokenSubmit(ev) {
             ev.preventDefault();
             const provider = _aiTokenProviderName();
-            if (!provider) { showToast('請選 AI 公司或填自訂名稱', 'error'); return false; }
+            if (!provider) { showToast('請選 AI 公司', 'error'); return false; }
             const payload = {
                 name: document.getElementById('aiTokName').value.trim(),
                 provider,
@@ -15636,6 +16339,66 @@ gantt
             if (par && cur && [...par.options].some(o => o.value === cur)) par.value = cur;
         }
 
+        // 同 org 可指派使用者快取(避免每次開 modal 都重抓)
+        let _assignableUsersCache = null;
+        async function _loadAssignableUsers(force) {
+            if (!force && _assignableUsersCache) return _assignableUsersCache;
+            try {
+                const r = await fetch('/api/auth/users/assignable');
+                if (!r.ok) throw new Error('HTTP '+r.status);
+                _assignableUsersCache = await r.json();
+            } catch (_) { _assignableUsersCache = []; }
+            return _assignableUsersCache;
+        }
+
+        // Group cache for assignee dropdown(獨立於 settings tab 的 _groupsCache,避免依賴 tab 開過)
+        let _assignableGroupsCache = null;
+        async function _loadAssignableGroups(force) {
+            if (!force && _assignableGroupsCache) return _assignableGroupsCache;
+            try {
+                const r = await fetch('/api/settings/groups');
+                if (!r.ok) throw new Error('HTTP '+r.status);
+                _assignableGroupsCache = await r.json();
+            } catch (_) { _assignableGroupsCache = []; }
+            return _assignableGroupsCache;
+        }
+
+        function _populateTodoAssigneeOptions(currentVal, currentType) {
+            const sel = document.getElementById('todoAssignee');
+            if (!sel) return;
+            const users = _assignableUsersCache || [];
+            const groups = _assignableGroupsCache || [];
+            const opts = ['<option value="">— 不指派 —</option>'];
+            // 使用者:value=username,讀取時 assignee_type=user
+            if (users.length) {
+                opts.push('<optgroup label="使用者">');
+                users.forEach(u => {
+                    const label = u.display_name ? `${_esc(u.display_name)} (${_esc(u.username)})` : _esc(u.username);
+                    opts.push(`<option value="user:${_esc(u.username)}">${label}</option>`);
+                });
+                opts.push('</optgroup>');
+            }
+            // 群組:value=group:<id>,讀取時 assignee_type=group
+            if (groups.length) {
+                opts.push('<optgroup label="群組(會通知所有成員,含巢狀子群組)">');
+                groups.forEach(g => {
+                    opts.push(`<option value="group:${_esc(g.id)}">👥 ${_esc(g.name)} <span>(${g.member_count || 0} 人)</span></option>`);
+                });
+                opts.push('</optgroup>');
+            }
+            // 舊資料(指派人已離開組織,或群組已刪除)→ 加 fallback option
+            const composite = currentVal ? `${currentType || 'user'}:${currentVal}` : '';
+            const known = new Set();
+            users.forEach(u => known.add('user:'+u.username));
+            groups.forEach(g => known.add('group:'+g.id));
+            if (composite && !known.has(composite)) {
+                const flag = currentType === 'group' ? '群組' : '使用者';
+                opts.push(`<option value="${_esc(composite)}">⚠ 舊指派(${flag} ${_esc(currentVal)})</option>`);
+            }
+            sel.innerHTML = opts.join('');
+            sel.value = composite;
+        }
+
         function openTodoModal(id, defaultDue, defaultType) {
             _editingTodoId = id || null;
             const t = id ? _homeTodos.find(x => x.id === id) : null;
@@ -15647,7 +16410,14 @@ gantt
             document.getElementById('todoDue').value = t?.due_date || defaultDue || '';
             document.getElementById('todoStatus').value = t?.status || 'Todo';
             document.getElementById('todoPriority').value = t?.priority || 'P2';
-            document.getElementById('todoAssignee').value = t?.assignee || (typeof authCurrentUsername === 'function' ? (authCurrentUsername()||'') : '');
+            // 指派人下拉:預設新建時填當前使用者,編輯時填現存值
+            const defaultAssignee = t?.assignee || (typeof authCurrentUsername === 'function' ? (authCurrentUsername()||'') : '');
+            const defaultType = t?.assignee_type || 'user';
+            document.getElementById('todoAssigneeType').value = defaultType;
+            // 先以 cache 渲染(可能是空 placeholder),再非同步拉資料補上
+            _populateTodoAssigneeOptions(defaultAssignee, defaultType);
+            Promise.all([_loadAssignableUsers(), _loadAssignableGroups()])
+                .then(() => _populateTodoAssigneeOptions(defaultAssignee, defaultType));
             document.getElementById('todoDesc').value = t?.description || '';
             document.getElementById('todoType').value = t?.item_type || defaultType || 'Task';
             document.getElementById('todoSprint').value = t?.sprint_label || '';
@@ -15670,12 +16440,26 @@ gantt
         function closeTodoModal() { document.getElementById('todoModal').classList.add('hidden'); _editingTodoId = null; }
         async function todoSubmit(ev) {
             ev.preventDefault();
+            // composite value 格式為 "<type>:<id>" — 拆出 assignee + assignee_type
+            const composite = (document.getElementById('todoAssignee').value || '').trim();
+            let assigneeVal = null;
+            let assigneeType = 'user';
+            if (composite) {
+                const idx = composite.indexOf(':');
+                if (idx > 0) {
+                    assigneeType = composite.slice(0, idx);
+                    assigneeVal = composite.slice(idx + 1) || null;
+                } else {
+                    assigneeVal = composite;
+                }
+            }
             const payload = {
                 title: document.getElementById('todoTitle').value.trim(),
                 due_date: document.getElementById('todoDue').value || null,
                 status: document.getElementById('todoStatus').value,
                 priority: document.getElementById('todoPriority').value,
-                assignee: document.getElementById('todoAssignee').value.trim() || null,
+                assignee: assigneeVal,
+                assignee_type: assigneeVal ? (assigneeType === 'group' ? 'group' : 'user') : 'user',
                 description: document.getElementById('todoDesc').value || null,
                 item_type: document.getElementById('todoType').value || 'Task',
                 parent_id: document.getElementById('todoParent').value || null,

@@ -70,7 +70,13 @@ class TodoItem(Base):
     priority: Mapped[TodoPriority] = mapped_column(
         Enum(TodoPriority), default=TodoPriority.P2, nullable=False
     )
+    # assignee 可以是 user(username)或 group(group_id);用 assignee_type 區分
+    # 'user' → assignee 存 users.username;'group' → assignee 存 groups.id
     assignee: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    assignee_type: Mapped[str] = mapped_column(String(10), nullable=False, default="user")
+    # 指派時的 audit 欄位:誰在何時指派的
+    assigned_by: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
+    assigned_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     # ── Backlog 階層 ─────────────────────────────────────────────────
     # item_type:Feature / Task / Bug / Spike,預設 Task。
     # parent_id:self-FK,讓 Task/Bug/Spike 掛在 Feature 下;parent 可選空。

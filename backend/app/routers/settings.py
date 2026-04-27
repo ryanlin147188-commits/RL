@@ -71,6 +71,7 @@ _NOTIFICATION_EVENT_CATALOGUE = [
     {"key": "schedule.fired", "label": "排程觸發", "group": "排程"},
     {"key": "milestone.due_soon", "label": "里程碑即將到期", "group": "時程"},
     {"key": "todo.due_soon", "label": "待辦即將到期", "group": "待辦"},
+    {"key": "todo.assigned", "label": "待辦被指派", "group": "待辦"},
     {"key": "plan.approved", "label": "測試計畫被核准", "group": "計畫"},
     {"key": "requirement.changed", "label": "需求異動", "group": "需求"},
 ]

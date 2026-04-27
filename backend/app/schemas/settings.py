@@ -123,6 +123,7 @@ class TodoItemBase(BaseModel):
     status: str = "Todo"
     priority: str = "P2"
     assignee: Optional[str] = None
+    assignee_type: str = "user"  # user | group
     related_entity_type: Optional[str] = None
     related_entity_id: Optional[str] = None
     # Backlog 階層
@@ -143,6 +144,7 @@ class TodoItemUpdate(BaseModel):
     status: Optional[str] = None
     priority: Optional[str] = None
     assignee: Optional[str] = None
+    assignee_type: Optional[str] = None
     related_entity_type: Optional[str] = None
     related_entity_id: Optional[str] = None
     item_type: Optional[str] = None
@@ -150,9 +152,17 @@ class TodoItemUpdate(BaseModel):
     sprint_label: Optional[str] = None
 
 
+class TodoAssignRequest(BaseModel):
+    """專責指派端點的 payload。assignee=None 等於取消指派。"""
+    assignee: Optional[str] = None
+    assignee_type: str = "user"  # user | group
+
+
 class TodoItemResponse(TodoItemBase):
     model_config = ConfigDict(from_attributes=True)
     id: str
+    assigned_by: Optional[str] = None
+    assigned_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime

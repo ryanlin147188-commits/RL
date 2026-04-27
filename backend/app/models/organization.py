@@ -32,6 +32,9 @@ class Organization(Base):
     name: Mapped[str] = mapped_column(String(160), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     plan: Mapped[Optional[str]] = mapped_column(String(40), nullable=True, default="free")
+    # 自動歸屬用:Email 後綴 → 此 org;多個用逗號分隔(`acme.com,acme.io`),
+    # 比對時轉小寫並 strip 空白。空 = 不啟用 email 自動歸屬。
+    email_domains: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow

@@ -8,16 +8,92 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import asc, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.dependencies import get_current_user
 from app.common import Pagination
 from app.database import get_db
+from app.models.group import Group, GroupMembership
+from app.models.notification import Notification
 from app.models.todo_item import TodoItem, TodoItemType, TodoPriority, TodoStatus
+from app.models.user import User
 from app.schemas.settings import (
+    TodoAssignRequest,
     TodoItemCreate,
     TodoItemResponse,
     TodoItemUpdate,
 )
 
 router = APIRouter()
+
+
+async def _resolve_group_members(db: AsyncSession, group_id: str) -> set[str]:
+    """遞迴展開 group_id 下所有(含巢狀子群組)成員的 username 集合。"""
+    visited: set[str] = set()
+    result: set[str] = set()
+    queue = [group_id]
+    while queue:
+        gid = queue.pop()
+        if gid in visited:
+            continue
+        visited.add(gid)
+        # 直屬成員
+        rows = (
+            await db.execute(
+                select(GroupMembership.username).where(GroupMembership.group_id == gid)
+            )
+        ).scalars().all()
+        result.update(rows)
+        # 子群組
+        children = (
+            await db.execute(
+                select(Group.id).where(Group.parent_id == gid)
+            )
+        ).scalars().all()
+        queue.extend(children)
+    return result
+
+
+async def _notify_assignment(
+    db: AsyncSession,
+    todo: TodoItem,
+    actor: User,
+) -> None:
+    """指派 / 轉派時推站內通知。
+
+    - assignee_type='user' → 推給該 username(自己指派自己時跳過)
+    - assignee_type='group' → 遞迴展開群組所有成員(含巢狀子群組);發送者自己跳過
+    取消指派(assignee=None)在呼叫端就 return,不會走到這裡。
+    """
+    if not todo.assignee:
+        return
+    targets: set[str] = set()
+    body_who = ""
+    if todo.assignee_type == "group":
+        g = await db.get(Group, todo.assignee)
+        if g is None:
+            return
+        targets = await _resolve_group_members(db, g.id)
+        body_who = f"群組「{g.name}」"
+    else:
+        targets = {todo.assignee}
+        body_who = "你"
+    targets.discard(actor.username)  # 不打擾自己
+    if not targets:
+        return
+    actor_label = actor.display_name or actor.username
+    title = f"待辦被指派給{body_who}:{todo.title}"
+    body = f"{actor_label} 將「{todo.title}」指派給{body_who}"
+    for username in targets:
+        db.add(Notification(
+            organization_id=todo.organization_id,
+            recipient=username,
+            title=title,
+            body=body,
+            level="info",
+            event_key="todo.assigned",
+            link=f"/#todo/{todo.id}",
+            related_entity_type="todo",
+            related_entity_id=todo.id,
+        ))
 
 
 def _resolve_status(val, default):
@@ -69,6 +145,9 @@ def _enrich(t: TodoItem) -> dict:
         "status": t.status.value if hasattr(t.status, "value") else str(t.status),
         "priority": t.priority.value if hasattr(t.priority, "value") else str(t.priority),
         "assignee": t.assignee,
+        "assignee_type": t.assignee_type or "user",
+        "assigned_by": t.assigned_by,
+        "assigned_at": t.assigned_at,
         "related_entity_type": t.related_entity_type,
         "related_entity_id": t.related_entity_id,
         "item_type": t.item_type.value if hasattr(t.item_type, "value") else str(t.item_type),
@@ -230,15 +309,24 @@ async def todo_tree(
 
 
 @router.post("/todos", response_model=TodoItemResponse, status_code=201, tags=["T · 待辦"])
-async def create_todo(payload: TodoItemCreate, db: AsyncSession = Depends(get_db)):
+async def create_todo(
+    payload: TodoItemCreate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    now = datetime.utcnow() if payload.assignee else None
     t = TodoItem(
         project_id=payload.project_id,
+        organization_id=user.organization_id,
         title=payload.title,
         description=payload.description,
         due_date=payload.due_date,
         status=_resolve_status(payload.status, TodoStatus.TODO),
         priority=_resolve_priority(payload.priority, TodoPriority.P2),
         assignee=payload.assignee,
+        assignee_type=(payload.assignee_type or "user") if payload.assignee else "user",
+        assigned_by=user.username if payload.assignee else None,
+        assigned_at=now,
         related_entity_type=payload.related_entity_type,
         related_entity_id=payload.related_entity_id,
         item_type=_resolve_type(payload.item_type, TodoItemType.TASK),
@@ -247,6 +335,9 @@ async def create_todo(payload: TodoItemCreate, db: AsyncSession = Depends(get_db
     )
     db.add(t)
     await db.flush()
+    if payload.assignee:
+        await _notify_assignment(db, t, user)
+        await db.flush()
     await db.refresh(t)
     return _enrich(t)
 
@@ -260,11 +351,20 @@ async def get_todo(todo_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.put("/todos/{todo_id}", response_model=TodoItemResponse, tags=["T · 待辦"])
-async def update_todo(todo_id: str, payload: TodoItemUpdate, db: AsyncSession = Depends(get_db)):
+async def update_todo(
+    todo_id: str,
+    payload: TodoItemUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     t = await db.get(TodoItem, todo_id)
     if not t:
         raise HTTPException(404, "Todo not found")
     data = payload.model_dump(exclude_unset=True)
+    # 偵測指派變更:assignee 或 assignee_type 任一變動就重設 audit + 推通知
+    prev_assignee = t.assignee
+    prev_type = t.assignee_type or "user"
+    assignment_changed = False
     for key, val in data.items():
         if key == "status" and val is not None:
             new_st = _resolve_status(val, t.status)
@@ -279,7 +379,53 @@ async def update_todo(todo_id: str, payload: TodoItemUpdate, db: AsyncSession = 
             t.item_type = _resolve_type(val, t.item_type)
         else:
             setattr(t, key, val)
+    new_assignee = t.assignee
+    new_type = t.assignee_type or "user"
+    if (new_assignee or "") != (prev_assignee or "") or new_type != prev_type:
+        assignment_changed = True
+        if new_assignee:
+            t.assigned_by = user.username
+            t.assigned_at = datetime.utcnow()
+        else:
+            # 取消指派 → 清掉 audit 欄位
+            t.assigned_by = None
+            t.assigned_at = None
     await db.flush()
+    if assignment_changed and new_assignee:
+        await _notify_assignment(db, t, user)
+        await db.flush()
+    await db.refresh(t)
+    return _enrich(t)
+
+
+@router.post("/todos/{todo_id}/assign", response_model=TodoItemResponse, tags=["T · 待辦"])
+async def assign_todo(
+    todo_id: str,
+    payload: TodoAssignRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """專責指派端點:單一動作改 assignee + 寫 audit + 推通知。
+    不傳 assignee 或傳空字串 = 取消指派。"""
+    t = await db.get(TodoItem, todo_id)
+    if not t:
+        raise HTTPException(404, "Todo not found")
+    if payload.assignee_type not in ("user", "group"):
+        raise HTTPException(400, "assignee_type 必須是 user 或 group")
+    new_assignee = (payload.assignee or "").strip() or None
+    prev = (t.assignee or "", t.assignee_type or "user")
+    t.assignee = new_assignee
+    t.assignee_type = payload.assignee_type if new_assignee else "user"
+    if new_assignee:
+        t.assigned_by = user.username
+        t.assigned_at = datetime.utcnow()
+    else:
+        t.assigned_by = None
+        t.assigned_at = None
+    await db.flush()
+    if (new_assignee or "", t.assignee_type) != prev and new_assignee:
+        await _notify_assignment(db, t, user)
+        await db.flush()
     await db.refresh(t)
     return _enrich(t)
 

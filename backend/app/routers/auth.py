@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import Optional
 
 import io
+import re
 import uuid
 
 import jwt as pyjwt
@@ -29,12 +30,16 @@ from app.auth.security import (
 )
 from app.rate_limit import limiter
 from app.database import get_db
+from app.models.group import GroupMembership
+from app.models.org_invite import OrgInvite
+from app.models.organization import Organization
 from app.models.role import Role
 from app.models.user import User
 from app.schemas.auth import (
     ChangePasswordRequest,
     LoginRequest,
     RefreshRequest,
+    RegisterRequest,
     TokenResponse,
     UserCreateRequest,
     UserResponse,
@@ -61,6 +66,128 @@ async def login(request: Request, payload: LoginRequest, db: AsyncSession = Depe
     return TokenResponse(
         access_token=create_access_token(user.username, extra=extra),
         refresh_token=create_refresh_token(user.username),
+        expires_in=ACCESS_TOKEN_TTL_MINUTES * 60,
+    )
+
+
+USERNAME_RE = re.compile(r"^[A-Za-z0-9_]{3,32}$")
+
+
+@router.post("/auth/register", response_model=TokenResponse, status_code=201, tags=["U · 認證"])
+@limiter.limit("5/minute")  # 防爆量註冊
+async def register(
+    request: Request,
+    payload: RegisterRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """自助註冊。歸屬邏輯:
+        1. invite_token → 套用 invite 設定(org / role / group)
+        2. email 後綴 match 某 org 的 email_domains → 自動加入該 org
+        3. 都不 match → 拒絕(避免亂註冊污染 default org)
+    註冊成功直接簽 access token,前端可立即登入。"""
+    # ── 基本驗證 ──
+    uname = (payload.username or "").strip()
+    pwd = payload.password or ""
+    email = (payload.email or "").strip().lower() or None
+    if not USERNAME_RE.match(uname):
+        raise HTTPException(400, "使用者名稱格式錯誤(3-32 字元,英數底線)")
+    if len(pwd) < 6:
+        raise HTTPException(400, "密碼至少 6 字元")
+    existing = (
+        await db.execute(select(User).where(User.username == uname))
+    ).scalar_one_or_none()
+    if existing:
+        raise HTTPException(409, "帳號已存在")
+
+    target_org: Optional[Organization] = None
+    target_role_id: Optional[str] = None
+    target_group_id: Optional[str] = None
+    invite: Optional[OrgInvite] = None
+
+    # 1) 邀請碼路徑
+    if payload.invite_token:
+        invite = (
+            await db.execute(
+                select(OrgInvite).where(OrgInvite.token == payload.invite_token.strip())
+            )
+        ).scalar_one_or_none()
+        if not invite:
+            raise HTTPException(400, "邀請碼無效")
+        if invite.used_at is not None:
+            raise HTTPException(400, "邀請碼已被使用")
+        if invite.expires_at and invite.expires_at < datetime.utcnow():
+            raise HTTPException(400, "邀請碼已過期")
+        if invite.email and (not email or invite.email.lower() != email):
+            raise HTTPException(400, "此邀請碼限定特定 email,請用該 email 註冊")
+        target_org = await db.get(Organization, invite.organization_id)
+        if not target_org:
+            raise HTTPException(400, "邀請對應的組織不存在")
+        target_role_id = invite.role_id
+        target_group_id = invite.group_id
+
+    # 2) Email domain 路徑
+    if not target_org and email and "@" in email:
+        domain = email.rsplit("@", 1)[1].strip().lower()
+        if domain:
+            orgs = (await db.execute(select(Organization))).scalars().all()
+            for org in orgs:
+                if not org.email_domains:
+                    continue
+                domains = {d.strip().lower() for d in org.email_domains.split(",") if d.strip()}
+                if domain in domains:
+                    target_org = org
+                    break
+
+    if not target_org:
+        raise HTTPException(
+            400,
+            "找不到對應的組織。請聯絡管理員索取邀請碼,或使用組織註冊過的 Email 域名。",
+        )
+
+    # 預設角色(invite 沒指定就掛系統 Viewer,讓使用者進來只能讀;管理員之後再升)
+    if not target_role_id:
+        viewer = (
+            await db.execute(
+                select(Role).where(Role.name == "Viewer", Role.is_system.is_(True))
+            )
+        ).scalar_one_or_none()
+        target_role_id = viewer.id if viewer else None
+
+    new_user = User(
+        username=uname,
+        display_name=payload.display_name or uname,
+        email=email,
+        password_hash=hash_password(pwd),
+        role_id=target_role_id,
+        organization_id=target_org.id,
+        is_superuser=False,
+        is_active=True,
+    )
+    db.add(new_user)
+    await db.flush()
+
+    # 起始群組
+    if target_group_id:
+        # 確認 group 存在 + 同 org
+        from app.models.group import Group
+        g = await db.get(Group, target_group_id)
+        if g and g.organization_id == target_org.id:
+            db.add(GroupMembership(
+                group_id=g.id, username=new_user.username, role_in_group="member"
+            ))
+
+    # 標記邀請已使用
+    if invite is not None:
+        invite.used_by = new_user.username
+        invite.used_at = datetime.utcnow()
+
+    await db.flush()
+
+    # 自動登入:簽 access token + refresh token
+    extra = {"org_id": new_user.organization_id, "is_superuser": new_user.is_superuser}
+    return TokenResponse(
+        access_token=create_access_token(new_user.username, extra=extra),
+        refresh_token=create_refresh_token(new_user.username),
         expires_in=ACCESS_TOKEN_TTL_MINUTES * 60,
     )
 
@@ -197,6 +324,23 @@ async def list_users(
 ):
     _require_superuser(user)
     rows = (await db.execute(select(User).order_by(User.username))).scalars().all()
+    return list(rows)
+
+
+@router.get("/auth/users/assignable", response_model=list[UserResponse], tags=["U · 認證"])
+async def list_assignable_users(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """列同 organization 內 is_active=True 的使用者,給「指派任務」下拉用。
+
+    任何登入者都可以呼叫(不需 superuser);用 organization_id 做硬隔離,
+    superuser 看得到全部使用者。
+    """
+    stmt = select(User).where(User.is_active.is_(True)).order_by(User.username)
+    if not user.is_superuser:
+        stmt = stmt.where(User.organization_id == user.organization_id)
+    rows = (await db.execute(stmt)).scalars().all()
     return list(rows)
 
 

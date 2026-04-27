@@ -31,7 +31,9 @@ async def init_db() -> None:
         db_config,
         execution_report,
         execution_step_log,
+        group,
         mock_endpoint,
+        org_invite,
         project,
         project_device,
         project_env_var,
@@ -121,6 +123,18 @@ async def init_db() -> None:
         # provider 從 enum 改為 varchar 以支援自由輸入(GROQ / DeepSeek / Together / ...)
         "ALTER TABLE ai_token_configs ALTER COLUMN provider TYPE VARCHAR(40)",
         "DROP TYPE IF EXISTS aiprovider CASCADE",
+        # Todo 任務指派 V1:assignee_type / assigned_by / assigned_at
+        # assignee 仍是 String;assignee_type 區分 user(值=username)還是 group(值=group_id)
+        "ALTER TABLE todo_items ADD COLUMN IF NOT EXISTS assignee_type VARCHAR(10) NOT NULL DEFAULT 'user'",
+        "ALTER TABLE todo_items ADD COLUMN IF NOT EXISTS assigned_by VARCHAR(80)",
+        "ALTER TABLE todo_items ADD COLUMN IF NOT EXISTS assigned_at TIMESTAMP",
+        # Groups (團隊群組;create_all 會建表,index 補保險)
+        "CREATE INDEX IF NOT EXISTS ix_groups_org ON groups (organization_id)",
+        "CREATE INDEX IF NOT EXISTS ix_groups_parent ON groups (parent_id)",
+        # Q4 自動歸屬:organizations 加 email_domains
+        "ALTER TABLE organizations ADD COLUMN IF NOT EXISTS email_domains VARCHAR(500)",
+        # Q4 邀請碼(create_all 會建表,index 補保險;token 已是 unique)
+        "CREATE INDEX IF NOT EXISTS ix_org_invites_org ON org_invites (organization_id)",
     )
     for stmt in migration_stmts:
         await _run_safe(stmt)
