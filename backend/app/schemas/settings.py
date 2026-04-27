@@ -123,6 +123,10 @@ class TodoItemBase(BaseModel):
     assignee: Optional[str] = None
     related_entity_type: Optional[str] = None
     related_entity_id: Optional[str] = None
+    # Backlog 階層
+    item_type: str = "Task"  # Epic / Story / Task / Bug / Spike
+    parent_id: Optional[str] = None
+    sprint_label: Optional[str] = None
 
 
 class TodoItemCreate(TodoItemBase):
@@ -139,6 +143,9 @@ class TodoItemUpdate(BaseModel):
     assignee: Optional[str] = None
     related_entity_type: Optional[str] = None
     related_entity_id: Optional[str] = None
+    item_type: Optional[str] = None
+    parent_id: Optional[str] = None
+    sprint_label: Optional[str] = None
 
 
 class TodoItemResponse(TodoItemBase):

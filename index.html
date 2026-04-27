@@ -367,6 +367,60 @@
         html.dark #navDrawer { background-color: rgb(28 25 23); border-color: rgb(68 64 60); }
         html.dark #navDrawer .border-stone-200 { border-color: rgb(68 64 60); }
         html.dark #navDrawer .bg-gradient-to-r.from-amber-50 { background: linear-gradient(to right, rgb(68 64 60), rgb(41 37 36)); }
+
+        /* ─── Drawer Backlog widget ─── */
+        .drawer-backlog-chip {
+            padding: 2px 8px;
+            border-radius: 9999px;
+            background: rgb(255 255 255);
+            border: 1px solid rgb(231 229 228);
+            color: rgb(87 83 78);
+            font-weight: 500;
+            transition: background 100ms, border-color 100ms;
+        }
+        .drawer-backlog-chip:hover { border-color: rgb(252 211 77); }
+        .drawer-backlog-chip.is-active {
+            background: rgb(245 158 11);
+            border-color: rgb(245 158 11);
+            color: white;
+        }
+        .drawer-backlog-add-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            width: 100%;
+            padding: 0.4rem 0.75rem;
+            font-size: 0.75rem;
+            color: rgb(68 64 60);
+            transition: background 100ms;
+        }
+        .drawer-backlog-add-item:hover { background: rgb(254 243 199); color: rgb(146 64 14); }
+        .drawer-backlog-add-item i { width: 0.875rem; text-align: center; }
+
+        /* Backlog 列(共用 drawer + 首頁 read-only) */
+        .backlog-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.5rem;
+            padding: 0.375rem 0.5rem;
+            border-radius: 0.375rem;
+            background: white;
+            border: 1px solid rgb(245 245 244);
+            font-size: 0.75rem;
+            transition: background 100ms, border-color 100ms;
+        }
+        .backlog-row:hover { background: rgb(255 251 235); border-color: rgb(252 211 77); }
+        .backlog-row .br-icon { width: 1rem; text-align: center; flex-shrink: 0; padding-top: 1px; }
+        .backlog-row .br-title { flex: 1; min-width: 0; }
+        .backlog-row .br-title-text { font-weight: 600; color: rgb(41 37 36); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .backlog-row .br-meta { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; align-items: center; }
+        .backlog-row.is-done .br-title-text { text-decoration: line-through; color: rgb(168 162 158); }
+        .backlog-row.is-overdue { border-left: 3px solid rgb(244 63 94); }
+        .backlog-row.is-due-soon { border-left: 3px solid rgb(245 158 11); }
+        .backlog-children { margin-left: 1rem; padding-left: 0.5rem; border-left: 2px dashed rgb(231 229 228); }
+        html.dark .backlog-row { background: rgb(41 37 36); border-color: rgb(68 64 60); color: rgb(231 229 228); }
+        html.dark .backlog-row .br-title-text { color: rgb(231 229 228); }
+        html.dark .backlog-row:hover { background: rgb(68 64 60); }
     </style>
 </head>
 <body class="h-screen flex flex-col bg-stone-50 text-stone-800 font-sans overflow-hidden relative">
@@ -668,6 +722,7 @@
                     <button type="button" onclick="closeNavDrawer(); showTestCasesView()"    class="nav-drawer-btn"><i class="fa-solid fa-list-check text-blue-600"></i><span data-i18n="nav.testCases">測試案例</span></button>
                     <button type="button" onclick="closeNavDrawer(); showTestDataSetsView()" class="nav-drawer-btn"><i class="fa-solid fa-table text-violet-600"></i><span data-i18n="nav.dataSets">測試資料集</span></button>
                     <button type="button" onclick="closeNavDrawer(); showTestDocumentsView()" class="nav-drawer-btn"><i class="fa-solid fa-file-lines text-pink-600"></i><span data-i18n="nav.documents">測試文件</span></button>
+                    <button type="button" onclick="closeNavDrawer(); showBacklogView()" class="nav-drawer-btn"><i class="fa-solid fa-list-check text-amber-600"></i><span data-i18n="nav.backlog">待辦清單</span></button>
                 </div>
             </section>
 
@@ -736,6 +791,66 @@
             <button type="button" onclick="clearAllNotifications()" class="text-stone-400 hover:text-rose-600 transition" data-i18n="notif.clearAll">
                 清空全部
             </button>
+        </div>
+    </div>
+
+    <!-- ─── 待辦 Modal (body 層級;不再受任何 view 的 hidden 影響) ─── -->
+    <div id="todoModal" class="hidden fixed inset-0 z-[300] bg-black/40 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-xl border border-amber-200 max-h-[90vh] overflow-y-auto">
+            <div class="px-6 py-4 border-b border-stone-200 bg-amber-50/60 flex items-center justify-between">
+                <h3 id="todoModalTitle" class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-list-check text-amber-500"></i> 新增待辦</h3>
+                <button type="button" onclick="closeTodoModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form onsubmit="return todoSubmit(event)" class="p-6 space-y-3">
+                <!-- 類型 + 父項(階層約束:Story 可選 Epic 父;Task/Bug/Spike 可選 Story 父) -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label for="todoType" class="block text-xs font-semibold text-stone-600 mb-1">類型</label>
+                        <select id="todoType" aria-label="類型" onchange="onTodoTypeChange()" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
+                            <option value="Epic">🎯 Epic</option>
+                            <option value="Story">📖 Story (User Story)</option>
+                            <option value="Task" selected>⚙ Task</option>
+                            <option value="Bug">🐛 Bug</option>
+                            <option value="Spike">🔬 Spike</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="todoParent" class="block text-xs font-semibold text-stone-600 mb-1">父項目</label>
+                        <select id="todoParent" aria-label="父項目" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
+                            <option value="">— 無 (頂層) —</option>
+                        </select>
+                    </div>
+                </div>
+                <div><label for="todoTitle" class="block text-xs font-semibold text-stone-600 mb-1">標題 *</label><input type="text" id="todoTitle" aria-label="標題" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div><label for="todoDue" class="block text-xs font-semibold text-stone-600 mb-1">到期日</label><span class="date-zh"><input type="date" id="todoDue" aria-label="到期日" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></span></div>
+                    <div><label for="todoStatus" class="block text-xs font-semibold text-stone-600 mb-1">狀態</label>
+                        <select id="todoStatus" aria-label="狀態" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
+                            <option value="Todo" selected>待辦</option>
+                            <option value="InProgress">進行中</option>
+                            <option value="Done">已完成</option>
+                            <option value="Cancelled">已取消</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div><label for="todoPriority" class="block text-xs font-semibold text-stone-600 mb-1">優先</label>
+                        <select id="todoPriority" aria-label="優先" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
+                            <option value="P0">P0 (最高)</option>
+                            <option value="P1">P1 (高)</option>
+                            <option value="P2" selected>P2 (中)</option>
+                            <option value="P3">P3 (低)</option>
+                        </select>
+                    </div>
+                    <div><label for="todoAssignee" class="block text-xs font-semibold text-stone-600 mb-1">負責人</label><input type="text" id="todoAssignee" aria-label="負責人" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                </div>
+                <div>
+                    <label for="todoSprint" class="block text-xs font-semibold text-stone-600 mb-1">Sprint(留空 = Backlog)</label>
+                    <input type="text" id="todoSprint" aria-label="Sprint label" placeholder="例:Sprint 23 / 2026-W18" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm">
+                </div>
+                <div><label for="todoDesc" class="block text-xs font-semibold text-stone-600 mb-1">說明</label><textarea id="todoDesc" aria-label="說明" rows="3" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
+                <div class="flex justify-end gap-2 pt-2"><button type="button" onclick="closeTodoModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button><button type="submit" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button></div>
+            </form>
         </div>
     </div>
 
@@ -2276,43 +2391,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                     </div>
                 </section>
 
-                <!-- 待辦 Modal -->
-                <div id="todoModal" class="hidden fixed inset-0 z-[160] bg-black/40 flex items-center justify-center p-4">
-                    <div class="bg-white rounded-xl shadow-2xl w-full max-w-xl border border-amber-200 max-h-[90vh] overflow-y-auto">
-                        <div class="px-6 py-4 border-b border-stone-200 bg-amber-50/60 flex items-center justify-between">
-                            <h3 id="todoModalTitle" class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-list-check text-amber-500"></i> 新增待辦</h3>
-                            <button type="button" onclick="closeTodoModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
-                        </div>
-                        <form onsubmit="return todoSubmit(event)" class="p-6 space-y-3">
-                            <div><label for="todoTitle" class="block text-xs font-semibold text-stone-600 mb-1">標題 *</label><input type="text" id="todoTitle" aria-label="標題" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
-                            <div class="grid grid-cols-2 gap-3">
-                                <div><label for="todoDue" class="block text-xs font-semibold text-stone-600 mb-1">到期日</label><span class="date-zh"><input type="date" id="todoDue" aria-label="到期日" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></span></div>
-                                <div><label for="todoStatus" class="block text-xs font-semibold text-stone-600 mb-1">狀態</label>
-                                    <select id="todoStatus" aria-label="狀態" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
-                                        <option value="Todo" selected>待辦</option>
-                                        <option value="InProgress">進行中</option>
-                                        <option value="Done">已完成</option>
-                                        <option value="Cancelled">已取消</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="grid grid-cols-2 gap-3">
-                                <div><label for="todoPriority" class="block text-xs font-semibold text-stone-600 mb-1">優先</label>
-                                    <select id="todoPriority" aria-label="優先" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
-                                        <option value="P0">P0 (最高)</option>
-                                        <option value="P1">P1 (高)</option>
-                                        <option value="P2" selected>P2 (中)</option>
-                                        <option value="P3">P3 (低)</option>
-                                    </select>
-                                </div>
-                                <div><label for="todoAssignee" class="block text-xs font-semibold text-stone-600 mb-1">負責人</label><input type="text" id="todoAssignee" aria-label="負責人" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
-                            </div>
-                            <div><label for="todoDesc" class="block text-xs font-semibold text-stone-600 mb-1">說明</label><textarea id="todoDesc" aria-label="說明" rows="3" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
-                            <div class="flex justify-end gap-2 pt-2"><button type="button" onclick="closeTodoModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button><button type="submit" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button></div>
-                        </form>
-                    </div>
-                </div>
-
                 <!-- 最近測試案例（預設顯示最近 10 筆） -->
                 <section class="max-w-6xl mx-auto mb-8">
                     <div class="flex items-center justify-between mb-3">
@@ -3073,6 +3151,100 @@ driver.swipe(100, 800, 100, 200, 500)"
                             </thead>
                             <tbody id="defListBody" class="divide-y divide-stone-100"></tbody>
                         </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── 待辦清單 (Backlog) — Story → Task/Bug/Spike 階層 + Sprint 分群 ── -->
+            <div id="backlogWorkspace" class="flex-1 overflow-y-auto p-6 bg-amber-50/30 hidden">
+                <div class="max-w-7xl mx-auto">
+                    <!-- KPI 4 卡 -->
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                        <button type="button" onclick="setBacklogFilter('overdue')" id="backlogKpiOverdue"
+                            class="text-left bg-white rounded-lg border border-rose-200 hover:border-rose-400 shadow-sm p-3 transition">
+                            <div class="text-xs text-rose-600 flex items-center gap-1.5"><i class="fa-solid fa-clock-rotate-left"></i> <span data-i18n="backlog.kpi.overdue">過期</span></div>
+                            <div class="text-2xl font-bold text-rose-700" id="backlogKpiOverdueCount">—</div>
+                        </button>
+                        <button type="button" onclick="setBacklogFilter('due_soon')" id="backlogKpiDueSoon"
+                            class="text-left bg-white rounded-lg border border-amber-200 hover:border-amber-400 shadow-sm p-3 transition">
+                            <div class="text-xs text-amber-700 flex items-center gap-1.5"><i class="fa-regular fa-bell"></i> <span data-i18n="backlog.kpi.dueSoon">7 天內</span></div>
+                            <div class="text-2xl font-bold text-amber-700" id="backlogKpiDueSoonCount">—</div>
+                        </button>
+                        <button type="button" onclick="setBacklogFilter('all')" id="backlogKpiActive"
+                            class="text-left bg-white rounded-lg border border-blue-200 hover:border-blue-400 shadow-sm p-3 transition">
+                            <div class="text-xs text-blue-700 flex items-center gap-1.5"><i class="fa-solid fa-circle-play"></i> <span data-i18n="backlog.kpi.active">未完成</span></div>
+                            <div class="text-2xl font-bold text-blue-700" id="backlogKpiActiveCount">—</div>
+                        </button>
+                        <button type="button" onclick="setBacklogFilter('done')" id="backlogKpiDone"
+                            class="text-left bg-white rounded-lg border border-emerald-200 hover:border-emerald-400 shadow-sm p-3 transition">
+                            <div class="text-xs text-emerald-700 flex items-center gap-1.5"><i class="fa-regular fa-circle-check"></i> <span data-i18n="backlog.kpi.done">已完成</span></div>
+                            <div class="text-2xl font-bold text-emerald-700" id="backlogKpiDoneCount">—</div>
+                        </button>
+                    </div>
+
+                    <!-- 工具列:filter chips + 搜尋 + assignee/sprint/type 過濾 + 新增 -->
+                    <div class="bg-white rounded-lg border border-amber-100 shadow-sm p-4 mb-4">
+                        <div class="flex flex-wrap items-center gap-3">
+                            <!-- 搜尋 -->
+                            <div class="flex-1 min-w-[220px] relative">
+                                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm"></i>
+                                <input id="backlogSearch" type="search" oninput="_renderBacklogView()" placeholder="搜尋標題…"
+                                    data-i18n-attr="placeholder;backlog.searchPlaceholder"
+                                    class="w-full pl-9 pr-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+                            </div>
+                            <!-- 指派 -->
+                            <select id="backlogAssigneeFilter" onchange="reloadBacklogView()" class="px-3 py-2 border border-stone-300 rounded-md text-sm bg-white" aria-label="負責人">
+                                <option value="__me__" data-i18n="backlog.assignee.me">指派給我</option>
+                                <option value="" data-i18n="backlog.assignee.all">全部</option>
+                            </select>
+                            <!-- Sprint 過濾 -->
+                            <select id="backlogSprintFilter" onchange="reloadBacklogView()" class="px-3 py-2 border border-stone-300 rounded-md text-sm bg-white" aria-label="Sprint">
+                                <option value="" data-i18n="backlog.sprint.all">全部 Sprint</option>
+                                <option value="__backlog__" data-i18n="backlog.sprint.backlog">未排入 Sprint</option>
+                                <!-- dynamic options from data -->
+                            </select>
+                            <!-- 類型過濾 -->
+                            <select id="backlogTypeFilter" onchange="_renderBacklogView()" class="px-3 py-2 border border-stone-300 rounded-md text-sm bg-white" aria-label="類型">
+                                <option value="" data-i18n="backlog.type.all">全部類型</option>
+                                <option value="Epic">🎯 Epic</option>
+                                <option value="Story">📖 Story</option>
+                                <option value="Task">⚙ Task</option>
+                                <option value="Bug">🐛 Bug</option>
+                                <option value="Spike">🔬 Spike</option>
+                            </select>
+                            <!-- 新增按鈕 (下拉選類型) -->
+                            <div class="relative">
+                                <button type="button" onclick="toggleBacklogAddMenu(event)" id="backlogAddBtn"
+                                    class="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold shadow-sm flex items-center gap-1.5">
+                                    <i class="fa-solid fa-plus"></i> <span data-i18n="backlog.add">新增待辦</span>
+                                    <i class="fa-solid fa-chevron-down text-[10px] opacity-70"></i>
+                                </button>
+                                <div id="backlogAddMenu" class="hidden absolute right-0 top-full mt-1 w-44 bg-white rounded-md shadow-lg ring-1 ring-stone-200 overflow-hidden z-10">
+                                    <button type="button" onclick="closeBacklogAddMenu(); openTodoModal(null, null, 'Epic')"  class="drawer-backlog-add-item"><i class="fa-solid fa-bullseye text-purple-500"></i><span>Epic</span></button>
+                                    <button type="button" onclick="closeBacklogAddMenu(); openTodoModal(null, null, 'Story')" class="drawer-backlog-add-item"><i class="fa-solid fa-book-open text-blue-500"></i><span>Story</span></button>
+                                    <button type="button" onclick="closeBacklogAddMenu(); openTodoModal(null, null, 'Task')"  class="drawer-backlog-add-item"><i class="fa-solid fa-screwdriver-wrench text-stone-500"></i><span>Task</span></button>
+                                    <button type="button" onclick="closeBacklogAddMenu(); openTodoModal(null, null, 'Bug')"   class="drawer-backlog-add-item"><i class="fa-solid fa-bug text-rose-500"></i><span>Bug</span></button>
+                                    <button type="button" onclick="closeBacklogAddMenu(); openTodoModal(null, null, 'Spike')" class="drawer-backlog-add-item"><i class="fa-solid fa-flask text-emerald-500"></i><span>Spike</span></button>
+                                </div>
+                            </div>
+                            <!-- 重新整理 -->
+                            <button type="button" onclick="reloadBacklogView()" title="重新整理" data-i18n-attr="title;common.refresh"
+                                class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50 transition">
+                                <i class="fa-solid fa-rotate-right"></i>
+                            </button>
+                        </div>
+                        <!-- 狀態 chips -->
+                        <div class="flex flex-wrap gap-1.5 mt-3 text-xs">
+                            <button type="button" onclick="setBacklogFilter('all')"      data-filter="all"      class="drawer-backlog-chip is-active"><span data-i18n="backlog.filter.all">全部</span></button>
+                            <button type="button" onclick="setBacklogFilter('overdue')"  data-filter="overdue"  class="drawer-backlog-chip"><span data-i18n="backlog.filter.overdue">過期</span></button>
+                            <button type="button" onclick="setBacklogFilter('due_soon')" data-filter="due_soon" class="drawer-backlog-chip"><span data-i18n="backlog.filter.dueSoon">快到期</span></button>
+                            <button type="button" onclick="setBacklogFilter('done')"     data-filter="done"     class="drawer-backlog-chip"><span data-i18n="backlog.filter.done">已完成</span></button>
+                        </div>
+                    </div>
+
+                    <!-- 主內容:依 Sprint 分群,Story → 子項階層 -->
+                    <div id="backlogList" class="space-y-4">
+                        <div class="bg-white rounded-lg border border-amber-100 shadow-sm p-12 text-center text-stone-400 text-sm" data-i18n="backlog.empty">沒有指派給我的待辦</div>
                     </div>
                 </div>
             </div>
@@ -6708,6 +6880,25 @@ driver.swipe(100, 800, 100, 200, 500)"
             // 使用者下拉
             'user.menu.profile': { 'zh-TW': '個人設定', 'en': 'Profile' },
             'user.menu.notifSettings': { 'zh-TW': '通知設定', 'en': 'Notification settings' },
+            // 待辦清單 view
+            'nav.backlog':             { 'zh-TW': '待辦清單', 'en': 'Backlog' },
+            'view.backlog.title':      { 'zh-TW': '待辦清單', 'en': 'Backlog' },
+            'backlog.kpi.overdue':     { 'zh-TW': '過期', 'en': 'Overdue' },
+            'backlog.kpi.dueSoon':     { 'zh-TW': '7 天內', 'en': 'Due in 7d' },
+            'backlog.kpi.active':      { 'zh-TW': '未完成', 'en': 'Active' },
+            'backlog.kpi.done':        { 'zh-TW': '已完成', 'en': 'Done' },
+            'backlog.filter.all':      { 'zh-TW': '全部', 'en': 'All' },
+            'backlog.filter.overdue':  { 'zh-TW': '過期', 'en': 'Overdue' },
+            'backlog.filter.dueSoon':  { 'zh-TW': '快到期', 'en': 'Due soon' },
+            'backlog.filter.done':     { 'zh-TW': '已完成', 'en': 'Done' },
+            'backlog.empty':           { 'zh-TW': '沒有指派給我的待辦', 'en': 'No items assigned to you' },
+            'backlog.add':             { 'zh-TW': '新增待辦', 'en': 'Add item' },
+            'backlog.assignee.me':     { 'zh-TW': '指派給我', 'en': 'Assigned to me' },
+            'backlog.assignee.all':    { 'zh-TW': '全部', 'en': 'All assignees' },
+            'backlog.sprint.all':      { 'zh-TW': '全部 Sprint', 'en': 'All Sprints' },
+            'backlog.sprint.backlog':  { 'zh-TW': '未排入 Sprint', 'en': 'Backlog' },
+            'backlog.type.all':        { 'zh-TW': '全部類型', 'en': 'All types' },
+            'backlog.searchPlaceholder': { 'zh-TW': '搜尋標題…', 'en': 'Search title…' },
         };
         // ════════════════════════════════════════════════
         // 全域 ZH→EN 字典 (~886 個短句;auto-generated)
@@ -9079,6 +9270,7 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('testDataSetsWorkspace')?.classList.add('hidden');
             document.getElementById('testDocumentsWorkspace')?.classList.add('hidden');
             document.getElementById('wbsWorkspace')?.classList.add('hidden');
+            document.getElementById('backlogWorkspace')?.classList.add('hidden');
         }
 
         // ──── 視圖標題 i18n helper ────
@@ -15262,18 +15454,52 @@ gantt
             }).join('');
         }
 
-        function openTodoModal(id, defaultDue) {
+        // ─── Backlog 階層約束:每個類型可選的父類型 ───
+        const BACKLOG_PARENT_RULES = {
+            Epic:  [],          // Epic 一定是頂層
+            Story: ['Epic'],    // Story 可選 Epic 父
+            Task:  ['Story'],   // Task 可選 Story 父(或無父)
+            Bug:   ['Story'],   // Bug 同上
+            Spike: ['Story'],
+        };
+        const BACKLOG_TYPE_LABEL = { Epic:'🎯 Epic', Story:'📖 Story', Task:'⚙ Task', Bug:'🐛 Bug', Spike:'🔬 Spike' };
+
+        function _populateTodoParentOptions() {
+            // 依 #todoType 目前選的類型,把可選的父項列出來
+            const sel = document.getElementById('todoType');
+            const par = document.getElementById('todoParent');
+            if (!sel || !par) return;
+            const allow = BACKLOG_PARENT_RULES[sel.value] || [];
+            const candidates = (_homeTodos || []).filter(it => allow.includes(it.item_type) && (it.status !== 'Done' && it.status !== 'Cancelled'));
+            par.innerHTML = '<option value="">— 無 (頂層) —</option>' +
+                candidates.map(it => `<option value="${_esc(it.id)}">${_esc(BACKLOG_TYPE_LABEL[it.item_type] || it.item_type)} · ${_esc(it.title)}</option>`).join('');
+            par.disabled = !allow.length;
+        }
+        function onTodoTypeChange() {
+            const cur = document.getElementById('todoParent')?.value;
+            _populateTodoParentOptions();
+            // 嘗試保留原本的選項
+            const par = document.getElementById('todoParent');
+            if (par && cur && [...par.options].some(o => o.value === cur)) par.value = cur;
+        }
+
+        function openTodoModal(id, defaultDue, defaultType) {
             _editingTodoId = id || null;
             const t = id ? _homeTodos.find(x => x.id === id) : null;
+            const typeLabel = t ? (BACKLOG_TYPE_LABEL[t.item_type] || t.item_type) : (BACKLOG_TYPE_LABEL[defaultType] || '新增待辦');
             document.getElementById('todoModalTitle').innerHTML = t
-                ? '<i class="fa-solid fa-list-check text-amber-500"></i> 編輯待辦'
-                : '<i class="fa-solid fa-list-check text-amber-500"></i> 新增待辦';
+                ? `<i class="fa-solid fa-list-check text-amber-500"></i> 編輯 ${_esc(typeLabel)}`
+                : `<i class="fa-solid fa-list-check text-amber-500"></i> 新增 ${_esc(typeLabel)}`;
             document.getElementById('todoTitle').value = t?.title || '';
             document.getElementById('todoDue').value = t?.due_date || defaultDue || '';
             document.getElementById('todoStatus').value = t?.status || 'Todo';
             document.getElementById('todoPriority').value = t?.priority || 'P2';
             document.getElementById('todoAssignee').value = t?.assignee || (typeof authCurrentUsername === 'function' ? (authCurrentUsername()||'') : '');
             document.getElementById('todoDesc').value = t?.description || '';
+            document.getElementById('todoType').value = t?.item_type || defaultType || 'Task';
+            document.getElementById('todoSprint').value = t?.sprint_label || '';
+            _populateTodoParentOptions();
+            document.getElementById('todoParent').value = t?.parent_id || '';
             document.getElementById('todoModal').classList.remove('hidden');
         }
         function closeTodoModal() { document.getElementById('todoModal').classList.add('hidden'); _editingTodoId = null; }
@@ -15286,6 +15512,9 @@ gantt
                 priority: document.getElementById('todoPriority').value,
                 assignee: document.getElementById('todoAssignee').value.trim() || null,
                 description: document.getElementById('todoDesc').value || null,
+                item_type: document.getElementById('todoType').value || 'Task',
+                parent_id: document.getElementById('todoParent').value || null,
+                sprint_label: document.getElementById('todoSprint').value.trim() || null,
             };
             try {
                 const url = _editingTodoId ? '/api/todos/'+_editingTodoId : '/api/todos';
@@ -15295,7 +15524,8 @@ gantt
                 showToast(_editingTodoId ? '已更新' : '已建立', 'success');
                 closeTodoModal();
                 reloadHomeTodos();
-            } catch (e) { showToast('儲存失敗：'+e.message, 'error'); }
+                reloadBacklogView();
+            } catch (e) { showToast('儲存失敗:'+e.message, 'error'); }
             return false;
         }
         async function todoQuickToggle(id, checked) {
@@ -15303,17 +15533,231 @@ gantt
                 const r = await fetch('/api/todos/'+id, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status: checked ? 'Done' : 'Todo' }) });
                 if (!r.ok) throw new Error('HTTP '+r.status);
                 reloadHomeTodos();
-            } catch (e) { showToast('更新失敗：'+e.message, 'error'); }
+                reloadBacklogView();
+            } catch (e) { showToast('更新失敗:'+e.message, 'error'); }
         }
         async function deleteTodo(id) {
-            if (!confirm('確定刪除這個待辦？')) return;
+            if (!confirm('確定刪除這個待辦?')) return;
             try {
                 const r = await fetch('/api/todos/'+id, { method:'DELETE' });
                 if (!r.ok && r.status !== 204) throw new Error('HTTP '+r.status);
                 showToast('已刪除', 'success');
                 reloadHomeTodos();
-            } catch (e) { showToast('刪除失敗：'+e.message, 'error'); }
+                reloadBacklogView();
+            } catch (e) { showToast('刪除失敗:'+e.message, 'error'); }
         }
+
+        // ════════════════════════════════════════════════
+        // 待辦清單 (Backlog) view — 獨立分頁,完整 CRUD + 階層 + Sprint 分群
+        // 預設:assignee = 當前使用者(toolbar 可切「全部」)
+        // ════════════════════════════════════════════════
+        let _backlogFilter = 'all';   // all / overdue / due_soon / done
+        let _backlogTree = [];
+
+        function _flattenBacklogTree(nodes, out) {
+            for (const n of nodes || []) {
+                out.push(n);
+                if (n.children && n.children.length) _flattenBacklogTree(n.children, out);
+            }
+            return out;
+        }
+
+        function showBacklogView() {
+            if (!_setView('backlogWorkspace',
+                '<i class="fa-solid fa-list-check text-amber-500"></i>',
+                'Backlog',
+                'bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium',
+                '待辦清單',
+                { titleKey: 'view.backlog.title', filenameKey: 'view.backlog.title' })) return;
+            const assigneeSel = document.getElementById('backlogAssigneeFilter');
+            if (assigneeSel && !assigneeSel.dataset.userInteracted) assigneeSel.value = '__me__';
+            reloadBacklogView();
+        }
+
+        async function reloadBacklogView() {
+            const assigneeSel = document.getElementById('backlogAssigneeFilter');
+            const sprintSel = document.getElementById('backlogSprintFilter');
+            const username = (typeof authCurrentUsername === 'function') ? authCurrentUsername() : null;
+            const assigneeVal = assigneeSel ? assigneeSel.value : '__me__';
+            const assignee = (assigneeVal === '__me__') ? (username || '') : assigneeVal;
+            const sprint = sprintSel ? sprintSel.value : '';
+            const include_done = (_backlogFilter === 'done');
+            try {
+                const params = new URLSearchParams();
+                if (assignee) params.set('assignee', assignee);
+                if (sprint) params.set('sprint_label', sprint);
+                params.set('include_done', String(include_done));
+                const [tree, summary] = await Promise.all([
+                    fetch('/api/todos/tree?' + params.toString()).then(r => r.json()),
+                    fetch('/api/todos/summary' + (assignee ? '?assignee=' + encodeURIComponent(assignee) : '')).then(r => r.json()),
+                ]);
+                _backlogTree = tree || [];
+                _homeTodos = _flattenBacklogTree(_backlogTree, []);
+                document.getElementById('backlogKpiOverdueCount').textContent = summary.overdue ?? 0;
+                document.getElementById('backlogKpiDueSoonCount').textContent = summary.due_soon ?? 0;
+                document.getElementById('backlogKpiActiveCount').textContent = (summary.todo ?? 0) + (summary.in_progress ?? 0);
+                document.getElementById('backlogKpiDoneCount').textContent = summary.done ?? 0;
+                _populateBacklogSprintOptions(_homeTodos);
+                _renderBacklogView();
+            } catch (e) {
+                const box = document.getElementById('backlogList');
+                if (box) box.innerHTML = `<div class="bg-white rounded-lg p-8 text-center text-rose-500">載入失敗:${_esc(e.message || e)}</div>`;
+            }
+        }
+
+        function _populateBacklogSprintOptions(items) {
+            const sel = document.getElementById('backlogSprintFilter');
+            if (!sel) return;
+            const cur = sel.value;
+            const labels = [...new Set(items.map(it => it.sprint_label).filter(Boolean))].sort();
+            sel.innerHTML = '<option value="" data-i18n="backlog.sprint.all">全部 Sprint</option>'
+                          + '<option value="__backlog__" data-i18n="backlog.sprint.backlog">未排入 Sprint</option>'
+                          + labels.map(l => `<option value="${_esc(l)}">${_esc(l)}</option>`).join('');
+            sel.value = cur;
+            try { i18nApply(sel); } catch (_) {}
+        }
+
+        function setBacklogFilter(f) {
+            _backlogFilter = f;
+            document.querySelectorAll('#backlogWorkspace [data-filter]').forEach(el => {
+                el.classList.toggle('is-active', el.getAttribute('data-filter') === f);
+            });
+            ['Overdue','DueSoon','Active','Done'].forEach(k => {
+                document.getElementById('backlogKpi' + k)?.classList.remove('ring-2','ring-amber-400');
+            });
+            const ringMap = { overdue:'Overdue', due_soon:'DueSoon', all:'Active', done:'Done' };
+            const ring = ringMap[f];
+            if (ring) document.getElementById('backlogKpi' + ring)?.classList.add('ring-2','ring-amber-400');
+            // done 需要重撈;從 done 切回非 done 也要重撈
+            const hasDone = _backlogTree.some(n => n.status === 'Done' || n.status === 'Cancelled');
+            if (f === 'done' || hasDone) { reloadBacklogView(); return; }
+            _renderBacklogView();
+        }
+
+        function _filterBacklogNode(item) {
+            const isDone = item.status === 'Done' || item.status === 'Cancelled';
+            const f = _backlogFilter;
+            const typeFilter = document.getElementById('backlogTypeFilter')?.value || '';
+            if (typeFilter && item.item_type !== typeFilter) return false;
+            const q = (document.getElementById('backlogSearch')?.value || '').trim().toLowerCase();
+            if (q && !(item.title || '').toLowerCase().includes(q)) return false;
+            if (f === 'overdue')  return !isDone && item.is_overdue;
+            if (f === 'due_soon') return !isDone && !item.is_overdue && item.days_to_due != null && item.days_to_due >= 0 && item.days_to_due <= 7;
+            if (f === 'done')     return isDone;
+            return !isDone;
+        }
+
+        function _backlogTypeIcon(type) {
+            return ({
+                Epic:  '<i class="fa-solid fa-bullseye text-purple-500"></i>',
+                Story: '<i class="fa-solid fa-book-open text-blue-500"></i>',
+                Task:  '<i class="fa-solid fa-screwdriver-wrench text-stone-500"></i>',
+                Bug:   '<i class="fa-solid fa-bug text-rose-500"></i>',
+                Spike: '<i class="fa-solid fa-flask text-emerald-500"></i>',
+            })[type] || '<i class="fa-solid fa-circle text-stone-300"></i>';
+        }
+
+        function _renderBacklogRow(item) {
+            const isDone = item.status === 'Done' || item.status === 'Cancelled';
+            const cls = ['backlog-row'];
+            if (isDone) cls.push('is-done');
+            else if (item.is_overdue) cls.push('is-overdue');
+            else if (item.days_to_due != null && item.days_to_due <= 3) cls.push('is-due-soon');
+            const prColor = { P0:'bg-red-100 text-red-700', P1:'bg-orange-100 text-orange-700', P2:'bg-amber-100 text-amber-700', P3:'bg-stone-100 text-stone-600' };
+            const stColor = { Todo:'bg-blue-100 text-blue-700', InProgress:'bg-amber-100 text-amber-700', Done:'bg-emerald-100 text-emerald-700', Cancelled:'bg-stone-200 text-stone-500' };
+            const stLabel = { Todo:'待辦', InProgress:'進行中', Done:'已完成', Cancelled:'已取消' };
+            let dueBadge = '';
+            if (item.due_date && !isDone) {
+                if (item.is_overdue) dueBadge = `<span class="text-[10px] px-1.5 py-0.5 rounded bg-rose-100 text-rose-700">過期 ${Math.abs(item.days_to_due)} 天</span>`;
+                else if (item.days_to_due === 0) dueBadge = `<span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">今天到期</span>`;
+                else if (item.days_to_due <= 3) dueBadge = `<span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">${item.days_to_due} 天後</span>`;
+                else if (item.days_to_due != null) dueBadge = `<span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700">${item.days_to_due} 天後</span>`;
+            }
+            return `
+                <div class="${cls.join(' ')}">
+                    <input type="checkbox" ${isDone ? 'checked' : ''} onchange="todoQuickToggle('${_esc(item.id)}', this.checked); event.stopPropagation();"
+                        class="mt-0.5 rounded border-stone-300 text-amber-500 focus:ring-amber-400 shrink-0">
+                    <span class="br-icon">${_backlogTypeIcon(item.item_type)}</span>
+                    <div class="br-title cursor-pointer" onclick="openTodoModal('${_esc(item.id)}')">
+                        <div class="br-title-text" style="white-space:normal">${_esc(item.title)}</div>
+                        <div class="br-meta">
+                            <span class="text-[10px] px-1.5 py-0.5 rounded ${stColor[item.status]||''}">${_esc(stLabel[item.status]||item.status)}</span>
+                            <span class="text-[10px] px-1.5 py-0.5 rounded ${prColor[item.priority]||''}">${_esc(item.priority||'')}</span>
+                            ${dueBadge}
+                            ${item.assignee ? `<span class="text-[10px] text-stone-500"><i class="fa-regular fa-user"></i> ${_esc(item.assignee)}</span>` : ''}
+                            ${item.due_date ? `<span class="text-[10px] font-mono text-stone-400">${_esc(item.due_date)}</span>` : ''}
+                        </div>
+                    </div>
+                    <button type="button" onclick="event.stopPropagation(); deleteTodo('${_esc(item.id)}')" title="刪除"
+                        class="text-stone-300 hover:text-rose-500 shrink-0"><i class="fa-solid fa-trash text-xs"></i></button>
+                </div>
+            `;
+        }
+
+        function _renderBacklogNodeRecursive(item) {
+            const childrenHtml = (item.children || [])
+                .filter(c => _filterBacklogNode(c) || (c.children || []).some(_filterBacklogNode))
+                .map(_renderBacklogNodeRecursive).join('');
+            return `${_renderBacklogRow(item)}${childrenHtml ? `<div class="backlog-children space-y-1 mt-1">${childrenHtml}</div>` : ''}`;
+        }
+
+        function _renderBacklogView() {
+            const box = document.getElementById('backlogList');
+            if (!box) return;
+            const tree = _backlogTree || [];
+            const filteredRoots = tree.filter(t => {
+                if (_filterBacklogNode(t)) return true;
+                return (t.children || []).some(c => _filterBacklogNode(c) || (c.children || []).some(_filterBacklogNode));
+            });
+            if (!filteredRoots.length) {
+                box.innerHTML = '<div class="bg-white rounded-lg p-12 text-center text-stone-400" data-i18n="backlog.empty">沒有指派給我的待辦</div>';
+                try { i18nApply(box); } catch (_) {}
+                return;
+            }
+            const groups = {};
+            for (const r of filteredRoots) {
+                const key = r.sprint_label || '__backlog__';
+                if (!groups[key]) groups[key] = [];
+                groups[key].push(r);
+            }
+            const labels = Object.keys(groups).sort((a, b) => {
+                if (a === '__backlog__') return 1;
+                if (b === '__backlog__') return -1;
+                return a.localeCompare(b);
+            });
+            box.innerHTML = labels.map(label => {
+                const items = groups[label];
+                const title = label === '__backlog__'
+                    ? '<i class="fa-solid fa-inbox text-stone-400"></i> <span data-i18n="backlog.sprint.backlog">未排入 Sprint</span>'
+                    : `<i class="fa-solid fa-flag text-purple-500"></i> ${_esc(label)}`;
+                return `
+                    <div class="bg-white rounded-lg border border-amber-100 shadow-sm p-4">
+                        <div class="text-sm font-bold text-stone-700 mb-3 flex items-center gap-2 pb-2 border-b border-stone-100">${title}<span class="text-xs font-normal text-stone-400">(${items.length})</span></div>
+                        <div class="space-y-1">${items.map(_renderBacklogNodeRecursive).join('')}</div>
+                    </div>
+                `;
+            }).join('');
+            try { i18nApply(box); } catch (_) {}
+        }
+
+        function toggleBacklogAddMenu(ev) {
+            if (ev) ev.stopPropagation();
+            document.getElementById('backlogAddMenu')?.classList.toggle('hidden');
+        }
+        function closeBacklogAddMenu() {
+            document.getElementById('backlogAddMenu')?.classList.add('hidden');
+        }
+        // 點 add menu 外部關閉 + 標記 assignee 是否被使用者切過
+        document.addEventListener('click', (ev) => {
+            const m = document.getElementById('backlogAddMenu');
+            const btn = document.getElementById('backlogAddBtn');
+            if (m && !m.classList.contains('hidden')) {
+                if (!m.contains(ev.target) && !(btn && btn.contains(ev.target))) m.classList.add('hidden');
+            }
+        });
+        document.addEventListener('change', (ev) => {
+            if (ev.target && ev.target.id === 'backlogAssigneeFilter') ev.target.dataset.userInteracted = '1';
+        });
 
         // 預設新文件範本：讓使用者一進來就有一份完整 markdown + mermaid 範例
         const DOC_DEFAULT_TEMPLATE = `# 文件標題

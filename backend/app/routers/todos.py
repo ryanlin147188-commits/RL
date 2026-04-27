@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common import Pagination
 from app.database import get_db
-from app.models.todo_item import TodoItem, TodoPriority, TodoStatus
+from app.models.todo_item import TodoItem, TodoItemType, TodoPriority, TodoStatus
 from app.schemas.settings import (
     TodoItemCreate,
     TodoItemResponse,
@@ -34,6 +34,15 @@ def _resolve_priority(val, default):
         return default
     try:
         return TodoPriority(val)
+    except ValueError:
+        return default
+
+
+def _resolve_type(val, default):
+    if val is None:
+        return default
+    try:
+        return TodoItemType(val)
     except ValueError:
         return default
 
@@ -62,6 +71,9 @@ def _enrich(t: TodoItem) -> dict:
         "assignee": t.assignee,
         "related_entity_type": t.related_entity_type,
         "related_entity_id": t.related_entity_id,
+        "item_type": t.item_type.value if hasattr(t.item_type, "value") else str(t.item_type),
+        "parent_id": t.parent_id,
+        "sprint_label": t.sprint_label,
         "completed_at": t.completed_at,
         "created_at": t.created_at,
         "updated_at": t.updated_at,
@@ -75,6 +87,9 @@ async def list_todos(
     project_id: Optional[str] = Query(None),
     assignee: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
+    item_type: Optional[str] = Query(None, description="Epic / Story / Task / Bug / Spike"),
+    parent_id: Optional[str] = Query(None, description="篩選某個父項下的子項"),
+    sprint_label: Optional[str] = Query(None, description="Sprint label;傳 '__backlog__' 代表沒掛 sprint"),
     bucket: Optional[str] = Query(
         None,
         description="overdue / due_soon (≤3 天) / upcoming / done。覆蓋 status 過濾。",
@@ -89,6 +104,18 @@ async def list_todos(
         stmt = stmt.where(TodoItem.assignee == assignee)
     if status:
         stmt = stmt.where(TodoItem.status == TodoStatus(status))
+    if item_type:
+        try:
+            stmt = stmt.where(TodoItem.item_type == TodoItemType(item_type))
+        except ValueError:
+            pass
+    if parent_id:
+        stmt = stmt.where(TodoItem.parent_id == parent_id)
+    if sprint_label:
+        if sprint_label == "__backlog__":
+            stmt = stmt.where(TodoItem.sprint_label.is_(None))
+        else:
+            stmt = stmt.where(TodoItem.sprint_label == sprint_label)
     stmt = page.apply(stmt)
     rows = (await db.execute(stmt)).scalars().all()
     enriched = [_enrich(t) for t in rows]
@@ -119,7 +146,7 @@ async def todo_summary(
     assignee: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
-    """首頁 KPI 卡片用：各 bucket 的數量。"""
+    """首頁 KPI 卡片用:各 bucket 的數量。"""
     stmt = select(TodoItem)
     if project_id:
         stmt = stmt.where(TodoItem.project_id == project_id)
@@ -146,6 +173,62 @@ async def todo_summary(
     }
 
 
+@router.get("/todos/tree", tags=["T · 待辦"])
+async def todo_tree(
+    project_id: Optional[str] = Query(None),
+    assignee: Optional[str] = Query(None),
+    sprint_label: Optional[str] = Query(None),
+    include_done: bool = Query(False, description="是否包含已完成項目"),
+    db: AsyncSession = Depends(get_db),
+):
+    """側邊欄 / Backlog view 用:回傳階層化的待辦樹。
+
+    結構:
+        [
+          { ...Story/Epic..., children: [Task, Task, Bug] },
+          { ...孤立 Bug/Spike/Task...(沒有 parent) },
+          ...
+        ]
+    """
+    stmt = select(TodoItem).order_by(
+        asc(TodoItem.item_type),
+        asc(TodoItem.due_date),
+        desc(TodoItem.created_at),
+    )
+    if project_id:
+        stmt = stmt.where(TodoItem.project_id == project_id)
+    if assignee:
+        stmt = stmt.where(TodoItem.assignee == assignee)
+    if sprint_label:
+        if sprint_label == "__backlog__":
+            stmt = stmt.where(TodoItem.sprint_label.is_(None))
+        else:
+            stmt = stmt.where(TodoItem.sprint_label == sprint_label)
+    if not include_done:
+        stmt = stmt.where(TodoItem.status.notin_([TodoStatus.DONE, TodoStatus.CANCELLED]))
+
+    rows = (await db.execute(stmt)).scalars().all()
+    items = [_enrich(t) for t in rows]
+    by_id = {it["id"]: it for it in items}
+    for it in items:
+        it["children"] = []
+
+    roots = []
+    for it in items:
+        pid = it.get("parent_id")
+        if pid and pid in by_id:
+            by_id[pid]["children"].append(it)
+        else:
+            roots.append(it)
+    # 顯示順序:Epic > Story > Task > Bug > Spike,然後依到期日
+    type_order = {"Epic": 0, "Story": 1, "Task": 2, "Bug": 3, "Spike": 4}
+    roots.sort(key=lambda x: (
+        type_order.get(x.get("item_type"), 99),
+        x.get("due_date") or "9999-99-99",
+    ))
+    return roots
+
+
 @router.post("/todos", response_model=TodoItemResponse, status_code=201, tags=["T · 待辦"])
 async def create_todo(payload: TodoItemCreate, db: AsyncSession = Depends(get_db)):
     t = TodoItem(
@@ -158,6 +241,9 @@ async def create_todo(payload: TodoItemCreate, db: AsyncSession = Depends(get_db
         assignee=payload.assignee,
         related_entity_type=payload.related_entity_type,
         related_entity_id=payload.related_entity_id,
+        item_type=_resolve_type(payload.item_type, TodoItemType.TASK),
+        parent_id=payload.parent_id,
+        sprint_label=payload.sprint_label,
     )
     db.add(t)
     await db.flush()
@@ -189,6 +275,8 @@ async def update_todo(todo_id: str, payload: TodoItemUpdate, db: AsyncSession = 
                 t.completed_at = None
         elif key == "priority" and val is not None:
             t.priority = _resolve_priority(val, t.priority)
+        elif key == "item_type" and val is not None:
+            t.item_type = _resolve_type(val, t.item_type)
         else:
             setattr(t, key, val)
     await db.flush()

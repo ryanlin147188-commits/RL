@@ -25,7 +25,7 @@ from .test_document import DocumentCategory, TestDocument
 from .test_milestone import MilestoneStatus, TestMilestone
 from .test_plan import TestPlan, TestPlanStatus
 from .testcase_content import TestcaseContent
-from .todo_item import TodoItem, TodoPriority, TodoStatus
+from .todo_item import TodoItem, TodoItemType, TodoPriority, TodoStatus
 from .tree_node import LevelType, TreeNode
 from .wbs_item import WbsItem, WbsStatus
 
@@ -52,7 +52,7 @@ __all__ = [
     # Settings + todos
     "Role", "NotificationPreference", "Notification", "EmailConfig",
     "AiTokenConfig", "AiProvider",
-    "TodoItem", "TodoStatus", "TodoPriority",
+    "TodoItem", "TodoItemType", "TodoStatus", "TodoPriority",
     "User",
     # Multi-tenancy + audit
     "Organization", "AuditLog",
