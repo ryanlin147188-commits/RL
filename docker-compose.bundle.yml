@@ -1,17 +1,17 @@
-# AutoTest 生產用 docker compose
+# AutoTest 開源 image bundle 部署用 compose
 #
-# 跟根目錄的 docker-compose.yml 結構一致(postgres / valkey / seaweedfs /
-# apisix / fluent-bit / victoria-logs 全部沿用),但 backend / celery /
-# frontend 三個 service 換成生產版 image(Cython .so + bytecode-only +
-# 混淆過的前端)。
+# 適用場景:你下載了一份 autotest-images-1.0.0.tar(從 GitHub Releases 或維運給的離線
+# 包),用 `docker load -i autotest-images-1.0.0.tar` 載入後,執行:
+#     docker compose -f docker-compose.bundle.yml up -d
+# 即可。
 #
-# 客戶端使用流程:
-#   1) docker login <registry>(若用私有 registry)
-#   2) export AUTOTEST_TAG=1.0.0   (對應你發布的版本)
-#   3) docker compose -f build/docker-compose.production.yml pull
-#   4) docker compose -f build/docker-compose.production.yml up -d
+# 跟根目錄的 docker-compose.yml 差別:
+#   - 不再 build:從本機 image 拉(`image:` 而非 `build:`)
+#   - frontend 用 pre-built image(不掛 index.html volume,變更前端要重建 image)
+#   - 其他 service(postgres / valkey / seaweedfs / apisix / fluent-bit / victoria-logs)
+#     完全跟原 dev compose 一致
 #
-# 想客製化(改變 admin 密碼、改 host port 等)請複製這份成自己的版本。
+# 客製化:複製成你自己的版本,改密碼、port、volume mount 等。
 
 services:
   postgres:
@@ -59,6 +59,9 @@ services:
     configs:
       - source: seaweedfs_s3_config
         target: /etc/seaweedfs/s3-config.json
+    ports:
+      - "8333:8333"
+      - "9333:9333"
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:9333/cluster/status | grep -q IsLeader || exit 1"]
       interval: 10s
@@ -84,9 +87,9 @@ services:
       "
     restart: "no"
 
-  # ── 生產版 backend(Cython .so + .pyc-only routers) ─────────────
+  # ── 開源 image(從 docker load 載進來)──
   backend:
-    image: ${REGISTRY:-}autotest-backend:${AUTOTEST_TAG:-1.0.0}
+    image: autotest-backend:${AUTOTEST_TAG:-1.0.0}
     container_name: autotest-backend
     restart: unless-stopped
     depends_on:
@@ -116,9 +119,8 @@ services:
     ports:
       - "8000:8000"
 
-  # ── 生產版 celery(Cython .so + .pyc-only Celery tasks) ─────────
   celery:
-    image: ${REGISTRY:-}autotest-celery:${AUTOTEST_TAG:-1.0.0}
+    image: autotest-celery:${AUTOTEST_TAG:-1.0.0}
     container_name: autotest-celery
     restart: unless-stopped
     depends_on:
@@ -141,15 +143,14 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-admin}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-admin123}
       PLAYWRIGHT_HEADLESS: ${PLAYWRIGHT_HEADLESS:-1}
-      # Celery spawn 出來的 runner image 也要用生產版
-      ROBOT_RUNNER_IMAGE: ${REGISTRY:-}autotest-runner:${AUTOTEST_TAG:-1.0.0}
+      # Spawn 出來的 runner image 也要對齊 tag
+      ROBOT_RUNNER_IMAGE: autotest-runner:${AUTOTEST_TAG:-1.0.0}
       ROBOT_RUNNER_NETWORK: ${ROBOT_RUNNER_NETWORK:-autotest_default}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
 
-  # ── 生產版 frontend(JS 重度混淆過的 index.html) ───────────────
   frontend:
-    image: ${REGISTRY:-}autotest-frontend:${AUTOTEST_TAG:-1.0.0}
+    image: autotest-frontend:${AUTOTEST_TAG:-1.0.0}
     container_name: autotest-frontend
     restart: unless-stopped
     depends_on:
@@ -164,8 +165,8 @@ services:
     depends_on:
       - backend
     volumes:
-      - ../apisix/config.yaml:/usr/local/apisix/conf/config.yaml:ro
-      - ../apisix/apisix.yaml:/usr/local/apisix/conf/apisix.yaml:ro
+      - ./apisix/config.yaml:/usr/local/apisix/conf/config.yaml:ro
+      - ./apisix/apisix.yaml:/usr/local/apisix/conf/apisix.yaml:ro
     ports:
       - "9080:9080"
     healthcheck:
@@ -201,8 +202,8 @@ services:
       victoria-logs:
         condition: service_healthy
     volumes:
-      - ../fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
-      - ../fluent-bit/parsers.conf:/fluent-bit/etc/parsers.conf:ro
+      - ./fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
+      - ./fluent-bit/parsers.conf:/fluent-bit/etc/parsers.conf:ro
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
 
 volumes:

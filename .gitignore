@@ -52,3 +52,10 @@ minio-data/
 *.tmp
 
 record/
+
+# ── Docker image bundle(docker save 產出的離線散佈檔,太大不入 git)──
+# 用 GitHub Releases / 自家 S3 / sftp 給客戶下載
+dist/
+*.tar
+*.tar.gz
+
