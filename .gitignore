@@ -52,11 +52,3 @@ minio-data/
 *.tmp
 
 record/
-
-# ── Docker image bundle tar（由 build-bundle.sh --save 產出）──
-# 檔案通常數十 MB 以上，不適合放進 git；
-# 需要散佈請用雲端硬碟、S3 或 GitHub Release 附件。
-autotest_v1.0-bundle.tar
-autotest_v1.0-bundle.tar.gz
-*.tar
-*.tar.gz

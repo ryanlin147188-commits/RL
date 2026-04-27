@@ -150,14 +150,6 @@ AutoTest 的核心設計理念是「**讓每一種主流測試方法論都能在
 | 停止(保留資料)| `./deploy.sh --stop` | `.\deploy.ps1 -Stop` |
 | 重置(**清空所有資料**)| `./deploy.sh --reset` | `.\deploy.ps1 -Reset` |
 
-### 單一 Docker Image 散佈
-
-```bash
-./build-bundle.sh                        # 產出 autotest_v1.0:latest
-docker save autotest_v1.0 -o bundle.tar  # 離線散佈
-docker load -i bundle.tar                # 在目標機器載入
-```
-
 > 📖 **完整部署流程**(`.env`、跨平台指令、本機開發、升級)請見 **[操作說明.md](操作說明.md)**
 > 📖 **REST API**: <http://localhost:8000/docs>(Swagger UI)
 
