@@ -802,13 +802,12 @@
                 <button type="button" onclick="closeTodoModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <form onsubmit="return todoSubmit(event)" class="p-6 space-y-3">
-                <!-- 類型 + 父項(階層約束:Story 可選 Epic 父;Task/Bug/Spike 可選 Story 父) -->
+                <!-- 類型 + 父項(階層約束:Task/Bug/Spike 可選 Feature 父) -->
                 <div class="grid grid-cols-2 gap-3">
                     <div>
                         <label for="todoType" class="block text-xs font-semibold text-stone-600 mb-1">類型</label>
                         <select id="todoType" aria-label="類型" onchange="onTodoTypeChange()" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
-                            <option value="Epic">🎯 Epic</option>
-                            <option value="Story">📖 Story (User Story)</option>
+                            <option value="Feature">🎯 Feature</option>
                             <option value="Task" selected>⚙ Task</option>
                             <option value="Bug">🐛 Bug</option>
                             <option value="Spike">🔬 Spike</option>
@@ -849,6 +848,31 @@
                     <input type="text" id="todoSprint" aria-label="Sprint label" placeholder="例:Sprint 23 / 2026-W18" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm">
                 </div>
                 <div><label for="todoDesc" class="block text-xs font-semibold text-stone-600 mb-1">說明</label><textarea id="todoDesc" aria-label="說明" rows="3" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
+                <!-- ── 連結面板:跨實體連結(需求 / 案例 / 缺陷 / 計畫 / 回合 / 里程碑 / WBS / 文件 / Project)── -->
+                <section id="todoLinksPanel" class="hidden border border-stone-200 rounded-md bg-stone-50/40 p-3">
+                    <div class="flex items-center justify-between mb-2">
+                        <h4 class="text-xs font-semibold text-stone-700"><i class="fa-solid fa-link text-amber-500"></i> <span data-i18n="links.title">連結</span></h4>
+                        <span id="todoLinksCount" class="text-[11px] text-stone-500"></span>
+                    </div>
+                    <div id="todoLinksList" class="space-y-1 mb-2"></div>
+                    <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-stone-200">
+                        <select id="todoLinkTargetType" onchange="onTodoLinkTypeChange()" aria-label="連結目標類型" class="px-2 py-1.5 border border-stone-300 rounded text-xs bg-white">
+                            <option value="requirement">📋 <span data-i18n="links.target.requirement">需求</span></option>
+                            <option value="testcase">🧪 <span data-i18n="links.target.testcase">案例</span></option>
+                            <option value="defect">🐛 <span data-i18n="links.target.defect">缺陷</span></option>
+                            <option value="test_plan">📑 <span data-i18n="links.target.test_plan">測試計畫</span></option>
+                            <option value="test_round">🔁 <span data-i18n="links.target.test_round">測試回合</span></option>
+                            <option value="test_milestone">🏁 <span data-i18n="links.target.test_milestone">里程碑</span></option>
+                            <option value="wbs">📊 <span data-i18n="links.target.wbs">WBS</span></option>
+                            <option value="test_document">📄 <span data-i18n="links.target.test_document">測試文件</span></option>
+                            <option value="project">📦 <span data-i18n="links.target.project">專案</span></option>
+                        </select>
+                        <select id="todoLinkTargetId" aria-label="連結目標" class="flex-1 min-w-0 px-2 py-1.5 border border-stone-300 rounded text-xs bg-white">
+                            <option value="">— <span data-i18n="links.pick">選擇目標</span> —</option>
+                        </select>
+                        <button type="button" onclick="addTodoLink()" class="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded text-xs font-medium"><i class="fa-solid fa-plus"></i> <span data-i18n="links.add">新增連結</span></button>
+                    </div>
+                </section>
                 <div class="flex justify-end gap-2 pt-2"><button type="button" onclick="closeTodoModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button><button type="submit" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button></div>
             </form>
         </div>
@@ -3155,7 +3179,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 </div>
             </div>
 
-            <!-- ── 待辦清單 (Backlog) — Story → Task/Bug/Spike 階層 + Sprint 分群 ── -->
+            <!-- ── 待辦清單 (Backlog) — Feature → Task/Bug/Spike 階層 + Sprint 分群 ── -->
             <div id="backlogWorkspace" class="flex-1 overflow-y-auto p-6 bg-amber-50/30 hidden">
                 <div class="max-w-7xl mx-auto">
                     <!-- KPI 4 卡 -->
@@ -3206,8 +3230,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                             <!-- 類型過濾 -->
                             <select id="backlogTypeFilter" onchange="_renderBacklogView()" class="px-3 py-2 border border-stone-300 rounded-md text-sm bg-white" aria-label="類型">
                                 <option value="" data-i18n="backlog.type.all">全部類型</option>
-                                <option value="Epic">🎯 Epic</option>
-                                <option value="Story">📖 Story</option>
+                                <option value="Feature">🎯 Feature</option>
                                 <option value="Task">⚙ Task</option>
                                 <option value="Bug">🐛 Bug</option>
                                 <option value="Spike">🔬 Spike</option>
@@ -3220,11 +3243,10 @@ driver.swipe(100, 800, 100, 200, 500)"
                                     <i class="fa-solid fa-chevron-down text-[10px] opacity-70"></i>
                                 </button>
                                 <div id="backlogAddMenu" class="hidden absolute right-0 top-full mt-1 w-44 bg-white rounded-md shadow-lg ring-1 ring-stone-200 overflow-hidden z-10">
-                                    <button type="button" onclick="closeBacklogAddMenu(); openTodoModal(null, null, 'Epic')"  class="drawer-backlog-add-item"><i class="fa-solid fa-bullseye text-purple-500"></i><span>Epic</span></button>
-                                    <button type="button" onclick="closeBacklogAddMenu(); openTodoModal(null, null, 'Story')" class="drawer-backlog-add-item"><i class="fa-solid fa-book-open text-blue-500"></i><span>Story</span></button>
-                                    <button type="button" onclick="closeBacklogAddMenu(); openTodoModal(null, null, 'Task')"  class="drawer-backlog-add-item"><i class="fa-solid fa-screwdriver-wrench text-stone-500"></i><span>Task</span></button>
-                                    <button type="button" onclick="closeBacklogAddMenu(); openTodoModal(null, null, 'Bug')"   class="drawer-backlog-add-item"><i class="fa-solid fa-bug text-rose-500"></i><span>Bug</span></button>
-                                    <button type="button" onclick="closeBacklogAddMenu(); openTodoModal(null, null, 'Spike')" class="drawer-backlog-add-item"><i class="fa-solid fa-flask text-emerald-500"></i><span>Spike</span></button>
+                                    <button type="button" onclick="closeBacklogAddMenu(); openTodoModal(null, null, 'Feature')" class="drawer-backlog-add-item"><i class="fa-solid fa-bullseye text-purple-500"></i><span>Feature</span></button>
+                                    <button type="button" onclick="closeBacklogAddMenu(); openTodoModal(null, null, 'Task')"    class="drawer-backlog-add-item"><i class="fa-solid fa-screwdriver-wrench text-stone-500"></i><span>Task</span></button>
+                                    <button type="button" onclick="closeBacklogAddMenu(); openTodoModal(null, null, 'Bug')"     class="drawer-backlog-add-item"><i class="fa-solid fa-bug text-rose-500"></i><span>Bug</span></button>
+                                    <button type="button" onclick="closeBacklogAddMenu(); openTodoModal(null, null, 'Spike')"   class="drawer-backlog-add-item"><i class="fa-solid fa-flask text-emerald-500"></i><span>Spike</span></button>
                                 </div>
                             </div>
                             <!-- 重新整理 -->
@@ -3242,7 +3264,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                         </div>
                     </div>
 
-                    <!-- 主內容:依 Sprint 分群,Story → 子項階層 -->
+                    <!-- 主內容:依 Sprint 分群,Feature → 子項階層 -->
                     <div id="backlogList" class="space-y-4">
                         <div class="bg-white rounded-lg border border-amber-100 shadow-sm p-12 text-center text-stone-400 text-sm" data-i18n="backlog.empty">沒有指派給我的待辦</div>
                     </div>
@@ -3342,7 +3364,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                         <div class="bg-white rounded-lg border border-cyan-100 shadow-sm overflow-hidden">
                             <table class="w-full text-sm">
                                 <thead class="bg-cyan-50/60 border-b border-cyan-100 text-stone-600 text-xs uppercase">
-                                    <tr><th class="p-3 text-left w-24">代號</th><th class="p-3 text-left">標題</th><th class="p-3 w-24">來源</th><th class="p-3 w-24">優先</th><th class="p-3 w-28">狀態</th><th class="p-3 w-32">關聯案例</th><th class="p-3 w-40 text-center">操作</th></tr>
+                                    <tr><th class="p-3 text-left w-24">代號</th><th class="p-3 text-left">標題</th><th class="p-3 w-24">來源</th><th class="p-3 w-24">優先</th><th class="p-3 w-28">狀態</th><th class="p-3 w-24 text-center">關聯案例</th><th class="p-3 w-32 text-center">連結 Backlog</th><th class="p-3 w-40 text-center">操作</th></tr>
                                 </thead>
                                 <tbody id="reqListBody" class="divide-y divide-stone-100"></tbody>
                             </table>
@@ -3393,6 +3415,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                         <div class="bg-white rounded-xl p-3 border border-orange-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-regular fa-calendar text-teal-500"></i> 進行中時程</div><div class="text-2xl font-bold text-teal-600" id="kpi_active_milestones">—</div></div>
                         <div class="bg-white rounded-xl p-3 border border-orange-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-solid fa-clipboard-list text-blue-500"></i> 啟用中計畫</div><div class="text-2xl font-bold text-blue-600" id="kpi_active_plans">—</div></div>
                         <div class="bg-white rounded-xl p-3 border border-orange-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-solid fa-diagram-project text-cyan-500"></i> 需求總數</div><div class="text-2xl font-bold text-cyan-600" id="kpi_requirements">—</div></div>
+                        <div class="bg-white rounded-xl p-3 border border-orange-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-solid fa-list-check text-amber-500"></i> Backlog 活躍</div><div class="text-2xl font-bold text-amber-600" id="kpi_active_backlog">—</div></div>
                     </section>
                     <!-- Kanban 板（缺陷狀態欄）-->
                     <h3 class="text-sm font-bold text-stone-500 uppercase tracking-wider mb-2 flex items-center gap-2">
@@ -6899,6 +6922,21 @@ driver.swipe(100, 800, 100, 200, 500)"
             'backlog.sprint.backlog':  { 'zh-TW': '未排入 Sprint', 'en': 'Backlog' },
             'backlog.type.all':        { 'zh-TW': '全部類型', 'en': 'All types' },
             'backlog.searchPlaceholder': { 'zh-TW': '搜尋標題…', 'en': 'Search title…' },
+            'backlog.type.feature':    { 'zh-TW': 'Feature', 'en': 'Feature' },
+            // ── 連結 (todo_links 連結面板 + RTM/看板顯示) ───────────────
+            'links.title':             { 'zh-TW': '連結', 'en': 'Links' },
+            'links.add':               { 'zh-TW': '新增連結', 'en': 'Add link' },
+            'links.empty':             { 'zh-TW': '尚無連結', 'en': 'No links' },
+            'links.pick':              { 'zh-TW': '選擇目標', 'en': 'Pick target' },
+            'links.target.requirement':    { 'zh-TW': '需求', 'en': 'Requirement' },
+            'links.target.testcase':       { 'zh-TW': '案例', 'en': 'Test Case' },
+            'links.target.defect':         { 'zh-TW': '缺陷', 'en': 'Defect' },
+            'links.target.test_plan':      { 'zh-TW': '測試計畫', 'en': 'Test Plan' },
+            'links.target.test_round':     { 'zh-TW': '測試回合', 'en': 'Test Round' },
+            'links.target.test_milestone': { 'zh-TW': '里程碑', 'en': 'Milestone' },
+            'links.target.wbs':            { 'zh-TW': 'WBS', 'en': 'WBS' },
+            'links.target.test_document':  { 'zh-TW': '測試文件', 'en': 'Test Document' },
+            'links.target.project':        { 'zh-TW': '專案', 'en': 'Project' },
         };
         // ════════════════════════════════════════════════
         // 全域 ZH→EN 字典 (~886 個短句;auto-generated)
@@ -7792,6 +7830,19 @@ driver.swipe(100, 800, 100, 200, 500)"
         '，再把 IdP 的 discovery URL（通常是': ', then put the IdP discovery URL (usually',
         '，每行一個）。': ', one per line).',
         '；不需要設定日期，後端會依重複規則自動推算下次執行。': '; no date needed — the backend computes the next run from the recurrence rule.',
+        // ── Backlog 連結相關 ──
+        '連結': 'Links',
+        '新增連結': 'Add link',
+        '尚無連結': 'No links',
+        '選擇目標': 'Pick target',
+        '連結 Backlog': 'Linked Backlog',
+        '已連結': 'Linked',
+        '點擊查看連結': 'Click to view links',
+        '確定移除此連結?': 'Remove this link?',
+        '請選擇目標': 'Please pick a target',
+        '連結失敗': 'Link failed',
+        'Backlog 活躍': 'Active Backlog',
+        '條 Backlog 連結': 'Backlog link(s)',
     };
 
         function _i18nGetLocale() {
@@ -13250,6 +13301,7 @@ gantt
 
         // ─── 需求 / RTM ─────────────────────────────────────────────────
         let _requirementsCache = [];
+        let _reqLinkedTodos = {};   // {req_id: [TodoSummaryForLink, ...]} 來自 batch by-target
         let _editingRequirementId = null;
         function showRequirementsView() {
             if (!_setView('requirementsWorkspace',
@@ -13286,17 +13338,20 @@ gantt
             const pid = currentProjectId;
             if (!pid) { tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-stone-400">請先選擇專案</td></tr>'; cntEl.textContent='0'; return; }
             try {
-                const res = await fetch('/api/requirements?project_id='+encodeURIComponent(pid));
-                if (!res.ok) throw new Error('HTTP '+res.status);
-                _requirementsCache = await res.json();
+                const [reqsRes, linksRes] = await Promise.all([
+                    fetch('/api/requirements?project_id='+encodeURIComponent(pid)),
+                    fetch('/api/links/by-target/batch?target_type=requirement&project_id='+encodeURIComponent(pid)).catch(() => null),
+                ]);
+                if (!reqsRes.ok) throw new Error('HTTP '+reqsRes.status);
+                _requirementsCache = await reqsRes.json();
+                _reqLinkedTodos = (linksRes && linksRes.ok) ? await linksRes.json() : {};
                 const kw = (document.getElementById('reqSearch')?.value || '').toLowerCase().trim();
                 let rows = _requirementsCache;
                 if (kw) rows = rows.filter(r => (r.title||'').toLowerCase().includes(kw) || (r.code||'').toLowerCase().includes(kw));
                 cntEl.textContent = rows.length;
-                if (!rows.length) { tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-stone-400">尚無需求</td></tr>'; return; }
+                if (!rows.length) { tbody.innerHTML = '<tr><td colspan="8" class="p-6 text-center text-stone-400">尚無需求</td></tr>'; return; }
                 const prColor = {Must:'bg-red-100 text-red-700', Should:'bg-amber-100 text-amber-700', Could:'bg-blue-100 text-blue-700', Wont:'bg-stone-100 text-stone-500'};
                 const stColor = {Draft:'bg-stone-100 text-stone-600', Approved:'bg-amber-100 text-amber-700', Implemented:'bg-blue-100 text-blue-700', Verified:'bg-emerald-100 text-emerald-700', Deprecated:'bg-stone-200 text-stone-500'};
-                // 建立 id → code 對照，方便顯示「父需求 = AC of REQ-XXX」
                 const codeById = Object.fromEntries(_requirementsCache.map(x => [x.id, x.code]));
                 tbody.innerHTML = rows.map(r => {
                     const parentCode = r.parent_id ? codeById[r.parent_id] : null;
@@ -13304,6 +13359,10 @@ gantt
                         ? `<span class="text-[9px] px-1 rounded bg-blue-100 text-blue-700 border border-blue-200 ml-1" title="${_esc(parentCode||'')} 之 AC">AC</span>`
                         : `<span class="text-[9px] px-1 rounded bg-cyan-100 text-cyan-700 border border-cyan-200 ml-1" title="頂層需求 = User Story">Story</span>`;
                     const parentHint = r.parent_id ? `<div class="text-[10px] text-stone-400">↳ AC of <span class="font-mono">${_esc(parentCode || r.parent_id)}</span></div>` : '';
+                    const linkedTodos = _reqLinkedTodos[r.id] || [];
+                    const linkedCell = linkedTodos.length
+                        ? `<button onclick="showLinkedTodosPopover(event,'requirement','${_esc(r.id)}')" class="text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-700 hover:bg-amber-200" title="點擊查看連結"><i class="fa-solid fa-link"></i> ${linkedTodos.length}</button>`
+                        : `<span class="text-[10px] text-stone-400">—</span>`;
                     return `<tr class="hover:bg-amber-50/30">
                         <td class="p-3 font-mono text-xs text-stone-500">${_esc(r.code)}${kindBadge}</td>
                         <td class="p-3"><div class="font-semibold text-stone-800 break-all">${_esc(r.title)}</div>${parentHint}</td>
@@ -13311,6 +13370,7 @@ gantt
                         <td class="p-3"><span class="text-xs px-2 py-0.5 rounded font-medium ${prColor[r.priority]||''}">${_esc(_zh('reqPriority', r.priority))}</span></td>
                         <td class="p-3"><span class="text-xs px-2 py-0.5 rounded font-medium ${stColor[r.status]||'bg-stone-100'}">${_esc(_zh('reqStatus', r.status))}</span></td>
                         <td class="p-3 text-xs text-stone-600 text-center">${(r.linked_testcase_ids||[]).length}</td>
+                        <td class="p-3 text-center">${linkedCell}</td>
                         <td class="p-3 text-center whitespace-nowrap space-x-1">
                             <button onclick="openRequirementModal('${_esc(r.id)}')" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded"><i class="fa-solid fa-pen"></i></button>
                             <button onclick="deleteRequirement('${_esc(r.id)}','${_esc(r.code)}')" class="text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded"><i class="fa-solid fa-trash"></i></button>
@@ -13318,7 +13378,7 @@ gantt
                     </tr>`;
                 }).join('');
             } catch(e) {
-                tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-red-500">載入失敗：${_esc(e.message)}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-red-500">載入失敗:${_esc(e.message)}</td></tr>`;
             }
         }
         function _collectAllTestCases() {
@@ -13528,6 +13588,22 @@ gantt
             }
         }
 
+        // 把 linked_todos 渲染成一排 chip(在 RTM 追溯鏈各層使用)
+        function _rtmRenderLinkedTodos(todos) {
+            if (!todos || !todos.length) return '';
+            const colorOf = (st) => st === 'Done' ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                : st === 'InProgress' ? 'bg-amber-100 text-amber-700 border-amber-200'
+                : st === 'Cancelled' ? 'bg-stone-100 text-stone-500 border-stone-200'
+                : 'bg-blue-100 text-blue-700 border-blue-200';
+            const iconOf = (t) => ({Feature:'🎯', Task:'⚙', Bug:'🐛', Spike:'🔬'})[t] || '🔗';
+            return `<div class="mt-1.5 flex flex-wrap gap-1 items-center text-[10px]">
+                <span class="text-stone-400"><i class="fa-solid fa-link"></i> Backlog:</span>
+                ${todos.map(t => `<span class="px-1.5 py-0.5 rounded border ${colorOf(t.status)} cursor-pointer" onclick="showBacklogView(); setTimeout(()=>{ if(typeof openTodoModal==='function') openTodoModal('${_esc(t.id)}'); }, 200);" title="${_esc(t.status)} · ${_esc(t.assignee||'')}">
+                    ${iconOf(t.item_type)} ${_esc(t.title.length>30 ? t.title.slice(0,30)+'…' : t.title)}
+                </span>`).join('')}
+            </div>`;
+        }
+
         function _rtmRenderStory(story) {
             const expanded = !_rtmChainCollapsed.has(story.id);
             const acCount = (story.acs || []).length;
@@ -13549,10 +13625,11 @@ gantt
                     <button type="button" onclick="openRequirementModal('${_esc(story.id)}')" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded" title="編輯"><i class="fa-solid fa-pen"></i></button>
                 </div>
                 <div class="${expanded ? '' : 'hidden'} divide-y divide-stone-100">
-                    ${(story.test_cases || []).length ? `<div class="p-3 bg-amber-50/40 text-[11px] text-amber-700"><i class="fa-solid fa-triangle-exclamation"></i> 此 User Story 直接連結了測試案例（建議改為連結到其下的 AC）</div>` : ''}
+                    ${story.linked_todos && story.linked_todos.length ? `<div class="px-3 py-2 bg-amber-50/30">${_rtmRenderLinkedTodos(story.linked_todos)}</div>` : ''}
+                    ${(story.test_cases || []).length ? `<div class="p-3 bg-amber-50/40 text-[11px] text-amber-700"><i class="fa-solid fa-triangle-exclamation"></i> 此 User Story 直接連結了測試案例(建議改為連結到其下的 AC)</div>` : ''}
                     ${(story.test_cases || []).map(tc => _rtmRenderTc(tc, 1)).join('')}
                     ${(story.acs || []).map(ac => _rtmRenderAc(ac)).join('')}
-                    ${acCount === 0 && tcsDirect === 0 ? `<div class="p-4 text-center text-stone-400 text-xs">尚未拆解出 AC，也未連結測試案例</div>` : ''}
+                    ${acCount === 0 && tcsDirect === 0 ? `<div class="p-4 text-center text-stone-400 text-xs">尚未拆解出 AC,也未連結測試案例</div>` : ''}
                 </div>
             </div>`;
         }
@@ -13569,6 +13646,7 @@ gantt
                     <span class="text-[10px] text-stone-500">缺陷 × ${bugs}</span>
                     <button type="button" onclick="openRequirementModal('${_esc(ac.id)}')" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded" title="編輯"><i class="fa-solid fa-pen"></i></button>
                 </div>
+                ${ac.linked_todos && ac.linked_todos.length ? `<div class="ml-8 px-3 pb-1">${_rtmRenderLinkedTodos(ac.linked_todos)}</div>` : ''}
                 <div class="ml-8">
                     ${tcs.length ? tcs.map(tc => _rtmRenderTc(tc, 2)).join('') : '<div class="px-3 py-2 text-[11px] text-stone-400">此 AC 尚未連結任何測試案例</div>'}
                 </div>
@@ -13586,19 +13664,23 @@ gantt
                     <span class="text-[10px] px-1.5 py-0.5 rounded font-medium border ${stCls}">${_esc(stLabel)}</span>
                     <span class="text-[10px] text-stone-500">缺陷 × ${bugs.length}</span>
                 </div>
+                ${tc.linked_todos && tc.linked_todos.length ? _rtmRenderLinkedTodos(tc.linked_todos) : ''}
                 ${bugs.length ? `<div class="mt-2 ml-4 space-y-1">${bugs.map(b => _rtmRenderBug(b)).join('')}</div>` : ''}
             </div>`;
         }
 
         function _rtmRenderBug(b) {
             const sevCls = _RTM_DEF_SEV_COLOR[b.severity] || 'bg-stone-100 text-stone-600 border-stone-200';
-            return `<div class="flex items-center gap-2 text-xs bg-white border border-red-100 rounded px-2 py-1">
-                <span class="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-700 border border-red-200 font-semibold">Bug</span>
-                <span class="font-mono text-[10px] text-stone-500">${_esc(b.code)}</span>
-                <button type="button" onclick="rtmOpenDefect('${_esc(b.id)}')" class="font-medium text-stone-700 flex-1 text-left truncate hover:text-red-600 hover:underline" title="${_esc(b.title)}">${_esc(b.title)}</button>
-                <span class="text-[10px] px-1.5 py-0.5 rounded font-medium border ${sevCls}">${_esc(_zh('defSeverity', b.severity))}</span>
-                <span class="text-[10px] px-1.5 py-0.5 rounded font-medium bg-stone-100 text-stone-500">${_esc(_zh('defStatus', b.status))}</span>
-                ${b.assignee ? `<span class="text-[10px] text-stone-400">${_esc(b.assignee)}</span>` : ''}
+            return `<div class="bg-white border border-red-100 rounded px-2 py-1">
+                <div class="flex items-center gap-2 text-xs">
+                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-700 border border-red-200 font-semibold">Bug</span>
+                    <span class="font-mono text-[10px] text-stone-500">${_esc(b.code)}</span>
+                    <button type="button" onclick="rtmOpenDefect('${_esc(b.id)}')" class="font-medium text-stone-700 flex-1 text-left truncate hover:text-red-600 hover:underline" title="${_esc(b.title)}">${_esc(b.title)}</button>
+                    <span class="text-[10px] px-1.5 py-0.5 rounded font-medium border ${sevCls}">${_esc(_zh('defSeverity', b.severity))}</span>
+                    <span class="text-[10px] px-1.5 py-0.5 rounded font-medium bg-stone-100 text-stone-500">${_esc(_zh('defStatus', b.status))}</span>
+                    ${b.assignee ? `<span class="text-[10px] text-stone-400">${_esc(b.assignee)}</span>` : ''}
+                </div>
+                ${b.linked_todos && b.linked_todos.length ? _rtmRenderLinkedTodos(b.linked_todos) : ''}
             </div>`;
         }
 
@@ -13663,6 +13745,9 @@ gantt
         ];
         const _KANBAN_SEV_BADGE = {Critical:'bg-red-100 text-red-700', Major:'bg-orange-100 text-orange-700', Minor:'bg-amber-100 text-amber-700', Trivial:'bg-stone-100 text-stone-500'};
 
+        // 缺陷 -> linked todos 的 batch 查詢結果(看板渲染前一次拉到位)
+        let _kanbanLinkedTodosByDefect = {};
+
         function renderKanbanColumns(colsEl, defs) {
             colsEl.innerHTML = _KANBAN_COL_DEFS.map(c => {
                 const items = defs.filter(d => d.status === c.key).slice(0, 30);
@@ -13671,17 +13756,22 @@ gantt
                         <span>${_esc(c.label)}</span>
                         <span class="text-stone-400 font-mono">${items.length}</span>
                     </div>
-                    <div class="space-y-2">${items.map(d => `<div class="bg-white border border-stone-200 rounded p-2 cursor-move hover:border-blue-300 shadow-sm kanban-card" draggable="true" data-defect-id="${_esc(d.id)}" data-defect-status="${_esc(d.status)}" ondragstart="kanbanDragStart(event)" ondragend="kanbanDragEnd(event)" onclick="kanbanCardClick(event, '${_esc(d.id)}')" title="拖移到其他欄變更狀態；點擊編輯">
+                    <div class="space-y-2">${items.map(d => {
+                        const linkedTodos = _kanbanLinkedTodosByDefect[d.id] || [];
+                        const linkBadge = linkedTodos.length
+                            ? `<span class="text-[9px] px-1 rounded bg-amber-100 text-amber-700 ml-1" title="${_esc(linkedTodos.length)} 條 Backlog 連結"><i class="fa-solid fa-link"></i> ${linkedTodos.length}</span>`
+                            : '';
+                        return `<div class="bg-white border border-stone-200 rounded p-2 cursor-move hover:border-blue-300 shadow-sm kanban-card" draggable="true" data-defect-id="${_esc(d.id)}" data-defect-status="${_esc(d.status)}" ondragstart="kanbanDragStart(event)" ondragend="kanbanDragEnd(event)" onclick="kanbanCardClick(event, '${_esc(d.id)}')" title="拖移到其他欄變更狀態;點擊編輯">
                         <div class="flex items-center justify-between">
                             <div class="text-[10px] font-mono text-stone-400">${_esc(d.code)}</div>
-                            <span class="text-[9px] px-1 rounded bg-stone-100 text-stone-500">${_esc(_zh('defStatus', d.status))}</span>
+                            <span class="text-[9px] px-1 rounded bg-stone-100 text-stone-500">${_esc(_zh('defStatus', d.status))}${linkBadge}</span>
                         </div>
                         <div class="text-xs font-semibold text-stone-800 line-clamp-2 mt-0.5">${_esc(d.title)}</div>
                         <div class="flex items-center justify-between mt-1">
                             <span class="text-[10px] px-1.5 py-0.5 rounded ${_KANBAN_SEV_BADGE[d.severity]||''}">${_esc(_zh('defSeverity', d.severity))}</span>
                             <span class="text-[10px] text-stone-400">${_esc(d.assignee||'未指派')}</span>
                         </div>
-                    </div>`).join('')||'<div class="text-xs text-stone-400 text-center py-2">無</div>'}</div>
+                    </div>`;}).join('')||'<div class="text-xs text-stone-400 text-center py-2">無</div>'}</div>
                 </div>`;
             }).join('');
         }
@@ -13691,18 +13781,21 @@ gantt
             const cols = document.getElementById('kanbanColumns');
             if (!pid) {
                 cols.innerHTML = '<div class="col-span-6 p-6 text-center text-stone-400">請先選擇專案</div>';
-                ['kpi_open_defects','kpi_critical_defects','kpi_active_milestones','kpi_active_plans','kpi_requirements'].forEach(id => document.getElementById(id).textContent = '—');
+                ['kpi_open_defects','kpi_critical_defects','kpi_active_milestones','kpi_active_plans','kpi_requirements','kpi_active_backlog'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '—'; });
                 return;
             }
             try {
-                const [defs, ms, plans, reqs] = await Promise.all([
+                const [defs, ms, plans, reqs, todoSummary, linkedByDefect] = await Promise.all([
                     fetch('/api/defects?project_id='+pid).then(r => r.json()),
                     fetch('/api/milestones?project_id='+pid).then(r => r.json()),
                     fetch('/api/plans?project_id='+pid).then(r => r.json()),
                     fetch('/api/requirements?project_id='+pid).then(r => r.json()),
+                    fetch('/api/todos/summary?project_id='+pid).then(r => r.json()).catch(() => ({})),
+                    fetch('/api/links/by-target/batch?target_type=defect&project_id='+pid).then(r => r.json()).catch(() => ({})),
                 ]);
                 _defectsCache = defs;
                 _kanbanLastDefects = defs;
+                _kanbanLinkedTodosByDefect = linkedByDefect || {};
                 // KPIs
                 const openStatuses = ['New','Assigned','InProgress','Reopened'];
                 const openDefects = defs.filter(d => openStatuses.includes(d.status)).length;
@@ -13712,6 +13805,9 @@ gantt
                 document.getElementById('kpi_active_milestones').textContent = ms.filter(m => m.status === 'InProgress').length;
                 document.getElementById('kpi_active_plans').textContent = plans.filter(p => ['Active','Approved'].includes(p.status)).length;
                 document.getElementById('kpi_requirements').textContent = reqs.length;
+                // Backlog active count(若 KPI 區有對應 tile)
+                const todoActiveEl = document.getElementById('kpi_active_backlog');
+                if (todoActiveEl) todoActiveEl.textContent = todoSummary?.total_active ?? 0;
                 renderKanbanColumns(cols, defs);
             } catch(e) {
                 cols.innerHTML = `<div class="col-span-6 p-6 text-center text-red-500">載入失敗：${_esc(e.message)}</div>`;
@@ -15614,13 +15710,12 @@ gantt
 
         // ─── Backlog 階層約束:每個類型可選的父類型 ───
         const BACKLOG_PARENT_RULES = {
-            Epic:  [],          // Epic 一定是頂層
-            Story: ['Epic'],    // Story 可選 Epic 父
-            Task:  ['Story'],   // Task 可選 Story 父(或無父)
-            Bug:   ['Story'],   // Bug 同上
-            Spike: ['Story'],
+            Feature: [],          // Feature 一定是頂層
+            Task:    ['Feature'], // Task 可選 Feature 父(或無父)
+            Bug:     ['Feature'], // Bug 同上
+            Spike:   ['Feature'],
         };
-        const BACKLOG_TYPE_LABEL = { Epic:'🎯 Epic', Story:'📖 Story', Task:'⚙ Task', Bug:'🐛 Bug', Spike:'🔬 Spike' };
+        const BACKLOG_TYPE_LABEL = { Feature:'🎯 Feature', Task:'⚙ Task', Bug:'🐛 Bug', Spike:'🔬 Spike' };
 
         function _populateTodoParentOptions() {
             // 依 #todoType 目前選的類型,把可選的父項列出來
@@ -15658,7 +15753,19 @@ gantt
             document.getElementById('todoSprint').value = t?.sprint_label || '';
             _populateTodoParentOptions();
             document.getElementById('todoParent').value = t?.parent_id || '';
+            // 連結面板:只在編輯既有 Todo 時顯示(新建還沒有 todo_id 不能連結)
+            const linksPanel = document.getElementById('todoLinksPanel');
+            if (linksPanel) {
+                if (_editingTodoId) {
+                    linksPanel.classList.remove('hidden');
+                    _loadTodoLinks(_editingTodoId);
+                    onTodoLinkTypeChange();  // 預載第一個 type 的目標清單
+                } else {
+                    linksPanel.classList.add('hidden');
+                }
+            }
             document.getElementById('todoModal').classList.remove('hidden');
+            try { i18nApply('#todoModal'); } catch (_) {}
         }
         function closeTodoModal() { document.getElementById('todoModal').classList.add('hidden'); _editingTodoId = null; }
         async function todoSubmit(ev) {
@@ -15686,6 +15793,150 @@ gantt
             } catch (e) { showToast('儲存失敗:'+e.message, 'error'); }
             return false;
         }
+        // ──── TodoLinks 跨實體連結 ────────────────────────────────────────
+        let _currentTodoLinks = [];     // 目前 modal 顯示的連結快照
+        const TODO_LINK_TYPE_LABEL = {
+            requirement:    { icon:'📋', label:'需求',     i18n:'links.target.requirement' },
+            testcase:       { icon:'🧪', label:'案例',     i18n:'links.target.testcase' },
+            defect:         { icon:'🐛', label:'缺陷',     i18n:'links.target.defect' },
+            test_plan:      { icon:'📑', label:'測試計畫', i18n:'links.target.test_plan' },
+            test_round:     { icon:'🔁', label:'測試回合', i18n:'links.target.test_round' },
+            test_milestone: { icon:'🏁', label:'里程碑',   i18n:'links.target.test_milestone' },
+            wbs:            { icon:'📊', label:'WBS',      i18n:'links.target.wbs' },
+            test_document:  { icon:'📄', label:'測試文件', i18n:'links.target.test_document' },
+            project:        { icon:'📦', label:'專案',     i18n:'links.target.project' },
+        };
+
+        async function _loadTodoLinks(todoId) {
+            const list = document.getElementById('todoLinksList');
+            const cnt = document.getElementById('todoLinksCount');
+            if (!list) return;
+            try {
+                _currentTodoLinks = await apiFetch(`/api/todos/${todoId}/links`);
+            } catch (e) {
+                _currentTodoLinks = [];
+            }
+            if (cnt) cnt.textContent = _currentTodoLinks.length ? `${_currentTodoLinks.length} 條` : '';
+            if (!_currentTodoLinks.length) {
+                list.innerHTML = `<p class="text-xs text-stone-400 italic px-1 py-2">尚無連結</p>`;
+                return;
+            }
+            list.innerHTML = _currentTodoLinks.map(l => {
+                const meta = TODO_LINK_TYPE_LABEL[l.target_type] || { icon:'🔗', label:l.target_type };
+                const codePart = l.target_code ? `<span class="font-mono text-stone-500">${_esc(l.target_code)}</span> · ` : '';
+                return `<div class="flex items-center gap-2 px-2 py-1 bg-white border border-stone-200 rounded text-xs">
+                    <span class="shrink-0">${meta.icon}</span>
+                    <span class="text-[10px] px-1.5 py-0.5 bg-stone-100 text-stone-600 rounded shrink-0">${_esc(meta.label)}</span>
+                    <span class="flex-1 min-w-0 truncate text-stone-700">${codePart}${_esc(l.target_title || '(no title)')}</span>
+                    <button type="button" onclick="removeTodoLink('${_esc(l.id)}')" class="text-stone-400 hover:text-rose-500 shrink-0" title="移除">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>`;
+            }).join('');
+        }
+
+        async function onTodoLinkTypeChange() {
+            const typeSel = document.getElementById('todoLinkTargetType');
+            const idSel = document.getElementById('todoLinkTargetId');
+            if (!typeSel || !idSel) return;
+            const t = typeSel.value;
+            idSel.innerHTML = '<option value="">— 載入中 —</option>';
+            const projQs = currentProjectId ? `?project_id=${encodeURIComponent(currentProjectId)}` : '';
+            try {
+                let rows = [];
+                if (t === 'requirement')       rows = await apiFetch(`/api/requirements${projQs}`);
+                else if (t === 'defect')       rows = await apiFetch(`/api/defects${projQs}`);
+                else if (t === 'test_plan')    rows = await apiFetch(`/api/plans${projQs}`);
+                else if (t === 'test_round')   rows = await apiFetch(`/api/rounds${projQs}`);
+                else if (t === 'test_milestone') rows = await apiFetch(`/api/milestones${projQs}`);
+                else if (t === 'wbs')          rows = await apiFetch(`/api/wbs${projQs}`);
+                else if (t === 'test_document') rows = await apiFetch(`/api/documents${projQs}`);
+                else if (t === 'project')      rows = await apiFetch(`/api/projects`);
+                else if (t === 'testcase') {
+                    // tree_nodes:走 _collectAllTestCases() 既有快取(同步函式,直接呼叫)
+                    rows = (typeof _collectAllTestCases === 'function') ? _collectAllTestCases() : [];
+                }
+                rows = Array.isArray(rows) ? rows : (rows?.items || []);
+                idSel.innerHTML = '<option value="">— 選擇 —</option>' + rows.map(r => {
+                    const id = r.id || r.node_id || r.testcase_node_id;
+                    const code = r.code ? r.code + ' · ' : '';
+                    const title = r.title || r.name || r.label || '(unnamed)';
+                    return `<option value="${_esc(id)}">${_esc(code)}${_esc(title)}</option>`;
+                }).join('');
+            } catch (e) {
+                idSel.innerHTML = `<option value="">載入失敗:${_esc(e.message||e)}</option>`;
+            }
+        }
+
+        async function addTodoLink() {
+            if (!_editingTodoId) return;
+            const t = document.getElementById('todoLinkTargetType').value;
+            const id = document.getElementById('todoLinkTargetId').value;
+            if (!t || !id) { showToast('請選擇目標', 'error'); return; }
+            try {
+                await apiFetch(`/api/todos/${_editingTodoId}/links`, {
+                    method:'POST',
+                    headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({ target_type: t, target_id: id }),
+                });
+                showToast('已連結', 'success');
+                _loadTodoLinks(_editingTodoId);
+            } catch (e) { showToast('連結失敗:'+(e.message||e), 'error'); }
+        }
+
+        async function removeTodoLink(linkId) {
+            if (!_editingTodoId) return;
+            if (!confirm('確定移除此連結?')) return;
+            try {
+                await apiFetch(`/api/todos/${_editingTodoId}/links/${linkId}`, { method:'DELETE' });
+                _loadTodoLinks(_editingTodoId);
+            } catch (e) { showToast('移除失敗:'+(e.message||e), 'error'); }
+        }
+
+        // ── linked-todos popover(需求清單 / 看板用)──────────────────────
+        function showLinkedTodosPopover(ev, targetType, targetId) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            // 從 cache 取(目前只有 requirement 在 _reqLinkedTodos)
+            let todos = [];
+            if (targetType === 'requirement') todos = _reqLinkedTodos[targetId] || [];
+            else if (targetType === 'defect') todos = _kanbanLinkedTodosByDefect[targetId] || [];
+            // 移除既有 popover
+            document.getElementById('_linkedTodosPopover')?.remove();
+            const pop = document.createElement('div');
+            pop.id = '_linkedTodosPopover';
+            pop.className = 'fixed z-[400] bg-white border border-stone-300 rounded-md shadow-lg p-2 max-w-md max-h-[60vh] overflow-y-auto';
+            pop.innerHTML = `
+                <div class="flex items-center justify-between mb-2 pb-2 border-b border-stone-100">
+                    <span class="text-xs font-semibold text-stone-700"><i class="fa-solid fa-link text-amber-500"></i> 連結 Backlog (${todos.length})</span>
+                    <button onclick="document.getElementById('_linkedTodosPopover').remove()" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                ${todos.length ? todos.map(t => {
+                    const icon = (BACKLOG_TYPE_LABEL[t.item_type]||'').slice(0,2);
+                    return `<div class="px-2 py-1 hover:bg-amber-50 rounded text-xs flex items-center gap-2 cursor-pointer" onclick="document.getElementById('_linkedTodosPopover').remove(); showBacklogView(); setTimeout(()=>{ if (typeof openTodoModal==='function') openTodoModal('${_esc(t.id)}'); }, 200);">
+                        <span>${icon}</span>
+                        <span class="text-[10px] px-1.5 py-0.5 rounded ${t.status==='Done'?'bg-emerald-100 text-emerald-700':t.status==='InProgress'?'bg-amber-100 text-amber-700':t.status==='Cancelled'?'bg-stone-200 text-stone-500':'bg-blue-100 text-blue-700'}">${_esc(t.status)}</span>
+                        <span class="flex-1 min-w-0 truncate">${_esc(t.title)}</span>
+                        <span class="text-[10px] text-stone-400">${_esc(t.assignee||'')}</span>
+                    </div>`;
+                }).join('') : '<div class="text-xs text-stone-400 italic px-2 py-2">尚無連結</div>'}
+            `;
+            document.body.appendChild(pop);
+            // 定位在按鈕下方
+            const rect = ev.currentTarget.getBoundingClientRect();
+            pop.style.left = Math.max(8, Math.min(window.innerWidth - 350, rect.left)) + 'px';
+            pop.style.top = (rect.bottom + 4) + 'px';
+            // 點外面關閉
+            setTimeout(() => {
+                document.addEventListener('click', function _close(e) {
+                    if (!pop.contains(e.target)) {
+                        pop.remove();
+                        document.removeEventListener('click', _close);
+                    }
+                });
+            }, 0);
+        }
+
         async function todoQuickToggle(id, checked) {
             try {
                 const r = await fetch('/api/todos/'+id, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status: checked ? 'Done' : 'Todo' }) });
@@ -15807,11 +16058,10 @@ gantt
 
         function _backlogTypeIcon(type) {
             return ({
-                Epic:  '<i class="fa-solid fa-bullseye text-purple-500"></i>',
-                Story: '<i class="fa-solid fa-book-open text-blue-500"></i>',
-                Task:  '<i class="fa-solid fa-screwdriver-wrench text-stone-500"></i>',
-                Bug:   '<i class="fa-solid fa-bug text-rose-500"></i>',
-                Spike: '<i class="fa-solid fa-flask text-emerald-500"></i>',
+                Feature: '<i class="fa-solid fa-bullseye text-purple-500"></i>',
+                Task:    '<i class="fa-solid fa-screwdriver-wrench text-stone-500"></i>',
+                Bug:     '<i class="fa-solid fa-bug text-rose-500"></i>',
+                Spike:   '<i class="fa-solid fa-flask text-emerald-500"></i>',
             })[type] || '<i class="fa-solid fa-circle text-stone-300"></i>';
         }
 

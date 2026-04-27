@@ -87,7 +87,7 @@ async def list_todos(
     project_id: Optional[str] = Query(None),
     assignee: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
-    item_type: Optional[str] = Query(None, description="Epic / Story / Task / Bug / Spike"),
+    item_type: Optional[str] = Query(None, description="Feature / Task / Bug / Spike"),
     parent_id: Optional[str] = Query(None, description="篩選某個父項下的子項"),
     sprint_label: Optional[str] = Query(None, description="Sprint label;傳 '__backlog__' 代表沒掛 sprint"),
     bucket: Optional[str] = Query(
@@ -185,7 +185,7 @@ async def todo_tree(
 
     結構:
         [
-          { ...Story/Epic..., children: [Task, Task, Bug] },
+          { ...Feature..., children: [Task, Task, Bug] },
           { ...孤立 Bug/Spike/Task...(沒有 parent) },
           ...
         ]
@@ -220,8 +220,8 @@ async def todo_tree(
             by_id[pid]["children"].append(it)
         else:
             roots.append(it)
-    # 顯示順序:Epic > Story > Task > Bug > Spike,然後依到期日
-    type_order = {"Epic": 0, "Story": 1, "Task": 2, "Bug": 3, "Spike": 4}
+    # 顯示順序:Feature > Task > Bug > Spike,然後依到期日
+    type_order = {"Feature": 0, "Task": 1, "Bug": 2, "Spike": 3}
     roots.sort(key=lambda x: (
         type_order.get(x.get("item_type"), 99),
         x.get("due_date") or "9999-99-99",

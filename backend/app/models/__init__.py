@@ -28,6 +28,7 @@ from .test_milestone import MilestoneStatus, TestMilestone
 from .test_plan import TestPlan, TestPlanStatus
 from .testcase_content import TestcaseContent
 from .todo_item import TodoItem, TodoItemType, TodoPriority, TodoStatus
+from .todo_link import ALLOWED_TARGET_TYPES, TodoLink
 from .tree_node import LevelType, TreeNode
 from .wbs_item import WbsItem, WbsStatus
 
@@ -55,6 +56,7 @@ __all__ = [
     "Role", "NotificationPreference", "Notification", "EmailConfig",
     "AiTokenConfig", "AiProvider",
     "TodoItem", "TodoItemType", "TodoStatus", "TodoPriority",
+    "TodoLink", "ALLOWED_TARGET_TYPES",
     "User",
     # Multi-tenancy + audit
     "Organization", "AuditLog",

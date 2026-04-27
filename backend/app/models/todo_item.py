@@ -1,12 +1,14 @@
 """TodoItem 待辦事項 ORM Model — 首頁日曆 / 側邊欄 widget / 全 backlog 視圖共用。
 
-支援 Agile/Scrum 階層:
-    Epic(🎯)
-      └─ Story(📖)
-           ├─ Task(⚙)     開發/測試工作
-           ├─ Bug(🐛)     缺陷修復
-           └─ Spike(🔬)   技術研究
-    (Bug / Spike 也可獨立存在,不一定要掛在 Story 下)
+支援精簡 Backlog 階層:
+    Feature(🎯)         產品功能
+      ├─ Task(⚙)        開發/測試工作
+      ├─ Bug(🐛)        缺陷修復
+      └─ Spike(🔬)      技術研究
+    (Task / Bug / Spike 也可獨立存在,不一定要掛在 Feature 下)
+
+Story / AC 已從 Backlog 移除,改在 Requirements 模組(parent_id 結構);
+要把某個 Backlog 任務跟 Story / AC 綁在一起,請走新的 `todo_links` 連結表。
 
 `sprint_label` 為純文字 label(例「Sprint 23」/「2026-W18」),空值代表 Backlog。
 不另開 sprints 表 — 字串夠輕,Sprint 後續若要管期間/狀態可獨立做。
@@ -39,8 +41,7 @@ class TodoPriority(str, enum.Enum):
 
 
 class TodoItemType(str, enum.Enum):
-    EPIC = "Epic"
-    STORY = "Story"
+    FEATURE = "Feature"
     TASK = "Task"
     BUG = "Bug"
     SPIKE = "Spike"
@@ -71,11 +72,14 @@ class TodoItem(Base):
     )
     assignee: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     # ── Backlog 階層 ─────────────────────────────────────────────────
-    # item_type:Epic / Story / Task / Bug / Spike,預設 Task。
-    # parent_id:self-FK,讓 Task/Bug/Spike 掛在 Story 下、Story 掛在 Epic 下。
+    # item_type:Feature / Task / Bug / Spike,預設 Task。
+    # parent_id:self-FK,讓 Task/Bug/Spike 掛在 Feature 下;parent 可選空。
     # sprint_label:純文字 sprint 識別,空 = Backlog。
+    # native_enum=False:用 varchar + check constraint(避免 PG 端有舊的 todoitemtype
+    # ENUM 物件在 INSERT 時做 ::todoitemtype cast 失敗)
     item_type: Mapped[TodoItemType] = mapped_column(
-        Enum(TodoItemType), default=TodoItemType.TASK, nullable=False
+        Enum(TodoItemType, native_enum=False, length=20),
+        default=TodoItemType.TASK, nullable=False,
     )
     parent_id: Mapped[Optional[str]] = mapped_column(
         String(36), ForeignKey("todo_items.id", ondelete="SET NULL"), nullable=True, index=True,

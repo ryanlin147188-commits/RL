@@ -39,6 +39,7 @@ async def init_db() -> None:
         step_screenshot_baseline,
         test_round,
         testcase_content,
+        todo_link,
         tree_node,
     )
 
@@ -92,6 +93,22 @@ async def init_db() -> None:
         "CREATE INDEX IF NOT EXISTS ix_mock_endpoints_project ON mock_endpoints (project_id)",
         "CREATE INDEX IF NOT EXISTS ix_db_configs_org ON db_configs (organization_id)",
         "CREATE INDEX IF NOT EXISTS ix_db_configs_project ON db_configs (project_id)",
+        # Backlog 階層調整(Epic/Story → Feature)+ todo_links 連結表
+        # 注意:SQLAlchemy Enum() 對 varchar 欄位存的是 enum 「名稱」(大寫,例 EPIC),
+        # 不是 .value(Title Case)。所以 WHERE 用大寫字串比對。
+        # 0) 把舊的 PostgreSQL native enum type todoitemtype 拿掉(欄位本身是 varchar,
+        #    這個 type 是早期 create_all 留下的孤兒物件;改用 native_enum=False 後不再需要)
+        "DROP TYPE IF EXISTS todoitemtype CASCADE",
+        # 1) Epic / EPIC 直接改名 Feature / FEATURE(階層位置不變)
+        "UPDATE todo_items SET item_type='FEATURE' WHERE item_type IN ('EPIC','Epic')",
+        # 2) Story / STORY 升頂為 FEATURE(parent_id 設 NULL),
+        #    其 Task/Bug/Spike 子節點仍指向同一列(現在 type=FEATURE),
+        #    新規則允許 Task/Bug/Spike → Feature,所以父子鏈條保持合法
+        "UPDATE todo_items SET item_type='FEATURE', parent_id=NULL WHERE item_type IN ('STORY','Story')",
+        # 3) todo_links indexes(create_all 會建表,index 補保險)
+        "CREATE INDEX IF NOT EXISTS ix_todo_links_todo ON todo_links (todo_id)",
+        "CREATE INDEX IF NOT EXISTS ix_todo_links_target ON todo_links (target_type, target_id)",
+        "CREATE INDEX IF NOT EXISTS ix_todo_links_org ON todo_links (organization_id)",
     )
     for stmt in migration_stmts:
         await _run_safe(stmt)

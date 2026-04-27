@@ -19,6 +19,8 @@ from app.models.requirement import (
     RequirementStatus,
     RequirementTestcaseLink,
 )
+from app.models.todo_item import TodoItem
+from app.models.todo_link import TodoLink
 from app.models.tree_node import LevelType, TreeNode
 from app.schemas.requirement import (
     RequirementCreate,
@@ -312,29 +314,67 @@ async def rtm_chain(
     for l in links:
         tcs_per_req.setdefault(l.requirement_id, []).append(l.testcase_node_id)
 
+    # 7) Backlog 連結:撈整個專案 todos + 三類目標的 todo_links,一次拿完
+    todos_in_project = (await db.execute(
+        select(TodoItem).where(TodoItem.project_id == project_id)
+    )).scalars().all()
+    todo_by_id = {t.id: t for t in todos_in_project}
+    todo_ids = list(todo_by_id.keys())
+    todo_links_rows: list[TodoLink] = []
+    if todo_ids:
+        todo_links_rows = (await db.execute(
+            select(TodoLink).where(
+                TodoLink.todo_id.in_(todo_ids),
+                TodoLink.target_type.in_(["requirement", "testcase", "defect"]),
+            )
+        )).scalars().all()
+    # 分組:(target_type, target_id) → [TodoLink, ...]
+    links_by_target: dict[tuple[str, str], list[TodoLink]] = {}
+    for tl in todo_links_rows:
+        links_by_target.setdefault((tl.target_type, tl.target_id), []).append(tl)
+
     def _enum_str(v):
         return v.value if hasattr(v, "value") else str(v) if v is not None else None
+
+    def _serialize_linked_todos(target_type: str, target_id: str) -> list[dict]:
+        out = []
+        for tl in links_by_target.get((target_type, target_id), []):
+            t = todo_by_id.get(tl.todo_id)
+            if not t:
+                continue
+            out.append({
+                "id": t.id,
+                "title": t.title,
+                "item_type": _enum_str(t.item_type),
+                "status": _enum_str(t.status),
+                "priority": _enum_str(t.priority),
+                "assignee": t.assignee,
+                "link_kind": tl.link_kind,
+            })
+        return out
+
+    def _serialize_defect(d: Defect) -> dict:
+        return {
+            "id": d.id,
+            "code": d.code,
+            "title": d.title,
+            "status": _enum_str(d.status),
+            "severity": _enum_str(d.severity),
+            "priority": _enum_str(d.priority),
+            "assignee": d.assignee,
+            "linked_todos": _serialize_linked_todos("defect", d.id),
+        }
 
     def _serialize_tc(tc_id: str) -> dict:
         tc = tcs_by_id.get(tc_id)
         if not tc:
-            return {"id": tc_id, "title": "(已刪除的案例)", "last_status": None, "defects": []}
+            return {"id": tc_id, "title": "(已刪除的案例)", "last_status": None, "defects": [], "linked_todos": []}
         return {
             "id": tc.id,
             "title": tc.name,
             "last_status": latest_status.get(tc_id),
-            "defects": [
-                {
-                    "id": d.id,
-                    "code": d.code,
-                    "title": d.title,
-                    "status": _enum_str(d.status),
-                    "severity": _enum_str(d.severity),
-                    "priority": _enum_str(d.priority),
-                    "assignee": d.assignee,
-                }
-                for d in defects_by_tc.get(tc_id, [])
-            ],
+            "defects": [_serialize_defect(d) for d in defects_by_tc.get(tc_id, [])],
+            "linked_todos": _serialize_linked_todos("testcase", tc_id),
         }
 
     def _serialize_req(r: Requirement, depth: int = 0) -> dict:
@@ -353,6 +393,7 @@ async def rtm_chain(
             "status": _enum_str(r.status),
             "owner": r.owner,
             "test_cases": [_serialize_tc(tc_id) for tc_id in tcs_per_req.get(r.id, [])],
+            "linked_todos": _serialize_linked_todos("requirement", r.id),
             "acs" if depth == 0 else "children": children,
         }
 
@@ -370,14 +411,5 @@ async def rtm_chain(
     return {
         "user_stories": user_stories,
         "summary": summary,
-        "orphan_defects": [
-            {
-                "id": d.id,
-                "code": d.code,
-                "title": d.title,
-                "status": _enum_str(d.status),
-                "severity": _enum_str(d.severity),
-            }
-            for d in orphan_defects
-        ],
+        "orphan_defects": [_serialize_defect(d) for d in orphan_defects],
     }
