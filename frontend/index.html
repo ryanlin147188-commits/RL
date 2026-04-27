@@ -3005,13 +3005,21 @@ driver.swipe(100, 800, 100, 200, 500)"
                             <div><label for="aiTokName" class="block text-xs font-semibold text-stone-600 mb-1">名稱 *</label><input type="text" id="aiTokName" aria-label="名稱" required placeholder="例:dev-gpt4-mini" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
                             <div>
                                 <label for="aiTokProvider" class="block text-xs font-semibold text-stone-600 mb-1">AI 公司名稱 *</label>
-                                <input type="text" id="aiTokProvider" list="aiProviderList" aria-label="AI 公司" required placeholder="OpenAI / Anthropic / DeepSeek / ..." class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm">
-                                <datalist id="aiProviderList">
-                                    <option value="OpenAI"><option value="Anthropic"><option value="DeepSeek">
-                                    <option value="Groq"><option value="OpenRouter"><option value="Together">
-                                    <option value="Mistral"><option value="xAI"><option value="Google">
-                                    <option value="Ollama"><option value="LM Studio">
-                                </datalist>
+                                <select id="aiTokProvider" required onchange="aiTokenOnProviderChange()" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
+                                    <option value="OpenAI">OpenAI</option>
+                                    <option value="Anthropic">Anthropic</option>
+                                    <option value="DeepSeek">DeepSeek</option>
+                                    <option value="Groq">Groq</option>
+                                    <option value="OpenRouter">OpenRouter</option>
+                                    <option value="Together">Together AI</option>
+                                    <option value="Mistral">Mistral</option>
+                                    <option value="xAI">xAI (Grok)</option>
+                                    <option value="Google">Google (Gemini)</option>
+                                    <option value="Ollama">Ollama (本地)</option>
+                                    <option value="LM Studio">LM Studio (本地)</option>
+                                    <option value="__custom__">— 自訂(自架 OpenAI-compatible)—</option>
+                                </select>
+                                <input type="text" id="aiTokProviderCustom" placeholder="自訂公司名稱" class="hidden mt-1.5 w-full px-3 py-2 border border-stone-300 rounded-md text-sm">
                             </div>
                         </div>
                         <div><label for="aiTokKey" class="block text-xs font-semibold text-stone-600 mb-1">API Key</label><input type="password" id="aiTokKey" aria-label="API Key" autocomplete="new-password" placeholder="sk-... / sk-ant-... (本地 Ollama 可留空)" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm font-mono"></div>
@@ -3023,21 +3031,23 @@ driver.swipe(100, 800, 100, 200, 500)"
                                     <i class="fa-solid fa-rotate"></i> 用 token 拉模型清單
                                 </button>
                             </div>
-                            <input type="text" id="aiTokModel" list="aiModelList" required placeholder="(填 API key 後按右上「拉模型清單」)" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm font-mono">
-                            <datalist id="aiModelList"></datalist>
+                            <select id="aiTokModel" required onchange="aiTokenOnModelChange()" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white font-mono">
+                                <option value="">— 請先「拉模型清單」 —</option>
+                            </select>
                             <p id="aiTokModelsHint" class="text-[10px] text-stone-400 mt-0.5">尚未拉取模型清單</p>
                         </div>
                         <div>
-                            <label for="aiTokReasoning" class="block text-xs font-semibold text-stone-600 mb-1">
-                                思考程度
-                                <span class="text-[10px] text-stone-400 font-normal">(僅 OpenAI o1 / o3 等推理模型支援;其他模型留空)</span>
+                            <label for="aiTokReasoning" class="block text-xs font-semibold text-stone-600 mb-1 flex items-center gap-2">
+                                <span>思考程度</span>
+                                <span id="aiTokReasoningSupportBadge" class="text-[9px] px-1 py-0.5 rounded bg-stone-100 text-stone-500">未知(請先選模型)</span>
                             </label>
-                            <select id="aiTokReasoning" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
+                            <select id="aiTokReasoning" disabled class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-stone-50 text-stone-400 disabled:cursor-not-allowed">
                                 <option value="">— 不啟用(預設) —</option>
                                 <option value="low">low(快、省 token)</option>
                                 <option value="medium">medium(平衡)</option>
                                 <option value="high">high(深思,慢但精準)</option>
                             </select>
+                            <p id="aiTokReasoningHint" class="text-[10px] text-stone-400 mt-0.5">選定支援思考的模型(如 o1 / o3 / DeepSeek-R1)後此欄位會啟用</p>
                         </div>
                         <div><label for="aiTokDesc" class="block text-xs font-semibold text-stone-600 mb-1">說明</label><input type="text" id="aiTokDesc" aria-label="說明" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
                         <div class="flex items-center gap-6">
@@ -14928,6 +14938,71 @@ gantt
         // ─── AI Token ────────────────────────────────────────────────
         let _aiTokensCache = [];
         let _editingAiTokenId = null;
+        let _aiTokenModelsCache = [];   // [{id, name, supports_reasoning_effort, ...}] 來自最後一次 fetch-models
+
+        // 切公司:選「自訂」就顯示輸入框,清模型清單
+        function aiTokenOnProviderChange() {
+            const sel = document.getElementById('aiTokProvider');
+            const customInp = document.getElementById('aiTokProviderCustom');
+            if (sel.value === '__custom__') {
+                customInp.classList.remove('hidden');
+                customInp.focus();
+            } else {
+                customInp.classList.add('hidden');
+                customInp.value = '';
+            }
+            // 切公司一定要重抓模型清單
+            const modelSel = document.getElementById('aiTokModel');
+            modelSel.innerHTML = '<option value="">— 請按「拉模型清單」 —</option>';
+            document.getElementById('aiTokModelsHint').textContent = '尚未拉取模型清單';
+            _aiTokenModelsCache = [];
+            aiTokenOnModelChange();
+        }
+
+        // 取「目前實際使用」的 provider 字串(下拉值,自訂 → 取輸入框)
+        function _aiTokenProviderName() {
+            const v = document.getElementById('aiTokProvider').value;
+            if (v === '__custom__') return document.getElementById('aiTokProviderCustom').value.trim();
+            return v;
+        }
+
+        // 模型變動 → 依 supports_reasoning_effort 啟用 / 停用思考程度
+        function aiTokenOnModelChange() {
+            const sel = document.getElementById('aiTokModel');
+            const modelId = sel.value;
+            const reasoningSel = document.getElementById('aiTokReasoning');
+            const badge = document.getElementById('aiTokReasoningSupportBadge');
+            const hint = document.getElementById('aiTokReasoningHint');
+
+            const meta = _aiTokenModelsCache.find(m => m.id === modelId);
+            const supports = meta ? !!meta.supports_reasoning_effort : false;
+
+            if (supports) {
+                reasoningSel.disabled = false;
+                reasoningSel.classList.remove('bg-stone-50','text-stone-400');
+                reasoningSel.classList.add('bg-white','text-stone-800');
+                badge.textContent = '支援';
+                badge.className = 'text-[9px] px-1 py-0.5 rounded bg-emerald-100 text-emerald-700';
+                hint.textContent = '此模型支援思考程度;選 high 會更深思但較慢、耗 token';
+            } else if (modelId) {
+                reasoningSel.disabled = true;
+                reasoningSel.value = '';
+                reasoningSel.classList.add('bg-stone-50','text-stone-400');
+                reasoningSel.classList.remove('bg-white','text-stone-800');
+                badge.textContent = '不支援';
+                badge.className = 'text-[9px] px-1 py-0.5 rounded bg-stone-200 text-stone-500';
+                hint.textContent = '此模型不支援思考程度;只有 OpenAI o1/o3/o4 系列、DeepSeek-R1 等推理模型可調';
+            } else {
+                reasoningSel.disabled = true;
+                reasoningSel.value = '';
+                reasoningSel.classList.add('bg-stone-50','text-stone-400');
+                reasoningSel.classList.remove('bg-white','text-stone-800');
+                badge.textContent = '未知(請先選模型)';
+                badge.className = 'text-[9px] px-1 py-0.5 rounded bg-stone-100 text-stone-500';
+                hint.textContent = '選定支援思考的模型後此欄位會啟用';
+            }
+        }
+
         async function renderAiTokensList() {
             const tbody = document.getElementById('aiTokensListBody');
             if (!tbody) return;
@@ -14959,25 +15034,51 @@ gantt
                 ? `<i class="fa-solid fa-robot text-amber-500"></i> 編輯 AI Token · ${_esc(t.name)}`
                 : '<i class="fa-solid fa-robot text-amber-500"></i> 新增 AI Token';
             document.getElementById('aiTokName').value = t?.name || '';
-            document.getElementById('aiTokProvider').value = t?.provider || 'OpenAI';
+            // 公司下拉:若 t.provider 在預設選項裡用該值,否則切「自訂」並填輸入框
+            const providerSel = document.getElementById('aiTokProvider');
+            const customInp = document.getElementById('aiTokProviderCustom');
+            const knownOptions = Array.from(providerSel.options).map(o => o.value);
+            const provider = t?.provider || 'OpenAI';
+            if (knownOptions.includes(provider)) {
+                providerSel.value = provider;
+                customInp.classList.add('hidden');
+                customInp.value = '';
+            } else {
+                providerSel.value = '__custom__';
+                customInp.classList.remove('hidden');
+                customInp.value = provider;
+            }
             document.getElementById('aiTokKey').value = t?.api_key || '';
-            document.getElementById('aiTokModel').value = t?.model || '';
+            // 模型下拉:有現存值就先 inject 一個 option(避免 select 空白),按 fetch 後重填
+            const modelSel = document.getElementById('aiTokModel');
+            _aiTokenModelsCache = [];
+            if (t?.model) {
+                modelSel.innerHTML = `<option value="${_esc(t.model)}">${_esc(t.model)} (現存)</option>`;
+                modelSel.value = t.model;
+            } else {
+                modelSel.innerHTML = '<option value="">— 請按「拉模型清單」 —</option>';
+            }
             document.getElementById('aiTokReasoning').value = t?.reasoning_effort || '';
             document.getElementById('aiTokDesc').value = t?.description || '';
             document.getElementById('aiTokEnabled').checked = t ? !!t.enabled : true;
             document.getElementById('aiTokDefault').checked = !!t?.is_default;
             document.getElementById('aiTokModelsHint').textContent = t?.model
-                ? `目前模型:${t.model};按右上「拉模型清單」可重新整理`
+                ? `目前:${t.model};按「拉模型清單」可重新整理`
                 : '尚未拉取模型清單';
-            document.getElementById('aiModelList').innerHTML = '';
+            aiTokenOnModelChange();
             document.getElementById('aiTokenModal').classList.remove('hidden');
         }
         function closeAiTokenModal() { document.getElementById('aiTokenModal').classList.add('hidden'); _editingAiTokenId = null; }
 
         async function aiTokenFetchModels() {
-            const provider = document.getElementById('aiTokProvider').value.trim();
+            const provider = _aiTokenProviderName();
             const apiKey = document.getElementById('aiTokKey').value.trim();
-            if (!provider) { showToast('請先填 AI 公司名稱', 'error'); return; }
+            if (!provider) { showToast('請先選 AI 公司', 'error'); return; }
+            const localProviders = ['Ollama', 'LM Studio'];
+            if (!apiKey && !localProviders.includes(provider)) {
+                showToast('請先填 API Key 才能拉模型清單(本地 Ollama / LM Studio 例外)', 'error');
+                return;
+            }
             const btn = document.getElementById('aiTokFetchModelsBtn');
             const orig = btn.innerHTML;
             btn.disabled = true;
@@ -14988,13 +15089,20 @@ gantt
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ provider, api_key: apiKey || null }),
                 });
-                const list = document.getElementById('aiModelList');
-                list.innerHTML = (data.models || []).map(m =>
-                    `<option value="${_esc(m.id)}">${_esc(m.name || m.id)}</option>`
-                ).join('');
+                _aiTokenModelsCache = data.models || [];
+                const sel = document.getElementById('aiTokModel');
+                const prevModel = sel.value;
+                sel.innerHTML = '<option value="">— 選擇模型 —</option>' +
+                    _aiTokenModelsCache.map(m => {
+                        const flag = m.supports_reasoning_effort ? ' 🧠' : '';
+                        return `<option value="${_esc(m.id)}">${_esc(m.name || m.id)}${flag}</option>`;
+                    }).join('');
+                // 嘗試保留先前的選擇
+                if (prevModel && _aiTokenModelsCache.some(m => m.id === prevModel)) sel.value = prevModel;
                 document.getElementById('aiTokModelsHint').textContent =
-                    `已抓到 ${(data.models||[]).length} 個模型(${data.base_url}),點輸入框可看下拉建議`;
-                showToast(`已拉到 ${(data.models||[]).length} 個模型`, 'success');
+                    `已抓到 ${_aiTokenModelsCache.length} 個模型(${data.base_url});🧠 = 支援思考程度`;
+                aiTokenOnModelChange();
+                showToast(`已拉到 ${_aiTokenModelsCache.length} 個模型`, 'success');
             } catch (e) {
                 showToast('拉取模型失敗:' + (e.message || e), 'error');
                 document.getElementById('aiTokModelsHint').textContent =
@@ -15007,9 +15115,11 @@ gantt
 
         async function aiTokenSubmit(ev) {
             ev.preventDefault();
+            const provider = _aiTokenProviderName();
+            if (!provider) { showToast('請選 AI 公司或填自訂名稱', 'error'); return false; }
             const payload = {
                 name: document.getElementById('aiTokName').value.trim(),
-                provider: document.getElementById('aiTokProvider').value.trim() || 'OpenAI',
+                provider,
                 api_key: document.getElementById('aiTokKey').value || null,
                 model: document.getElementById('aiTokModel').value.trim() || null,
                 reasoning_effort: document.getElementById('aiTokReasoning').value || null,

@@ -403,6 +403,24 @@ class FetchModelsRequest(BaseModel):
     base_url: Optional[str] = None  # 進階自訂端點(覆蓋 ai_provider_map 預設)
 
 
+def _detect_reasoning_support(model_id: str) -> bool:
+    """判斷某個模型是否支援 OpenAI 風格的 `reasoning_effort` 參數。
+
+    依模型名稱 pattern 判定(provider 不會回這個欄位):
+      - OpenAI o1 / o3 / o4 系列(o1-mini / o1-preview / o3 / o3-mini / o4-...)
+      - 未來的 GPT-5 推理變體
+      - DeepSeek R1 / 任何含 `reasoner` 字樣
+    """
+    if not model_id:
+        return False
+    m = model_id.lower()
+    if m.startswith(("o1", "o3", "o4", "gpt-5")):
+        return True
+    if "reasoner" in m or "r1" in m:
+        return True
+    return False
+
+
 @router.post(
     "/settings/ai-tokens/fetch-models",
     tags=["S · 設定"],
@@ -412,9 +430,18 @@ async def fetch_models(
     user: User = Depends(get_current_user),
 ):
     """用使用者填的 provider + api_key 去打 provider 的 /models 端點,回傳模型清單。
-    沒儲存 token 也可呼叫(讓使用者先試 key 再決定要不要存)。"""
+    沒儲存 token 也可呼叫(讓使用者先試 key 再決定要不要存)。
+    回應每個 model 帶 `supports_reasoning_effort` 標記讓前端決定是否讓使用者選思考程度。"""
     import httpx
     from app.services.ai_provider_map import resolve
+
+    # 早擋:沒填 API key 就不用打了(本地 Ollama / LM Studio 例外)
+    provider_lower = (payload.provider or "").strip().lower()
+    if not payload.api_key and provider_lower not in {"ollama", "lmstudio", "lm studio"}:
+        raise HTTPException(
+            400,
+            "請先填 API Key 才能拉模型清單(本地 Ollama / LM Studio 可不填)",
+        )
 
     spec = resolve(payload.provider, base_url_override=payload.base_url)
     headers = {"Accept": "application/json"}
@@ -444,17 +471,22 @@ async def fetch_models(
     out = []
     for it in items:
         if isinstance(it, str):
-            out.append({"id": it, "name": it})
+            mid = it
+            entry = {"id": mid, "name": mid}
         elif isinstance(it, dict):
             mid = it.get("id") or it.get("name") or it.get("model")
             if not mid:
                 continue
-            out.append({
+            entry = {
                 "id": mid,
                 "name": it.get("display_name") or it.get("name") or mid,
                 "context_length": it.get("context_length") or it.get("context_window"),
                 "owned_by": it.get("owned_by"),
-            })
+            }
+        else:
+            continue
+        entry["supports_reasoning_effort"] = _detect_reasoning_support(entry["id"])
+        out.append(entry)
     out.sort(key=lambda x: x["id"])
     return {"provider": payload.provider, "base_url": spec.base_url, "models": out}
 
