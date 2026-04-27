@@ -53,7 +53,9 @@ services:
       -metricsPort=9091
     volumes:
       - seaweedfs_data:/data
-      - ./seaweedfs-s3.json:/etc/seaweedfs/s3-config.json:ro
+    configs:
+      - source: seaweedfs_s3_config
+        target: /etc/seaweedfs/s3-config.json
     ports:
       - "8333:8333"   # S3 API
       - "9333:9333"   # Master / dashboard
@@ -222,6 +224,30 @@ volumes:
   postgres_data:
   seaweedfs_data:
   victoria_logs_data:
+
+# SeaweedFS S3 IAM 設定（取代外部 seaweedfs-s3.json）
+# 正式部署請改 secretKey；或改為從 .env 注入並用 envsubst 預處理。
+configs:
+  seaweedfs_s3_config:
+    content: |
+      {
+        "identities": [
+          {
+            "name": "admin",
+            "credentials": [
+              {
+                "accessKey": "admin",
+                "secretKey": "admin123"
+              }
+            ],
+            "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+          },
+          {
+            "name": "anonymous",
+            "actions": ["Read"]
+          }
+        ]
+      }
 
 networks:
   default:
