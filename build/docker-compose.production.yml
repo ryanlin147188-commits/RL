@@ -1,0 +1,231 @@
+# AutoTest 生產用 docker compose
+#
+# 跟根目錄的 docker-compose.yml 結構一致(postgres / valkey / seaweedfs /
+# apisix / fluent-bit / victoria-logs 全部沿用),但 backend / celery /
+# frontend 三個 service 換成生產版 image(Cython .so + bytecode-only +
+# 混淆過的前端)。
+#
+# 客戶端使用流程:
+#   1) docker login <registry>(若用私有 registry)
+#   2) export AUTOTEST_TAG=1.0.0   (對應你發布的版本)
+#   3) docker compose -f build/docker-compose.production.yml pull
+#   4) docker compose -f build/docker-compose.production.yml up -d
+#
+# 想客製化(改變 admin 密碼、改 host port 等)請複製這份成自己的版本。
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: autotest-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-admin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-admin123}
+      POSTGRES_DB: ${DB_NAME:-autotest_db}
+      TZ: Asia/Taipei
+      PGTZ: Asia/Taipei
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-admin} -d ${DB_NAME:-autotest_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    container_name: autotest-valkey
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  seaweedfs:
+    image: chrislusf/seaweedfs:3.80
+    container_name: autotest-seaweedfs
+    restart: unless-stopped
+    command: >
+      server
+      -dir=/data
+      -s3
+      -s3.config=/etc/seaweedfs/s3-config.json
+      -master.volumePreallocate=false
+      -metricsPort=9091
+    volumes:
+      - seaweedfs_data:/data
+    configs:
+      - source: seaweedfs_s3_config
+        target: /etc/seaweedfs/s3-config.json
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:9333/cluster/status | grep -q IsLeader || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  seaweedfs-init:
+    image: amazon/aws-cli:2.18.5
+    container_name: autotest-seaweedfs-init
+    depends_on:
+      seaweedfs:
+        condition: service_healthy
+    environment:
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-admin}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-admin123}
+      AWS_DEFAULT_REGION: us-east-1
+    entrypoint: >
+      /bin/sh -c "
+      aws --endpoint-url http://seaweedfs:8333 s3 mb s3://pic 2>/dev/null || true;
+      aws --endpoint-url http://seaweedfs:8333 s3 mb s3://results 2>/dev/null || true;
+      echo 'SeaweedFS buckets ready: pic, results';
+      "
+    restart: "no"
+
+  # ── 生產版 backend(Cython .so + .pyc-only routers) ─────────────
+  backend:
+    image: ${REGISTRY:-}autotest-backend:${AUTOTEST_TAG:-1.0.0}
+    container_name: autotest-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    environment:
+      TZ: Asia/Taipei
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-admin}
+      DB_PASSWORD: ${DB_PASSWORD:-admin123}
+      DB_NAME: ${DB_NAME:-autotest_db}
+      REDIS_URL: redis://valkey:6379/0
+      PIC_FOLDER: /app/PIC
+      BASE_URL: ${BASE_URL:-http://localhost}
+      STORAGE_BACKEND: ${STORAGE_BACKEND:-minio}
+      MINIO_ENDPOINT: http://seaweedfs:8333
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-admin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-admin123}
+      APP_HOST: 0.0.0.0
+      APP_PORT: 8000
+      DEBUG: "False"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "8000:8000"
+
+  # ── 生產版 celery(Cython .so + .pyc-only Celery tasks) ─────────
+  celery:
+    image: ${REGISTRY:-}autotest-celery:${AUTOTEST_TAG:-1.0.0}
+    container_name: autotest-celery
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    environment:
+      TZ: Asia/Taipei
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-admin}
+      DB_PASSWORD: ${DB_PASSWORD:-admin123}
+      DB_NAME: ${DB_NAME:-autotest_db}
+      REDIS_URL: redis://valkey:6379/0
+      PIC_FOLDER: /app/PIC
+      BASE_URL: ${BASE_URL:-http://localhost}
+      STORAGE_BACKEND: ${STORAGE_BACKEND:-minio}
+      MINIO_ENDPOINT: http://seaweedfs:8333
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-admin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-admin123}
+      PLAYWRIGHT_HEADLESS: ${PLAYWRIGHT_HEADLESS:-1}
+      # Celery spawn 出來的 runner image 也要用生產版
+      ROBOT_RUNNER_IMAGE: ${REGISTRY:-}autotest-runner:${AUTOTEST_TAG:-1.0.0}
+      ROBOT_RUNNER_NETWORK: ${ROBOT_RUNNER_NETWORK:-autotest_default}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  # ── 生產版 frontend(JS 重度混淆過的 index.html) ───────────────
+  frontend:
+    image: ${REGISTRY:-}autotest-frontend:${AUTOTEST_TAG:-1.0.0}
+    container_name: autotest-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+
+  apisix:
+    image: apache/apisix:3.11.0-debian
+    container_name: autotest-apisix
+    restart: unless-stopped
+    depends_on:
+      - backend
+    volumes:
+      - ../apisix/config.yaml:/usr/local/apisix/conf/config.yaml:ro
+      - ../apisix/apisix.yaml:/usr/local/apisix/conf/apisix.yaml:ro
+    ports:
+      - "9080:9080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:9080/healthz | grep -q ok || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  victoria-logs:
+    image: victoriametrics/victoria-logs:v1.50.0
+    container_name: autotest-victoria-logs
+    restart: unless-stopped
+    command:
+      - "-storageDataPath=/victoria-logs-data"
+      - "-retentionPeriod=30d"
+      - "-httpListenAddr=:9428"
+    volumes:
+      - victoria_logs_data:/victoria-logs-data
+    ports:
+      - "9428:9428"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://127.0.0.1:9428/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  fluent-bit:
+    image: fluent/fluent-bit:3.2
+    container_name: autotest-fluent-bit
+    restart: unless-stopped
+    depends_on:
+      victoria-logs:
+        condition: service_healthy
+    volumes:
+      - ../fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
+      - ../fluent-bit/parsers.conf:/fluent-bit/etc/parsers.conf:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+
+volumes:
+  postgres_data:
+  seaweedfs_data:
+  victoria_logs_data:
+
+configs:
+  seaweedfs_s3_config:
+    content: |
+      {
+        "identities": [
+          {
+            "name": "admin",
+            "credentials": [
+              { "accessKey": "admin", "secretKey": "admin123" }
+            ],
+            "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+          },
+          { "name": "anonymous", "actions": ["Read"] }
+        ]
+      }
+
+networks:
+  default:
+    name: autotest_default

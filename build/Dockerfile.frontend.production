@@ -1,0 +1,35 @@
+# AutoTest frontend (nginx) — 生產用 multi-stage image
+#
+# Stage 1 (obfuscator):用 javascript-obfuscator 重度混淆 frontend/index.html
+#                       的 <script> 區塊,輸出 index.production.html
+# Stage 2 (nginx):同 dev 版,但 serve 的是混淆後的 HTML
+
+# build context 必須是 repo root,因為要同時讀 frontend/ + build/。
+
+# ─────────────────────────────────────────────────────────────
+# Stage 1: obfuscator
+# ─────────────────────────────────────────────────────────────
+FROM node:20-alpine AS obfuscator
+
+WORKDIR /work
+# 本地安裝(node ESM 找全域 module 較麻煩,改成 local node_modules)
+RUN npm init -y >/dev/null && npm i javascript-obfuscator@4.x
+
+COPY frontend/index.html /work/index.html
+COPY build/obfuscate_frontend.mjs /work/obfuscate_frontend.mjs
+
+RUN node obfuscate_frontend.mjs index.html index.production.html
+
+
+# ─────────────────────────────────────────────────────────────
+# Stage 2: nginx
+# ─────────────────────────────────────────────────────────────
+FROM nginx:1.27-alpine
+
+# 沿用 dev 版的反代設定(/api/、/pics/、/results/、/ws/ 全部一致)
+COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
+
+# 把混淆版 HTML 當 index 服務
+COPY --from=obfuscator /work/index.production.html /usr/share/nginx/html/index.html
+
+EXPOSE 80

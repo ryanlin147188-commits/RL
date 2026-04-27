@@ -1,0 +1,70 @@
+# AutoTest backend (FastAPI) — 生產用 multi-stage image
+#
+# Stage 1 (builder):安裝 build tools + Cython,編譯第 1 層 → .so;
+#                    第 2 層產 .pyc;組裝 dist/。
+# Stage 2 (runtime):只 COPY dist/,沒有 build-essential / cython /
+#                    第 1+2 層原始 .py。
+#
+# build context 必須是 repo root,因為要同時讀 backend/ 跟 build/。
+
+# ─────────────────────────────────────────────────────────────
+# Stage 1: builder
+# ─────────────────────────────────────────────────────────────
+FROM python:3.11-slim AS builder
+
+ENV PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /build
+
+# Cython 編譯需要 build-essential(gcc / make / libc dev headers)
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# 1) 先裝 runtime + Cython
+COPY backend/requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir "cython>=3.0,<4.0"
+
+# 2) COPY 整份 backend/ + build/ 編譯腳本
+COPY backend/ /build/backend/
+COPY build/cython_setup.py /build/cython_setup.py
+COPY build/compile_python.sh /build/compile_python.sh
+
+# 3) 編譯 — 產出 /build/dist/backend
+RUN chmod +x /build/compile_python.sh && /build/compile_python.sh
+
+
+# ─────────────────────────────────────────────────────────────
+# Stage 2: runtime
+# ─────────────────────────────────────────────────────────────
+FROM python:3.11-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /app
+
+# 跟 dev 版相同的 runtime 系統依賴(curl 給 healthcheck 用)
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# 重新裝 runtime 依賴(builder stage 的 site-packages 不帶到 runtime 來,
+# 因為含 Cython 跟 build 工具)
+COPY backend/requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+# 只 COPY 編譯後成品
+COPY --from=builder /build/dist/backend /app
+
+# 跟 dev 版一樣保留 PIC 資料夾(實際儲存走 SeaweedFS,但保留以防舊路徑)
+RUN mkdir -p /app/PIC
+
+EXPOSE 8000
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
