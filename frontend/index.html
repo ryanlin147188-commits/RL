@@ -7843,6 +7843,8 @@ driver.swipe(100, 800, 100, 200, 500)"
         '連結失敗': 'Link failed',
         'Backlog 活躍': 'Active Backlog',
         '條 Backlog 連結': 'Backlog link(s)',
+        '尚未關聯測試案例的缺陷': 'Defects not yet linked to a test case',
+        '點下方任一缺陷即可編輯,設定「關聯測試案例」後就會出現在上方追溯鏈中': 'Click any defect below to edit and set its "linked test case" — once linked, it joins the trace chain above.',
     };
 
         function _i18nGetLocale() {
@@ -13687,10 +13689,10 @@ gantt
         function _rtmRenderOrphans(orphans) {
             if (!orphans.length) return '';
             return `<div class="bg-white border border-amber-200 rounded-lg shadow-sm overflow-hidden mt-4">
-                <div class="bg-amber-50/60 border-b border-amber-200 p-3 flex items-center gap-3">
+                <div class="bg-amber-50/60 border-b border-amber-200 p-3 flex items-center gap-3 flex-wrap">
                     <i class="fa-solid fa-link-slash text-amber-600"></i>
-                    <span class="font-bold text-amber-800">未連結到測試案例的缺陷（${orphans.length}）</span>
-                    <span class="text-[11px] text-stone-500 ml-auto">這些缺陷的 linked_testcase_id 為空或不存在；建議在缺陷編輯頁設定關聯案例以納入追溯鏈</span>
+                    <span class="font-bold text-amber-800">尚未關聯測試案例的缺陷(${orphans.length})</span>
+                    <span class="text-[11px] text-stone-500 ml-auto">點下方任一缺陷即可編輯,設定「關聯測試案例」後就會出現在上方追溯鏈中</span>
                 </div>
                 <div class="p-3 space-y-1">
                     ${orphans.map(b => _rtmRenderBug(b)).join('')}
