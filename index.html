@@ -284,6 +284,89 @@
         html.dark .bg-gradient-to-r,
         html.dark .bg-gradient-to-br,
         html.dark .bg-gradient-to-l { background-color: transparent !important; }
+
+        /* ─── 頂部導覽 pill 按鈕：統一 padding、字級、過渡 ─── */
+        .topnav-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.375rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: rgb(82 82 91); /* stone-600 */
+            transition: background-color 120ms, color 120ms;
+            white-space: nowrap;
+            line-height: 1.25;
+        }
+        .topnav-pill:focus-visible {
+            outline: 2px solid rgb(245 158 11); /* amber-500 */
+            outline-offset: 2px;
+        }
+        .topnav-pill.is-active {
+            background-color: rgb(254 243 199); /* amber-100 */
+            color: rgb(146 64 14); /* amber-800 */
+            font-weight: 600;
+        }
+        html.dark .topnav-pill { color: rgb(214 211 209); }
+        html.dark .topnav-pill:hover { background-color: rgb(68 64 60); }
+        html.dark .topnav-pill.is-active { background-color: rgb(120 53 15); color: rgb(254 243 199); }
+
+        /* 通知面板列表可捲動高度 */
+        .notif-list-scroll { max-height: min(60vh, 400px); }
+
+        /* 通知未讀項目的高亮邊條 */
+        .notif-item.unread { background-color: rgb(255 251 235); }
+        .notif-item.unread::before {
+            content: '';
+            position: absolute;
+            left: 0; top: 0; bottom: 0;
+            width: 3px;
+            background: linear-gradient(180deg, rgb(251 146 60), rgb(244 63 94));
+        }
+        html.dark .notif-item.unread { background-color: rgba(251, 146, 60, 0.08); }
+
+        /* ─── 左側 Nav Drawer 內的功能按鈕 ─── */
+        .nav-drawer-btn {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            width: 100%;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: rgb(68 64 60); /* stone-700 */
+            transition: background-color 120ms, color 120ms, transform 120ms;
+            text-align: left;
+            white-space: nowrap;
+        }
+        .nav-drawer-btn:hover {
+            background-color: rgb(254 243 199); /* amber-100 */
+            color: rgb(146 64 14); /* amber-800 */
+        }
+        .nav-drawer-btn:active { transform: translateX(2px); }
+        .nav-drawer-btn:focus-visible {
+            outline: 2px solid rgb(245 158 11);
+            outline-offset: 2px;
+        }
+        .nav-drawer-btn i {
+            width: 1.25rem;
+            font-size: 0.95rem;
+            text-align: center;
+            flex-shrink: 0;
+        }
+        .nav-drawer-btn.is-active {
+            background-color: rgb(254 243 199);
+            color: rgb(146 64 14);
+            font-weight: 600;
+        }
+        html.dark .nav-drawer-btn { color: rgb(214 211 209); }
+        html.dark .nav-drawer-btn:hover { background-color: rgb(68 64 60); color: rgb(254 243 199); }
+        html.dark .nav-drawer-btn.is-active { background-color: rgb(120 53 15); color: rgb(254 243 199); }
+        html.dark #navDrawer { background-color: rgb(28 25 23); border-color: rgb(68 64 60); }
+        html.dark #navDrawer .border-stone-200 { border-color: rgb(68 64 60); }
+        html.dark #navDrawer .bg-gradient-to-r.from-amber-50 { background: linear-gradient(to right, rgb(68 64 60), rgb(41 37 36)); }
     </style>
 </head>
 <body class="h-screen flex flex-col bg-stone-50 text-stone-800 font-sans overflow-hidden relative">
@@ -470,214 +553,206 @@
         </div>
     </div>
 
-    <!-- 頂部導覽列：兩列佈局（規劃/設定 上排；執行/監控 下排）-->
-    <header class="bg-white border-b border-amber-100 flex flex-col shrink-0 z-[100] shadow-sm relative">
-        <!-- ── 上排：Logo（左）+ 規劃/設定 nav（中）+ 使用者選單（右）── -->
-        <div class="h-14 flex items-center justify-between px-4 md:px-6">
-            <div class="flex items-center gap-2">
-                <button type="button" id="sidebarMobileToggle" onclick="toggleMobileSidebar()"
-                    class="md:hidden p-2 text-stone-600 hover:text-amber-600 hover:bg-amber-50 rounded transition"
-                    aria-label="開啟側邊欄" title="開啟專案目錄">
-                    <i class="fa-solid fa-bars text-lg"></i>
-                </button>
-                <button type="button" id="navHomeBtn" onclick="showHomeView()" title="回首頁" aria-label="回首頁"
-                    class="flex items-center gap-2 md:gap-3 hover:opacity-80 transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 rounded">
-                    <div class="bg-blue-600 text-white p-1.5 rounded-md shadow-inner">
-                        <i class="fa-solid fa-vial-circle-check"></i>
-                    </div>
-                    <h1 class="font-bold text-base md:text-lg text-slate-700 tracking-tight whitespace-nowrap">AutoTest <span class="hidden sm:inline text-xs text-slate-400 font-normal ml-2 border border-slate-200 px-1.5 py-0.5 rounded">v1.0</span></h1>
-                </button>
-            </div>
-            <!-- 第一列：規劃 & 設計 / 設定 -->
-            <div class="hidden md:flex items-center gap-2 md:gap-3 xl:gap-5 flex-1 justify-center px-4">
-                <span class="hidden 2xl:inline text-[10px] text-stone-400 font-bold uppercase tracking-wider" data-i18n="nav.section.planning">規劃</span>
-                <button type="button" onclick="showTestProjectsView()" id="navTestProjectsBtn" data-i18n-attr="title;nav.testProjects"
-                    class="text-slate-500 hover:text-amber-600 font-medium transition flex items-center gap-2">
-                    <i class="fa-solid fa-folder-tree"></i>
-                    <span class="hidden xl:inline" data-i18n="nav.testProjects">測試專案</span>
-                </button>
-                <button type="button" onclick="showWbsView()" id="navWbsBtn" data-i18n-attr="title;nav.wbs"
-                    class="text-slate-500 hover:text-yellow-600 font-medium transition flex items-center gap-2">
-                    <i class="fa-solid fa-sitemap"></i>
-                    <span class="hidden xl:inline" data-i18n="nav.wbs">WBS</span>
-                </button>
-                <button type="button" onclick="showTestPlanView()" id="navTestPlanBtn" data-i18n-attr="title;nav.testPlan"
-                    class="text-slate-500 hover:text-blue-600 font-medium transition flex items-center gap-2">
-                    <i class="fa-solid fa-clipboard-list"></i>
-                    <span class="hidden xl:inline" data-i18n="nav.testPlan">測試計畫</span>
-                </button>
-                <button type="button" onclick="showRequirementsView()" id="navRequirementsBtn" data-i18n-attr="title;nav.requirements"
-                    class="text-slate-500 hover:text-cyan-600 font-medium transition flex items-center gap-2">
-                    <i class="fa-solid fa-diagram-project"></i>
-                    <span class="hidden xl:inline" data-i18n="nav.requirements">需求/RTM</span>
-                </button>
-                <button type="button" onclick="showTestCasesView()" id="navTestCasesBtn" data-i18n-attr="title;nav.testCases"
-                    class="text-slate-500 hover:text-blue-600 font-medium transition flex items-center gap-2">
-                    <i class="fa-solid fa-list-check"></i>
-                    <span class="hidden xl:inline" data-i18n="nav.testCases">測試案例</span>
-                </button>
-                <button type="button" onclick="showTestDataSetsView()" id="navTestDataSetsBtn" data-i18n-attr="title;nav.dataSets"
-                    class="text-slate-500 hover:text-violet-600 font-medium transition flex items-center gap-2">
-                    <i class="fa-solid fa-table"></i>
-                    <span class="hidden xl:inline" data-i18n="nav.dataSets">測試資料集</span>
-                </button>
-                <button type="button" onclick="showTestDocumentsView()" id="navTestDocumentsBtn" data-i18n-attr="title;nav.documents"
-                    class="text-slate-500 hover:text-pink-600 font-medium transition flex items-center gap-2">
-                    <i class="fa-solid fa-file-lines"></i>
-                    <span class="hidden xl:inline" data-i18n="nav.documents">測試文件</span>
-                </button>
-                <span class="hidden 2xl:inline text-[10px] text-stone-400 font-bold uppercase tracking-wider ml-2" data-i18n="nav.section.settings">設定</span>
-                <button type="button" onclick="showDevicesView()" id="navDevicesBtn" data-i18n-attr="title;nav.devices"
-                    class="text-slate-500 hover:text-rose-600 font-medium transition flex items-center gap-2">
-                    <i class="fa-solid fa-mobile-screen"></i>
-                    <span class="hidden xl:inline" data-i18n="nav.devices">設備資訊</span>
-                </button>
-                <button type="button" onclick="showEnvVarsView()" id="navEnvVarsBtn" data-i18n-attr="title;nav.envVars"
-                    class="text-slate-500 hover:text-emerald-600 font-medium transition flex items-center gap-2">
-                    <i class="fa-solid fa-key"></i>
-                    <span class="hidden xl:inline" data-i18n="nav.envVars">環境變數</span>
-                </button>
-                <button type="button" onclick="showDbConfigView()" id="navDbConfigBtn" data-i18n-attr="title;nav.dbConfig"
-                    class="text-slate-500 hover:text-indigo-600 font-medium transition flex items-center gap-2">
-                    <i class="fa-solid fa-database"></i>
-                    <span class="hidden xl:inline" data-i18n="nav.dbConfig">DB資訊</span>
-                </button>
-                <button type="button" onclick="showMockView()" id="navMockBtn" data-i18n-attr="title;nav.mock"
-                    class="text-slate-500 hover:text-amber-600 font-medium transition flex items-center gap-2">
-                    <i class="fa-solid fa-plug"></i>
-                    <span class="hidden xl:inline" data-i18n="nav.mock">Mock</span>
-                </button>
-            </div>
-            <!-- 右側使用者區：名稱 / 登出 / 暗黑切換 -->
-            <div class="flex items-center gap-3 md:gap-4">
-                <button type="button" id="userMenuBtn" onclick="showUserSettingsView()" aria-label="設定" title="點擊進入設定"
-                    class="flex items-center gap-2 cursor-pointer hover:bg-amber-50 p-1 rounded transition focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400">
-                    <div id="userMenuAvatar" class="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white font-bold shadow-sm shrink-0">A</div>
-                    <span id="userMenuName" class="hidden sm:inline text-sm font-semibold text-stone-700">admin</span>
-                </button>
-                <div class="h-6 w-px bg-stone-200"></div>
-                <button type="button" onclick="authLogout()" data-i18n-attr="title;common.logout,aria-label;common.logout"
-                    class="flex items-center gap-1.5 px-3 h-9 rounded border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 transition text-sm font-medium">
-                    <i class="fa-solid fa-right-from-bracket"></i>
-                    <span class="hidden sm:inline" data-i18n="common.logout">登出</span>
-                </button>
-                <div class="h-6 w-px bg-stone-200"></div>
-                <button type="button" id="i18nToggleBtn" onclick="i18nToggle()" title="切換語言 / Switch language" aria-label="切換語言"
-                    class="h-9 px-2.5 flex items-center justify-center rounded-full border border-stone-200 hover:bg-amber-50 hover:border-amber-300 transition text-stone-600 text-xs font-bold">
-                    <span id="i18nToggleLabel">EN</span>
-                </button>
-                <button type="button" id="themeToggleBtn" onclick="toggleDarkMode()" title="切換暗黑模式" aria-label="切換暗黑模式"
-                    class="w-9 h-9 flex items-center justify-center rounded-full border border-stone-200 hover:bg-amber-50 hover:border-amber-300 transition text-stone-600">
-                    <i id="themeToggleIcon" class="fa-solid fa-moon text-sm"></i>
-                </button>
-            </div>
-        </div>
-        <!-- ── 下排：執行 / 監控 nav + 環境切換 ── -->
-        <div class="hidden md:flex h-12 items-center gap-2 md:gap-3 xl:gap-5 px-4 md:px-6 border-t border-amber-50">
-            <span class="text-[10px] text-stone-400 font-bold uppercase tracking-wider mr-auto" data-i18n="nav.section.execution">執行 / 監控</span>
-            <button type="button" onclick="showTestMilestonesView()" id="navTestMilestonesBtn" data-i18n-attr="title;nav.milestones"
-                class="text-slate-500 hover:text-teal-600 font-medium transition flex items-center gap-2">
-                <i class="fa-regular fa-calendar"></i>
-                <span class="hidden xl:inline" data-i18n="nav.milestones">測試時程</span>
+    <!-- ═══════════════════════════════════════════════════════════════
+         頂部導覽列 (v3 redesign — 單列 + 左側彈出 nav drawer)
+         - 唯一一列 (h-14):[功能選單按鈕] [專案樹按鈕(行動)] [Logo] (空白置中) [圖標動作群] [使用者下拉]
+         - 18 個 nav 項目移到左側彈出 drawer (#navDrawer)
+         - 環境切換移到 drawer 底部
+         ═══════════════════════════════════════════════════════════════ -->
+    <header class="bg-white/95 backdrop-blur border-b border-stone-200 flex flex-col shrink-0 shadow-[0_1px_2px_rgba(0,0,0,0.04)] relative z-[100]">
+        <!-- 頂部 2px 漸層 — 品牌色錨點 -->
+        <div class="h-[2px] bg-gradient-to-r from-amber-300 via-orange-300 to-rose-300"></div>
+
+        <div class="h-14 flex items-center px-3 md:px-5 gap-2 md:gap-3">
+            <!-- 功能選單(全部裝置都顯示) -->
+            <button type="button" id="navDrawerToggleBtn" onclick="toggleNavDrawer(event)"
+                class="w-9 h-9 flex items-center justify-center rounded-lg text-stone-700 hover:bg-stone-100 hover:text-amber-600 transition shrink-0"
+                aria-label="開啟功能選單" title="功能選單">
+                <i class="fa-solid fa-bars text-[17px]"></i>
             </button>
-            <button type="button" onclick="showTestRoundView()" id="navTestRoundBtn" data-i18n-attr="title;nav.testRound"
-                class="text-slate-500 hover:text-purple-600 font-medium transition flex items-center gap-2">
-                <i class="fa-solid fa-layer-group"></i>
-                <span class="hidden xl:inline" data-i18n="nav.testRound">測試回合</span>
+            <!-- 專案樹(只在行動裝置顯示;桌面版專案樹 sidebar 已常駐左側) -->
+            <button type="button" id="sidebarMobileToggle" onclick="toggleMobileSidebar()"
+                class="md:hidden w-9 h-9 flex items-center justify-center rounded-lg text-stone-600 hover:bg-amber-50 hover:text-amber-600 transition shrink-0"
+                aria-label="開啟專案目錄" title="專案目錄">
+                <i class="fa-solid fa-folder-tree text-[15px]"></i>
             </button>
-            <button onclick="showScheduleView()" id="navScheduleBtn" data-i18n-attr="title;nav.schedule"
-                class="text-slate-500 hover:text-emerald-600 font-medium transition flex items-center gap-2">
-                <i class="fa-solid fa-calendar-days"></i>
-                <span class="hidden xl:inline" data-i18n="nav.schedule">測試排程</span>
+            <!-- Logo + Brand -->
+            <button type="button" id="navHomeBtn" onclick="showHomeView()" title="回首頁" aria-label="回首頁"
+                class="flex items-center gap-2 md:gap-2.5 hover:opacity-80 transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 rounded shrink-0">
+                <div class="bg-gradient-to-br from-blue-500 to-blue-700 text-white p-1.5 rounded-md shadow-sm">
+                    <i class="fa-solid fa-vial-circle-check"></i>
+                </div>
+                <h1 class="font-bold text-base md:text-lg text-slate-800 tracking-tight whitespace-nowrap">AutoTest<span class="hidden sm:inline text-[10px] text-amber-700 bg-amber-50 font-semibold ml-1.5 px-1.5 py-0.5 rounded border border-amber-200 align-middle">v1.0</span></h1>
             </button>
-            <button onclick="showRecorderView()" id="navRecorderBtn" data-i18n-attr="title;nav.recorder"
-                class="text-slate-500 hover:text-rose-600 font-medium transition flex items-center gap-2">
-                <i class="fa-solid fa-video"></i>
-                <span class="hidden xl:inline" data-i18n="nav.recorder">測試錄製</span>
-            </button>
-            <button type="button" onclick="showTestKanbanView()" id="navTestKanbanBtn" data-i18n-attr="title;nav.kanban"
-                class="text-slate-500 hover:text-orange-600 font-medium transition flex items-center gap-2">
-                <i class="fa-solid fa-columns"></i>
-                <span class="hidden xl:inline" data-i18n="nav.kanban">測試看版</span>
-            </button>
-            <button type="button" onclick="showReportView()" id="navReportBtn" data-i18n-attr="title;nav.reports"
-                class="text-slate-500 hover:text-blue-600 font-medium transition flex items-center gap-2">
-                <i class="fa-solid fa-chart-pie"></i>
-                <span class="hidden xl:inline" data-i18n="nav.reports">測試報告</span>
-            </button>
-            <button type="button" onclick="showDefectsView()" id="navDefectsBtn" data-i18n-attr="title;nav.defects"
-                class="text-slate-500 hover:text-red-600 font-medium transition flex items-center gap-2">
-                <i class="fa-solid fa-bug"></i>
-                <span class="hidden xl:inline" data-i18n="nav.defects">缺陷管理</span>
-            </button>
-            <div class="flex items-center gap-1 ml-2">
-                <button type="button" id="envToggleBtn" onclick="toggleExecutionMode()" aria-label="切換執行環境" title="切換執行環境（點擊切換；本機 = 有頭瀏覽器，Docker = 無頭）"
-                    class="flex items-center gap-2 text-sm font-medium px-3 py-1 rounded border transition whitespace-nowrap">
-                    <i class="fa-solid fa-server"></i>
-                    <span class="hidden xl:inline">環境：</span>
-                    <span id="envToggleLabel" class="font-mono">Docker</span>
+
+            <!-- 置中空白 (推右側動作群到最右邊) -->
+            <div class="flex-1 min-w-0"></div>
+
+            <!-- 右:圖標動作群 + 使用者下拉 -->
+            <div class="flex items-center gap-1 sm:gap-1.5 shrink-0">
+                <!-- 執行環境 (放在通知左邊) -->
+                <button type="button" id="envToggleBtn" onclick="toggleExecutionMode()" aria-label="切換執行環境" title="切換執行環境(點擊切換;本機 = 有頭瀏覽器,Docker = 無頭)"
+                    class="flex items-center gap-1.5 text-xs font-medium px-2.5 sm:px-3 py-1.5 rounded-full border border-stone-200 bg-white hover:border-amber-300 hover:bg-amber-50 transition whitespace-nowrap">
+                    <i class="fa-solid fa-server text-stone-400 text-[12px]"></i>
+                    <span class="hidden md:inline text-stone-500">環境</span>
+                    <span id="envToggleLabel" class="font-mono font-bold text-stone-800">Docker</span>
                 </button>
                 <button type="button" id="envLocalHelpBtn" onclick="openLocalAgentHelp()" aria-label="本機 Agent 使用說明"
                     class="hidden text-xs text-amber-700 hover:text-amber-900 px-1" title="本機模式設定說明">
                     <i class="fa-solid fa-circle-question"></i>
                 </button>
+                <!-- 通知 -->
+                <button type="button" id="notifToggleBtn" onclick="toggleNotifPanel(event)" title="通知" aria-label="通知"
+                    class="w-9 h-9 flex items-center justify-center rounded-full text-stone-600 hover:bg-stone-100 hover:text-amber-600 transition relative">
+                    <i class="fa-solid fa-bell text-[15px]"></i>
+                    <span id="notifBadge" class="hidden absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 text-[10px] font-bold rounded-full bg-rose-500 text-white border-2 border-white flex items-center justify-center leading-none">0</span>
+                </button>
+                <!-- 暗黑模式 -->
+                <button type="button" id="themeToggleBtn" onclick="toggleDarkMode()" title="切換暗黑模式" aria-label="切換暗黑模式"
+                    class="w-9 h-9 flex items-center justify-center rounded-full text-stone-600 hover:bg-stone-100 hover:text-amber-600 transition">
+                    <i id="themeToggleIcon" class="fa-solid fa-moon text-[15px]"></i>
+                </button>
+                <!-- 語系 -->
+                <button type="button" id="i18nToggleBtn" onclick="i18nToggle()" title="切換語言 / Switch language" aria-label="切換語言"
+                    class="w-9 h-9 flex items-center justify-center rounded-full text-stone-600 hover:bg-stone-100 hover:text-amber-600 transition text-xs font-bold">
+                    <span id="i18nToggleLabel">EN</span>
+                </button>
+                <!-- 分隔線 -->
+                <div class="hidden sm:block h-6 w-px bg-stone-200 mx-1" aria-hidden="true"></div>
+                <!-- 使用者(直接點擊進設定頁) -->
+                <button type="button" id="userMenuBtn" onclick="showUserSettingsView()" aria-label="設定" data-i18n-attr="title;settings.title.short"
+                    title="設定" class="flex items-center gap-2 cursor-pointer hover:bg-stone-100 pl-1 pr-2 py-1 rounded-full transition focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400">
+                    <div id="userMenuAvatar" class="w-7 h-7 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-xs font-bold shadow-sm shrink-0">A</div>
+                    <span id="userMenuName" class="hidden sm:inline text-sm font-semibold text-stone-700 max-w-[100px] truncate">admin</span>
+                </button>
+                <!-- 登出(獨立按鈕,放在使用者名稱右側) -->
+                <button type="button" id="logoutBtn" onclick="authLogout()" aria-label="登出" data-i18n-attr="title;common.logout,aria-label;common.logout"
+                    title="登出" class="w-9 h-9 flex items-center justify-center rounded-full text-stone-500 hover:bg-rose-50 hover:text-rose-600 transition">
+                    <i class="fa-solid fa-right-from-bracket text-[15px]"></i>
+                </button>
             </div>
         </div>
     </header>
 
+    <!-- ═══════════════════════════════════════════════════════════════
+         Nav Drawer:左側彈出選單 — 18 個功能 + 環境切換
+         全裝置共用;點按 hamburger 開,點 backdrop / X / 任一項目自動關
+         ═══════════════════════════════════════════════════════════════ -->
+    <div id="navDrawerBackdrop" onclick="closeNavDrawer()" class="hidden fixed inset-0 bg-black/40 z-[150] transition-opacity"></div>
+    <aside id="navDrawer" class="fixed top-0 left-0 bottom-0 w-[85vw] max-w-[320px] bg-white border-r border-stone-200 shadow-2xl z-[160] -translate-x-full transition-transform duration-300 flex flex-col" aria-hidden="true">
+        <!-- Header -->
+        <div class="h-14 shrink-0 flex items-center justify-between px-4 border-b border-stone-200 bg-gradient-to-r from-amber-50 to-orange-50">
+            <div class="flex items-center gap-2">
+                <i class="fa-solid fa-compass text-amber-600"></i>
+                <span class="font-bold text-stone-800" data-i18n="navDrawer.title">全部功能</span>
+            </div>
+            <button type="button" onclick="closeNavDrawer()" aria-label="關閉" title="關閉"
+                class="w-8 h-8 flex items-center justify-center rounded-full text-stone-500 hover:bg-white/70 hover:text-rose-600 transition">
+                <i class="fa-solid fa-xmark text-sm"></i>
+            </button>
+        </div>
+
+        <!-- Body -->
+        <div class="flex-1 overflow-y-auto p-3 space-y-5">
+            <!-- 規劃 -->
+            <section>
+                <div class="text-[10px] font-bold text-amber-700 uppercase tracking-wider mb-2 px-2 flex items-center gap-1.5">
+                    <i class="fa-solid fa-pen-ruler text-[11px]"></i>
+                    <span data-i18n="nav.section.planning">規劃</span>
+                </div>
+                <div class="space-y-0.5">
+                    <button type="button" onclick="closeNavDrawer(); showTestProjectsView()" class="nav-drawer-btn"><i class="fa-solid fa-folder-tree text-amber-600"></i><span data-i18n="nav.testProjects">測試專案</span></button>
+                    <button type="button" onclick="closeNavDrawer(); showWbsView()"          class="nav-drawer-btn"><i class="fa-solid fa-sitemap text-yellow-600"></i><span data-i18n="nav.wbs">WBS</span></button>
+                    <button type="button" onclick="closeNavDrawer(); showTestPlanView()"     class="nav-drawer-btn"><i class="fa-solid fa-clipboard-list text-blue-600"></i><span data-i18n="nav.testPlan">測試計畫</span></button>
+                    <button type="button" onclick="closeNavDrawer(); showRequirementsView()" class="nav-drawer-btn"><i class="fa-solid fa-diagram-project text-cyan-600"></i><span data-i18n="nav.requirements">需求/RTM</span></button>
+                    <button type="button" onclick="closeNavDrawer(); showTestCasesView()"    class="nav-drawer-btn"><i class="fa-solid fa-list-check text-blue-600"></i><span data-i18n="nav.testCases">測試案例</span></button>
+                    <button type="button" onclick="closeNavDrawer(); showTestDataSetsView()" class="nav-drawer-btn"><i class="fa-solid fa-table text-violet-600"></i><span data-i18n="nav.dataSets">測試資料集</span></button>
+                    <button type="button" onclick="closeNavDrawer(); showTestDocumentsView()" class="nav-drawer-btn"><i class="fa-solid fa-file-lines text-pink-600"></i><span data-i18n="nav.documents">測試文件</span></button>
+                </div>
+            </section>
+
+            <!-- 設定 -->
+            <section>
+                <div class="text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-2 px-2 flex items-center gap-1.5">
+                    <i class="fa-solid fa-gear text-[11px]"></i>
+                    <span data-i18n="nav.section.settings">設定</span>
+                </div>
+                <div class="space-y-0.5">
+                    <button type="button" onclick="closeNavDrawer(); showDevicesView()"  class="nav-drawer-btn"><i class="fa-solid fa-mobile-screen text-rose-600"></i><span data-i18n="nav.devices">設備資訊</span></button>
+                    <button type="button" onclick="closeNavDrawer(); showEnvVarsView()"  class="nav-drawer-btn"><i class="fa-solid fa-key text-emerald-600"></i><span data-i18n="nav.envVars">環境變數</span></button>
+                    <button type="button" onclick="closeNavDrawer(); showDbConfigView()" class="nav-drawer-btn"><i class="fa-solid fa-database text-indigo-600"></i><span data-i18n="nav.dbConfig">DB資訊</span></button>
+                    <button type="button" onclick="closeNavDrawer(); showMockView()"     class="nav-drawer-btn"><i class="fa-solid fa-plug text-amber-600"></i><span data-i18n="nav.mock">Mock</span></button>
+                </div>
+            </section>
+
+            <!-- 執行 / 監控 -->
+            <section>
+                <div class="text-[10px] font-bold text-emerald-700 uppercase tracking-wider mb-2 px-2 flex items-center gap-1.5">
+                    <i class="fa-solid fa-play text-[11px]"></i>
+                    <span data-i18n="nav.section.execution">執行 / 監控</span>
+                </div>
+                <div class="space-y-0.5">
+                    <button type="button" onclick="closeNavDrawer(); showTestMilestonesView()" class="nav-drawer-btn"><i class="fa-regular fa-calendar text-teal-600"></i><span data-i18n="nav.milestones">測試時程</span></button>
+                    <button type="button" onclick="closeNavDrawer(); showTestRoundView()"      class="nav-drawer-btn"><i class="fa-solid fa-layer-group text-purple-600"></i><span data-i18n="nav.testRound">測試回合</span></button>
+                    <button type="button" onclick="closeNavDrawer(); showScheduleView()"       class="nav-drawer-btn"><i class="fa-solid fa-calendar-days text-emerald-600"></i><span data-i18n="nav.schedule">測試排程</span></button>
+                    <button type="button" onclick="closeNavDrawer(); showRecorderView()"       class="nav-drawer-btn"><i class="fa-solid fa-video text-rose-600"></i><span data-i18n="nav.recorder">測試錄製</span></button>
+                    <button type="button" onclick="closeNavDrawer(); showTestKanbanView()"     class="nav-drawer-btn"><i class="fa-solid fa-columns text-orange-600"></i><span data-i18n="nav.kanban">測試看版</span></button>
+                    <button type="button" onclick="closeNavDrawer(); showReportView()"         class="nav-drawer-btn"><i class="fa-solid fa-chart-pie text-blue-600"></i><span data-i18n="nav.reports">測試報告</span></button>
+                    <button type="button" onclick="closeNavDrawer(); showDefectsView()"        class="nav-drawer-btn"><i class="fa-solid fa-bug text-red-600"></i><span data-i18n="nav.defects">缺陷管理</span></button>
+                </div>
+            </section>
+        </div>
+
+    </aside>
+
+    <!-- ─── Notification Panel (fixed at body level → 不會被 header 兩排佈局裁切) ─── -->
+    <div id="notifPanel" class="hidden fixed top-[60px] right-3 md:right-4 w-[92vw] max-w-[380px] bg-white rounded-xl shadow-2xl ring-1 ring-stone-200 z-[200] overflow-hidden flex flex-col">
+        <div class="px-4 py-3 border-b border-stone-100 flex items-center justify-between bg-gradient-to-r from-amber-50 to-orange-50">
+            <span class="text-sm font-bold text-stone-800 flex items-center gap-2">
+                <i class="fa-solid fa-bell text-amber-500"></i> <span data-i18n="notif.title">通知</span>
+                <span id="notifPanelCount" class="hidden ml-1 px-1.5 py-0.5 bg-rose-500 text-white text-[10px] rounded-full font-mono">0</span>
+            </span>
+            <div class="flex items-center gap-3">
+                <button type="button" id="notifMarkAllBtn" onclick="markAllNotifRead()" class="text-xs text-stone-500 hover:text-amber-700 transition disabled:opacity-40 disabled:cursor-not-allowed" disabled>
+                    <i class="fa-solid fa-check-double mr-0.5"></i> <span data-i18n="notif.markAll">全部已讀</span>
+                </button>
+                <button type="button" onclick="loadNotifications()" title="重新整理" aria-label="重新整理"
+                    class="text-xs text-stone-400 hover:text-amber-700 transition">
+                    <i class="fa-solid fa-rotate-right"></i>
+                </button>
+            </div>
+        </div>
+        <div id="notifList" class="notif-list-scroll overflow-y-auto">
+            <div class="px-4 py-12 text-center text-sm text-stone-400">
+                <i class="fa-regular fa-bell-slash text-3xl mb-2 block opacity-60"></i>
+                <div data-i18n="notif.empty">目前沒有新通知</div>
+            </div>
+        </div>
+        <div class="px-4 py-2.5 border-t border-stone-100 bg-stone-50/60 flex items-center justify-between text-xs">
+            <button type="button" onclick="closeNotifPanel(); showUserSettingsView(); setTimeout(()=>settingsSwitchTab('notif'), 60);"
+                class="text-amber-700 hover:text-amber-900 font-medium transition">
+                <i class="fa-solid fa-gear mr-1"></i> <span data-i18n="notif.settings">通知設定</span>
+            </button>
+            <button type="button" onclick="clearAllNotifications()" class="text-stone-400 hover:text-rose-600 transition" data-i18n="notif.clearAll">
+                清空全部
+            </button>
+        </div>
+    </div>
+
     <!-- 主要內容區 -->
     <div class="flex-1 flex overflow-hidden relative">
 
-        <!-- 手機版：側邊欄背景遮罩（點擊可關閉；僅 < md 顯示） -->
-        <!-- 行動版只有上排 h-14；下排 hidden md：流程 - 行動裝置走使用者選單 nav -->
+        <!-- 手機版專案樹背景遮罩(僅 < md 顯示) -->
         <div id="sidebarBackdrop" onclick="closeMobileSidebar()" class="hidden md:hidden fixed inset-0 top-14 bg-black/40 z-[45]"></div>
 
-        <!-- 左側面板：drawer < md / inline ≥ md
-             ≥ md：header 兩排 = 56 + 48 = 104px；用 top-[104px]
-             < md：只有上排 56px（hamburger 抽屜情境）；用 top-14 -->
+        <!-- 左側專案樹面板:drawer < md / inline ≥ md
+             header 單列 h-14 = 56px (功能 nav 已移到左側 #navDrawer);用 top-14 -->
         <aside id="sidebar" class="bg-amber-50/40 border-r border-amber-100 flex flex-col shrink-0 shadow-[2px_0_5px_rgba(0,0,0,0.02)] z-50 fixed md:relative top-14 bottom-0 md:top-auto md:bottom-auto md:inset-y-0 left-0 transform -translate-x-full md:translate-x-0 transition-transform duration-300 w-[85vw] max-w-[360px] md:max-w-none md:w-auto">
-            <!-- 行動裝置專屬：把上方 nav 的所有按鈕重複放在這裡，避免 < md 完全沒有 nav -->
-            <div class="md:hidden border-b border-stone-200 bg-stone-50/50 p-3 space-y-3">
-                <div>
-                    <div class="text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-1.5"><span data-i18n="nav.section.planning">規劃</span></div>
-                    <div class="grid grid-cols-2 gap-1">
-                        <button onclick="showTestProjectsView(); closeMobileSidebar()" class="text-left px-2 py-1.5 text-xs rounded hover:bg-amber-100 text-stone-700 flex items-center gap-1.5"><i class="fa-solid fa-folder-tree text-amber-600 w-4"></i><span data-i18n="nav.testProjects">測試專案</span></button>
-                        <button onclick="showWbsView(); closeMobileSidebar()" class="text-left px-2 py-1.5 text-xs rounded hover:bg-amber-100 text-stone-700 flex items-center gap-1.5"><i class="fa-solid fa-sitemap text-yellow-600 w-4"></i><span data-i18n="nav.wbs">WBS</span></button>
-                        <button onclick="showTestPlanView(); closeMobileSidebar()" class="text-left px-2 py-1.5 text-xs rounded hover:bg-amber-100 text-stone-700 flex items-center gap-1.5"><i class="fa-solid fa-clipboard-list text-blue-600 w-4"></i><span data-i18n="nav.testPlan">測試計畫</span></button>
-                        <button onclick="showRequirementsView(); closeMobileSidebar()" class="text-left px-2 py-1.5 text-xs rounded hover:bg-amber-100 text-stone-700 flex items-center gap-1.5"><i class="fa-solid fa-diagram-project text-cyan-600 w-4"></i><span data-i18n="nav.requirements">需求/RTM</span></button>
-                        <button onclick="showTestCasesView(); closeMobileSidebar()" class="text-left px-2 py-1.5 text-xs rounded hover:bg-amber-100 text-stone-700 flex items-center gap-1.5"><i class="fa-solid fa-list-check text-blue-600 w-4"></i><span data-i18n="nav.testCases">測試案例</span></button>
-                        <button onclick="showTestDataSetsView(); closeMobileSidebar()" class="text-left px-2 py-1.5 text-xs rounded hover:bg-amber-100 text-stone-700 flex items-center gap-1.5"><i class="fa-solid fa-table text-violet-600 w-4"></i><span data-i18n="nav.dataSets">測試資料集</span></button>
-                        <button onclick="showTestDocumentsView(); closeMobileSidebar()" class="text-left px-2 py-1.5 text-xs rounded hover:bg-amber-100 text-stone-700 flex items-center gap-1.5 col-span-2"><i class="fa-solid fa-file-lines text-pink-600 w-4"></i><span data-i18n="nav.documents">測試文件</span></button>
-                    </div>
-                </div>
-                <div>
-                    <div class="text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-1.5"><span data-i18n="nav.section.execution">執行 / 監控</span></div>
-                    <div class="grid grid-cols-2 gap-1">
-                        <button onclick="showTestMilestonesView(); closeMobileSidebar()" class="text-left px-2 py-1.5 text-xs rounded hover:bg-amber-100 text-stone-700 flex items-center gap-1.5"><i class="fa-regular fa-calendar text-teal-600 w-4"></i><span data-i18n="nav.milestones">測試時程</span></button>
-                        <button onclick="showTestRoundView(); closeMobileSidebar()" class="text-left px-2 py-1.5 text-xs rounded hover:bg-amber-100 text-stone-700 flex items-center gap-1.5"><i class="fa-solid fa-layer-group text-purple-600 w-4"></i><span data-i18n="nav.testRound">測試回合</span></button>
-                        <button onclick="showScheduleView(); closeMobileSidebar()" class="text-left px-2 py-1.5 text-xs rounded hover:bg-amber-100 text-stone-700 flex items-center gap-1.5"><i class="fa-solid fa-calendar-days text-emerald-600 w-4"></i><span data-i18n="nav.schedule">測試排程</span></button>
-                        <button onclick="showRecorderView(); closeMobileSidebar()" class="text-left px-2 py-1.5 text-xs rounded hover:bg-amber-100 text-stone-700 flex items-center gap-1.5"><i class="fa-solid fa-video text-rose-600 w-4"></i><span data-i18n="nav.recorder">測試錄製</span></button>
-                        <button onclick="showTestKanbanView(); closeMobileSidebar()" class="text-left px-2 py-1.5 text-xs rounded hover:bg-amber-100 text-stone-700 flex items-center gap-1.5"><i class="fa-solid fa-columns text-orange-600 w-4"></i><span data-i18n="nav.kanban">測試看版</span></button>
-                        <button onclick="showReportView(); closeMobileSidebar()" class="text-left px-2 py-1.5 text-xs rounded hover:bg-amber-100 text-stone-700 flex items-center gap-1.5"><i class="fa-solid fa-chart-pie text-blue-600 w-4"></i><span data-i18n="nav.reports">測試報告</span></button>
-                        <button onclick="showDefectsView(); closeMobileSidebar()" class="text-left px-2 py-1.5 text-xs rounded hover:bg-amber-100 text-stone-700 flex items-center gap-1.5 col-span-2"><i class="fa-solid fa-bug text-red-600 w-4"></i><span data-i18n="nav.defects">缺陷管理</span></button>
-                    </div>
-                </div>
-                <div>
-                    <div class="text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-1.5"><span data-i18n="nav.section.settings">設定</span></div>
-                    <div class="grid grid-cols-2 gap-1">
-                        <button onclick="showDevicesView(); closeMobileSidebar()" class="text-left px-2 py-1.5 text-xs rounded hover:bg-amber-100 text-stone-700 flex items-center gap-1.5"><i class="fa-solid fa-mobile-screen text-rose-600 w-4"></i><span data-i18n="nav.devices">設備資訊</span></button>
-                        <button onclick="showEnvVarsView(); closeMobileSidebar()" class="text-left px-2 py-1.5 text-xs rounded hover:bg-amber-100 text-stone-700 flex items-center gap-1.5"><i class="fa-solid fa-key text-emerald-600 w-4"></i><span data-i18n="nav.envVars">環境變數</span></button>
-                        <button onclick="showDbConfigView(); closeMobileSidebar()" class="text-left px-2 py-1.5 text-xs rounded hover:bg-amber-100 text-stone-700 flex items-center gap-1.5"><i class="fa-solid fa-database text-indigo-600 w-4"></i><span data-i18n="nav.dbConfig">DB資訊</span></button>
-                        <button onclick="showMockView(); closeMobileSidebar()" class="text-left px-2 py-1.5 text-xs rounded hover:bg-amber-100 text-stone-700 flex items-center gap-1.5"><i class="fa-solid fa-plug text-amber-600 w-4"></i><span data-i18n="nav.mock">Mock</span></button>
-                    </div>
-                </div>
-            </div>
-
             <div class="p-4 border-b border-slate-200 flex flex-col gap-3 bg-white z-10">
 
                 <!-- 專案目錄 Header：右側為「新增專案」icon（對齊下方刪除專案欄位上方）-->
                 <div class="flex justify-between items-center mb-1">
-                    <h2 class="font-semibold text-sm text-stone-600 uppercase tracking-wider">專案目錄</h2>
+                    <h2 class="font-semibold text-sm text-stone-600 uppercase tracking-wider" data-i18n="sidebar.projectDir">專案目錄</h2>
                     <button type="button" onclick="openNodeModal(event, 'root_project', 'add')" title="新增專案" aria-label="新增專案"
                         class="w-8 h-8 shrink-0 flex items-center justify-center bg-gradient-to-br from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-md shadow-sm hover:shadow transition">
                         <i class="fa-solid fa-folder-plus text-sm"></i>
@@ -714,7 +789,7 @@
                         <div class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
                             <i class="fa-solid fa-magnifying-glass text-slate-400 text-xs"></i>
                         </div>
-                        <input id="treeSearchInput" type="text" oninput="onTreeSearch(this.value)" placeholder="搜尋節點名稱…" aria-label="搜尋樹狀節點" class="w-full pl-8 pr-8 py-1.5 border border-slate-300 rounded-md text-xs text-slate-700 bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition">
+                        <input id="treeSearchInput" type="text" oninput="onTreeSearch(this.value)" placeholder="搜尋節點名稱…" data-i18n-attr="placeholder;sidebar.searchNode" aria-label="搜尋樹狀節點" class="w-full pl-8 pr-8 py-1.5 border border-slate-300 rounded-md text-xs text-slate-700 bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none transition">
                         <button id="treeSearchClear" onclick="clearTreeSearch()" class="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-600 hidden" title="清除搜尋">
                             <i class="fa-solid fa-xmark text-xs"></i>
                         </button>
@@ -2059,7 +2134,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                             <div class="flex items-center gap-2 text-xs uppercase tracking-widest opacity-80 mb-2">
                                 <i class="fa-solid fa-vial-circle-check"></i> AutoTest v1.0
                             </div>
-                            <h2 class="text-3xl font-bold">自動化測試平台</h2>
+                            <h2 class="text-3xl font-bold" data-i18n="home.hero.platform">自動化測試平台</h2>
                         </div>
                     </div>
                 </section>
@@ -2067,23 +2142,23 @@ driver.swipe(100, 800, 100, 200, 500)"
                 <!-- 專案統計 -->
                 <section class="max-w-6xl mx-auto mb-8">
                     <h3 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
-                        <i class="fa-solid fa-chart-simple text-blue-500"></i> 當前專案概況
+                        <i class="fa-solid fa-chart-simple text-blue-500"></i> <span data-i18n="home.section.overview">當前專案概況</span>
                     </h3>
                     <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
-                            <div class="text-xs text-slate-500 mb-1"><i class="fa-regular fa-folder text-slate-400"></i> 專案</div>
+                            <div class="text-xs text-slate-500 mb-1"><i class="fa-regular fa-folder text-slate-400"></i> <span data-i18n="home.stat.project">專案</span></div>
                             <div class="text-lg font-bold text-slate-800 truncate" id="homeStatProject">—</div>
                         </div>
                         <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
-                            <div class="text-xs text-slate-500 mb-1"><i class="fa-regular fa-file-lines text-blue-500"></i> 測試案例</div>
+                            <div class="text-xs text-slate-500 mb-1"><i class="fa-regular fa-file-lines text-blue-500"></i> <span data-i18n="home.stat.testcases">測試案例</span></div>
                             <div class="text-2xl font-bold text-blue-600" id="homeStatTestcases">0</div>
                         </div>
                         <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
-                            <div class="text-xs text-slate-500 mb-1"><i class="fa-solid fa-cube text-purple-500"></i> 節點總數</div>
+                            <div class="text-xs text-slate-500 mb-1"><i class="fa-solid fa-cube text-purple-500"></i> <span data-i18n="home.stat.nodes">節點總數</span></div>
                             <div class="text-2xl font-bold text-purple-600" id="homeStatNodes">0</div>
                         </div>
                         <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
-                            <div class="text-xs text-slate-500 mb-1"><i class="fa-solid fa-layer-group text-emerald-500"></i> 測試回合</div>
+                            <div class="text-xs text-slate-500 mb-1"><i class="fa-solid fa-layer-group text-emerald-500"></i> <span data-i18n="home.stat.rounds">測試回合</span></div>
                             <div class="text-2xl font-bold text-emerald-600" id="homeStatRounds">0</div>
                         </div>
                     </div>
@@ -2094,9 +2169,9 @@ driver.swipe(100, 800, 100, 200, 500)"
                      Host 欄（若顯示）則為 Docker host 作業系統 / CPU 核心 / 記憶體總量的對照。 -->
                 <section class="max-w-6xl mx-auto mb-8">
                     <h3 class="text-sm font-bold text-stone-500 uppercase tracking-wider mb-1 flex items-center gap-2 flex-wrap">
-                        <i class="fa-solid fa-server text-amber-500"></i> 系統狀態
-                        <span class="text-[10px] font-normal normal-case tracking-normal text-stone-400">（AutoTest 平台容器總用量）</span>
-                        <span id="sysStatusBadge" class="text-[10px] font-normal normal-case tracking-normal px-2 py-0.5 rounded-full bg-stone-100 text-stone-500">載入中…</span>
+                        <i class="fa-solid fa-server text-amber-500"></i> <span data-i18n="home.section.system">系統狀態</span>
+                        <span class="text-[10px] font-normal normal-case tracking-normal text-stone-400" data-i18n="home.section.systemSub">（AutoTest 平台容器總用量）</span>
+                        <span id="sysStatusBadge" class="text-[10px] font-normal normal-case tracking-normal px-2 py-0.5 rounded-full bg-stone-100 text-stone-500" data-i18n="home.sys.loading">載入中…</span>
                     </h3>
                     <p id="sysHostInfo" class="text-[11px] text-stone-500 mb-3">—</p>
                     <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -2108,150 +2183,38 @@ driver.swipe(100, 800, 100, 200, 500)"
                             </div>
                             <div id="sysDockerVer" class="text-sm font-bold text-stone-700 truncate">—</div>
                             <div class="text-[11px] text-stone-500 mt-1">
-                                容器：<span id="sysDockerContainers" class="font-mono text-stone-700">—</span>
+                                <span data-i18n="home.sys.containers">容器：</span><span id="sysDockerContainers" class="font-mono text-stone-700">—</span>
                                 <span class="mx-1 text-stone-300">·</span>
-                                映像：<span id="sysDockerImages" class="font-mono text-stone-700">—</span>
+                                <span data-i18n="home.sys.images">映像：</span><span id="sysDockerImages" class="font-mono text-stone-700">—</span>
                             </div>
                         </div>
                         <!-- CPU -->
                         <div class="bg-white rounded-xl p-4 border border-amber-100 shadow-sm">
-                            <div class="text-xs text-stone-500 mb-1"><i class="fa-solid fa-microchip text-amber-500"></i> CPU 使用率</div>
+                            <div class="text-xs text-stone-500 mb-1"><i class="fa-solid fa-microchip text-amber-500"></i> <span data-i18n="home.sys.cpu">CPU 使用率</span></div>
                             <div class="text-2xl font-bold text-amber-600"><span id="sysCpuPct">—</span><span class="text-sm font-normal text-stone-400 ml-1">%</span></div>
                             <div class="h-1.5 bg-stone-100 rounded mt-2 overflow-hidden"><div id="sysCpuBar" class="h-full w-0 bg-amber-500 transition-all"></div></div>
                         </div>
                         <!-- Memory（平台容器 / Host 總量）-->
                         <div class="bg-white rounded-xl p-4 border border-amber-100 shadow-sm">
-                            <div class="text-xs text-stone-500 mb-1"><i class="fa-solid fa-memory text-orange-500"></i> 記憶體 <span class="text-[10px] text-stone-400">(平台/Host)</span></div>
+                            <div class="text-xs text-stone-500 mb-1"><i class="fa-solid fa-memory text-orange-500"></i> <span data-i18n="home.sys.mem">記憶體</span> <span class="text-[10px] text-stone-400" data-i18n="home.sys.memSub">(平台/Host)</span></div>
                             <div class="text-2xl font-bold text-orange-600"><span id="sysMemPct">—</span><span class="text-sm font-normal text-stone-400 ml-1">%</span></div>
                             <div class="text-[11px] text-stone-500 mt-1"><span id="sysMemUsed">—</span> / <span id="sysMemTotal">—</span></div>
                             <div class="h-1.5 bg-stone-100 rounded mt-1 overflow-hidden"><div id="sysMemBar" class="h-full w-0 bg-orange-500 transition-all"></div></div>
                         </div>
                         <!-- Disk -->
                         <div class="bg-white rounded-xl p-4 border border-amber-100 shadow-sm">
-                            <div class="text-xs text-stone-500 mb-1"><i class="fa-solid fa-hard-drive text-rose-500"></i> 儲存空間</div>
+                            <div class="text-xs text-stone-500 mb-1"><i class="fa-solid fa-hard-drive text-rose-500"></i> <span data-i18n="home.sys.disk">儲存空間</span></div>
                             <div class="text-2xl font-bold text-rose-600"><span id="sysDiskPct">—</span><span class="text-sm font-normal text-stone-400 ml-1">%</span></div>
                             <div class="text-[11px] text-stone-500 mt-1"><span id="sysDiskUsed">—</span> / <span id="sysDiskTotal">—</span></div>
                             <div class="h-1.5 bg-stone-100 rounded mt-1 overflow-hidden"><div id="sysDiskBar" class="h-full w-0 bg-rose-500 transition-all"></div></div>
                         </div>
                         <!-- Network -->
                         <div class="bg-white rounded-xl p-4 border border-amber-100 shadow-sm">
-                            <div class="text-xs text-stone-500 mb-1"><i class="fa-solid fa-network-wired text-sky-500"></i> 網路流量</div>
+                            <div class="text-xs text-stone-500 mb-1"><i class="fa-solid fa-network-wired text-sky-500"></i> <span data-i18n="home.sys.net">網路流量</span></div>
                             <div class="text-xs text-stone-700 flex items-center gap-1"><i class="fa-solid fa-arrow-down text-emerald-500 text-[10px]"></i><span id="sysNetRx" class="font-mono font-bold">—</span> KB/s</div>
                             <div class="text-xs text-stone-700 flex items-center gap-1"><i class="fa-solid fa-arrow-up text-indigo-500 text-[10px]"></i><span id="sysNetTx" class="font-mono font-bold">—</span> KB/s</div>
-                            <div class="text-[11px] text-stone-500 mt-1">累計：<span id="sysNetTotal" class="font-mono">—</span></div>
+                            <div class="text-[11px] text-stone-500 mt-1"><span data-i18n="home.sys.netTotal">累計：</span><span id="sysNetTotal" class="font-mono">—</span></div>
                         </div>
-                    </div>
-                </section>
-
-                <!-- 功能卡片：對齊上方導覽列（規劃 / 設定 / 執行 · 監控） -->
-                <section class="max-w-6xl mx-auto mb-8">
-                    <h3 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
-                        <i class="fa-solid fa-compass text-blue-500"></i> 快速導覽
-                    </h3>
-
-                    <!-- 規劃 (Planning) -->
-                    <div class="text-[11px] font-bold text-stone-400 uppercase tracking-wider mb-2 mt-1">規劃</div>
-                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-5">
-                        <button onclick="showTestProjectsView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-amber-300 transition group">
-                            <div class="w-10 h-10 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-folder-tree"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5">測試專案</div>
-                            <div class="text-xs text-slate-500">專案卡片 / 起訖日 / 負責人</div>
-                        </button>
-                        <button onclick="showWbsView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-yellow-300 transition group">
-                            <div class="w-10 h-10 rounded-lg bg-yellow-100 text-yellow-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-sitemap"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5">WBS</div>
-                            <div class="text-xs text-slate-500">工作分解結構 / 進度追蹤</div>
-                        </button>
-                        <button onclick="showTestPlanView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300 transition group">
-                            <div class="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-clipboard-list"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5">測試計畫</div>
-                            <div class="text-xs text-slate-500">ISTQB 格式 / Markdown / Mermaid</div>
-                        </button>
-                        <button onclick="showRequirementsView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-cyan-300 transition group">
-                            <div class="w-10 h-10 rounded-lg bg-cyan-100 text-cyan-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-diagram-project"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5">需求 / RTM</div>
-                            <div class="text-xs text-slate-500">需求清單 + 追溯矩陣</div>
-                        </button>
-                        <button onclick="showTestCasesView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300 transition group">
-                            <div class="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-list-check"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5">測試案例</div>
-                            <div class="text-xs text-slate-500">瀏覽 / 編輯所有 TESTCASE</div>
-                        </button>
-                        <button onclick="showTestDataSetsView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-violet-300 transition group">
-                            <div class="w-10 h-10 rounded-lg bg-violet-100 text-violet-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-table"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5">測試資料集</div>
-                            <div class="text-xs text-slate-500">DDT 資料表 (No / Key / Value)</div>
-                        </button>
-                        <button onclick="showTestDocumentsView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-pink-300 transition group">
-                            <div class="w-10 h-10 rounded-lg bg-pink-100 text-pink-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-file-lines"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5">測試文件</div>
-                            <div class="text-xs text-slate-500">Markdown WYSIWYG + Mermaid</div>
-                        </button>
-                    </div>
-
-                    <!-- 設定 (Settings) -->
-                    <div class="text-[11px] font-bold text-stone-400 uppercase tracking-wider mb-2">設定</div>
-                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-5">
-                        <button onclick="showDevicesView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-rose-300 transition group">
-                            <div class="w-10 h-10 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-mobile-screen"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5">設備資訊</div>
-                            <div class="text-xs text-slate-500">Android / iOS 虛擬機管理</div>
-                        </button>
-                        <button onclick="showEnvVarsView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-300 transition group">
-                            <div class="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-key"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5">環境變數</div>
-                            <div class="text-xs text-slate-500">全專案共用 Robot suite vars</div>
-                        </button>
-                        <button onclick="showDbConfigView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-300 transition group">
-                            <div class="w-10 h-10 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-database"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5">DB 資訊</div>
-                            <div class="text-xs text-slate-500">資料庫連線設定與 SQL 測試</div>
-                        </button>
-                        <button onclick="showMockView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-amber-300 transition group">
-                            <div class="w-10 h-10 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-plug"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5">Mock</div>
-                            <div class="text-xs text-slate-500">REST Mock 端點管理</div>
-                        </button>
-                    </div>
-
-                    <!-- 執行 / 監控 (Execution / Monitor) -->
-                    <div class="text-[11px] font-bold text-stone-400 uppercase tracking-wider mb-2">執行 / 監控</div>
-                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                        <button onclick="showTestMilestonesView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-teal-300 transition group">
-                            <div class="w-10 h-10 rounded-lg bg-teal-100 text-teal-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-regular fa-calendar"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5">測試時程</div>
-                            <div class="text-xs text-slate-500">里程碑 / 時間軸概覽</div>
-                        </button>
-                        <button onclick="showTestRoundView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-purple-300 transition group">
-                            <div class="w-10 h-10 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-layer-group"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5">測試回合</div>
-                            <div class="text-xs text-slate-500">具名案例集合彙總執行</div>
-                        </button>
-                        <button onclick="showScheduleView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-300 transition group">
-                            <div class="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-calendar-days"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5">測試排程</div>
-                            <div class="text-xs text-slate-500">單次 / 每天 / 每週 / 每月</div>
-                        </button>
-                        <button onclick="showRecorderView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-rose-300 transition group">
-                            <div class="w-10 h-10 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-video"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5">測試錄製</div>
-                            <div class="text-xs text-slate-500">WEB / API / APP 三種來源</div>
-                        </button>
-                        <button onclick="showTestKanbanView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-orange-300 transition group">
-                            <div class="w-10 h-10 rounded-lg bg-orange-100 text-orange-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-columns"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5">測試看版</div>
-                            <div class="text-xs text-slate-500">缺陷 Kanban + KPI 概覽</div>
-                        </button>
-                        <button onclick="showReportView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300 transition group">
-                            <div class="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-chart-pie"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5">測試報告</div>
-                            <div class="text-xs text-slate-500">Dashboard / 歷史 / Trace 檢視</div>
-                        </button>
-                        <button onclick="showDefectsView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-red-300 transition group">
-                            <div class="w-10 h-10 rounded-lg bg-red-100 text-red-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-bug"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5">缺陷管理</div>
-                            <div class="text-xs text-slate-500">缺陷列表 + 附件 + 工作流</div>
-                        </button>
                     </div>
                 </section>
 
@@ -2263,8 +2226,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                             <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
                                 <h3 class="text-sm font-bold text-stone-500 uppercase tracking-wider flex items-center gap-2"><i class="fa-solid fa-list-check text-amber-500"></i> 待辦事項</h3>
                                 <div class="flex items-center gap-2">
-                                    <button onclick="reloadHomeTodos()" class="text-xs px-2 py-1 border border-stone-300 rounded hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
-                                    <button onclick="openTodoModal()" class="text-xs px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold"><i class="fa-solid fa-plus"></i> 新增待辦</button>
+                                    <button onclick="reloadHomeTodos()" class="text-xs px-2 py-1 border border-stone-300 rounded hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> <span data-i18n="common.refresh">重新整理</span></button>
                                 </div>
                             </div>
                             <!-- KPI -->
@@ -2355,12 +2317,121 @@ driver.swipe(100, 800, 100, 200, 500)"
                 <section class="max-w-6xl mx-auto mb-8">
                     <div class="flex items-center justify-between mb-3">
                         <h3 class="text-sm font-bold text-stone-500 uppercase tracking-wider flex items-center gap-2">
-                            <i class="fa-regular fa-clock text-amber-500"></i> 最近測試案例
+                            <i class="fa-regular fa-clock text-amber-500"></i> <span data-i18n="home.recentCases">最近測試案例</span>
                             <span class="text-[11px] font-normal normal-case tracking-normal text-stone-400">（最多顯示 10 筆）</span>
                         </h3>
                     </div>
                     <div id="homeRecentCases" class="bg-white rounded-xl border border-amber-100 shadow-sm divide-y divide-stone-100">
                         <div class="p-6 text-center text-stone-400 text-sm">尚無測試案例，請先在左側目錄樹建立 Feature → Platform → Page → Scenario → TestCase。</div>
+                    </div>
+                </section>
+
+                <!-- 功能卡片：對齊上方導覽列(規劃 / 設定 / 執行 · 監控) -->
+                <section class="max-w-6xl mx-auto mb-8">
+                    <h3 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                        <i class="fa-solid fa-compass text-blue-500"></i> <span data-i18n="home.quickNav">快速導覽</span>
+                    </h3>
+
+                    <!-- 規劃 (Planning) -->
+                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-5">
+                        <button onclick="showTestProjectsView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-amber-300 transition group">
+                            <div class="w-10 h-10 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-folder-tree"></i></div>
+                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.testProjects">測試專案</div>
+                            <div class="text-xs text-slate-500" data-i18n="home.card.testProjects.desc">專案卡片 / 起訖日 / 負責人</div>
+                        </button>
+                        <button onclick="showWbsView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-yellow-300 transition group">
+                            <div class="w-10 h-10 rounded-lg bg-yellow-100 text-yellow-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-sitemap"></i></div>
+                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.wbs">WBS</div>
+                            <div class="text-xs text-slate-500" data-i18n="home.card.wbs.desc">工作分解結構 / 進度追蹤</div>
+                        </button>
+                        <button onclick="showTestPlanView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300 transition group">
+                            <div class="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-clipboard-list"></i></div>
+                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.testPlan">測試計畫</div>
+                            <div class="text-xs text-slate-500" data-i18n="home.card.testPlan.desc">ISTQB 格式 / Markdown / Mermaid</div>
+                        </button>
+                        <button onclick="showRequirementsView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-cyan-300 transition group">
+                            <div class="w-10 h-10 rounded-lg bg-cyan-100 text-cyan-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-diagram-project"></i></div>
+                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="home.card.requirements.title">需求 / RTM</div>
+                            <div class="text-xs text-slate-500" data-i18n="home.card.requirements.desc">需求清單 + 追溯矩陣</div>
+                        </button>
+                        <button onclick="showTestCasesView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300 transition group">
+                            <div class="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-list-check"></i></div>
+                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.testCases">測試案例</div>
+                            <div class="text-xs text-slate-500" data-i18n="home.card.testCases.desc">瀏覽 / 編輯所有 TESTCASE</div>
+                        </button>
+                        <button onclick="showTestDataSetsView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-violet-300 transition group">
+                            <div class="w-10 h-10 rounded-lg bg-violet-100 text-violet-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-table"></i></div>
+                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.dataSets">測試資料集</div>
+                            <div class="text-xs text-slate-500" data-i18n="home.card.dataSets.desc">DDT 資料表 (No / Key / Value)</div>
+                        </button>
+                        <button onclick="showTestDocumentsView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-pink-300 transition group">
+                            <div class="w-10 h-10 rounded-lg bg-pink-100 text-pink-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-file-lines"></i></div>
+                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.documents">測試文件</div>
+                            <div class="text-xs text-slate-500" data-i18n="home.card.documents.desc">Markdown WYSIWYG + Mermaid</div>
+                        </button>
+                    </div>
+
+                    <!-- 設定 (Settings) -->
+                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-5">
+                        <button onclick="showDevicesView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-rose-300 transition group">
+                            <div class="w-10 h-10 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-mobile-screen"></i></div>
+                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.devices">設備資訊</div>
+                            <div class="text-xs text-slate-500" data-i18n="home.card.devices.desc">Android / iOS 虛擬機管理</div>
+                        </button>
+                        <button onclick="showEnvVarsView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-300 transition group">
+                            <div class="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-key"></i></div>
+                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.envVars">環境變數</div>
+                            <div class="text-xs text-slate-500" data-i18n="home.card.envVars.desc">全專案共用 Robot suite vars</div>
+                        </button>
+                        <button onclick="showDbConfigView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-300 transition group">
+                            <div class="w-10 h-10 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-database"></i></div>
+                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="home.card.dbConfig.title">DB 資訊</div>
+                            <div class="text-xs text-slate-500" data-i18n="home.card.dbConfig.desc">資料庫連線設定與 SQL 測試</div>
+                        </button>
+                        <button onclick="showMockView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-amber-300 transition group">
+                            <div class="w-10 h-10 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-plug"></i></div>
+                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.mock">Mock</div>
+                            <div class="text-xs text-slate-500" data-i18n="home.card.mock.desc">REST Mock 端點管理</div>
+                        </button>
+                    </div>
+
+                    <!-- 執行 / 監控 (Execution / Monitor) -->
+                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        <button onclick="showTestMilestonesView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-teal-300 transition group">
+                            <div class="w-10 h-10 rounded-lg bg-teal-100 text-teal-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-regular fa-calendar"></i></div>
+                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.milestones">測試時程</div>
+                            <div class="text-xs text-slate-500" data-i18n="home.card.milestones.desc">里程碑 / 時間軸概覽</div>
+                        </button>
+                        <button onclick="showTestRoundView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-purple-300 transition group">
+                            <div class="w-10 h-10 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-layer-group"></i></div>
+                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.testRound">測試回合</div>
+                            <div class="text-xs text-slate-500" data-i18n="home.card.testRound.desc">具名案例集合彙總執行</div>
+                        </button>
+                        <button onclick="showScheduleView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-300 transition group">
+                            <div class="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-calendar-days"></i></div>
+                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.schedule">測試排程</div>
+                            <div class="text-xs text-slate-500" data-i18n="home.card.schedule.desc">單次 / 每天 / 每週 / 每月</div>
+                        </button>
+                        <button onclick="showRecorderView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-rose-300 transition group">
+                            <div class="w-10 h-10 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-video"></i></div>
+                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.recorder">測試錄製</div>
+                            <div class="text-xs text-slate-500" data-i18n="home.card.recorder.desc">WEB / API / APP 三種來源</div>
+                        </button>
+                        <button onclick="showTestKanbanView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-orange-300 transition group">
+                            <div class="w-10 h-10 rounded-lg bg-orange-100 text-orange-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-columns"></i></div>
+                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.kanban">測試看版</div>
+                            <div class="text-xs text-slate-500" data-i18n="home.card.kanban.desc">缺陷 Kanban + KPI 概覽</div>
+                        </button>
+                        <button onclick="showReportView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300 transition group">
+                            <div class="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-chart-pie"></i></div>
+                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.reports">測試報告</div>
+                            <div class="text-xs text-slate-500" data-i18n="home.card.reports.desc">Dashboard / 歷史 / Trace 檢視</div>
+                        </button>
+                        <button onclick="showDefectsView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-red-300 transition group">
+                            <div class="w-10 h-10 rounded-lg bg-red-100 text-red-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-bug"></i></div>
+                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.defects">缺陷管理</div>
+                            <div class="text-xs text-slate-500" data-i18n="home.card.defects.desc">缺陷列表 + 附件 + 工作流</div>
+                        </button>
                     </div>
                 </section>
 
@@ -2504,7 +2575,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 <div class="max-w-5xl mx-auto">
                     <!-- 6 個分頁切換 -->
                     <div class="bg-white rounded-lg border border-amber-100 shadow-sm p-2 mb-4 flex gap-1 flex-wrap">
-                        <button id="setTabUser"     onclick="settingsSwitchTab('user')"     class="px-3 py-1.5 text-sm font-medium rounded text-amber-700 bg-amber-50 border border-amber-300"><i class="fa-solid fa-user-circle"></i> <span data-i18n="settings.tab.user">使用者設定</span></button>
+                        <button id="setTabUser"     onclick="settingsSwitchTab('user')"     class="px-3 py-1.5 text-sm font-medium rounded text-amber-700 bg-amber-50 border border-amber-300"><i class="fa-solid fa-user-circle"></i> <span data-i18n="settings.tab.user">設定</span></button>
                         <button id="setTabPerms"    onclick="settingsSwitchTab('perms')"    class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-shield"></i> <span data-i18n="settings.tab.perms">權限管理</span></button>
                         <button id="setTabRoles"    onclick="settingsSwitchTab('roles')"    class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-user-tag"></i> <span data-i18n="settings.tab.roles">角色管理</span></button>
                         <button id="setTabNotif"    onclick="settingsSwitchTab('notif')"    class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-bell"></i> <span data-i18n="settings.tab.notif">通知設定</span></button>
@@ -4011,12 +4082,55 @@ driver.swipe(100, 800, 100, 200, 500)"
             let icon = 'fa-circle-info';
             if (type === 'error') { toast.classList.add('bg-red-500'); icon = 'fa-circle-xmark'; }
             else if (type === 'success') { toast.classList.add('bg-green-500'); icon = 'fa-circle-check'; }
+            else if (type === 'warning') { toast.classList.add('bg-amber-500'); icon = 'fa-triangle-exclamation'; }
             else { toast.classList.add('bg-slate-800'); }
             toast.innerHTML = `<i class="fa-solid ${icon}"></i> <span>${message}</span>`;
             container.appendChild(toast);
             requestAnimationFrame(() => toast.classList.remove('translate-x-full'));
             setTimeout(() => { toast.classList.add('translate-x-full', 'opacity-0'); setTimeout(() => toast.remove(), 300); }, 3000);
+            // 同步寫入通知中心（local entries），讓使用者事後可在鈴鐺中翻閱
+            try { pushLocalNotif(message, type); } catch (_) {}
         }
+
+        // ─── Local Notification 緩衝（localStorage,最多保留 100 筆）──────
+        // 讓所有 toast 訊息都能在通知中心中被檢視；後端 notifications 與這些 local
+        // 訊息會在 loadNotifications() 中合併呈現。
+        const LOCAL_NOTIF_KEY = 'autotest.notifications.local';
+        const LOCAL_NOTIF_MAX = 100;
+        function _readLocalNotifs() {
+            try { return JSON.parse(localStorage.getItem(LOCAL_NOTIF_KEY) || '[]'); }
+            catch (_) { return []; }
+        }
+        function _writeLocalNotifs(arr) {
+            try { localStorage.setItem(LOCAL_NOTIF_KEY, JSON.stringify(arr.slice(0, LOCAL_NOTIF_MAX))); }
+            catch (_) {}
+        }
+        function pushLocalNotif(title, level = 'info', body = null) {
+            if (!title) return;
+            const arr = _readLocalNotifs();
+            arr.unshift({
+                id: 'local:' + Date.now() + ':' + Math.random().toString(36).slice(2, 8),
+                title: String(title),
+                body: body,
+                level: ['info', 'success', 'warning', 'error'].includes(level) ? level : 'info',
+                event_key: 'toast.' + level,
+                is_read: false,
+                created_at: new Date().toISOString(),
+                _local: true,
+            });
+            _writeLocalNotifs(arr);
+            // 即時更新 badge(若鈴鐺已渲染)
+            try { _updateNotifBadgeFromMixed(); } catch (_) {}
+        }
+        function markLocalNotifRead(id) {
+            const arr = _readLocalNotifs();
+            const it = arr.find(x => x.id === id);
+            if (it) { it.is_read = true; _writeLocalNotifs(arr); }
+        }
+        function deleteLocalNotif(id) {
+            _writeLocalNotifs(_readLocalNotifs().filter(x => x.id !== id));
+        }
+        function clearLocalNotifs() { _writeLocalNotifs([]); }
 
         // ==================== App Data (待後端 API 串接) ====================
         const projectsData = {};   // { [projectId]: { name, treeData } }
@@ -5057,20 +5171,19 @@ driver.swipe(100, 800, 100, 200, 500)"
         function showReportView() {
             if (!confirmDiscardIfDirty()) return;
             _hideAllWorkspaces();
+            _setViewMeta('view.reports.title', 'view.reports.title', '<i class="fa-solid fa-chart-line text-blue-500"></i>', 'Report', 'bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium');
             document.getElementById('reportWorkspace').classList.remove('hidden');
             document.getElementById('mainActions').classList.add('hidden');
             document.getElementById('mainHeader').classList.remove('hidden');
 
             currentTestCase = null;
-            document.getElementById('viewFilename').textContent = '測試報告總覽';
-            document.getElementById('viewTitle').innerHTML = '<i class="fa-solid fa-chart-line text-blue-500"></i> 自動化測試執行報告';
-            document.getElementById('viewTag').className = 'bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded font-medium';
-            document.getElementById('viewTag').textContent = 'Dashboard';
             renderTree(activeTreeData, document.getElementById('treeContainer'));
 
             ensureDashboardCharts();
             refreshDashboard();
             startRunningReportPolling();
+            try { _afterViewChange(); } catch (_) {}
+        
         }
 
         // Dashboard 顯示期間持續輪詢：每 5 秒刷新一次最近報告；切離 Dashboard 時自動停止
@@ -6502,7 +6615,28 @@ driver.swipe(100, 800, 100, 200, 500)"
             'auth.email': { 'zh-TW': 'Email', 'en': 'Email' },
             'auth.welcomeBack': { 'zh-TW': '歡迎回來，請登入以繼續', 'en': 'Welcome back, please sign in to continue' },
             // 設定 8 個分頁
-            'settings.tab.user': { 'zh-TW': '使用者設定', 'en': 'User' },
+            'settings.tab.user': { 'zh-TW': '設定', 'en': 'Settings' },
+            'settings.title': { 'zh-TW': '設定', 'en': 'Settings' },
+            'settings.title.short': { 'zh-TW': '設定', 'en': 'Settings' },
+            // 各 view 的長/短標題(viewTitle 大標 / viewFilename 麵包屑)
+            'view.testProjects.title': { 'zh-TW': '測試專案', 'en': 'Test Projects' },
+            'view.wbs.title': { 'zh-TW': 'WBS 工作分解結構', 'en': 'WBS' },
+            'view.testPlan.title': { 'zh-TW': '測試計畫', 'en': 'Test Plan' },
+            'view.requirements.title': { 'zh-TW': '需求 / RTM', 'en': 'Requirements / RTM' },
+            'view.testCases.title': { 'zh-TW': '測試案例清單', 'en': 'Test Cases' },
+            'view.dataSets.title': { 'zh-TW': '測試資料集', 'en': 'Data Sets' },
+            'view.documents.title': { 'zh-TW': '測試文件', 'en': 'Test Documents' },
+            'view.devices.title': { 'zh-TW': '設備資訊', 'en': 'Devices' },
+            'view.envVars.title': { 'zh-TW': '環境變數', 'en': 'Environment Variables' },
+            'view.dbConfig.title': { 'zh-TW': 'DB 連線資訊', 'en': 'DB Configurations' },
+            'view.mock.title': { 'zh-TW': 'Mock 端點管理', 'en': 'Mock Endpoints' },
+            'view.milestones.title': { 'zh-TW': '測試時程', 'en': 'Test Milestones' },
+            'view.testRound.title': { 'zh-TW': '測試回合', 'en': 'Test Rounds' },
+            'view.schedule.title': { 'zh-TW': '自動化測試排程', 'en': 'Test Schedule' },
+            'view.recorder.title': { 'zh-TW': '錄製測試操作步驟', 'en': 'Recorder' },
+            'view.kanban.title': { 'zh-TW': '測試看版', 'en': 'Test Kanban' },
+            'view.reports.title': { 'zh-TW': '自動化測試執行報告', 'en': 'Test Reports' },
+            'view.defects.title': { 'zh-TW': '缺陷管理', 'en': 'Defect Management' },
             'settings.tab.perms': { 'zh-TW': '權限管理', 'en': 'Permissions' },
             'settings.tab.roles': { 'zh-TW': '角色管理', 'en': 'Roles' },
             'settings.tab.notif': { 'zh-TW': '通知設定', 'en': 'Notifications' },
@@ -6512,6 +6646,25 @@ driver.swipe(100, 800, 100, 200, 500)"
             'settings.tab.audit': { 'zh-TW': '審計紀錄', 'en': 'Audit Log' },
             // 首頁
             'home.title': { 'zh-TW': 'AutoTest 首頁', 'en': 'AutoTest Home' },
+            'home.breadcrumb': { 'zh-TW': '首頁', 'en': 'Home' },
+            'home.hero.platform': { 'zh-TW': '自動化測試平台', 'en': 'Automated Testing Platform' },
+            'home.section.overview': { 'zh-TW': '當前專案概況', 'en': 'Current Project Overview' },
+            'home.section.system': { 'zh-TW': '系統狀態', 'en': 'System Status' },
+            'home.section.systemSub': { 'zh-TW': '（AutoTest 平台容器總用量）', 'en': '(AutoTest platform container usage)' },
+            'home.stat.project': { 'zh-TW': '專案', 'en': 'Project' },
+            'home.stat.testcases': { 'zh-TW': '測試案例', 'en': 'Test Cases' },
+            'home.stat.nodes': { 'zh-TW': '節點總數', 'en': 'Total Nodes' },
+            'home.stat.rounds': { 'zh-TW': '測試回合', 'en': 'Test Rounds' },
+            'home.sys.cpu': { 'zh-TW': 'CPU 使用率', 'en': 'CPU Usage' },
+            'home.sys.mem': { 'zh-TW': '記憶體', 'en': 'Memory' },
+            'home.sys.memSub': { 'zh-TW': '(平台/Host)', 'en': '(Platform/Host)' },
+            'home.sys.disk': { 'zh-TW': '儲存空間', 'en': 'Disk' },
+            'home.sys.net': { 'zh-TW': '網路流量', 'en': 'Network' },
+            'home.sys.netTotal': { 'zh-TW': '累計：', 'en': 'Total: ' },
+            'home.sys.containers': { 'zh-TW': '容器：', 'en': 'Containers: ' },
+            'home.sys.images': { 'zh-TW': '映像：', 'en': 'Images: ' },
+            'home.sys.loading': { 'zh-TW': '載入中…', 'en': 'Loading…' },
+            'home.sys.updated': { 'zh-TW': '已更新', 'en': 'Updated' },
             'home.quickNav': { 'zh-TW': '快速導覽', 'en': 'Quick Navigation' },
             'home.recentCases': { 'zh-TW': '最近測試案例', 'en': 'Recent Test Cases' },
             'home.todos': { 'zh-TW': '待辦事項', 'en': 'To-do' },
@@ -6520,7 +6673,936 @@ driver.swipe(100, 800, 100, 200, 500)"
             'home.todoBucket.dueSoon': { 'zh-TW': '快到期 (≤3天)', 'en': 'Due soon (≤3d)' },
             'home.todoBucket.upcoming': { 'zh-TW': '待辦', 'en': 'Upcoming' },
             'home.todoBucket.done': { 'zh-TW': '已完成', 'en': 'Done' },
+            // 首頁 — 卡片描述
+            'home.card.testProjects.desc': { 'zh-TW': '專案卡片 / 起訖日 / 負責人', 'en': 'Project cards / dates / owner' },
+            'home.card.wbs.desc': { 'zh-TW': '工作分解結構 / 進度追蹤', 'en': 'Work breakdown / progress' },
+            'home.card.testPlan.desc': { 'zh-TW': 'ISTQB 格式 / Markdown / Mermaid', 'en': 'ISTQB / Markdown / Mermaid' },
+            'home.card.requirements.desc': { 'zh-TW': '需求清單 + 追溯矩陣', 'en': 'Requirements + RTM' },
+            'home.card.testCases.desc': { 'zh-TW': '瀏覽 / 編輯所有 TESTCASE', 'en': 'Browse / edit all test cases' },
+            'home.card.dataSets.desc': { 'zh-TW': 'DDT 資料表 (No / Key / Value)', 'en': 'DDT data table (No/Key/Value)' },
+            'home.card.documents.desc': { 'zh-TW': 'Markdown WYSIWYG + Mermaid', 'en': 'Markdown WYSIWYG + Mermaid' },
+            'home.card.devices.desc': { 'zh-TW': 'Android / iOS 虛擬機管理', 'en': 'Android / iOS device management' },
+            'home.card.envVars.desc': { 'zh-TW': '全專案共用 Robot suite vars', 'en': 'Shared Robot suite variables' },
+            'home.card.dbConfig.desc': { 'zh-TW': '資料庫連線設定與 SQL 測試', 'en': 'DB connections + SQL test' },
+            'home.card.mock.desc': { 'zh-TW': 'REST Mock 端點管理', 'en': 'REST mock endpoint management' },
+            'home.card.milestones.desc': { 'zh-TW': '里程碑 / 時間軸概覽', 'en': 'Milestones / timeline' },
+            'home.card.testRound.desc': { 'zh-TW': '具名案例集合彙總執行', 'en': 'Named case-set batch run' },
+            'home.card.schedule.desc': { 'zh-TW': '單次 / 每天 / 每週 / 每月', 'en': 'Once / daily / weekly / monthly' },
+            'home.card.recorder.desc': { 'zh-TW': 'WEB / API / APP 三種來源', 'en': 'WEB / API / APP recording' },
+            'home.card.kanban.desc': { 'zh-TW': '缺陷 Kanban + KPI 概覽', 'en': 'Defect Kanban + KPI' },
+            'home.card.reports.desc': { 'zh-TW': 'Dashboard / 歷史 / Trace 檢視', 'en': 'Dashboard / history / Trace' },
+            'home.card.defects.desc': { 'zh-TW': '缺陷列表 + 附件 + 工作流', 'en': 'Defect list + attachments + workflow' },
+            'home.card.dbConfig.title': { 'zh-TW': 'DB 資訊', 'en': 'DB Config' },
+            'home.card.requirements.title': { 'zh-TW': '需求 / RTM', 'en': 'Reqs / RTM' },
+            // 左側專案目錄
+            'sidebar.projectDir': { 'zh-TW': '專案目錄', 'en': 'Projects' },
+            'sidebar.searchNode': { 'zh-TW': '搜尋節點名稱…', 'en': 'Search node name…' },
+            // 通知中心
+            'notif.title': { 'zh-TW': '通知', 'en': 'Notifications' },
+            'notif.markAll': { 'zh-TW': '全部已讀', 'en': 'Mark all read' },
+            'notif.empty': { 'zh-TW': '目前沒有新通知', 'en': 'No notifications yet' },
+            'notif.settings': { 'zh-TW': '通知設定', 'en': 'Notification settings' },
+            'notif.clearAll': { 'zh-TW': '清空全部', 'en': 'Clear all' },
+            // Nav drawer
+            'navDrawer.title': { 'zh-TW': '全部功能', 'en': 'All Features' },
+            // 使用者下拉
+            'user.menu.profile': { 'zh-TW': '個人設定', 'en': 'Profile' },
+            'user.menu.notifSettings': { 'zh-TW': '通知設定', 'en': 'Notification settings' },
         };
+        // ════════════════════════════════════════════════
+        // 全域 ZH→EN 字典 (~886 個短句;auto-generated)
+        // 由 _translateDomTree() 用作 fallback 翻譯映射;
+        // 不在這份字典中的字串會保留中文。
+        // ════════════════════════════════════════════════
+        window.ZH_TO_EN = {
+        '# 從這裡開始撰寫您的測試文件…': '# Start writing your test document here…',
+        '(可選)': '(optional)',
+        '(平台/Host)': '(Platform/Host)',
+        '(點擊任一列查看詳細報告與截圖)': '(Click any row to view full report + screenshots)',
+        '.env 內容': '.env content',
+        '2026-04-20 14:30:12 | 觸發者: 自動化排程': '2026-04-20 14:30:12 | Trigger: Auto schedule',
+        '24 小時': '24 hours',
+        '3 步驟': '3 steps',
+        '3-32 字元，英數與底線': '3–32 chars, letters/digits/underscores',
+        '3-32 字元，限英數與底線': '3–32 chars, letters/digits/underscores only',
+        'AI Token': 'AI Token',
+        'AI Token 管理': 'AI Token management',
+        'AI 生成測試案例': 'AI-generate test cases',
+        'AI 生成結果': 'AI result',
+        'Android / iOS 虛擬機管理': 'Android / iOS device management',
+        'Appium 腳本': 'Appium script',
+        'AutoTest v1.0 - 測試建構平台': 'AutoTest v1.0 — Test Building Platform',
+        'AutoTest 首頁': 'AutoTest Home',
+        'BASE_URL=https://staging.example.com\n               API_TOKEN=abc123\n               # 這是註解，會被略過\n               DB_PASSWORD=p@ssw0rd': 'BASE_URL=https://staging.example.com\n               API_TOKEN=abc123\n               # This line is a comment, skipped\n               DB_PASSWORD=p@ssw0rd',
+        'BDD 模式': 'BDD mode',
+        'BDD 關鍵字': 'BDD keyword',
+        'Baseline 是': 'Baseline is',
+        'Body': 'Body',
+        'CPU 使用率': 'CPU Usage',
+        'Cron 表示式': 'Cron expression',
+        'DB 資訊': 'DB Config',
+        'DB 連線清單': 'DB connections',
+        'DB 連線編輯': 'Edit DB connection',
+        'DB 類型': 'DB Type',
+        'DB資訊': 'DB Config',
+        'DDT 資料表 (No / Key / Value)': 'DDT data table (No/Key/Value)',
+        'DDT 預設僅以第一列當變數來源執行一次': 'DDT defaults to running once with the first row as variable source',
+        'Dashboard / 歷史 / Trace 檢視': 'Dashboard / history / Trace',
+        'Discovery URL（推薦）': 'Discovery URL (recommended)',
+        'Docker': 'Docker',
+        'Docker（容器內 headless 執行）': 'Docker (headless)',
+        'Docker（容器內 headless）': 'Docker (headless)',
+        'Docker（容器內 headless；正式執行推薦）': 'Docker (headless; recommended for production)',
+        'Error 範本': 'Error template',
+        'Faker 隨機資料': 'Faker random data',
+        'Form 範本': 'Form template',
+        'Headers': 'Headers',
+        'ISTQB 格式 / Markdown / Mermaid': 'ISTQB / Markdown / Mermaid',
+        'JSON 範本': 'JSON template',
+        'KDT 模式': 'KDT mode',
+        'Key': 'Key',
+        'List 範本': 'List template',
+        'Markdown': 'Markdown',
+        'Markdown WYSIWYG + Mermaid': 'Markdown WYSIWYG + Mermaid',
+        'Markdown 內容': 'Markdown content',
+        'Mermaid 序列圖': 'Mermaid sequence',
+        'Mermaid 流程圖': 'Mermaid flowchart',
+        'Mermaid 甘特圖': 'Mermaid Gantt',
+        'Mock': 'Mock',
+        'Mock Server 命中時回送的內容': 'Body returned when Mock matches',
+        'Mock 端點清單': 'Mock endpoints',
+        'Mock 編輯': 'Edit Mock',
+        'OS 版本': 'OS version',
+        'P0 (最高)': 'P0 (Highest)',
+        'P1 (高)': 'P1 (High)',
+        'P2 (中)': 'P2 (Medium)',
+        'P3 (低)': 'P3 (Low)',
+        'REST Mock 端點管理': 'REST mock endpoint management',
+        'RTM 矩陣': 'RTM matrix',
+        'Request (請求負載)': 'Request (payload)',
+        'Response (系統回應)': 'Response',
+        'SMTP 主機': 'SMTP host',
+        'SMTP 伺服器設定': 'SMTP server',
+        'SMTP 使用者': 'SMTP user',
+        'SMTP 埠號': 'SMTP port',
+        'SMTP 密碼': 'SMTP password',
+        'SQL / Query 測試': 'SQL / Query test',
+        'SSO / OIDC 提供者': 'SSO / OIDC providers',
+        'Step UUID（唯讀）': 'Step UUID (read-only)',
+        'Tip：agent 只要保持執行就會持續輪詢，不用每次重啟。要停掉 agent 按 Ctrl+C 即可。': 'Tip: keep the agent running and it polls continuously. Press Ctrl+C to stop.',
+        'Tip：在 ```mermaid 區塊內畫流程圖；右側預覽會即時渲染': 'Tip: write Mermaid in ```mermaid blocks; preview renders live on the right',
+        'Trace': 'Trace',
+        'UI, API, 回歸': 'UI, API, regression',
+        'Value': 'Value',
+        'WBS': 'WBS',
+        'WEB / API / APP 三種來源': 'WEB / API / APP recording',
+        'WEB 使用 Playwright codegen 錄製；API 貼上 cURL 指令解析；APP 貼上 Appium Python 腳本解析。': 'WEB: record via Playwright codegen. API: paste cURL command. APP: paste Appium Python script.',
+        'Windows (PowerShell) — 一鍵指令': 'Windows (PowerShell) — one-click',
+        'Windows PowerShell 一鍵錄製加上傳指令': 'Windows PowerShell one-click record & upload',
+        'api, 流程, 驗收': 'api, flow, acceptance',
+        'cURL 指令': 'cURL command',
+        'codegen 腳本 (.py)': 'codegen script (.py)',
+        'http://&lt;這台&gt;/api/auth/oidc/callback': 'http://&lt;this-host&gt;/api/auth/oidc/callback',
+        'macOS / Linux bash 一鍵錄製加上傳指令': 'macOS / Linux bash one-click record & upload',
+        'macOS / Ubuntu / Linux (bash / zsh) — 一鍵指令': 'macOS / Ubuntu / Linux (bash / zsh) — one-click',
+        'sk-... / sk-ant-... / AIza... (Local 可留空)': 'sk-… / sk-ant-… / AIza… (Local can be empty)',
+        'slug *（小寫英數底線連字號；建立後不可更改）': 'slug * (lowercase alnum/_/-, immutable after creation)',
+        'utf8mb4 或 require / disable': 'utf8mb4 or require / disable',
+        '— 請選擇 —': '— Please select —',
+        '— 頂層 (User Story) —': '— Top (User Story) —',
+        '— 頂層 —': '— Top —',
+        '。兩者比對成功後即時重設密碼。': '. Reset password instantly after both match.',
+        '「本機」模式會把測試交給本機的': 'Local mode sends the test to your local',
+        '一': 'Mon',
+        '一次即可。': ' once.',
+        '一次性安裝依賴（在本機終端機）：': 'One-time dependency install (in your terminal):',
+        '一般筆記': 'Notes',
+        '三': 'Wed',
+        '三級標題': 'Heading 3',
+        '上一步': 'Previous',
+        '上一頁': 'Previous',
+        '上個月': 'Previous month',
+        '上傳': 'Upload',
+        '上傳新基準圖': 'Upload new baseline',
+        '上傳新基準圖（PNG / JPEG / WebP）': 'Upload new baseline (PNG / JPEG / WebP)',
+        '上傳錄製結果': 'Upload recording',
+        '上次執行': 'Last run',
+        '下一步': 'Next',
+        '下一頁': 'Next',
+        '下個月': 'Next month',
+        '下拉只列出當前專案的 SCENARIO 節點': 'Only SCENARIO nodes of the current project',
+        '下次執行': 'Next run',
+        '下載': 'Download',
+        '下載 .robot': 'Download .robot',
+        '下載 Agent': 'Download Agent',
+        '下載 Markdown': 'Download Markdown',
+        '下載 trace.zip': 'Download trace.zip',
+        '不予修復': 'Won\'t fix',
+        '不做 (Won\'t)': 'Won\'t',
+        '主機': 'Host',
+        '事件': 'Event',
+        '二': 'Tue',
+        '五': 'Fri',
+        '今天': 'Today',
+        '代號': 'Code',
+        '代號 / 名稱': 'Code / Name',
+        '使用 TLS / STARTTLS': 'Use TLS / STARTTLS',
+        '使用伺服器本地時間（Asia/Taipei），24 小時制。': 'Server-local time (Asia/Taipei), 24-hour format.',
+        '使用方式：': 'Usage:',
+        '使用者': 'User',
+        '使用者名稱': 'Username',
+        '使用者選單': 'User menu',
+        '來源': 'Source',
+        '例如': 'e.g.',
+        '例如：成功登入': 'e.g. Login success',
+        '例：dev-gpt4-mini': 'e.g. dev-gpt4-mini',
+        '例：冒煙測試 / 登入流程回歸': 'e.g. Smoke test / Login regression',
+        '例：建立測試資料庫 seed、預先取得 API token、啟動 mock server...': 'e.g. Seed test DB, fetch API token, start mock server…',
+        '例：每日回歸 Login 流程': 'e.g. Daily regression: Login flow',
+        '依 HTTP method 過濾': 'Filter by HTTP method',
+        '依使用者過濾': 'Filter by user',
+        '依優先過濾': 'Filter by priority',
+        '依分類過濾': 'Filter by category',
+        '依嚴重性過濾': 'Filter by severity',
+        '依實體過濾': 'Filter by entity',
+        '依平台過濾測試案例': 'Filter by platform',
+        '依狀態過濾': 'Filter by status',
+        '依負責人過濾': 'Filter by owner',
+        '保護工作成果，避免誤切導致變更遺失': 'Protects work and prevents lost changes',
+        '個人偏好': 'Preferences',
+        '個人設定': 'Profile',
+        '值': 'Value',
+        '停止': 'Stop',
+        '停用': 'Disabled',
+        '停留在報告頁時自動每 5 秒刷新': 'Auto-refresh every 5s while on the report page',
+        '僅 superuser 可看到此分頁': 'Only superusers can see this tab',
+        '優先': 'Priority',
+        '優先 (MoSCoW)': 'Priority (MoSCoW)',
+        '儲存': 'Save',
+        '儲存偏好': 'Save preferences',
+        '儲存全部': 'Save all',
+        '儲存帳戶資訊': 'Save account info',
+        '儲存時會整批替換此需求的關聯案例': 'Saving replaces the entire link list for this requirement',
+        '儲存空間': 'Storage',
+        '儲存設定': 'Save settings',
+        '儲存通知設定': 'Save notification settings',
+        '內部': 'Internal',
+        '全不選': 'Deselect all',
+        '全專案共用 Robot suite vars': 'Shared Robot suite variables',
+        '全展開': 'Expand all',
+        '全收合': 'Collapse all',
+        '全選': 'Select all',
+        '全選報告': 'Select all reports',
+        '全選本頁': 'Select all on this page',
+        '全部': 'All',
+        '全部 method': 'All methods',
+        '全部優先': 'All priorities',
+        '全部分類': 'All categories',
+        '全部功能': 'All features',
+        '全部嚴重性': 'All severities',
+        '全部展開': 'Expand all',
+        '全部已讀': 'Mark all as read',
+        '全部平台': 'All platforms',
+        '全部收合': 'Collapse all',
+        '全部狀態': 'All statuses',
+        '全部負責人': 'All owners',
+        '六': 'Sat',
+        '共': 'Total',
+        '其他': 'Other',
+        '具名案例集合彙總執行': 'Named case-set batch run',
+        '再次輸入密碼': 'Confirm password',
+        '再次輸入新密碼': 'Confirm new password',
+        '分欄': 'Split',
+        '分類': 'Category',
+        '切換': 'Toggle',
+        '切換執行環境': 'Switch execution mode',
+        '切換執行環境(點擊切換;本機 = 有頭瀏覽器,Docker = 無頭)': 'Switch mode (Local = headed, Docker = headless)',
+        '切換執行環境（點擊切換；本機 = 有頭瀏覽器，Docker = 無頭）': 'Switch mode (Local = headed, Docker = headless)',
+        '切換暗黑模式': 'Toggle dark mode',
+        '切換案例前提示未儲存變更': 'Warn about unsaved changes before switching cases',
+        '切換語言': 'Switch language',
+        '切換語言 / Switch language': 'Switch language',
+        '切換頂部「環境：本機」後按「執行測試」或排程「立即」；Agent 會在 5 秒內認領並自動開啟瀏覽器。': 'Switch top-bar Env to Local, then run a test or trigger schedule Now; Agent picks up within 5s and opens the browser.',
+        '列': 'rows',
+        '刪除': 'Delete',
+        '刪除已勾選的測試案例': 'Delete selected test cases',
+        '刪除目前專案': 'Delete current project',
+        '刪除線': 'Strikethrough',
+        '刪除選取 (': 'Delete selected (',
+        '到期日': 'Due date',
+        '前置動作': 'Pre-setup',
+        '前置動作 (Pre-Setup)': 'Pre-setup',
+        '前置條件': 'Preconditions',
+        '功能選單': 'Menu',
+        '動作': 'Action',
+        '動作 (Action)': 'Action',
+        '動作前狀態': 'Pre-action state',
+        '動作前（Pre-Action）': 'Pre-action',
+        '動作後結果': 'Post-action result',
+        '動作後（Post-Action）': 'Post-action',
+        '勾選要產生的 Faker 類型；送出後會以「類型名稱（大寫）」當 NAME，隨機值當 value，一鍵補進清單。': 'Pick Faker types; the type name (uppercase) becomes the NAME, and the random value populates each row.',
+        '匯入 .env': 'Import .env',
+        '匯入 JSON': 'Import JSON',
+        '匯入 JSON 測試資料（可複選）': 'Import JSON test data (multiple)',
+        '匯入後會與目前清單合併（同名覆蓋；不同名追加），按下「儲存」才會送到後端。': 'Import merges with the current list (overwrite same name, append new). Press Save to send to backend.',
+        '匯出 JSON': 'Export JSON',
+        '匹配進入 Mock 的請求，或作為試打送出的範例': 'Match incoming Mock requests, or use as test-call template',
+        '原始碼': 'Source',
+        '取消': 'Cancel',
+        '只列出 .md 測試案例；可搜尋關鍵字過濾。': 'Only .md test cases shown; keyword filterable.',
+        '只看編輯區': 'Editor only',
+        '只看預覽（所見即所得）': 'Preview only (WYSIWYG)',
+        '可一次選取多個 JSON 檔；巢狀結構會以點記法展開為 Key 路徑': 'You can select multiple JSON files; nested structures are flattened with dot notation.',
+        '可選 (Could)': 'Could',
+        '合併到清單': 'Merge into list',
+        '同步左側目錄樹': 'Sync from project tree',
+        '名稱': 'Name',
+        '名稱 *': 'Name *',
+        '名稱 / 模型': 'Name / Model',
+        '名稱（顯示在登入按鈕） *': 'Name (shown on login button) *',
+        '唯讀': 'Read-only',
+        '啟動': 'Start',
+        '啟動 agent（保持常駐）：': 'Start the agent (keep it running):',
+        '啟動此設備的虛擬機（Android AVD / iOS Simulator）': 'Start this device VM (Android AVD / iOS Simulator)',
+        '啟動虛擬機': 'Start VM',
+        '啟動錄製器': 'Start recorder',
+        '啟用': 'Enabled',
+        '啟用 Email 通知': 'Enable email notifications',
+        '啟用 Trace（軌跡）+ Video（錄影）': 'Enable Trace + Video',
+        '啟用中計畫': 'Active plans',
+        '啟用此排程': 'Enable this schedule',
+        '啟用（登入頁顯示）': 'Enabled (shown on login page)',
+        '單次': 'Once',
+        '單次 / 每天 / 每週 / 每月': 'Once / daily / weekly / monthly',
+        '嗎？此操作無法復原。': '? This cannot be undone.',
+        '嚴重': 'Critical',
+        '嚴重 (Critical)': 'Critical',
+        '嚴重性': 'Severity',
+        '四': 'Thu',
+        '回到今天': 'Today',
+        '回到頂端': 'Back to top',
+        '回合': 'Round',
+        '回合名稱': 'Round name',
+        '回報者': 'Reporter',
+        '回應': 'Response',
+        '回應 Body': 'Response Body',
+        '回應 Headers（JSON，選填）': 'Response Headers (JSON, optional)',
+        '回應（Response）': 'Response',
+        '回首頁': 'Home',
+        '埠': 'Port',
+        '執行': 'Run',
+        '執行 / 監控': 'Run / Monitor',
+        '執行中': 'Running',
+        '執行動作 (Action)': 'Action',
+        '執行報告詳細記錄': 'Run report details',
+        '執行時會注入為 Robot suite 變數': 'Injected as Robot suite variables at run time',
+        '執行時會用 Pillow 與當下截圖做像素 diff，超過容忍門檻 (%) 即 FAIL。': 'At run time, Pillow compares pixel diff vs. baseline; > tolerance % → FAIL.',
+        '執行時注入到 Robot 的格式': 'Injected into Robot at run time',
+        '執行時間': 'Execution time',
+        '執行時間（首次）': 'Execution time (first)',
+        '執行測試': 'Run test',
+        '執行環境': 'Execution mode',
+        '執行耗時': 'Run duration',
+        '執行設定': 'Run settings',
+        '執行，會': ', which will',
+        '填了之後 authorize/token/jwks 端點會自動抓；不需要再手動填下方欄位。': 'Auto-fills authorize/token/jwks endpoints; no need to fill the fields below.',
+        '失敗數': 'Failed',
+        '失敗案例': 'Failed cases',
+        '套用': 'Apply',
+        '套用後會在「測試案例」樹下建立節點，並自動連結到本需求': 'After applying, nodes are created under the test case tree and linked to this requirement',
+        '套用至：': 'Apply to: ',
+        '套用選取項目': 'Apply selected',
+        '如 13.0 / 17.4': 'e.g. 13.0 / 17.4',
+        '如 Pixel 5 / iPhone 15': 'e.g. Pixel 5 / iPhone 15',
+        '如 pixel5_emu': 'e.g. pixel5_emu',
+        '如 staging_mysql': 'e.g. staging_mysql',
+        '字元集 / SSL': 'Charset / SSL',
+        '完成': 'Done',
+        '完整模式': 'Full mode',
+        '定位器': 'Locator',
+        '定位器 (Locator)': 'Locator',
+        '客戶': 'Customer',
+        '容器：': 'Containers: ',
+        '容忍門檻百分比': 'Tolerance (%)',
+        '容忍門檻（%）': 'Tolerance (%)',
+        '寄件人 Email': 'Sender Email',
+        '寄件人顯示名稱': 'Sender display name',
+        '密碼': 'Password',
+        '密碼以明文儲存於後端 DB（生產環境建議搭配 KMS 加密；目前為簡化實作）': 'Password stored plaintext in DB (recommend KMS in production; simplified here).',
+        '實際結果': 'Actual result',
+        '實體 (如 projects)': 'Entity (e.g. projects)',
+        '審核中': 'In review',
+        '審計紀錄': 'Audit log',
+        '專案': 'Project',
+        '專案卡片 / 起訖日 / 負責人': 'Project cards / dates / owner',
+        '專案名稱': 'Project name',
+        '專案名稱 *': 'Project name *',
+        '專案目錄': 'Projects',
+        '專案簡介': 'Project intro',
+        '小提示：': 'Tip:',
+        '尚未執行': 'Not executed',
+        '尚未建立 session': 'No session created',
+        '尚未測試': 'Not tested',
+        '尚未試打': 'Not yet tested',
+        '尚未連線': 'Not connected',
+        '尚未選擇': 'Nothing selected',
+        '尚無': 'None',
+        '尚無執行紀錄': 'No execution records yet',
+        '尚無測試案例，請先在左側目錄樹建立 Feature → Platform → Page → Scenario → TestCase。': 'No test cases yet. Create Feature → Platform → Page → Scenario → TestCase in the project tree first.',
+        '尚無資料': 'No data yet',
+        '展開 DDT 每一列都執行': 'Expand DDT — run every row',
+        '工作分解結構 / 進度追蹤': 'Work breakdown / progress',
+        '左上角的「AutoTest」Logo 可隨時點擊回到本首頁。左側專案目錄樹永遠保留；右側工作區會依你點選的 TopNav 或樹節點切換。': 'Click the AutoTest logo at top-left to return here at any time. The project tree stays on the left; the workspace switches per nav or tree selection.',
+        '已修復': 'Fixed',
+        '已停止': 'Stopped',
+        '已停用': 'Disabled',
+        '已儲存': 'Saved',
+        '已刪除': 'Deleted',
+        '已取消': 'Cancelled',
+        '已啟用': 'Enabled',
+        '已套用': 'Applied',
+        '已完成': 'Completed',
+        '已實作': 'Implemented',
+        '已封存': 'Archived',
+        '已建立': 'Created',
+        '已指派': 'Assigned',
+        '已更新': 'Updated',
+        '已核准': 'Approved',
+        '已淘汰': 'Deprecated',
+        '已複製': 'Copied',
+        '已過期': 'Overdue',
+        '已選 0': '0 selected',
+        '已選 0 / 0': '0 / 0 selected',
+        '已重新開啟': 'Reopened',
+        '已關閉': 'Closed',
+        '已阻擋': 'Blocked',
+        '已驗證': 'Verified',
+        '帳戶資訊': 'Account info',
+        '帳號建立後不可變更': 'Cannot be changed after account creation',
+        '平均執行時間': 'Avg duration',
+        '序列圖': 'Sequence',
+        '延遲 ms': 'Delay (ms)',
+        '建立': 'Create',
+        '建立 / 重新開始': 'Create / restart',
+        '建立 session 後，下方已備好': 'After creating a session, ready commands appear below',
+        '建立帳號': 'Create account',
+        '建立日期': 'Created date',
+        '建立時間': 'Created at',
+        '建立者': 'Creator',
+        '建立錄製 Session': 'Create recording session',
+        '引用': 'Quote',
+        '引用區塊': 'Blockquote',
+        '影片': 'Video',
+        '待辦': 'To-do',
+        '待辦事項': 'To-do',
+        '待辦清單': 'Task list',
+        '從 .env 文字匯入': 'Import from .env text',
+        '從 .env 文字批次匯入': 'Batch import from .env text',
+        '從 Appium Inspector 錄製後匯出 Python 腳本，或直接貼上手寫的': 'Export from Appium Inspector or paste hand-written script of',
+        '從清單移除': 'Remove from list',
+        '必要 (Must)': 'Must',
+        '忘記密碼': 'Forgot password',
+        '快到期': 'Due soon',
+        '快到期 (≤3天)': 'Due soon (≤3d)',
+        '快速導覽': 'Quick Navigation',
+        '應當 (Should)': 'Should',
+        '成功 / 失敗': 'Pass / Fail',
+        '成功案例': 'Passed cases',
+        '成員自': 'Member since',
+        '或': 'or',
+        '截圖': 'Screenshot',
+        '所在路徑': 'Path',
+        '手動填 endpoint（discovery 不可用時）': 'Manual endpoints (when discovery unavailable)',
+        '手機直式截圖（Appium）': 'Phone portrait screenshot (Appium)',
+        '批次 Faker': 'Batch Faker',
+        '批次新增多筆 Faker 隨機變數': 'Batch add Faker random variables',
+        '批次產生 Faker 隨機變數': 'Batch generate Faker random variables',
+        '把目前資料表下載成 JSON 檔（rows_json 結構）': 'Download the current table as JSON (rows_json format)',
+        '拖曳排序': 'Drag to reorder',
+        '拖曳調整側邊欄寬度': 'Drag to resize sidebar',
+        '指定時間': 'At specific time',
+        '指派': 'Assign',
+        '指派人': 'Assignee',
+        '按鈕圖示（FontAwesome class）': 'Button icon (FontAwesome class)',
+        '按鈕文字（可選）': 'Button text (optional)',
+        '排序': 'Sort',
+        '排程': 'Schedule',
+        '排程名稱': 'Schedule name',
+        '排程會在設定時間自動觸發測試執行；後端每 30 秒輪詢一次。選取的節點若是 FEATURE / PAGE / SCENARIO，會展開其下所有測試案例一次執行。': 'Schedules trigger tests at the configured time; the backend polls every 30s. Picking a FEATURE/PAGE/SCENARIO node will expand and run all test cases beneath it.',
+        '排除 (Scope Out)': 'Scope Out',
+        '描述': 'Description',
+        '提示：頂層需求＝User Story；子需求＝AC（在新增需求 modal 設「父需求」）；缺陷需設「關聯測試案例」才會出現在鏈上': 'Tip: top-level = User Story; child = AC (set parent in modal); defects must link a test case to appear in the chain.',
+        '插入 Mermaid 序列圖': 'Insert Mermaid sequence',
+        '插入 Mermaid 流程圖': 'Insert Mermaid flowchart',
+        '插入 Mermaid 甘特圖': 'Insert Mermaid Gantt',
+        '搜尋': 'Search',
+        '搜尋 name / host / db...': 'Search name / host / db…',
+        '搜尋 path / 描述...': 'Search path / description…',
+        '搜尋...': 'Search…',
+        '搜尋…': 'Search…',
+        '搜尋專案名稱…': 'Search project name…',
+        '搜尋工作項目名稱、代號…': 'Search work item name / code…',
+        '搜尋文件標題、代號…': 'Search document title / code…',
+        '搜尋時程名稱…': 'Search milestone name…',
+        '搜尋樹狀節點': 'Search tree nodes',
+        '搜尋測試案例名稱、平台、頁面、所在路徑...': 'Search test case name, platform, page, path…',
+        '搜尋測試計畫…': 'Search test plan…',
+        '搜尋環境變數': 'Search env vars',
+        '搜尋節點名稱…': 'Search node name…',
+        '搜尋缺陷標題、code…': 'Search defect title, code…',
+        '搜尋變數名稱 / 值 / 說明...': 'Search variable name / value / description…',
+        '搜尋資料集名稱、代號…': 'Search data set name / code…',
+        '搜尋需求…': 'Search requirement…',
+        '操作': 'Actions',
+        '操作。': ' actions.',
+        '操作完成後截取的畫面': 'Final UI captured after action',
+        '操作完成後截取的系統最終狀態': 'Final state captured after action completes',
+        '操作手冊': 'Manual',
+        '支援': 'Supports',
+        '支援 Faker 佔位符：': 'Faker placeholders supported: ',
+        '整體通過率': 'Overall pass rate',
+        '斜體': 'Italic',
+        '新增': 'Add',
+        '新增 AI Token': 'New AI Token',
+        '新增 MongoDB 連線': 'New MongoDB connection',
+        '新增 MySQL 連線': 'New MySQL connection',
+        '新增 PostgreSQL 連線': 'New PostgreSQL connection',
+        '新增 Redis 連線': 'New Redis connection',
+        '新增 SQL Server 連線': 'New SQL Server connection',
+        '新增 SQLite 連線': 'New SQLite connection',
+        '新增 SSO': 'New SSO',
+        '新增 SSO 提供者': 'New SSO provider',
+        '新增 Token': 'New Token',
+        '新增 WBS 工作項目': 'New WBS item',
+        '新增功能至此專案': 'Add feature to this project',
+        '新增回合': 'New round',
+        '新增專案': 'New project',
+        '新增待辦': 'Add to-do',
+        '新增排程': 'New schedule',
+        '新增文件': 'New document',
+        '新增時程': 'New milestone',
+        '新增案例': 'New case',
+        '新增步驟': 'Add step',
+        '新增測試回合': 'New test round',
+        '新增測試專案': 'New test project',
+        '新增測試文件': 'New test document',
+        '新增測試時程': 'New milestone',
+        '新增測試案例': 'New test case',
+        '新增測試計畫': 'New test plan',
+        '新增測試資料集': 'New test data set',
+        '新增環境變數': 'Add env var',
+        '新增端點': 'New endpoint',
+        '新增節點': 'New node',
+        '新增組織': 'New organization',
+        '新增缺陷': 'New defect',
+        '新增角色': 'New role',
+        '新增計畫': 'New plan',
+        '新增變數': 'Add variable',
+        '新增資料集': 'New data set',
+        '新增需求': 'New requirement',
+        '新增項目': 'New item',
+        '新密碼': 'New password',
+        '新建立': 'New',
+        '方案': 'Plan',
+        '方法': 'Method',
+        '日': 'Sun',
+        '日誌': 'Logs',
+        '映像：': 'Images: ',
+        '時程': 'Schedule',
+        '時間': 'Time',
+        '暫停': 'On hold',
+        '更新時間': 'Updated at',
+        '最後更新': 'Last updated',
+        '最近 100 筆，依時間倒序': 'Last 100, newest first',
+        '最近執行紀錄': 'Recent runs',
+        '最近測試案例': 'Recent Test Cases',
+        '最近登入時間': 'Last login',
+        '會與上方欄位合併到最終 capabilities；JSON 格式錯誤時不會送出儲存': 'Merged with the fields above; invalid JSON blocks save',
+        '未啟動': 'Not started',
+        '未指派': 'Unassigned',
+        '未跑': 'Not run',
+        '未連結缺陷': 'Unlinked defects',
+        '未開始': 'Not started',
+        '未關閉缺陷': 'Open defects',
+        '本地模型': 'Local model',
+        '本地模型 (Ollama / vLLM / LMStudio)': 'Local model (Ollama / vLLM / LMStudio)',
+        '本月': 'This month',
+        '本機 Agent 使用說明': 'Local agent help',
+        '本機 Agent 設定': 'Local Agent setup',
+        '本機模式設定說明': 'Local mode help',
+        '本機（有頭 Chromium；適合除錯與示範）': 'Local (headed Chromium; good for debug/demo)',
+        '本機（本機 agent + 有頭瀏覽器）': 'Local (agent + headed browser)',
+        '本步驟切片錄影': 'Per-step video clip',
+        '本步驟未啟用 Trace + Video，或執行時被關閉。': 'Trace + Video not enabled for this step, or disabled at run time.',
+        '查詢結果 / 影響列數': 'Query result / rows affected',
+        '格式化 JSON': 'Format JSON',
+        '案例完整錄影': 'Full-case video',
+        '案例數': 'Case count',
+        '標籤': 'Tag',
+        '標籤（用逗號分隔）': 'Tags (comma-separated)',
+        '標題': 'Title',
+        '標題 *': 'Title *',
+        '模型': 'Model',
+        '檢查清單': 'Checklist',
+        '欄 ×': 'cols ×',
+        '欄位': 'Columns',
+        '權限數': 'Permissions',
+        '權限管理': 'Permissions',
+        '權限（依分組勾選）': 'Permissions (by group)',
+        '次標題': 'Subtitle',
+        '次要': 'Minor',
+        '次要 (Minor)': 'Minor',
+        '歡迎使用 AutoTest': 'Welcome to AutoTest',
+        '歡迎回來，請登入以繼續': 'Welcome back, please sign in to continue',
+        '此回合的用途或涵蓋範圍...': 'Purpose or scope of this round…',
+        '步驟。': ' step.',
+        '步驟描述': 'Step description',
+        '步驟欄位可寫': 'Step fields can use',
+        '歷史錄製清單': 'Recording history',
+        '每個「組織」都是一個獨立租戶；專案 / 角色 / SMTP / AI Token / 待辦都以組織為邊界互相隔離。': 'Each organization is a tenant; projects / roles / SMTP / AI Token / to-dos are scoped to it.',
+        '每個區段都可寫 Markdown，並用 ```mermaid 區塊畫流程圖': 'Each section accepts Markdown; use ```mermaid blocks for diagrams',
+        '每天': 'Daily',
+        '每月': 'Monthly',
+        '每月第幾天': 'Day of month',
+        '每格表示「需求 × 案例」最近一次執行狀態：': 'Each cell shows the latest status of (requirement × case):',
+        '每次執行時間（24 小時制 HH:mm）': 'Run time (24-hour HH:mm)',
+        '每週': 'Weekly',
+        '每週執行星期': 'Weekday',
+        '每頁': 'Per page',
+        '每頁顯示': 'Items per page',
+        '每頁顯示筆數': 'Items per page',
+        '比對條件': 'Operator',
+        '比對的「基準圖」。': ' the comparison reference image.',
+        '法規': 'Regulation',
+        '注入格式 Preview': 'Injection format preview',
+        '流程圖': 'Flowchart',
+        '流程手冊': 'Process manual',
+        '清單': 'List',
+        '清空': 'Clear',
+        '清空全部': 'Clear all',
+        '清空所有欄列': 'Clear all rows/cols',
+        '清除': 'Clear',
+        '清除搜尋': 'Clear search',
+        '測試名稱': 'Test name',
+        '測試回合': 'Test Rounds',
+        '測試報告': 'Test Reports',
+        '測試專案': 'Test Projects',
+        '測試排程': 'Test Schedules',
+        '測試文件': 'Test Documents',
+        '測試時程': 'Test Milestones',
+        '測試案例': 'Test Cases',
+        '測試案例名稱': 'Test case name',
+        '測試案例與步驟': 'Test case & steps',
+        '測試步驟': 'Test steps',
+        '測試步驟設計 (BDD / KDT)': 'Step design (BDD / KDT)',
+        '測試看版': 'Test Kanban',
+        '測試策略': 'Test strategy',
+        '測試結果': 'Test result',
+        '測試結果分佈': 'Result distribution',
+        '測試編號': 'Test No.',
+        '測試計畫': 'Test Plan',
+        '測試資料集': 'Test Data Sets',
+        '測試連線': 'Test connection',
+        '測試錄製': 'Test Recorder',
+        '測試項目': 'Test item',
+        '瀏覽 / 編輯所有 TESTCASE': 'Browse / edit all test cases',
+        '為每個事件選擇通知通道；變更後請按下方「儲存」。': 'Pick channels per event; press Save below after changes.',
+        '父節點（SCENARIO）': 'Parent (SCENARIO)',
+        '父需求': 'Parent requirement',
+        '父需求（留空 = User Story；選擇後視為其 AC）': 'Parent (empty = User Story; otherwise treated as its AC)',
+        '父項目': 'Parent',
+        '父項目（留空 = 頂層）': 'Parent (empty = top)',
+        '版本': 'Version',
+        '狀態': 'Status',
+        '狀態碼': 'Status code',
+        '環境': 'Env',
+        '環境變數': 'Environment Variables',
+        '環境變數名': 'Variable name',
+        '甘特圖': 'Gantt',
+        '產品需求 (PRD)': 'Product Requirement (PRD)',
+        '產生 trace.zip / .webm；關閉可加快執行': 'Produces trace.zip / .webm; disable for faster runs',
+        '產生並加入': 'Generate & add',
+        '產生隨機資料並填入': 'Generate random data',
+        '用 AI 從本需求生成測試案例骨架（需先儲存需求）': 'Use AI to generate a test case skeleton from this requirement (save first)',
+        '用法': 'Usage',
+        '用法：': 'Usage: ',
+        '由 trace.playwright.dev 提供；需 trace.zip 對外可達': 'Provided by trace.playwright.dev; trace.zip must be reachable',
+        '留空 → 自動 WBS-NNN': 'Leave empty → auto WBS-NNN',
+        '留空表示不變更': 'Leave empty to keep unchanged',
+        '當前 baseline': 'Current baseline',
+        '當前專案概況': 'Current Project Overview',
+        '登入': 'Sign in',
+        '登入次數（本地統計）': 'Login count (local)',
+        '登入資訊': 'Login info',
+        '登出': 'Sign out',
+        '登出將會清除目前的 session，但不影響已儲存的測試資料。': 'Sign-out clears the session but leaves saved data intact.',
+        '發出 Body': 'Body',
+        '發出 Headers（JSON，選填）': 'Headers (JSON, optional)',
+        '發出（Request）': 'Outgoing (Request)',
+        '目前': 'Currently',
+        '目前密碼': 'Current password',
+        '目前沒有新通知': 'No new notifications',
+        '目前沒有資料': 'No data yet',
+        '目標': 'Target',
+        '目標 URL': 'Target URL',
+        '目標 URL，例如 https://example.com/login': 'Target URL, e.g. https://example.com/login',
+        '目標日期': 'Target date',
+        '目標節點': 'Target node',
+        '確定要刪除節點': 'Are you sure to delete this node',
+        '確認': 'Confirm',
+        '確認儲存': 'Confirm save',
+        '確認刪除': 'Confirm delete',
+        '確認後無法還原': 'Cannot be undone',
+        '移除': 'Remove',
+        '移除 baseline': 'Remove baseline',
+        '程式碼區塊': 'Code block',
+        '立即執行': 'Run now',
+        '站內通知': 'In-app',
+        '端點': 'Endpoint',
+        '第 1 / 1 頁': 'Page 1 / 1',
+        '第一次若出現「執行原則」警告，在 PowerShell 中執行': 'On first run, if you see an Execution Policy warning, run this in PowerShell',
+        '筆': 'items',
+        '等 Faker 佔位符': ' Faker placeholders',
+        '等步驟。': ' steps.',
+        '節點名稱': 'Node name',
+        '節點總數': 'Total Nodes',
+        '範圍 (Scope In)': 'Scope In',
+        '粗體': 'Bold',
+        '系統': 'System',
+        '系統會自動加上 .md 副檔名；同一 SCENARIO 下名稱不可重複': 'Auto-adds .md; names must be unique within a SCENARIO',
+        '系統權限清單': 'Permission catalogue',
+        '系統狀態': 'System Status',
+        '紅框標示為自動化程式鎖定之目標元素': 'Red box marks the targeted element',
+        '累計：': 'Total: ',
+        '終端機': 'Terminal',
+        '組織': 'Organizations',
+        '組織名稱 *': 'Organization name *',
+        '組織管理': 'Organization management',
+        '結束': 'End',
+        '結束日期': 'End date',
+        '結束日期 *': 'End date *',
+        '結束時間': 'End time',
+        '結果': 'Result',
+        '網路流量': 'Network',
+        '編號': 'No.',
+        '編號清單': 'Numbered list',
+        '編輯': 'Edit',
+        '編輯 + 預覽分欄': 'Editor + preview split',
+        '編輯待辦': 'Edit to-do',
+        '編輯模式': 'Edit mode',
+        '編輯此案例': 'Edit this case',
+        '編輯環境變數': 'Edit env var',
+        '編輯端點': 'Edit endpoint',
+        '編輯缺陷': 'Edit defect',
+        '編輯計畫': 'Edit plan',
+        '編輯連線': 'Edit connection',
+        '編輯需求': 'Edit requirement',
+        '總執行案例': 'Total executed cases',
+        '總數': 'Total',
+        '總筆數': 'Total',
+        '總耗時': 'Total duration',
+        '總計': 'Total',
+        '缺陷': 'Defect',
+        '缺陷 Kanban + KPI 概覽': 'Defect Kanban + KPI',
+        '缺陷列表 + 附件 + 工作流': 'Defect list + attachments + workflow',
+        '缺陷看版（依狀態分欄；顯示截至最近建立的 30 筆）': 'Defect Kanban (by status, latest 30)',
+        '缺陷管理': 'Defect Management',
+        '缺陷（鏈內）': 'Defects (in chain)',
+        '耗時': 'Duration',
+        '耗時 ms': 'Duration (ms)',
+        '自動化測試平台': 'Automated Testing Platform',
+        '自動開啟有頭 Chromium': 'auto-open headed Chromium',
+        '自訂連線字串 / DSN（選填；若填寫會覆蓋上方欄位）': 'Custom DSN (optional; overrides fields above)',
+        '至': 'to',
+        '至少 6 字元': 'At least 6 characters',
+        '與': 'and',
+        '若不上傳檔案，第一次執行時會自動把當下截圖存成 baseline；之後執行才會做比對。': 'If no file is uploaded, the first run is auto-saved as baseline; subsequent runs compare.',
+        '若當月沒有這天（如 2/31）會自動使用該月最後一天。': 'If the month has no such day (e.g. 2/31), the last day is used.',
+        '草稿': 'Draft',
+        '處理中': 'In progress',
+        '行事曆': 'Calendar',
+        '行內程式碼': 'Inline code',
+        '表格': 'Table',
+        '複製': 'Copy',
+        '複製 Robot 寫法': 'Copy Robot syntax',
+        '複製為新連線': 'Duplicate as new connection',
+        '覆蓋率：': 'Coverage: ',
+        '規劃': 'Planning',
+        '規劃中': 'Planning',
+        '角色名稱': 'Role name',
+        '角色名稱 *': 'Role name *',
+        '角色管理': 'Roles',
+        '角色與權限': 'Roles & permissions',
+        '解析並套用至當前案例': 'Parse & apply to current case',
+        '解析後的 BDD 步驟': 'Parsed BDD steps',
+        '解析時會自動轉換為': 'Parsing will auto-convert to',
+        '解析為 Http.* 步驟': 'Parse to Http.* steps',
+        '解析為 Mobile.* 步驟': 'Parse to Mobile.* steps',
+        '觸發者': 'Triggered by',
+        '計畫': 'Plan',
+        '記住我（保留登入狀態）': 'Remember me',
+        '記憶體': 'Memory',
+        '設備清單': 'Devices',
+        '設備編輯': 'Edit device',
+        '設備資訊': 'Devices',
+        '設定': 'Settings',
+        '設定 Screenshot Baseline': 'Configure Screenshot Baseline',
+        '設為此 Provider 的預設': 'Set as default for this provider',
+        '註冊': 'Sign up',
+        '註冊 Email': 'Email',
+        '試打': 'Test call',
+        '試打 / 佔位符渲染結果': 'Test call / rendered placeholders',
+        '試打時會連同 path 一起送出；支援': 'Test call sends along with path; supports',
+        '說明': 'Description',
+        '說明（選填）': 'Description (optional)',
+        '請先載入專案': 'Load a project first',
+        '請從左側目錄選擇一個測試案例 (.md) 以開始編輯': 'Pick a test case (.md) on the left to start editing',
+        '請從左側選擇一個 Mock 端點，或按上方按鈕新增': 'Pick an endpoint on the left, or click the button to add',
+        '請從左側選擇一個設備，或按上方「+ Android / + iOS」新增': 'Pick a device on the left, or click +Android / +iOS to add',
+        '請從左側選擇一筆 DB 連線，或按上方按鈕新增': 'Pick a connection on the left, or click the button to add',
+        '請求': 'Request',
+        '請輸入': 'Please enter',
+        '請輸入你的': 'Please enter your ',
+        '請輸入名稱': 'Please enter a name',
+        '請輸入驗收準則...': 'Please enter acceptance criteria…',
+        '請選擇': 'Please select',
+        '請選擇專案與檔案': 'Please select project and file',
+        '請選擇選項': 'Please select an option',
+        '變數值': 'Variable value',
+        '變更密碼': 'Change password',
+        '負責人': 'Owner',
+        '貼上 .env 檔案內容（格式：': 'Paste .env content (format: ',
+        '貼上 Appium Python 腳本': 'Paste Appium Python script',
+        '貼上 cURL 指令': 'Paste cURL command',
+        '資安': 'Security',
+        '資料以 JSON 為單一來源；上方按鈕可匯入 / 匯出 / 清空整份資料表。匯入時會自動展平為 No / Key / Value 三欄。': 'JSON is the source of truth; use the buttons to import / export / clear. Import flattens into No / Key / Value.',
+        '資料列': 'Data rows',
+        '資料庫名稱': 'Database name',
+        '資料庫連線設定與 SQL 測試': 'DB connections + SQL test',
+        '資料庫類型': 'Database type',
+        '資料表': 'Data table',
+        '資料表（行 × 欄）': 'Data table (rows × cols)',
+        '資源': 'Resources',
+        '起始': 'Start',
+        '起始日期': 'Start date',
+        '起始日期 *': 'Start date *',
+        '起訖日期': 'Date range',
+        '路徑': 'Path',
+        '軌跡 / 錄影': 'Trace / Video',
+        '載入中...': 'Loading…',
+        '載入中…': 'Loading…',
+        '載入專案後才能選擇': 'Load a project first to choose',
+        '輕微': 'Trivial',
+        '輕微 (Trivial)': 'Trivial',
+        '輸入值': 'Input value',
+        '輸入值 (Input Data)': 'Input data',
+        '輸入值 (Input)': 'Input value',
+        '輸入帳號密碼': 'Enter credentials',
+        '近五次執行趨勢': 'Last 5 runs trend',
+        '返回': 'Back',
+        '返回測試報告儀表板': 'Back to reports dashboard',
+        '追溯鏈 (Story → AC → 案例 → 缺陷)': 'Trace (Story → AC → Case → Defect)',
+        '這份權限清單由後端定義；要把哪些權限給誰請到「角色管理」分頁勾選 → 然後把使用者指派到該角色。': 'Permissions are defined by the backend. Assign permissions in Roles, then assign users to roles.',
+        '通知': 'Notifications',
+        '通知者': 'Notifier',
+        '通知設定': 'Notification settings',
+        '通過數': 'Passed',
+        '通過率': 'Pass rate',
+        '連結': 'Link',
+        '連線名稱': 'Connection name',
+        '進度': 'Progress',
+        '進度 (0-100)': 'Progress (0–100)',
+        '進度百分比': 'Progress %',
+        '進行中': 'In progress',
+        '進行中時程': 'Active milestones',
+        '過期': 'Overdue',
+        '選填，會顯示在報告的「觸發者」欄位': 'Optional; appears in the report Trigger column',
+        '選擇': 'Select',
+        '選擇專案': 'Select project',
+        '選擇測試案例（可多選）': 'Select test cases (multiple)',
+        '選擇父節點': 'Select parent',
+        '選擇節點選項': 'Select node option',
+        '選擇要套用的測試案例': 'Select test case to apply',
+        '選擇附件': 'Choose attachment',
+        '里程碑 / 時間軸概覽': 'Milestones / timeline',
+        '重大': 'Major',
+        '重大 (Major)': 'Major',
+        '重新命名目前專案': 'Rename current project',
+        '重新整理': 'Refresh',
+        '重新計算': 'Recalculate',
+        '重新開啟': 'Reopened',
+        '重現步驟': 'Reproduction steps',
+        '重複': 'Repeat',
+        '重複的 NAME 會以「最後一次出現」為準。': 'Duplicate NAME uses the last occurrence.',
+        '重複設定': 'Repeat config',
+        '重設密碼': 'Reset password',
+        '重試': 'Retry',
+        '錄製平台': 'Recording platform',
+        '開啟功能選單': 'Open menu',
+        '開啟專案目錄': 'Open projects',
+        '開始時間': 'Start time',
+        '開頭的行視為註解略過。': 'Lines starting with this are treated as comments.',
+        '關聯案例': 'Linked cases',
+        '關聯測試案例': 'Linked test cases',
+        '關聯測試案例（多選；按 Ctrl/⌘ 選多項）': 'Linked test cases (multi-select with Ctrl/⌘)',
+        '關閉': 'Close',
+        '關閉圖片': 'Close image',
+        '關閉終端機面板': 'Close terminal',
+        '關閉虛擬機': 'Stop VM',
+        '附件': 'Attachments',
+        '附件（圖片或文件，可多選）': 'Attachments (images or docs, multiple)',
+        '限英數+底線；會注入為': 'Letters/digits/underscores; injected as',
+        '限英數+底線；會被注入為': 'Letters/digits/underscores; injected as',
+        '電子郵件': 'Email',
+        '需先儲存缺陷後才能上傳附件': 'Save the defect first before uploading attachments',
+        '需已安裝': 'Requires',
+        '需求': 'Requirement',
+        '需求 / RTM': 'Reqs / RTM',
+        '需求/RTM': 'Reqs / RTM',
+        '需求清單': 'Requirements',
+        '需求清單 + 追溯矩陣': 'Requirements + RTM',
+        '需求總數': 'Total requirements',
+        '頁': 'page',
+        '項 · 整體進度': 'items · Overall progress',
+        '順序': 'Order',
+        '預估工時': 'Estimated hours',
+        '預期結果': 'Expected result',
+        '預覽': 'Preview',
+        '預計工時': 'Planned hours',
+        '預設': 'Default',
+        '預設僅以第一列當變數來源跑一次': 'Default runs once using only the first row as variable source',
+        '預設執行環境': 'Default execution mode',
+        '預設帳號': 'Default account',
+        '預設開啟；關閉後僅在手動或執行完成時刷新': 'On by default; if off, only manual or end-of-run refresh',
+        '頻率': 'Frequency',
+        '額外 Capabilities（JSON）': 'Extra capabilities (JSON)',
+        '類型': 'Type',
+        '顯示': 'Show',
+        '顯示/遮蔽': 'Show/hide',
+        '顯示/隱藏密碼': 'Show/hide password',
+        '顯示名稱': 'Display name',
+        '風險': 'Risks',
+        '首頁': 'Home',
+        '驗收準則': 'Acceptance criteria',
+        '驗收準則 (Acceptance Criteria)': 'Acceptance criteria',
+        '點下方「下載 Agent」取得': 'Click Download Agent below to get ',
+        '點擊使用者下拉': 'Open user menu',
+        '點擊進入設定': 'Click to open settings',
+        '點背景或按 Esc 關閉': 'Click backdrop or press Esc to close',
+        '（AutoTest 平台容器總用量）': '(AutoTest platform container usage)',
+        '（Ollama / vLLM / LMStudio 等 OpenAI-compatible API）。同 provider 內可有多個 Token，但只有一個能設為預設。': ' (Ollama / vLLM / LMStudio — OpenAI-compatible). Multiple tokens per provider; only one default.',
+        '（全專案共用 · 自動注入成 Robot suite variable）': '(Shared across project · auto-injected as Robot suite variable)',
+        '（最多顯示 10 筆）': '(up to 10 items)',
+        '（無截圖）': '(no screenshot)',
+        '（選填）模擬什麼 API...': '(optional) what API is mocked…',
+        '（選填）用途、環境、維護人...': '(optional) purpose, environment, owner…',
+        '）填到下方即可。': ') into the field below.',
+        '，你可以在本機視覺化觀察整個測試過程。': '; you can visually watch the whole test on your machine.',
+        '，再把 IdP 的 discovery URL（通常是': ', then put the IdP discovery URL (usually',
+        '，每行一個）。': ', one per line).',
+        '；不需要設定日期，後端會依重複規則自動推算下次執行。': '; no date needed — the backend computes the next run from the recurrence rule.',
+    };
+
         function _i18nGetLocale() {
             try { return localStorage.getItem(I18N_KEY) || 'zh-TW'; } catch (_) { return 'zh-TW'; }
         }
@@ -6542,8 +7624,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 const v = (I18N_DICT[key] || {})[loc];
                 if (v != null) el.textContent = v;
             });
-            // 2) data-i18n-attr="title|placeholder|aria-label;<key>" → 設指定屬性
-            //    多組以「,」分隔，例：data-i18n-attr="title;nav.testPlan,placeholder;auth.username"
+            // 2) data-i18n-attr 設指定屬性
             scope.querySelectorAll('[data-i18n-attr]').forEach(el => {
                 const spec = el.getAttribute('data-i18n-attr') || '';
                 spec.split(',').forEach(part => {
@@ -6555,9 +7636,75 @@ driver.swipe(100, 800, 100, 200, 500)"
             });
             // 3) <html lang> 同步
             document.documentElement.setAttribute('lang', loc === 'en' ? 'en' : 'zh-TW');
-            // 4) 切換按鈕標籤：當前是 zh-TW 就顯示「EN」（提示按了會切到 en），反之亦然
+            // 4) 切換按鈕標籤
             const btn = document.getElementById('i18nToggleLabel');
             if (btn) btn.textContent = loc === 'zh-TW' ? 'EN' : '中';
+            // 5) 全域 DOM 文字翻譯(覆蓋 data-i18n 沒掛到的靜態字串)
+            try { _translateDomTree(scope === document ? document.body : scope, loc); } catch (_) {}
+        }
+
+        // ─── 全域 DOM 翻譯器(雙向)───────────────────────────────
+        // 走訪指定 root 下所有文字節點,以 trimmed nodeValue 為 key 查 ZH_TO_EN / EN_TO_ZH。
+        // 使用 trimmed exact-match 避免誤翻使用者資料(如檔名 / log 內容)。
+        // 排除節點:script / style / textarea / input / code / pre 以及 [data-notranslate] 子樹。
+        let _EN_TO_ZH = null;
+        function _buildReverseDict() {
+            if (_EN_TO_ZH) return _EN_TO_ZH;
+            _EN_TO_ZH = {};
+            const fwd = window.ZH_TO_EN || {};
+            for (const k in fwd) {
+                const en = fwd[k];
+                if (!_EN_TO_ZH[en]) _EN_TO_ZH[en] = k;
+            }
+            return _EN_TO_ZH;
+        }
+        const _SKIP_TAGS = { SCRIPT:1, STYLE:1, TEXTAREA:1, INPUT:1, CODE:1, PRE:1, NOSCRIPT:1 };
+        function _translateDomTree(root, loc) {
+            if (!root) return;
+            const fwd = window.ZH_TO_EN;
+            if (!fwd) return;
+            const rev = _buildReverseDict();
+            const dict = (loc === 'en') ? fwd : rev;
+            // 1) text nodes
+            const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+                acceptNode(n) {
+                    if (!n.nodeValue) return NodeFilter.FILTER_REJECT;
+                    const p = n.parentElement;
+                    if (!p) return NodeFilter.FILTER_REJECT;
+                    if (_SKIP_TAGS[p.tagName]) return NodeFilter.FILTER_REJECT;
+                    if (p.closest('[data-notranslate]')) return NodeFilter.FILTER_REJECT;
+                    return NodeFilter.FILTER_ACCEPT;
+                }
+            });
+            const nodes = [];
+            let n;
+            while ((n = walker.nextNode())) nodes.push(n);
+            for (const tn of nodes) {
+                const text = tn.nodeValue;
+                const trimmed = text.trim();
+                if (!trimmed) continue;
+                const repl = dict[trimmed];
+                if (repl != null && repl !== trimmed) {
+                    tn.nodeValue = text.replace(trimmed, repl);
+                }
+            }
+            // 2) 屬性:placeholder / title / aria-label / alt
+            const startEl = (root.nodeType === 1) ? root : (root.body || document.body);
+            const elWalker = document.createTreeWalker(startEl, NodeFilter.SHOW_ELEMENT);
+            let el = startEl;
+            do {
+                if (!el || _SKIP_TAGS[el.tagName]) continue;
+                if (el.closest && el.closest('[data-notranslate]')) continue;
+                for (const attr of ['placeholder', 'title', 'aria-label', 'alt']) {
+                    const v = el.getAttribute && el.getAttribute(attr);
+                    if (!v) continue;
+                    const trimmed = v.trim();
+                    const repl = dict[trimmed];
+                    if (repl != null && repl !== trimmed) {
+                        el.setAttribute(attr, v.replace(trimmed, repl));
+                    }
+                }
+            } while ((el = elWalker.nextNode()));
         }
         function i18nToggle() {
             const cur = _i18nGetLocale();
@@ -6588,6 +7735,262 @@ driver.swipe(100, 800, 100, 200, 500)"
         }
         // 頁面載入完成後同步一次 icon（css class 已由 <head> 的早期 script 套用）
         document.addEventListener('DOMContentLoaded', _syncThemeIcon);
+
+        // ==================== 通知中心（站內通知） ====================
+        // 後端 API：
+        //   GET    /api/notifications?limit=20
+        //   GET    /api/notifications/unread-count
+        //   POST   /api/notifications/{id}/read
+        //   POST   /api/notifications/read-all
+        //   DELETE /api/notifications/{id}
+        //   DELETE /api/notifications
+        let _notifPollTimer = null;
+        const NOTIF_LEVEL_STYLE = {
+            info:    { icon: 'fa-circle-info',         color: 'text-blue-500',    bg: 'bg-blue-50' },
+            success: { icon: 'fa-circle-check',        color: 'text-emerald-500', bg: 'bg-emerald-50' },
+            warning: { icon: 'fa-triangle-exclamation', color: 'text-amber-500',   bg: 'bg-amber-50' },
+            error:   { icon: 'fa-circle-xmark',        color: 'text-rose-500',    bg: 'bg-rose-50' },
+        };
+
+        async function toggleNotifPanel(ev) {
+            if (ev) ev.stopPropagation();
+            closeUserDropdown();
+            const panel = document.getElementById('notifPanel');
+            if (!panel) return;
+            const opening = panel.classList.contains('hidden');
+            panel.classList.toggle('hidden');
+            if (opening) await loadNotifications();
+        }
+        function closeNotifPanel() {
+            const panel = document.getElementById('notifPanel');
+            if (panel) panel.classList.add('hidden');
+        }
+
+        function _formatNotifTime(iso) {
+            if (!iso) return '';
+            const d = new Date(iso);
+            if (isNaN(d.getTime())) return '';
+            const now = new Date();
+            const diffMs = now - d;
+            const min = Math.floor(diffMs / 60000);
+            if (min < 1) return '剛剛';
+            if (min < 60) return `${min} 分鐘前`;
+            const hr = Math.floor(min / 60);
+            if (hr < 24) return `${hr} 小時前`;
+            const day = Math.floor(hr / 24);
+            if (day < 7) return `${day} 天前`;
+            return d.toLocaleDateString();
+        }
+
+        function _renderNotifList(items) {
+            const list = document.getElementById('notifList');
+            if (!list) return;
+            if (!items || !items.length) {
+                list.innerHTML = '<div class="px-4 py-12 text-center text-sm text-stone-400"><i class="fa-regular fa-bell-slash text-3xl mb-2 block opacity-60"></i><div>目前沒有新通知</div></div>';
+                return;
+            }
+            const html = items.map(n => {
+                const st = NOTIF_LEVEL_STYLE[n.level] || NOTIF_LEVEL_STYLE.info;
+                const unreadCls = n.is_read ? '' : 'unread';
+                const safeTitle = (n.title || '').replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+                const safeBody = (n.body || '').replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+                return `
+                    <div class="notif-item ${unreadCls} relative px-4 py-3 border-b border-stone-100 hover:bg-stone-50 transition cursor-pointer"
+                         onclick="onNotifClick('${n.id}', ${JSON.stringify(n.link || '').replace(/'/g, '&#39;')})">
+                        <div class="flex items-start gap-3">
+                            <div class="w-8 h-8 rounded-full ${st.bg} ${st.color} flex items-center justify-center shrink-0 mt-0.5">
+                                <i class="fa-solid ${st.icon} text-sm"></i>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="text-sm font-semibold text-stone-800 truncate">${safeTitle}</div>
+                                ${safeBody ? `<div class="text-xs text-stone-500 mt-0.5 line-clamp-2">${safeBody}</div>` : ''}
+                                <div class="text-[11px] text-stone-400 mt-1 flex items-center gap-2">
+                                    <span><i class="fa-regular fa-clock mr-1"></i>${_formatNotifTime(n.created_at)}</span>
+                                    ${n.event_key ? `<span class="px-1.5 py-0.5 bg-stone-100 rounded text-[10px] font-mono">${n.event_key}</span>` : ''}
+                                </div>
+                            </div>
+                            <button type="button" onclick="event.stopPropagation(); deleteNotification('${n.id}')"
+                                class="text-stone-300 hover:text-rose-500 text-xs shrink-0" title="刪除">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            list.innerHTML = html;
+        }
+
+        // 合併 backend 與 local 通知,依 created_at desc 排序
+        function _mergeNotifs(backendItems) {
+            const local = _readLocalNotifs();
+            const all = [...local, ...(backendItems || [])];
+            all.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+            return all.slice(0, 50);
+        }
+
+        async function loadNotifications() {
+            let backendItems = [];
+            let backendErr = null;
+            try {
+                if (typeof authGetAccessToken === 'function' && authGetAccessToken()) {
+                    backendItems = await apiFetch('/api/notifications?limit=20') || [];
+                }
+            } catch (e) { backendErr = e; }
+            const merged = _mergeNotifs(backendItems);
+            _renderNotifList(merged);
+            await refreshNotifBadge();
+            const unread = merged.filter(n => !n.is_read).length;
+            const markAllBtn = document.getElementById('notifMarkAllBtn');
+            if (markAllBtn) markAllBtn.disabled = unread === 0;
+            const panelCount = document.getElementById('notifPanelCount');
+            if (panelCount) {
+                if (unread > 0) { panelCount.textContent = unread; panelCount.classList.remove('hidden'); }
+                else panelCount.classList.add('hidden');
+            }
+            // 後端錯誤就在 list 底部加一條提示(不蓋掉 local 訊息)
+            if (backendErr) {
+                const list = document.getElementById('notifList');
+                if (list && !list.querySelector('.notif-backend-err')) {
+                    const div = document.createElement('div');
+                    div.className = 'notif-backend-err px-4 py-2 text-[11px] text-rose-500 bg-rose-50 border-t border-rose-100';
+                    div.innerHTML = `<i class="fa-solid fa-circle-exclamation mr-1"></i>後端通知載入失敗:${(backendErr.message || backendErr)}`;
+                    list.appendChild(div);
+                }
+            }
+        }
+
+        // 把 backend 未讀數 + local 未讀數合計後寫入 badge
+        async function _updateNotifBadgeFromMixed() {
+            let backend = 0;
+            try {
+                if (typeof authGetAccessToken === 'function' && authGetAccessToken()) {
+                    const r = await apiFetch('/api/notifications/unread-count');
+                    backend = (r && typeof r.count === 'number') ? r.count : 0;
+                }
+            } catch (_) { /* silent */ }
+            const localUnread = _readLocalNotifs().filter(n => !n.is_read).length;
+            const total = backend + localUnread;
+            const badge = document.getElementById('notifBadge');
+            if (!badge) return;
+            if (total > 0) {
+                badge.textContent = total > 99 ? '99+' : String(total);
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
+        async function refreshNotifBadge() { return _updateNotifBadgeFromMixed(); }
+
+        async function markAllNotifRead() {
+            // local
+            const local = _readLocalNotifs();
+            local.forEach(x => x.is_read = true);
+            _writeLocalNotifs(local);
+            // backend (如果登入了)
+            if (typeof authGetAccessToken === 'function' && authGetAccessToken()) {
+                try { await apiFetch('/api/notifications/read-all', { method: 'POST' }); }
+                catch (e) { showToast('後端標讀失敗:' + (e.message || e), 'error'); }
+            }
+            await loadNotifications();
+        }
+
+        async function deleteNotification(id) {
+            if (typeof id === 'string' && id.startsWith('local:')) {
+                deleteLocalNotif(id);
+                await loadNotifications();
+                return;
+            }
+            try {
+                await apiFetch(`/api/notifications/${encodeURIComponent(id)}`, { method: 'DELETE' });
+                await loadNotifications();
+            } catch (e) {
+                showToast('刪除失敗:' + (e.message || e), 'error');
+            }
+        }
+
+        async function clearAllNotifications() {
+            if (!confirm('確定要清空全部通知?此動作不可還原。')) return;
+            clearLocalNotifs();
+            if (typeof authGetAccessToken === 'function' && authGetAccessToken()) {
+                try { await apiFetch('/api/notifications', { method: 'DELETE' }); }
+                catch (e) { showToast('後端清空失敗:' + (e.message || e), 'error'); }
+            }
+            await loadNotifications();
+        }
+
+        async function onNotifClick(id, link) {
+            // 點擊 → 標為已讀;若有 link 則跳轉
+            if (typeof id === 'string' && id.startsWith('local:')) {
+                markLocalNotifRead(id);
+            } else {
+                try { await apiFetch(`/api/notifications/${encodeURIComponent(id)}/read`, { method: 'POST' }); }
+                catch (_) { /* silent */ }
+            }
+            await loadNotifications();
+            if (link) {
+                if (link.startsWith('#')) { location.hash = link; }
+                else if (/^https?:/.test(link)) { window.open(link, '_blank'); }
+                else { location.href = link; }
+                closeNotifPanel();
+            }
+        }
+
+        function startNotifPolling() {
+            stopNotifPolling();
+            // 立即抓一次,之後每 60 秒輪詢一次未讀數(含 local)
+            refreshNotifBadge();
+            _notifPollTimer = setInterval(refreshNotifBadge, 60000);
+        }
+        function stopNotifPolling() {
+            if (_notifPollTimer) { clearInterval(_notifPollTimer); _notifPollTimer = null; }
+        }
+        // 頁面載入後立刻同步一次 badge(local 訊息不需登入也可顯示)
+        document.addEventListener('DOMContentLoaded', () => {
+            try { refreshNotifBadge(); } catch (_) {}
+        });
+
+        // 使用者下拉已移除 — 點擊使用者名稱直接進設定頁;登出按鈕獨立。
+        // 保留以下 stub 以維持舊呼叫端相容(避免有殘留的 onclick 噴錯)。
+        function toggleUserDropdown() { showUserSettingsView(); }
+        function closeUserDropdown() { /* no-op */ }
+
+        // 點擊通知面板外時關閉
+        document.addEventListener('click', (ev) => {
+            const panel = document.getElementById('notifPanel');
+            const notifBtn = document.getElementById('notifToggleBtn');
+            if (panel && !panel.classList.contains('hidden')) {
+                if (!panel.contains(ev.target) && !(notifBtn && notifBtn.contains(ev.target))) {
+                    panel.classList.add('hidden');
+                }
+            }
+        });
+        // ESC 關閉下拉
+        document.addEventListener('keydown', (ev) => {
+            if (ev.key === 'Escape') { closeNotifPanel(); closeNavDrawer(); }
+        });
+
+        // ==================== 左側功能 Nav Drawer ====================
+        function toggleNavDrawer(ev) {
+            if (ev) ev.stopPropagation();
+            const dr = document.getElementById('navDrawer');
+            if (!dr) return;
+            const opened = !dr.classList.contains('-translate-x-full');
+            if (opened) closeNavDrawer();
+            else openNavDrawer();
+        }
+        function openNavDrawer() {
+            const dr = document.getElementById('navDrawer');
+            const bd = document.getElementById('navDrawerBackdrop');
+            if (dr) { dr.classList.remove('-translate-x-full'); dr.setAttribute('aria-hidden', 'false'); }
+            if (bd) bd.classList.remove('hidden');
+            try { closeNotifPanel(); } catch (_) {}
+        }
+        function closeNavDrawer() {
+            const dr = document.getElementById('navDrawer');
+            const bd = document.getElementById('navDrawerBackdrop');
+            if (dr) { dr.classList.add('-translate-x-full'); dr.setAttribute('aria-hidden', 'true'); }
+            if (bd) bd.classList.add('hidden');
+        }
 
         // RWD：手機版側邊欄 drawer 控制
         function toggleMobileSidebar() {
@@ -7465,6 +8868,7 @@ driver.swipe(100, 800, 100, 200, 500)"
 
         function authLogout() {
             if (!confirm('確定要登出嗎？')) return;
+            try { stopNotifPolling(); } catch (_) {}
             authClearTokens();
             _authWriteSession(null);
             showToast('已登出', 'success');
@@ -7490,21 +8894,27 @@ driver.swipe(100, 800, 100, 200, 500)"
             const name = document.getElementById('userMenuName');
             if (avatar) avatar.textContent = initial;
             if (name) name.textContent = display;
+            // 啟動通知輪詢(idempotent — 重複呼叫會先 clear 再 set)
+            try { startNotifPolling(); } catch (_) {}
         }
 
-        // ==================== 使用者設定頁 ====================
+        // ==================== 設定頁 ====================
         function showUserSettingsView() {
             if (typeof confirmDiscardIfDirty === 'function' && !confirmDiscardIfDirty()) return;
             _hideAllWorkspaces();
             document.getElementById('userSettingsWorkspace').classList.remove('hidden');
             document.getElementById('mainHeader').classList.remove('hidden');
             document.getElementById('mainActions').classList.add('hidden');
-            document.getElementById('viewFilename').textContent = '使用者設定';
-            document.getElementById('viewTitle').innerHTML = '<i class="fa-solid fa-user-gear text-amber-500"></i> 使用者設定';
+            const fn = document.getElementById('viewFilename');
+            fn.setAttribute('data-i18n', 'settings.title.short');
+            fn.textContent = t('settings.title.short');
+            document.getElementById('viewTitle').innerHTML = `<i class="fa-solid fa-user-gear text-amber-500"></i> <span data-i18n="settings.title">${t('settings.title')}</span>`;
             document.getElementById('viewTag').className = 'bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium';
-            document.getElementById('viewTag').textContent = 'Account';
+            document.getElementById('viewTag').textContent = 'Settings';
             currentTestCase = null;
             loadUserSettingsView();
+            try { i18nApply(document.getElementById('userSettingsWorkspace')); } catch (_) {}
+            try { i18nApply(document.getElementById('mainHeader')); } catch (_) {}
         }
 
         function loadUserSettingsView() {
@@ -7622,17 +9032,16 @@ driver.swipe(100, 800, 100, 200, 500)"
         function showRecorderView() {
             if (!confirmDiscardIfDirty()) return;
             _hideAllWorkspaces();
+            _setViewMeta('view.recorder.title', 'view.recorder.title', '<i class="fa-solid fa-video text-rose-500"></i>', 'Recorder', 'bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-medium');
             document.getElementById('recorderWorkspace').classList.remove('hidden');
             document.getElementById('mainHeader').classList.remove('hidden');
             document.getElementById('mainActions').classList.add('hidden');
-            document.getElementById('viewFilename').textContent = '錄製';
-            document.getElementById('viewTitle').innerHTML = '<i class="fa-solid fa-video text-rose-500"></i> 瀏覽器操作錄製器';
-            document.getElementById('viewTag').className = 'bg-rose-100 text-rose-600 px-1.5 py-0.5 rounded font-medium';
-            document.getElementById('viewTag').textContent = 'Recorder';
             recRefreshList();
             recPopulateApplyTarget();
             // 預設停留在上次平台（首次進入則為 WEB）
             switchRecPlatform(recCurrentPlatform || 'WEB');
+            try { _afterViewChange(); } catch (_) {}
+        
         }
 
         // ==================== 排程 (Schedule) ====================
@@ -7672,6 +9081,38 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('wbsWorkspace')?.classList.add('hidden');
         }
 
+        // ──── 視圖標題 i18n helper ────
+        // 把 viewFilename / viewTitle / viewTag 三處在切換 view 時統一設好,
+        // 並掛上 data-i18n,讓切語系時自動重譯。
+        function _setViewMeta(filenameKey, titleKey, iconHtml = '', tagText = '', tagClass = 'bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-medium') {
+            const fn = document.getElementById('viewFilename');
+            if (fn) {
+                if (filenameKey) {
+                    fn.setAttribute('data-i18n', filenameKey);
+                    fn.textContent = t(filenameKey);
+                } else {
+                    fn.removeAttribute('data-i18n');
+                }
+            }
+            const vt = document.getElementById('viewTitle');
+            if (vt && titleKey) {
+                vt.innerHTML = `${iconHtml} <span data-i18n="${titleKey}">${t(titleKey)}</span>`;
+            }
+            const tag = document.getElementById('viewTag');
+            if (tag) {
+                tag.className = tagClass;
+                if (tagText) tag.textContent = tagText;
+            }
+        }
+        // 切換 view 後,重新套 i18n + 把目前可見 workspace 也掃一遍
+        function _afterViewChange() {
+            try { i18nApply(document.getElementById('mainHeader')); } catch (_) {}
+            try {
+                const visible = document.querySelector('main > div[id$="Workspace"]:not(.hidden)');
+                if (visible) i18nApply(visible);
+            } catch (_) {}
+        }
+
         // ==================== 首頁 (Home) ====================
         // 點擊左上角 AutoTest Logo 或呼叫 showHomeView() 進入首頁
         function showHomeView() {
@@ -7680,8 +9121,11 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('homeWorkspace').classList.remove('hidden');
             document.getElementById('mainHeader').classList.remove('hidden');
             document.getElementById('mainActions').classList.add('hidden');
-            document.getElementById('viewFilename').textContent = '首頁';
-            document.getElementById('viewTitle').innerHTML = '<i class="fa-solid fa-house text-amber-500"></i> AutoTest 首頁';
+            // 設 data-i18n 讓切換語系時自動重譯
+            const fn = document.getElementById('viewFilename');
+            fn.setAttribute('data-i18n', 'home.breadcrumb');
+            fn.textContent = t('home.breadcrumb');
+            document.getElementById('viewTitle').innerHTML = `<i class="fa-solid fa-house text-amber-500"></i> <span data-i18n="home.title">${t('home.title')}</span>`;
             document.getElementById('viewTag').className = 'bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium';
             document.getElementById('viewTag').textContent = 'Home';
             currentTestCase = null;
@@ -7689,6 +9133,9 @@ driver.swipe(100, 800, 100, 200, 500)"
             startSystemStatusPolling();
             // 載入待辦 + 行事曆
             try { reloadHomeTodos(); setHomeTodoBucket('overdue'); } catch (_) {}
+            // 套用 i18n(包含本次新塞進來的 data-i18n)
+            try { i18nApply(document.getElementById('homeWorkspace')); } catch (_) {}
+            try { i18nApply(document.getElementById('mainHeader')); } catch (_) {}
         }
 
         // 更新首頁的專案統計資訊（從現有的記憶體狀態計算，無需 API）
@@ -7850,17 +9297,16 @@ driver.swipe(100, 800, 100, 200, 500)"
         function showTestCasesView() {
             if (!confirmDiscardIfDirty()) return;
             _hideAllWorkspaces();
+            _setViewMeta('view.testCases.title', 'view.testCases.title', '<i class="fa-solid fa-list-check text-blue-500"></i>', 'Cases', 'bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium');
             document.getElementById('testcasesWorkspace').classList.remove('hidden');
             document.getElementById('mainHeader').classList.remove('hidden');
             document.getElementById('mainActions').classList.add('hidden');
-            document.getElementById('viewFilename').textContent = '測試案例';
-            document.getElementById('viewTitle').innerHTML = '<i class="fa-solid fa-list-check text-blue-500"></i> 測試案例清單';
-            document.getElementById('viewTag').className = 'bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium';
-            document.getElementById('viewTag').textContent = 'Cases';
             currentTestCase = null;
             // 進入清單時清空勾選，避免跨頁殘留造成誤刪
             if (typeof tcListState !== 'undefined' && tcListState.selected) tcListState.selected.clear();
             renderTestCasesList();
+            try { _afterViewChange(); } catch (_) {}
+        
         }
 
         // 依當前 activeTreeData 收集所有 TESTCASE 節點（含祖先鏈上的 PLATFORM / PAGE 名稱）
@@ -8142,43 +9588,40 @@ driver.swipe(100, 800, 100, 200, 500)"
         function showTestRoundView() {
             if (!confirmDiscardIfDirty()) return;
             _hideAllWorkspaces();
+            _setViewMeta('view.testRound.title', 'view.testRound.title', '<i class="fa-solid fa-layer-group text-purple-500"></i>', 'Rounds', 'bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium');
             document.getElementById('testRoundWorkspace').classList.remove('hidden');
             document.getElementById('mainHeader').classList.remove('hidden');
             document.getElementById('mainActions').classList.add('hidden');
-            document.getElementById('viewFilename').textContent = '測試回合';
-            document.getElementById('viewTitle').innerHTML = '<i class="fa-solid fa-layer-group text-purple-500"></i> 測試回合';
-            document.getElementById('viewTag').className = 'bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium';
-            document.getElementById('viewTag').textContent = 'Round';
             currentTestCase = null;
             refreshTestRoundList();
+            try { _afterViewChange(); } catch (_) {}
+        
         }
 
         function showEnvVarsView() {
             if (!confirmDiscardIfDirty()) return;
             _hideAllWorkspaces();
+            _setViewMeta('view.envVars.title', 'view.envVars.title', '<i class="fa-solid fa-key text-emerald-500"></i>', 'Env', 'bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-medium');
             document.getElementById('envVarsWorkspace').classList.remove('hidden');
             document.getElementById('mainHeader').classList.remove('hidden');
             document.getElementById('mainActions').classList.add('hidden');
-            document.getElementById('viewFilename').textContent = '環境變數';
-            document.getElementById('viewTitle').innerHTML = '<i class="fa-solid fa-key text-emerald-500"></i> 環境變數';
-            document.getElementById('viewTag').className = 'bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-medium';
-            document.getElementById('viewTag').textContent = 'Env';
             currentTestCase = null;
             loadProjectSettings();  // 一次載 env+devices，切到設備頁時資料已備好
+            try { _afterViewChange(); } catch (_) {}
+        
         }
 
         function showDevicesView() {
             if (!confirmDiscardIfDirty()) return;
             _hideAllWorkspaces();
+            _setViewMeta('view.devices.title', 'view.devices.title', '<i class="fa-solid fa-mobile-screen text-rose-500"></i>', 'Devices', 'bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-medium');
             document.getElementById('devicesWorkspace').classList.remove('hidden');
             document.getElementById('mainHeader').classList.remove('hidden');
             document.getElementById('mainActions').classList.add('hidden');
-            document.getElementById('viewFilename').textContent = '設備資訊';
-            document.getElementById('viewTitle').innerHTML = '<i class="fa-solid fa-mobile-screen text-rose-500"></i> 設備資訊';
-            document.getElementById('viewTag').className = 'bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-medium';
-            document.getElementById('viewTag').textContent = 'Device';
             currentTestCase = null;
             loadProjectSettings();
+            try { _afterViewChange(); } catch (_) {}
+        
         }
 
         // ==================== 全專案設定（環境變數 / 設備資訊） ====================
@@ -9485,28 +10928,26 @@ driver.swipe(100, 800, 100, 200, 500)"
         function showDbConfigView() {
             if (!confirmDiscardIfDirty()) return;
             _hideAllWorkspaces();
+            _setViewMeta('view.dbConfig.title', 'view.dbConfig.title', '<i class="fa-solid fa-database text-indigo-500"></i>', 'DB', 'bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-medium');
             document.getElementById('dbConfigWorkspace').classList.remove('hidden');
             document.getElementById('mainHeader').classList.remove('hidden');
             document.getElementById('mainActions').classList.add('hidden');
-            document.getElementById('viewFilename').textContent = 'DB 資訊';
-            document.getElementById('viewTitle').innerHTML = '<i class="fa-solid fa-database text-indigo-500"></i> DB 連線資訊';
-            document.getElementById('viewTag').className = 'bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-medium';
-            document.getElementById('viewTag').textContent = 'DB';
             currentTestCase = null;
             loadDbConfigs();
+            try { _afterViewChange(); } catch (_) {}
+        
         }
         function showMockView() {
             if (!confirmDiscardIfDirty()) return;
             _hideAllWorkspaces();
+            _setViewMeta('view.mock.title', 'view.mock.title', '<i class="fa-solid fa-plug text-amber-500"></i>', 'Mock', 'bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium');
             document.getElementById('mockWorkspace').classList.remove('hidden');
             document.getElementById('mainHeader').classList.remove('hidden');
             document.getElementById('mainActions').classList.add('hidden');
-            document.getElementById('viewFilename').textContent = 'Mock';
-            document.getElementById('viewTitle').innerHTML = '<i class="fa-solid fa-plug text-amber-500"></i> Mock 端點管理';
-            document.getElementById('viewTag').className = 'bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium';
-            document.getElementById('viewTag').textContent = 'Mock';
             currentTestCase = null;
             loadMockEndpoints();
+            try { _afterViewChange(); } catch (_) {}
+        
         }
 
         // 簡易 HTML attribute escape（給 oninput value 用）
@@ -9695,15 +11136,14 @@ driver.swipe(100, 800, 100, 200, 500)"
         function showScheduleView() {
             if (!confirmDiscardIfDirty()) return;
             _hideAllWorkspaces();
+            _setViewMeta('view.schedule.title', 'view.schedule.title', '<i class="fa-solid fa-calendar-days text-emerald-500"></i>', 'Schedule', 'bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-medium');
             document.getElementById('scheduleWorkspace').classList.remove('hidden');
             document.getElementById('mainHeader').classList.remove('hidden');
             document.getElementById('mainActions').classList.add('hidden');
-            document.getElementById('viewFilename').textContent = '排程';
-            document.getElementById('viewTitle').innerHTML = '<i class="fa-solid fa-calendar-days text-emerald-500"></i> 自動化測試排程';
-            document.getElementById('viewTag').className = 'bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-medium';
-            document.getElementById('viewTag').textContent = 'Schedule';
             currentTestCase = null;
             refreshScheduleList();
+            try { _afterViewChange(); } catch (_) {}
+        
         }
 
         // 把樹狀結構攤平成 [{id, label(含層級前綴)}]，供節點下拉選單使用
@@ -10701,17 +12141,38 @@ driver.swipe(100, 800, 100, 200, 500)"
         // 共用：esc / fmt / 設定通用 view 切換頭
         // ════════════════════════════════════════════════════════════════
         function _esc(v) { return v == null ? '' : String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-        function _setView(workspaceId, title, tag, tagClass, filename) {
+        // _setView(workspaceId, titleHtml, tag, tagClass, filename, [opts])
+        // opts.titleKey / opts.filenameKey:若提供,套用 i18n 翻譯,並掛 data-i18n
+        // 讓切換語系時自動重譯。icon 仍由 titleHtml 內的 <i> 提供。
+        function _setView(workspaceId, title, tag, tagClass, filename, opts) {
             if (!confirmDiscardIfDirty()) return false;
             _hideAllWorkspaces();
             document.getElementById(workspaceId).classList.remove('hidden');
             document.getElementById('mainHeader').classList.remove('hidden');
             document.getElementById('mainActions').classList.add('hidden');
-            document.getElementById('viewFilename').textContent = filename;
-            document.getElementById('viewTitle').innerHTML = title;
-            document.getElementById('viewTag').className = tagClass;
-            document.getElementById('viewTag').textContent = tag;
+            const fnEl = document.getElementById('viewFilename');
+            const titleEl = document.getElementById('viewTitle');
+            const tagEl = document.getElementById('viewTag');
+            const titleKey = opts && opts.titleKey;
+            const filenameKey = opts && opts.filenameKey;
+            if (filenameKey) {
+                fnEl.setAttribute('data-i18n', filenameKey);
+                fnEl.textContent = t(filenameKey);
+            } else {
+                fnEl.removeAttribute('data-i18n');
+                fnEl.textContent = filename;
+            }
+            if (titleKey) {
+                const iconMatch = (title || '').match(/<i [^>]*><\/i>/);
+                const icon = iconMatch ? iconMatch[0] : '';
+                titleEl.innerHTML = `${icon} <span data-i18n="${titleKey}">${t(titleKey)}</span>`;
+            } else {
+                titleEl.innerHTML = title;
+            }
+            tagEl.className = tagClass;
+            tagEl.textContent = tag;
             currentTestCase = null;
+            try { _afterViewChange(); } catch (_) {}
             return true;
         }
 
@@ -10745,7 +12206,8 @@ driver.swipe(100, 800, 100, 200, 500)"
                 '<i class="fa-solid fa-bug text-red-500"></i> 缺陷管理',
                 'Defects',
                 'bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-medium',
-                '缺陷管理')) return;
+                '缺陷管理',
+                { titleKey: 'view.defects.title', filenameKey: 'view.defects.title' })) return;
             renderDefectsList();
         }
         async function renderDefectsList() {
@@ -10933,7 +12395,8 @@ driver.swipe(100, 800, 100, 200, 500)"
                 '<i class="fa-regular fa-calendar text-teal-500"></i> 測試時程',
                 'Schedule',
                 'bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded font-medium',
-                '測試時程')) return;
+                '測試時程',
+                { titleKey: 'view.milestones.title', filenameKey: 'view.milestones.title' })) return;
             renderMilestonesList();
         }
         async function renderMilestonesList() {
@@ -11054,7 +12517,8 @@ driver.swipe(100, 800, 100, 200, 500)"
                 '<i class="fa-solid fa-clipboard-list text-blue-500"></i> 測試計畫',
                 'Plans',
                 'bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium',
-                '測試計畫')) return;
+                '測試計畫',
+                { titleKey: 'view.testPlan.title', filenameKey: 'view.testPlan.title' })) return;
             renderPlansList();
         }
         async function renderPlansList() {
@@ -11442,7 +12906,8 @@ gantt
                 '<i class="fa-solid fa-diagram-project text-cyan-500"></i> 需求 / RTM 追溯矩陣',
                 'RTM',
                 'bg-cyan-100 text-cyan-700 px-1.5 py-0.5 rounded font-medium',
-                '需求 / RTM')) return;
+                '需求 / RTM',
+                { titleKey: 'view.requirements.title', filenameKey: 'view.requirements.title' })) return;
             rtmSwitchTab('requirements');
         }
         function rtmSwitchTab(tab) {
@@ -11834,7 +13299,8 @@ gantt
                 '<i class="fa-solid fa-columns text-orange-500"></i> 測試看版',
                 'Kanban',
                 'bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-medium',
-                '測試看版')) return;
+                '測試看版',
+                { titleKey: 'view.kanban.title', filenameKey: 'view.kanban.title' })) return;
             renderTestKanban();
         }
         const _KANBAN_COL_DEFS = [
@@ -12005,7 +13471,8 @@ gantt
                 '<i class="fa-solid fa-folder-tree text-amber-500"></i> 測試專案',
                 'Projects',
                 'bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium',
-                '測試專案')) return;
+                '測試專案',
+                { titleKey: 'view.testProjects.title', filenameKey: 'view.testProjects.title' })) return;
             renderTestProjectsList();
         }
         async function renderTestProjectsList() {
@@ -12109,7 +13576,8 @@ gantt
                 '<i class="fa-solid fa-table text-violet-500"></i> 測試資料集 (DDT)',
                 'DataSets',
                 'bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded font-medium',
-                '測試資料集')) return;
+                '測試資料集',
+                { titleKey: 'view.dataSets.title', filenameKey: 'view.dataSets.title' })) return;
             renderDataSetsList();
         }
         async function renderDataSetsList() {
@@ -12314,7 +13782,8 @@ gantt
                 '<i class="fa-solid fa-file-lines text-pink-500"></i> 測試文件',
                 'Documents',
                 'bg-pink-100 text-pink-700 px-1.5 py-0.5 rounded font-medium',
-                '測試文件')) return;
+                '測試文件',
+                { titleKey: 'view.documents.title', filenameKey: 'view.documents.title' })) return;
             renderDocumentsList();
         }
 
@@ -12564,7 +14033,8 @@ gantt
                 '<i class="fa-solid fa-sitemap text-yellow-500"></i> WBS · 工作分解結構',
                 'WBS',
                 'bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded font-medium',
-                'WBS')) return;
+                'WBS',
+                { titleKey: 'view.wbs.title', filenameKey: 'view.wbs.title' })) return;
             loadWbsAndRender();
         }
 

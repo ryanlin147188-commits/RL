@@ -14,6 +14,7 @@ from .requirement import (
 from .ai_token_config import AiProvider, AiTokenConfig
 from .audit_log import AuditLog
 from .email_config import EmailConfig
+from .notification import Notification
 from .notification_preference import NotificationPreference
 from .oidc_provider import OidcProvider
 from .organization import Organization
@@ -49,7 +50,7 @@ __all__ = [
     "TestDocument", "DocumentCategory",
     "WbsItem", "WbsStatus",
     # Settings + todos
-    "Role", "NotificationPreference", "EmailConfig",
+    "Role", "NotificationPreference", "Notification", "EmailConfig",
     "AiTokenConfig", "AiProvider",
     "TodoItem", "TodoStatus", "TodoPriority",
     "User",
