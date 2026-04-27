@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.database import init_db
-from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings, schedules, local_runner, test_rounds, project_settings, screenshot_baselines, system, defects, test_milestones, test_plans, requirements, test_data_sets, test_documents, wbs_items, settings as app_settings, todos, todo_links, auth, ai, audit_logs, organizations, oidc, notifications, mock_endpoints, db_configs
+from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings, schedules, local_runner, test_rounds, project_settings, screenshot_baselines, system, defects, test_milestones, test_plans, requirements, test_data_sets, test_documents, wbs_items, settings as app_settings, todos, todo_links, auth, ai, ai_chat, audit_logs, organizations, oidc, notifications, mock_endpoints, db_configs
 # 確保新增 model 在 init_db() 前已 import 註冊到 Base.metadata
 from app.models import (  # noqa: F401
     Defect, TestMilestone, TestPlan, Requirement, RequirementTestcaseLink,
@@ -16,6 +16,7 @@ from app.models import (  # noqa: F401
     Role, NotificationPreference, Notification, EmailConfig, AiTokenConfig, TodoItem, TodoLink, User,
     Organization, AuditLog, OidcProvider,
     MockEndpoint, DbConfig,
+    AiConversation, AiMessage,
 )
 from app.middleware import AuthMiddleware
 from app.audit import AuditMiddleware
@@ -252,6 +253,7 @@ app.include_router(todos.router,           prefix="/api", tags=["T · 待辦"])
 app.include_router(todo_links.router,      prefix="/api", tags=["T · 待辦"])
 app.include_router(auth.router,            prefix="/api", tags=["U · 認證"])
 app.include_router(ai.router,              prefix="/api", tags=["V · AI"])
+app.include_router(ai_chat.router,          prefix="/api", tags=["V · AI"])
 app.include_router(audit_logs.router,      prefix="/api", tags=["W · 審計"])
 app.include_router(organizations.router,   prefix="/api", tags=["X · 組織"])
 app.include_router(notifications.router,   prefix="/api", tags=["Y · 通知"])

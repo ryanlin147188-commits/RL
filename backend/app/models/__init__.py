@@ -11,6 +11,7 @@ from .requirement import (
     RequirementStatus,
     RequirementTestcaseLink,
 )
+from .ai_conversation import AiConversation, AiMessage
 from .ai_token_config import AiProvider, AiTokenConfig
 from .audit_log import AuditLog
 from .db_config import DbConfig
@@ -55,6 +56,7 @@ __all__ = [
     # Settings + todos
     "Role", "NotificationPreference", "Notification", "EmailConfig",
     "AiTokenConfig", "AiProvider",
+    "AiConversation", "AiMessage",
     "TodoItem", "TodoItemType", "TodoStatus", "TodoPriority",
     "TodoLink", "ALLOWED_TARGET_TYPES",
     "User",

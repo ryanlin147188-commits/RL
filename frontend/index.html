@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AutoTest v1.0 - 測試建構平台</title>
+    <title>RL — 測試建構平台</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <!-- 引入 Chart.js 以繪製測試報告圖表 -->
@@ -437,11 +437,16 @@
             <!-- Hero Header -->
             <div class="bg-gradient-to-r from-amber-500 to-orange-500 px-8 py-6 text-white">
                 <div class="flex items-center gap-3 mb-2">
-                    <div class="bg-white/20 p-2 rounded-lg backdrop-blur">
-                        <i class="fa-solid fa-vial-circle-check text-xl"></i>
+                    <div class="bg-white p-1.5 rounded-lg shadow-sm flex items-center justify-center">
+                        <svg viewBox="0 0 64 56" xmlns="http://www.w3.org/2000/svg" class="w-7 h-7" aria-label="RL Logo">
+                            <text x="6"  y="50" font-family="Arial Black,sans-serif" font-size="52" font-weight="900" fill="#22c55e">R</text>
+                            <text x="3"  y="47" font-family="Arial Black,sans-serif" font-size="52" font-weight="900" fill="#facc15">R</text>
+                            <text x="0"  y="44" font-family="Arial Black,sans-serif" font-size="52" font-weight="900" fill="#ef4444">R</text>
+                            <path d="M 6 28 L 20 42 L 58 4" stroke="#000" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
                     </div>
                     <div>
-                        <h1 class="font-bold text-xl tracking-tight">AutoTest</h1>
+                        <h1 class="font-bold text-xl tracking-tight">RL</h1>
                         <p class="text-xs opacity-90">自動化測試平台</p>
                     </div>
                 </div>
@@ -633,10 +638,15 @@
             <!-- Logo + Brand -->
             <button type="button" id="navHomeBtn" onclick="showHomeView()" title="回首頁" aria-label="回首頁"
                 class="flex items-center gap-2 md:gap-2.5 hover:opacity-80 transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 rounded shrink-0">
-                <div class="bg-gradient-to-br from-blue-500 to-blue-700 text-white p-1.5 rounded-md shadow-sm">
-                    <i class="fa-solid fa-vial-circle-check"></i>
+                <div class="bg-white border border-stone-200 p-1 rounded-md shadow-sm flex items-center justify-center">
+                    <svg viewBox="0 0 64 56" xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" aria-label="RL Logo">
+                        <text x="6"  y="50" font-family="Arial Black,sans-serif" font-size="52" font-weight="900" fill="#22c55e">R</text>
+                        <text x="3"  y="47" font-family="Arial Black,sans-serif" font-size="52" font-weight="900" fill="#facc15">R</text>
+                        <text x="0"  y="44" font-family="Arial Black,sans-serif" font-size="52" font-weight="900" fill="#ef4444">R</text>
+                        <path d="M 6 28 L 20 42 L 58 4" stroke="#000" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
                 </div>
-                <h1 class="font-bold text-base md:text-lg text-slate-800 tracking-tight whitespace-nowrap">AutoTest<span class="hidden sm:inline text-[10px] text-amber-700 bg-amber-50 font-semibold ml-1.5 px-1.5 py-0.5 rounded border border-amber-200 align-middle">v1.0</span></h1>
+                <h1 class="font-bold text-base md:text-lg text-slate-800 tracking-tight whitespace-nowrap">RL<span class="hidden sm:inline text-[10px] text-amber-700 bg-amber-50 font-semibold ml-1.5 px-1.5 py-0.5 rounded border border-amber-200 align-middle">v1.0</span></h1>
             </button>
 
             <!-- 置中空白 (推右側動作群到最右邊) -->
@@ -965,7 +975,7 @@
                     </div>
                     <h2 id="viewTitle" class="text-2xl font-bold text-slate-800 flex items-center gap-3">
                         <i class="fa-regular fa-file-lines text-slate-400"></i>
-                        歡迎使用 AutoTest
+                        歡迎使用 RL
                     </h2>
                 </div>
                 <div id="mainActions" class="flex gap-3">
@@ -2271,7 +2281,13 @@ driver.swipe(100, 800, 100, 200, 500)"
                         <div class="absolute -right-20 top-20 w-64 h-64 bg-white/5 rounded-full"></div>
                         <div class="relative z-10">
                             <div class="flex items-center gap-2 text-xs uppercase tracking-widest opacity-80 mb-2">
-                                <i class="fa-solid fa-vial-circle-check"></i> AutoTest v1.0
+                                <svg viewBox="0 0 64 56" xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 inline-block bg-white/95 rounded p-0.5" aria-label="RL Logo">
+                                    <text x="6"  y="50" font-family="Arial Black,sans-serif" font-size="52" font-weight="900" fill="#22c55e">R</text>
+                                    <text x="3"  y="47" font-family="Arial Black,sans-serif" font-size="52" font-weight="900" fill="#facc15">R</text>
+                                    <text x="0"  y="44" font-family="Arial Black,sans-serif" font-size="52" font-weight="900" fill="#ef4444">R</text>
+                                    <path d="M 6 28 L 20 42 L 58 4" stroke="#000" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                                RL v1.0
                             </div>
                             <h2 class="text-3xl font-bold" data-i18n="home.hero.platform">自動化測試平台</h2>
                         </div>
@@ -2304,12 +2320,12 @@ driver.swipe(100, 800, 100, 200, 500)"
                 </section>
 
                 <!-- 系統狀態：Docker / CPU / RAM / Disk / Network；每 5 秒輪詢一次
-                     資料範圍：以 `autotest-*` 容器為範圍加總，代表 AutoTest 平台的資源使用量；
+                     資料範圍：以 `autotest-*` 容器為範圍加總，代表 RL 平台的資源使用量；
                      Host 欄（若顯示）則為 Docker host 作業系統 / CPU 核心 / 記憶體總量的對照。 -->
                 <section class="max-w-6xl mx-auto mb-8">
                     <h3 class="text-sm font-bold text-stone-500 uppercase tracking-wider mb-1 flex items-center gap-2 flex-wrap">
                         <i class="fa-solid fa-server text-amber-500"></i> <span data-i18n="home.section.system">系統狀態</span>
-                        <span class="text-[10px] font-normal normal-case tracking-normal text-stone-400" data-i18n="home.section.systemSub">（AutoTest 平台容器總用量）</span>
+                        <span class="text-[10px] font-normal normal-case tracking-normal text-stone-400" data-i18n="home.section.systemSub">（RL 平台容器總用量）</span>
                         <span id="sysStatusBadge" class="text-[10px] font-normal normal-case tracking-normal px-2 py-0.5 rounded-full bg-stone-100 text-stone-500" data-i18n="home.sys.loading">載入中…</span>
                     </h3>
                     <p id="sysHostInfo" class="text-[11px] text-stone-500 mb-3">—</p>
@@ -2542,7 +2558,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                     <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-xs text-blue-700 flex items-start gap-3">
                         <i class="fa-solid fa-lightbulb text-blue-500 mt-0.5"></i>
                         <div>
-                            <b>小提示：</b>左上角的「AutoTest」Logo 可隨時點擊回到本首頁。左側專案目錄樹永遠保留；右側工作區會依你點選的 TopNav 或樹節點切換。
+                            <b>小提示：</b>左上角的「RL」Logo 可隨時點擊回到本首頁。左側專案目錄樹永遠保留；右側工作區會依你點選的 TopNav 或樹節點切換。
                         </div>
                     </div>
                 </section>
@@ -3935,47 +3951,15 @@ driver.swipe(100, 800, 100, 200, 500)"
                             <select id="reqTestcases" multiple aria-label="關聯測試案例" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white" size="6"></select>
                             <p class="text-[10px] text-stone-500 mt-0.5">儲存時會整批替換此需求的關聯案例</p>
                         </div>
-                        <div class="flex justify-between items-center gap-2 pt-2 flex-wrap">
-                            <button type="button" onclick="aiGenerateForRequirement()" id="reqAiGenBtn"
-                                class="px-3 py-2 bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:from-violet-600 hover:to-fuchsia-600 text-white rounded-md text-sm font-semibold shadow-sm transition flex items-center gap-1.5"
-                                title="用 AI 從本需求生成測試案例骨架（需先儲存需求）">
-                                <i class="fa-solid fa-wand-magic-sparkles"></i> AI 生成測試案例
-                            </button>
-                            <div class="flex gap-2 ml-auto">
-                                <button type="button" onclick="closeRequirementModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button>
-                                <button type="submit" class="px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button>
-                            </div>
+                        <div class="flex justify-end gap-2 pt-2 flex-wrap">
+                            <button type="button" onclick="closeRequirementModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button>
+                            <button type="submit" class="px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button>
                         </div>
                     </form>
                 </div>
             </div>
 
-            <!-- AI 生成結果 Modal -->
-            <div id="aiGenResultModal" class="hidden fixed inset-0 z-[160] bg-black/50 flex items-center justify-center p-4">
-                <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl border border-violet-200 max-h-[92vh] flex flex-col">
-                    <div class="px-6 py-4 border-b border-stone-200 bg-gradient-to-r from-violet-50 to-fuchsia-50 flex items-center justify-between gap-3">
-                        <h3 class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-wand-magic-sparkles text-violet-500"></i> AI 生成結果</h3>
-                        <div class="flex items-center gap-3 text-[11px] text-stone-500">
-                            <span><b>Provider：</b><span id="aiGenResultProvider">—</span></span>
-                            <span><b>Model：</b><span id="aiGenResultModel" class="font-mono">—</span></span>
-                            <button type="button" onclick="closeAiGenResultModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark text-lg"></i></button>
-                        </div>
-                    </div>
-                    <div class="px-6 py-3 border-b border-stone-100 flex items-center gap-2 flex-wrap shrink-0">
-                        <button type="button" onclick="aiSelectAll(true)" class="text-xs px-2.5 py-1 border border-stone-300 rounded hover:bg-violet-50">全選</button>
-                        <button type="button" onclick="aiSelectAll(false)" class="text-xs px-2.5 py-1 border border-stone-300 rounded hover:bg-violet-50">全不選</button>
-                        <span id="aiGenSelCount" class="text-[11px] text-stone-500">已選 0 / 0</span>
-                        <span class="text-[11px] text-stone-400 ml-auto">套用後會在「測試案例」樹下建立節點，並自動連結到本需求</span>
-                    </div>
-                    <div id="aiGenResultBody" class="flex-1 overflow-y-auto p-6 space-y-3"></div>
-                    <div class="px-6 py-3 border-t border-stone-200 bg-stone-50 flex items-center justify-end gap-2">
-                        <button type="button" onclick="closeAiGenResultModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button>
-                        <button type="button" onclick="aiApplySelected()" id="aiApplyBtn" class="px-4 py-2 bg-violet-500 hover:bg-violet-600 text-white rounded-md text-sm font-semibold disabled:opacity-50">
-                            <i class="fa-solid fa-circle-check"></i> 套用選取項目
-                        </button>
-                    </div>
-                </div>
-            </div>
+            <!-- AI 生成結果 modal 已移除(2026-04 改為 AI 對話框,見右下角 FAB)-->
 
             <!-- 執行終端機面板 -->
             <div id="terminalPanel" class="absolute bottom-0 left-0 right-0 h-64 bg-slate-900 border-t-4 border-green-500 transform translate-y-full transition-transform duration-300 ease-in-out flex flex-col z-20 shadow-2xl">
@@ -6849,12 +6833,12 @@ driver.swipe(100, 800, 100, 200, 500)"
             'settings.tab.orgs': { 'zh-TW': '組織', 'en': 'Organizations' },
             'settings.tab.audit': { 'zh-TW': '審計紀錄', 'en': 'Audit Log' },
             // 首頁
-            'home.title': { 'zh-TW': 'AutoTest 首頁', 'en': 'AutoTest Home' },
+            'home.title': { 'zh-TW': 'RL 首頁', 'en': 'RL Home' },
             'home.breadcrumb': { 'zh-TW': '首頁', 'en': 'Home' },
             'home.hero.platform': { 'zh-TW': '自動化測試平台', 'en': 'Automated Testing Platform' },
             'home.section.overview': { 'zh-TW': '當前專案概況', 'en': 'Current Project Overview' },
             'home.section.system': { 'zh-TW': '系統狀態', 'en': 'System Status' },
-            'home.section.systemSub': { 'zh-TW': '（AutoTest 平台容器總用量）', 'en': '(AutoTest platform container usage)' },
+            'home.section.systemSub': { 'zh-TW': '（RL 平台容器總用量）', 'en': '(RL platform container usage)' },
             'home.stat.project': { 'zh-TW': '專案', 'en': 'Project' },
             'home.stat.testcases': { 'zh-TW': '測試案例', 'en': 'Test Cases' },
             'home.stat.nodes': { 'zh-TW': '節點總數', 'en': 'Total Nodes' },
@@ -6969,8 +6953,9 @@ driver.swipe(100, 800, 100, 200, 500)"
         'AI 生成結果': 'AI result',
         'Android / iOS 虛擬機管理': 'Android / iOS device management',
         'Appium 腳本': 'Appium script',
-        'AutoTest v1.0 - 測試建構平台': 'AutoTest v1.0 — Test Building Platform',
-        'AutoTest 首頁': 'AutoTest Home',
+        'AutoTest v1.0 - 測試建構平台': 'RL — Test Building Platform',
+        'AutoTest 首頁': 'RL Home',
+        'RL 首頁': 'RL Home',
         'BASE_URL=https://staging.example.com\n               API_TOKEN=abc123\n               # 這是註解，會被略過\n               DB_PASSWORD=p@ssw0rd': 'BASE_URL=https://staging.example.com\n               API_TOKEN=abc123\n               # This line is a comment, skipped\n               DB_PASSWORD=p@ssw0rd',
         'BDD 模式': 'BDD mode',
         'BDD 關鍵字': 'BDD keyword',
@@ -7290,7 +7275,8 @@ driver.swipe(100, 800, 100, 200, 500)"
         '尚無資料': 'No data yet',
         '展開 DDT 每一列都執行': 'Expand DDT — run every row',
         '工作分解結構 / 進度追蹤': 'Work breakdown / progress',
-        '左上角的「AutoTest」Logo 可隨時點擊回到本首頁。左側專案目錄樹永遠保留；右側工作區會依你點選的 TopNav 或樹節點切換。': 'Click the AutoTest logo at top-left to return here at any time. The project tree stays on the left; the workspace switches per nav or tree selection.',
+        '左上角的「AutoTest」Logo 可隨時點擊回到本首頁。左側專案目錄樹永遠保留；右側工作區會依你點選的 TopNav 或樹節點切換。': 'Click the RL logo at top-left to return here at any time. The project tree stays on the left; the workspace switches per nav or tree selection.',
+        '左上角的「RL」Logo 可隨時點擊回到本首頁。左側專案目錄樹永遠保留；右側工作區會依你點選的 TopNav 或樹節點切換。': 'Click the RL logo at top-left to return here at any time. The project tree stays on the left; the workspace switches per nav or tree selection.',
         '已修復': 'Fixed',
         '已停止': 'Stopped',
         '已停用': 'Disabled',
@@ -7490,7 +7476,8 @@ driver.swipe(100, 800, 100, 200, 500)"
         '次標題': 'Subtitle',
         '次要': 'Minor',
         '次要 (Minor)': 'Minor',
-        '歡迎使用 AutoTest': 'Welcome to AutoTest',
+        '歡迎使用 AutoTest': 'Welcome to RL',
+        '歡迎使用 RL': 'Welcome to RL',
         '歡迎回來，請登入以繼續': 'Welcome back, please sign in to continue',
         '此回合的用途或涵蓋範圍...': 'Purpose or scope of this round…',
         '步驟。': ' step.',
@@ -7827,7 +7814,7 @@ driver.swipe(100, 800, 100, 200, 500)"
         '點擊使用者下拉': 'Open user menu',
         '點擊進入設定': 'Click to open settings',
         '點背景或按 Esc 關閉': 'Click backdrop or press Esc to close',
-        '（AutoTest 平台容器總用量）': '(AutoTest platform container usage)',
+        '（RL 平台容器總用量）': '(RL platform container usage)',
         '（Ollama / vLLM / LMStudio 等 OpenAI-compatible API）。同 provider 內可有多個 Token，但只有一個能設為預設。': ' (Ollama / vLLM / LMStudio — OpenAI-compatible). Multiple tokens per provider; only one default.',
         '（全專案共用 · 自動注入成 Robot suite variable）': '(Shared across project · auto-injected as Robot suite variable)',
         '（最多顯示 10 筆）': '(up to 10 items)',
@@ -15370,221 +15357,10 @@ gantt
             return true;
         }
 
-        // ─── AI 從需求生成測試案例 ──────────────────────────────────────
-        let _aiGenItems = [];           // [{title, ac, steps_md, _selected, _applied}]
-        let _aiGenForReqId = null;      // 當下對應的 Requirement.id
-        let _aiGenScenarios = [];       // 可掛載的 SCENARIO 節點清單
-
+        // ─── AI 從需求生成測試案例(已移除,改用右下角 FAB AI 對話) ────────────
+        // 保留下面 stub 避免任何遺漏 onclick 報錯;真正的 AI 互動見 AI 對話面板
         async function aiGenerateForRequirement() {
-            const reqId = _editingRequirementId;
-            if (!reqId) {
-                showToast('請先儲存需求再使用 AI 生成（需要 requirement.id）', 'error');
-                return;
-            }
-            const btn = document.getElementById('reqAiGenBtn');
-            const orig = btn.innerHTML;
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 生成中…';
-            try {
-                const r = await fetch('/api/ai/generate-testcases-from-requirement/' + encodeURIComponent(reqId), {
-                    method: 'POST', headers: {'Content-Type':'application/json'},
-                    body: JSON.stringify({ n: 4 }),
-                });
-                if (!r.ok) {
-                    const detail = (await r.json().catch(() => ({}))).detail || ('HTTP ' + r.status);
-                    throw new Error(detail);
-                }
-                const data = await r.json();
-                _aiGenForReqId = reqId;
-                _aiGenItems = (data.generated || []).map(x => ({
-                    ...x, _selected: true, _applied: false, _appliedNodeId: null,
-                }));
-                document.getElementById('aiGenResultProvider').textContent = data.provider || '—';
-                document.getElementById('aiGenResultModel').textContent = data.model || '—';
-                if (!_aiGenItems.length) {
-                    showToast('AI 沒有產生有效的案例；' + (data.error || '請查看 raw 輸出'), 'error');
-                    if (data.raw) console.warn('[AI raw output]', data.raw);
-                    return;
-                }
-                await _loadScenariosForApply();
-                renderAiGenResult();
-                document.getElementById('aiGenResultModal').classList.remove('hidden');
-            } catch (e) {
-                showToast('AI 生成失敗：' + e.message, 'error');
-            } finally {
-                btn.disabled = false;
-                btn.innerHTML = orig;
-            }
-        }
-
-        async function _loadScenariosForApply() {
-            _aiGenScenarios = [];
-            if (!currentProjectId) return;
-            try {
-                const r = await fetch('/api/projects/' + encodeURIComponent(currentProjectId) + '/tree');
-                if (!r.ok) return;
-                const tree = await r.json();
-                (function walk(nodes, path) {
-                    if (!nodes) return;
-                    for (const n of nodes) {
-                        if (n.level_type === 'SCENARIO') {
-                            _aiGenScenarios.push({
-                                id: n.id, name: n.name,
-                                path: path ? path + ' / ' + n.name : n.name,
-                            });
-                        }
-                        if (n.children && n.children.length) {
-                            walk(n.children, path ? path + ' / ' + n.name : n.name);
-                        }
-                    }
-                })(tree, '');
-            } catch (_) {}
-        }
-
-        function closeAiGenResultModal() {
-            document.getElementById('aiGenResultModal').classList.add('hidden');
-        }
-
-        function aiSelectAll(on) {
-            _aiGenItems.forEach(it => { if (!it._applied) it._selected = !!on; });
-            renderAiGenResult();
-        }
-
-        function aiToggleSel(idx) {
-            const it = _aiGenItems[idx];
-            if (!it || it._applied) return;
-            it._selected = !it._selected;
-            renderAiGenResult();
-        }
-
-        function aiUpdateField(idx, field, val) {
-            const it = _aiGenItems[idx];
-            if (!it) return;
-            it[field] = val;
-        }
-
-        function renderAiGenResult() {
-            const body = document.getElementById('aiGenResultBody');
-            if (!body) return;
-            const total = _aiGenItems.length;
-            const sel = _aiGenItems.filter(x => x._selected && !x._applied).length;
-            document.getElementById('aiGenSelCount').textContent = `已選 ${sel} / ${total}`;
-            const applyBtn = document.getElementById('aiApplyBtn');
-            if (applyBtn) applyBtn.disabled = sel === 0 || _aiGenScenarios.length === 0;
-
-            // 上方掛載目標下拉（沒 SCENARIO 時提示）
-            const scenarioPicker = _aiGenScenarios.length
-                ? `<div class="bg-violet-50/40 border border-violet-100 rounded p-3 mb-3 flex items-center gap-2 flex-wrap">
-                    <label class="text-xs font-semibold text-violet-700">套用到 Scenario：</label>
-                    <select id="aiGenScenarioSel" class="flex-1 min-w-[260px] border border-stone-300 rounded px-2 py-1 text-xs bg-white">
-                        ${_aiGenScenarios.map(s => `<option value="${_esc(s.id)}">${_esc(s.path)}</option>`).join('')}
-                    </select>
-                </div>`
-                : `<div class="bg-amber-50 border border-amber-200 rounded p-3 mb-3 text-xs text-amber-800">
-                    <i class="fa-solid fa-triangle-exclamation"></i> 此專案尚無任何 <b>Scenario</b> 節點；請先到專案目錄建立 Feature → Platform → Page → Scenario 後再回來套用。
-                </div>`;
-
-            body.innerHTML = scenarioPicker + _aiGenItems.map((it, idx) => {
-                const lockCls = it._applied ? 'opacity-60' : '';
-                const checkCls = it._selected ? 'bg-violet-500 border-violet-500 text-white' : 'bg-white border-stone-300';
-                return `<div class="border border-stone-200 rounded-lg p-3 ${lockCls}">
-                    <div class="flex items-start gap-2 mb-2">
-                        <button type="button" onclick="aiToggleSel(${idx})" ${it._applied ? 'disabled' : ''}
-                            class="mt-0.5 w-5 h-5 rounded border ${checkCls} flex items-center justify-center shrink-0">
-                            ${it._selected ? '<i class="fa-solid fa-check text-[10px]"></i>' : ''}
-                        </button>
-                        <div class="flex-1 min-w-0">
-                            <input type="text" value="${_esc(it.title)}" oninput="aiUpdateField(${idx}, 'title', this.value)"
-                                class="w-full px-2 py-1 border border-stone-200 rounded text-sm font-semibold focus:outline-none focus:border-violet-400" ${it._applied ? 'readonly' : ''}>
-                            ${it._applied ? `<div class="text-[11px] text-emerald-600 mt-1"><i class="fa-solid fa-check-circle"></i> 已套用（節點 id: <span class="font-mono">${_esc((it._appliedNodeId||'').slice(0,8))}…</span>）</div>` : ''}
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 ml-7">
-                        <div>
-                            <label class="block text-[11px] font-semibold text-stone-600 mb-1">驗收條件 (AC)</label>
-                            <textarea oninput="aiUpdateField(${idx}, 'ac', this.value)" rows="6"
-                                class="w-full px-2 py-1.5 border border-stone-200 rounded text-xs font-mono focus:outline-none focus:border-violet-400" ${it._applied ? 'readonly' : ''}>${_esc(it.ac)}</textarea>
-                        </div>
-                        <div>
-                            <label class="block text-[11px] font-semibold text-stone-600 mb-1">測試步驟 (Markdown)</label>
-                            <textarea oninput="aiUpdateField(${idx}, 'steps_md', this.value)" rows="6"
-                                class="w-full px-2 py-1.5 border border-stone-200 rounded text-xs font-mono focus:outline-none focus:border-violet-400" ${it._applied ? 'readonly' : ''}>${_esc(it.steps_md)}</textarea>
-                        </div>
-                    </div>
-                </div>`;
-            }).join('');
-        }
-
-        async function aiApplySelected() {
-            const scenarioSel = document.getElementById('aiGenScenarioSel');
-            const scenarioId = scenarioSel ? scenarioSel.value : '';
-            if (!scenarioId) {
-                showToast('請選擇要套用到的 Scenario', 'error');
-                return;
-            }
-            const toApply = _aiGenItems
-                .map((it, idx) => ({ ...it, idx }))
-                .filter(x => x._selected && !x._applied);
-            if (!toApply.length) { showToast('沒有勾選任何項目', 'error'); return; }
-
-            const applyBtn = document.getElementById('aiApplyBtn');
-            const orig = applyBtn.innerHTML;
-            applyBtn.disabled = true;
-            applyBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 套用中…';
-
-            const newNodeIds = [];
-            try {
-                for (const x of toApply) {
-                    // 1) 建立 testcase node
-                    const nodeRes = await fetch('/api/nodes', {
-                        method: 'POST', headers: {'Content-Type':'application/json'},
-                        body: JSON.stringify({
-                            project_id: currentProjectId,
-                            parent_id: scenarioId,
-                            name: x.title || ('AI 案例 ' + (x.idx + 1)),
-                        }),
-                    });
-                    if (!nodeRes.ok) throw new Error('建立節點失敗：HTTP ' + nodeRes.status);
-                    const node = await nodeRes.json();
-                    // 2) 寫入 ac_text + steps_json（簡單 MVP：把 AC + Markdown steps 都放 ac_text）
-                    const fullAc = (x.ac || '') + '\n\n' + (x.steps_md || '');
-                    const tcRes = await fetch('/api/testcases/' + encodeURIComponent(node.id), {
-                        method: 'PUT', headers: {'Content-Type':'application/json'},
-                        body: JSON.stringify({ ac_text: fullAc.trim(), setup_text: '', steps_json: [], ddt_json: { headers: [], rows: [] } }),
-                    });
-                    if (!tcRes.ok) throw new Error('寫入內容失敗：HTTP ' + tcRes.status);
-                    _aiGenItems[x.idx]._applied = true;
-                    _aiGenItems[x.idx]._appliedNodeId = node.id;
-                    newNodeIds.push(node.id);
-                }
-                // 3) 把新建的 testcase 加入需求的 linked_testcase_ids
-                if (_aiGenForReqId && newNodeIds.length) {
-                    // 取現有 linked_testcase_ids，加上新的，整批 PUT
-                    let prev = [];
-                    try {
-                        const reqRes = await fetch('/api/requirements/' + _aiGenForReqId);
-                        if (reqRes.ok) {
-                            const reqBody = await reqRes.json();
-                            prev = reqBody.linked_testcase_ids || [];
-                        }
-                    } catch (_) {}
-                    const merged = Array.from(new Set([...prev, ...newNodeIds]));
-                    await fetch('/api/requirements/' + _aiGenForReqId + '/links', {
-                        method: 'PUT', headers: {'Content-Type':'application/json'},
-                        body: JSON.stringify({ testcase_node_ids: merged }),
-                    });
-                }
-                showToast(`已套用 ${newNodeIds.length} 個 AI 生成的測試案例`, 'success');
-                renderAiGenResult();
-                // 重新整理需求列表 / 樹
-                if (typeof renderRequirementsList === 'function') renderRequirementsList();
-                if (typeof loadProjectTree === 'function') loadProjectTree();
-            } catch (e) {
-                showToast('套用失敗：' + e.message, 'error');
-            } finally {
-                applyBtn.disabled = false;
-                applyBtn.innerHTML = orig;
-            }
+            showToast('AI 生成測試案例已下架,請點右下角圓點開啟 AI 對話框', 'info');
         }
 
         // ─── 首頁：行事曆 + 待辦 ─────────────────────────────────────
@@ -16224,6 +16000,293 @@ curl -X POST http://localhost:8000/api/defects \\
 | title | ✅ | 缺陷標題 |
 | severity | ✅ | Critical / Major / Minor / Trivial |
 `;
+    </script>
+
+    <!-- ═════════════════════════════════════════════════════════════
+         AI 對話框(右下角浮動圓點 + 滑入式面板)
+         ═════════════════════════════════════════════════════════════ -->
+    <button type="button" id="aiChatFab" onclick="aiChatToggle()"
+        class="fixed bottom-6 right-6 z-[200] w-14 h-14 rounded-full bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 text-white shadow-xl hover:shadow-2xl hover:scale-105 transition flex items-center justify-center"
+        title="AI 對話 (Ctrl+/)" aria-label="AI 對話">
+        <i class="fa-solid fa-robot text-xl"></i>
+        <span class="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-white animate-pulse" aria-hidden="true"></span>
+    </button>
+
+    <!-- AI Chat 面板(從右側滑入)-->
+    <aside id="aiChatPanel" class="fixed top-0 right-0 z-[210] h-full w-full sm:w-[420px] bg-white shadow-2xl border-l border-stone-200 transform translate-x-full transition-transform duration-300 flex flex-col">
+        <!-- header -->
+        <div class="px-4 py-3 border-b border-stone-200 bg-gradient-to-r from-indigo-50 to-violet-50 flex items-center gap-2 shrink-0">
+            <i class="fa-solid fa-robot text-violet-500"></i>
+            <span class="font-bold text-stone-800 text-sm">AI 助理</span>
+            <select id="aiChatConvSel" onchange="aiChatSwitchConv(this.value)"
+                class="ml-auto flex-1 max-w-[180px] text-xs px-2 py-1 border border-stone-300 rounded bg-white">
+                <option value="">— 載入中 —</option>
+            </select>
+            <button type="button" onclick="aiChatNewConversation()" title="新對話"
+                class="w-7 h-7 flex items-center justify-center rounded hover:bg-violet-100 text-stone-600">
+                <i class="fa-solid fa-plus text-xs"></i>
+            </button>
+            <button type="button" onclick="aiChatDeleteCurrent()" title="刪除此對話"
+                class="w-7 h-7 flex items-center justify-center rounded hover:bg-rose-100 text-stone-500 hover:text-rose-600">
+                <i class="fa-solid fa-trash text-xs"></i>
+            </button>
+            <button type="button" onclick="aiChatToggle()" title="關閉"
+                class="w-7 h-7 flex items-center justify-center rounded hover:bg-stone-100 text-stone-500">
+                <i class="fa-solid fa-xmark text-sm"></i>
+            </button>
+        </div>
+        <!-- messages -->
+        <div id="aiChatMessages" class="flex-1 overflow-y-auto p-3 space-y-2 bg-stone-50/40">
+            <div class="text-center text-xs text-stone-400 italic py-8" id="aiChatEmpty">
+                <i class="fa-solid fa-sparkles text-violet-400 text-2xl mb-2 block"></i>
+                嗨!我是你的 AI 助理,可以協助:<br>
+                ‧ 設計測試案例 / Robot Framework 語法<br>
+                ‧ 撰寫 BDD / AC<br>
+                ‧ 分析缺陷 / API 自動化<br>
+                <br>
+                有問題直接問我吧 👇
+            </div>
+        </div>
+        <!-- input -->
+        <div class="p-3 border-t border-stone-200 bg-white shrink-0">
+            <div class="flex gap-2 items-end">
+                <textarea id="aiChatInput" rows="2" placeholder="按 Enter 送出 / Shift+Enter 換行"
+                    class="flex-1 px-2 py-1.5 border border-stone-300 rounded text-sm resize-none focus:outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-200"
+                    onkeydown="aiChatInputKey(event)"></textarea>
+                <button type="button" id="aiChatSendBtn" onclick="aiChatSend()"
+                    class="w-10 h-10 shrink-0 rounded bg-violet-500 hover:bg-violet-600 text-white flex items-center justify-center disabled:opacity-50">
+                    <i class="fa-solid fa-paper-plane text-xs"></i>
+                </button>
+            </div>
+            <p class="text-[10px] text-stone-400 mt-1">
+                Provider 設定:<a href="javascript:showSettingsView();aiChatToggle();" class="text-violet-600 hover:underline">設定 → AI Token</a>
+            </p>
+        </div>
+    </aside>
+
+    <script>
+    // ═════════════════════════════════════════════════════════════
+    // AI 對話框邏輯
+    // ═════════════════════════════════════════════════════════════
+    let _aiChatOpen = false;
+    let _aiChatConvId = null;
+    let _aiChatConvs = [];   // [{id, title, message_count, ...}]
+    let _aiChatSending = false;
+
+    function aiChatToggle() {
+        const panel = document.getElementById('aiChatPanel');
+        if (!panel) return;
+        _aiChatOpen = !_aiChatOpen;
+        panel.classList.toggle('translate-x-full', !_aiChatOpen);
+        if (_aiChatOpen) {
+            aiChatLoadConversations();
+            setTimeout(() => document.getElementById('aiChatInput')?.focus(), 100);
+        }
+    }
+
+    async function aiChatLoadConversations() {
+        try {
+            _aiChatConvs = await apiFetch('/api/ai/conversations');
+        } catch (e) {
+            _aiChatConvs = [];
+            showToast('載入對話失敗:' + (e.message || e), 'error');
+        }
+        const sel = document.getElementById('aiChatConvSel');
+        if (sel) {
+            sel.innerHTML = '<option value="">— 新對話 —</option>' +
+                _aiChatConvs.map(c => {
+                    const t = (c.title || '新對話').slice(0, 30);
+                    return `<option value="${_esc(c.id)}">${_esc(t)} (${c.message_count})</option>`;
+                }).join('');
+        }
+        // 預設挑最新一筆;若沒有就保持「新對話」狀態
+        if (!_aiChatConvId && _aiChatConvs.length) {
+            _aiChatConvId = _aiChatConvs[0].id;
+            sel.value = _aiChatConvId;
+            await aiChatLoadMessages(_aiChatConvId);
+        } else if (_aiChatConvId) {
+            sel.value = _aiChatConvId;
+        }
+    }
+
+    async function aiChatSwitchConv(convId) {
+        _aiChatConvId = convId || null;
+        if (!_aiChatConvId) {
+            // 切到「新對話」— 清空訊息區
+            _aiChatRenderMessages([]);
+            return;
+        }
+        await aiChatLoadMessages(_aiChatConvId);
+    }
+
+    async function aiChatLoadMessages(convId) {
+        try {
+            const detail = await apiFetch(`/api/ai/conversations/${convId}`);
+            _aiChatRenderMessages(detail.messages || []);
+        } catch (e) {
+            _aiChatRenderMessages([]);
+            showToast('載入訊息失敗:' + (e.message || e), 'error');
+        }
+    }
+
+    function _aiChatRenderMessages(msgs) {
+        const box = document.getElementById('aiChatMessages');
+        const empty = document.getElementById('aiChatEmpty');
+        if (!box) return;
+        if (!msgs.length) {
+            box.innerHTML = '';
+            box.appendChild(empty || _aiChatEmptyHtml());
+            return;
+        }
+        box.innerHTML = msgs.map(m => _aiChatBubble(m)).join('');
+        box.scrollTop = box.scrollHeight;
+    }
+
+    function _aiChatBubble(m) {
+        const isUser = m.role === 'user';
+        const align = isUser ? 'justify-end' : 'justify-start';
+        const bg = isUser ? 'bg-violet-500 text-white' : 'bg-white border border-stone-200 text-stone-800';
+        const meta = !isUser && m.model
+            ? `<div class="text-[9px] text-stone-400 mt-1">${_esc(m.provider || '')} · ${_esc(m.model)}${m.tokens_used ? ` · ${m.tokens_used} tokens` : ''}</div>`
+            : '';
+        // 簡單 markdown:換行 + 程式區塊
+        const html = _aiChatRenderContent(m.content);
+        return `<div class="flex ${align}">
+            <div class="max-w-[85%] rounded-lg px-3 py-2 text-sm ${bg} shadow-sm">
+                ${html}
+                ${meta}
+            </div>
+        </div>`;
+    }
+
+    function _aiChatRenderContent(text) {
+        if (!text) return '';
+        // escape HTML 後處理 ``` code block 跟 換行
+        let s = String(text)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        // ``` block
+        s = s.replace(/```([a-zA-Z]*)\n([\s\S]*?)```/g, (_m, lang, code) =>
+            `<pre class="bg-stone-900 text-stone-100 rounded p-2 my-1 text-xs overflow-x-auto"><code>${code}</code></pre>`);
+        // inline `code`
+        s = s.replace(/`([^`\n]+)`/g, '<code class="bg-stone-100 text-rose-700 px-1 rounded text-[12px]">$1</code>');
+        // **bold**
+        s = s.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+        // 換行 → <br>(已在 pre 內的不影響,因為 <pre> 已經保留換行)
+        s = s.replace(/\n/g, '<br>');
+        return s;
+    }
+
+    function _aiChatEmptyHtml() {
+        const div = document.createElement('div');
+        div.id = 'aiChatEmpty';
+        div.className = 'text-center text-xs text-stone-400 italic py-8';
+        div.innerHTML = '<i class="fa-solid fa-sparkles text-violet-400 text-2xl mb-2 block"></i>尚無訊息';
+        return div;
+    }
+
+    async function aiChatNewConversation() {
+        try {
+            const conv = await apiFetch('/api/ai/conversations', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({}),
+            });
+            _aiChatConvId = conv.id;
+            await aiChatLoadConversations();
+            const sel = document.getElementById('aiChatConvSel');
+            if (sel) sel.value = _aiChatConvId;
+            _aiChatRenderMessages([]);
+            document.getElementById('aiChatInput')?.focus();
+        } catch (e) {
+            showToast('建立對話失敗:' + (e.message || e), 'error');
+        }
+    }
+
+    async function aiChatDeleteCurrent() {
+        if (!_aiChatConvId) { showToast('沒有可刪除的對話', 'info'); return; }
+        if (!confirm('確定刪除這個對話?整段訊息會一起消失。')) return;
+        try {
+            await apiFetch(`/api/ai/conversations/${_aiChatConvId}`, { method: 'DELETE' });
+            _aiChatConvId = null;
+            await aiChatLoadConversations();
+            _aiChatRenderMessages([]);
+            showToast('已刪除', 'success');
+        } catch (e) {
+            showToast('刪除失敗:' + (e.message || e), 'error');
+        }
+    }
+
+    function aiChatInputKey(ev) {
+        // Enter 送出,Shift+Enter 換行
+        if (ev.key === 'Enter' && !ev.shiftKey) {
+            ev.preventDefault();
+            aiChatSend();
+        }
+    }
+
+    async function aiChatSend() {
+        if (_aiChatSending) return;
+        const inp = document.getElementById('aiChatInput');
+        const text = (inp?.value || '').trim();
+        if (!text) return;
+
+        // 沒選對話 → 自動建一個
+        if (!_aiChatConvId) {
+            try {
+                const conv = await apiFetch('/api/ai/conversations', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({}),
+                });
+                _aiChatConvId = conv.id;
+            } catch (e) {
+                showToast('建立對話失敗:' + (e.message || e), 'error');
+                return;
+            }
+        }
+
+        // 樂觀 UI:先把 user 訊息畫上去
+        const box = document.getElementById('aiChatMessages');
+        const empty = document.getElementById('aiChatEmpty');
+        if (empty) empty.remove();
+        if (box) {
+            box.insertAdjacentHTML('beforeend', _aiChatBubble({ role: 'user', content: text }));
+            box.insertAdjacentHTML('beforeend', `<div id="aiChatTyping" class="flex justify-start"><div class="bg-white border border-stone-200 rounded-lg px-3 py-2 text-sm text-stone-400 italic shadow-sm"><i class="fa-solid fa-circle-notch fa-spin text-violet-400"></i> AI 思考中…</div></div>`);
+            box.scrollTop = box.scrollHeight;
+        }
+        inp.value = '';
+        _aiChatSending = true;
+        document.getElementById('aiChatSendBtn').disabled = true;
+
+        try {
+            const resp = await apiFetch(`/api/ai/conversations/${_aiChatConvId}/messages`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content: text }),
+            });
+            // 把 typing 換成真的 assistant 回覆
+            document.getElementById('aiChatTyping')?.remove();
+            if (resp.assistant_message && box) {
+                box.insertAdjacentHTML('beforeend', _aiChatBubble(resp.assistant_message));
+                box.scrollTop = box.scrollHeight;
+            }
+            // 更新對話清單(title 可能因第一則訊息被改寫)
+            aiChatLoadConversations();
+        } catch (e) {
+            document.getElementById('aiChatTyping')?.remove();
+            showToast('送出失敗:' + (e.message || e), 'error');
+            // user 那則 bubble 留著(可重發)
+        } finally {
+            _aiChatSending = false;
+            document.getElementById('aiChatSendBtn').disabled = false;
+            inp.focus();
+        }
+    }
+
+    // 全域熱鍵:Ctrl+/
+    document.addEventListener('keydown', (ev) => {
+        if (ev.ctrlKey && ev.key === '/') { ev.preventDefault(); aiChatToggle(); }
+    });
     </script>
 </body>
 </html>

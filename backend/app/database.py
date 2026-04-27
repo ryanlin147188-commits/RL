@@ -27,6 +27,7 @@ async def init_db() -> None:
     """應用程式啟動時，若資料表不存在則自動建立，並補上新增欄位（idempotent）。"""
     # 確保所有 model 都已被 import，才能讓 metadata 認識它們
     from app.models import (  # noqa: F401
+        ai_conversation,
         db_config,
         execution_report,
         execution_step_log,
@@ -109,6 +110,10 @@ async def init_db() -> None:
         "CREATE INDEX IF NOT EXISTS ix_todo_links_todo ON todo_links (todo_id)",
         "CREATE INDEX IF NOT EXISTS ix_todo_links_target ON todo_links (target_type, target_id)",
         "CREATE INDEX IF NOT EXISTS ix_todo_links_org ON todo_links (organization_id)",
+        # AI 對話表 indexes
+        "CREATE INDEX IF NOT EXISTS ix_ai_conversations_owner ON ai_conversations (owner)",
+        "CREATE INDEX IF NOT EXISTS ix_ai_conversations_org ON ai_conversations (organization_id)",
+        "CREATE INDEX IF NOT EXISTS ix_ai_messages_conv ON ai_messages (conversation_id)",
     )
     for stmt in migration_stmts:
         await _run_safe(stmt)
