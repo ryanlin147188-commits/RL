@@ -207,7 +207,7 @@ AutoTest 的核心設計理念是「**讓每一種主流測試方法論都能在
 從零建立第一份回歸套件;UI / API / DB 共用一套工具與報告格式。新人接手不必重學 — 一份 Markdown 人工審查 / 自動執行兩用。
 
 ### 2. DevOps 接 CI/CD
-透過 REST API 觸發執行、查詢報告、下載 Trace;或用 `run_tests.py` 把 `tests/*.md` 轉 `.robot` 在 Jenkins / GitHub Actions / GitLab CI 內跑。
+透過 REST API 觸發執行、查詢報告、下載 Trace;或用 `run_tests.py -f your_test.md` 把自備的 Markdown BDD 檔轉 `.robot` 在 Jenkins / GitHub Actions / GitLab CI 內跑。
 
 ### 3. PM / BA 用 Markdown 撰寫驗收標準
 PM 寫的 AC 直接成為測試案例起點,QA 接手補 BDD 步驟與 DDT 例子,大幅減少需求失真。
