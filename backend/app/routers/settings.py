@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy import asc, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -312,7 +313,8 @@ async def list_ai_tokens(
     stmt = select(AiTokenConfig).order_by(asc(AiTokenConfig.provider), asc(AiTokenConfig.name))
     stmt = _ai_org_filter(stmt, user)
     if provider:
-        stmt = stmt.where(AiTokenConfig.provider == AiProvider(provider))
+        # provider 改自由字串(2026-04 重設計);舊 enum 行為不再
+        stmt = stmt.where(AiTokenConfig.provider == provider)
     rows = (await db.execute(stmt)).scalars().all()
     return list(rows)
 
@@ -328,17 +330,18 @@ async def create_ai_token(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    try:
-        provider_enum = AiProvider(payload.provider)
-    except ValueError:
-        raise HTTPException(400, f"未知的 provider：{payload.provider}")
+    # provider 改自由字串(常見:OpenAI / Anthropic / DeepSeek / Groq / 自架...)
+    provider_str = (payload.provider or "OpenAI").strip()
+    if not provider_str:
+        raise HTTPException(400, "provider 不能為空")
     token = AiTokenConfig(
         name=payload.name,
         organization_id=user.organization_id,
-        provider=provider_enum,
+        provider=provider_str,
         api_key=payload.api_key,
         base_url=payload.base_url,
         model=payload.model,
+        reasoning_effort=getattr(payload, "reasoning_effort", None),
         enabled=payload.enabled,
         is_default=payload.is_default,
         description=payload.description,
@@ -351,7 +354,7 @@ async def create_ai_token(
             update(AiTokenConfig)
             .where(
                 AiTokenConfig.organization_id == user.organization_id,
-                AiTokenConfig.provider == provider_enum,
+                AiTokenConfig.provider == provider_str,
                 AiTokenConfig.id != token.id,
             )
             .values(is_default=False)
@@ -375,10 +378,7 @@ async def update_ai_token(
     t = _check_ai_token_or_404(await db.get(AiTokenConfig, token_id), user)
     data = payload.model_dump(exclude_unset=True)
     if "provider" in data and data["provider"] is not None:
-        try:
-            data["provider"] = AiProvider(data["provider"])
-        except ValueError:
-            raise HTTPException(400, f"未知的 provider：{data['provider']}")
+        data["provider"] = (data["provider"] or "").strip() or t.provider
     for k, v in data.items():
         setattr(t, k, v)
     await db.flush()
@@ -395,6 +395,68 @@ async def update_ai_token(
         await db.flush()
     await db.refresh(t)
     return t
+
+
+class FetchModelsRequest(BaseModel):
+    provider: str
+    api_key: Optional[str] = None
+    base_url: Optional[str] = None  # 進階自訂端點(覆蓋 ai_provider_map 預設)
+
+
+@router.post(
+    "/settings/ai-tokens/fetch-models",
+    tags=["S · 設定"],
+)
+async def fetch_models(
+    payload: FetchModelsRequest,
+    user: User = Depends(get_current_user),
+):
+    """用使用者填的 provider + api_key 去打 provider 的 /models 端點,回傳模型清單。
+    沒儲存 token 也可呼叫(讓使用者先試 key 再決定要不要存)。"""
+    import httpx
+    from app.services.ai_provider_map import resolve
+
+    spec = resolve(payload.provider, base_url_override=payload.base_url)
+    headers = {"Accept": "application/json"}
+    if payload.api_key:
+        headers[spec.auth_header] = (spec.auth_prefix or "") + payload.api_key
+    if spec.extra_headers:
+        headers.update(spec.extra_headers)
+    url = spec.base_url.rstrip("/") + spec.models_path
+
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            r = await client.get(url, headers=headers)
+        if r.status_code == 401 or r.status_code == 403:
+            raise HTTPException(401, f"{payload.provider} API key 驗證失敗(provider 回 {r.status_code})")
+        if not r.is_success:
+            raise HTTPException(502, f"{payload.provider} 回 {r.status_code}: {r.text[:300]}")
+        data = r.json()
+    except HTTPException:
+        raise
+    except httpx.TimeoutException:
+        raise HTTPException(504, f"連線 {spec.base_url} 逾時")
+    except Exception as e:
+        raise HTTPException(502, f"連線 {payload.provider} 失敗:{type(e).__name__}: {e}")
+
+    # 回應格式整理(OpenAI / Anthropic 兩種 schema 略有差異)
+    items = data.get("data") or data.get("models") or []
+    out = []
+    for it in items:
+        if isinstance(it, str):
+            out.append({"id": it, "name": it})
+        elif isinstance(it, dict):
+            mid = it.get("id") or it.get("name") or it.get("model")
+            if not mid:
+                continue
+            out.append({
+                "id": mid,
+                "name": it.get("display_name") or it.get("name") or mid,
+                "context_length": it.get("context_length") or it.get("context_window"),
+                "owned_by": it.get("owned_by"),
+            })
+    out.sort(key=lambda x: x["id"])
+    return {"provider": payload.provider, "base_url": spec.base_url, "models": out}
 
 
 @router.delete(

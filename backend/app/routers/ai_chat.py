@@ -74,18 +74,22 @@ async def _resolve_provider(
 async def _call_chat_completion(
     cfg: AiTokenConfig, history: list[dict], system_prompt: str
 ) -> tuple[str, Optional[int]]:
-    """呼叫 OpenAI-compatible / Anthropic Chat Completions。回 (content, tokens_used)。"""
+    """呼叫 chat completion。Provider 由 ai_provider_map.resolve() 自動推算 base_url 與 API 風格。
+    回 (content, tokens_used)。
+    """
+    from app.services.ai_provider_map import resolve
+
+    spec = resolve(cfg.provider, base_url_override=cfg.base_url)
     messages = [{"role": "system", "content": system_prompt}]
     messages.extend(history)
 
-    if cfg.provider == AiProvider.ANTHROPIC:
-        # Anthropic Messages API:system 是獨立欄位,不放在 messages
+    if spec.style == "anthropic":
         non_system = [m for m in messages if m["role"] != "system"]
-        headers = {
-            "Content-Type": "application/json",
-            "x-api-key": cfg.api_key or "",
-            "anthropic-version": "2023-06-01",
-        }
+        headers = {"Content-Type": "application/json"}
+        if cfg.api_key:
+            headers[spec.auth_header] = (spec.auth_prefix or "") + cfg.api_key
+        if spec.extra_headers:
+            headers.update(spec.extra_headers)
         payload = {
             "model": cfg.model or "claude-3-5-sonnet-latest",
             "max_tokens": 2048,
@@ -93,7 +97,7 @@ async def _call_chat_completion(
             "messages": non_system,
             "temperature": 0.5,
         }
-        url = (cfg.base_url or "https://api.anthropic.com").rstrip("/") + "/v1/messages"
+        url = spec.base_url.rstrip("/") + "/messages"
         async with httpx.AsyncClient(timeout=60.0) as client:
             r = await client.post(url, headers=headers, json=payload)
             r.raise_for_status()
@@ -104,18 +108,22 @@ async def _call_chat_completion(
         tokens = (usage.get("input_tokens", 0) or 0) + (usage.get("output_tokens", 0) or 0)
         return text, tokens or None
 
-    # OpenAI-compatible(也吃 Ollama / vLLM / LMStudio / Azure OpenAI / DeepSeek...)
+    # OpenAI-compatible(也吃 Ollama / DeepSeek / Groq / OpenRouter / 自架...)
     headers = {"Content-Type": "application/json"}
     if cfg.api_key:
-        headers["Authorization"] = f"Bearer {cfg.api_key}"
+        headers[spec.auth_header] = (spec.auth_prefix or "") + cfg.api_key
+    if spec.extra_headers:
+        headers.update(spec.extra_headers)
     payload = {
         "model": cfg.model or "gpt-4o-mini",
         "messages": messages,
         "temperature": 0.5,
         "max_tokens": 2048,
     }
-    base = cfg.base_url or "https://api.openai.com/v1"
-    url = base.rstrip("/") + "/chat/completions"
+    # 思考程度(o1/o3 系列才支援;其他模型 provider 端會忽略或回 400,我們忽略後者)
+    if cfg.reasoning_effort and cfg.reasoning_effort.lower() in ("low", "medium", "high"):
+        payload["reasoning_effort"] = cfg.reasoning_effort.lower()
+    url = spec.base_url.rstrip("/") + "/chat/completions"
     async with httpx.AsyncClient(timeout=60.0) as client:
         r = await client.post(url, headers=headers, json=payload)
         r.raise_for_status()
@@ -319,9 +327,21 @@ async def send_message(
     try:
         assistant_text, tokens = await _call_chat_completion(cfg, history, _SYSTEM_PROMPT_DEFAULT)
     except httpx.HTTPStatusError as e:
-        # 把 provider 端錯誤訊息原樣帶回(常見:401 / 403 / 429 / 500)
-        body = e.response.text[:500] if e.response is not None else ""
-        raise HTTPException(502, f"AI provider {cfg.provider} 回 {e.response.status_code if e.response else '?'}: {body}")
+        # 把 provider 端錯誤原狀帶回前端;status code 也對齊讓使用者好理解
+        upstream = e.response.status_code if e.response is not None else 502
+        body = (e.response.text[:400] if e.response is not None else "") or "(empty response body)"
+        provider_name = cfg.provider.value if hasattr(cfg.provider, "value") else str(cfg.provider)
+        if upstream == 401 or upstream == 403:
+            raise HTTPException(401, f"{provider_name} API key 驗證失敗(provider 回 {upstream})。請至「設定 → AI Token」確認 key 是否正確 / 過期。")
+        if upstream == 429:
+            raise HTTPException(429, f"{provider_name} 速率限制(provider 回 429)。稍後再試,或升級你的 plan。")
+        if upstream == 404:
+            raise HTTPException(400, f"{provider_name} 找不到模型「{cfg.model}」(provider 回 404)。請至 AI Token 確認 model 名稱正確,或按「重抓模型清單」更新。")
+        raise HTTPException(502, f"{provider_name} 回 {upstream}: {body}")
+    except httpx.TimeoutException:
+        raise HTTPException(504, f"{cfg.provider} 連線逾時(60s)。檢查 base_url 與網路。")
+    except httpx.RequestError as e:
+        raise HTTPException(504, f"無法連線到 AI provider:{type(e).__name__}: {e}")
     except Exception as e:
         raise HTTPException(502, f"AI 呼叫失敗:{type(e).__name__}: {e}")
 

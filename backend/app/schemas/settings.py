@@ -80,10 +80,11 @@ class EmailConfigResponse(EmailConfigBase):
 
 class AiTokenConfigBase(BaseModel):
     name: str
-    provider: str = "OpenAI"
+    provider: str = "OpenAI"  # 自由文字:OpenAI / Anthropic / DeepSeek / ...
     api_key: Optional[str] = None
-    base_url: Optional[str] = None
+    base_url: Optional[str] = None  # 不顯示;進階情境(自架)才填
     model: Optional[str] = None
+    reasoning_effort: Optional[str] = None  # low / medium / high(僅 o1/o3 用)
     enabled: bool = True
     is_default: bool = False
     description: Optional[str] = None
@@ -99,6 +100,7 @@ class AiTokenConfigUpdate(BaseModel):
     api_key: Optional[str] = None
     base_url: Optional[str] = None
     model: Optional[str] = None
+    reasoning_effort: Optional[str] = None
     enabled: Optional[bool] = None
     is_default: Optional[bool] = None
     description: Optional[str] = None

@@ -2699,9 +2699,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                         <button id="setTabNotif"    onclick="settingsSwitchTab('notif')"    class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-bell"></i> <span data-i18n="settings.tab.notif">通知設定</span></button>
                         <button id="setTabEmail"    onclick="settingsSwitchTab('email')"    class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-envelope"></i> <span data-i18n="settings.tab.email">電子郵件</span></button>
                         <button id="setTabAi"       onclick="settingsSwitchTab('ai')"       class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-robot"></i> <span data-i18n="settings.tab.ai">AI Token</span></button>
-                        <button id="setTabOrgs"     onclick="settingsSwitchTab('orgs')"     class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-building"></i> <span data-i18n="settings.tab.orgs">組織</span></button>
-                        <button id="setTabAudit"    onclick="settingsSwitchTab('audit')"    class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-clipboard-check"></i> <span data-i18n="settings.tab.audit">審計紀錄</span></button>
-                        <button id="setTabSso"      onclick="settingsSwitchTab('sso')"      class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-key"></i> SSO</button>
                     </div>
 
                     <!-- ─── Pane 1: 使用者設定（保留原本內容） ─── -->
@@ -2712,11 +2709,23 @@ driver.swipe(100, 800, 100, 200, 500)"
                             <i class="fa-solid fa-user-circle text-amber-500"></i> 帳戶資訊
                         </h3>
                         <div class="flex items-center gap-5 mb-5">
-                            <div id="usAvatarLarge" class="w-16 h-16 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-2xl font-bold shadow-md">A</div>
-                            <div class="flex-1">
+                            <div class="relative shrink-0">
+                                <div id="usAvatarLarge" class="w-20 h-20 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-3xl font-bold shadow-md overflow-hidden">A</div>
+                                <input type="file" id="usAvatarFile" accept="image/png,image/jpeg,image/webp,image/gif" class="hidden" onchange="uploadUserAvatar(this)">
+                                <button type="button" onclick="document.getElementById('usAvatarFile').click()"
+                                    class="absolute -bottom-1 -right-1 w-7 h-7 bg-amber-500 hover:bg-amber-600 text-white rounded-full shadow flex items-center justify-center text-xs"
+                                    title="更換大頭貼">
+                                    <i class="fa-solid fa-camera"></i>
+                                </button>
+                            </div>
+                            <div class="flex-1 min-w-0">
                                 <div id="usNameLarge" class="text-lg font-bold text-stone-800">admin</div>
-                                <div id="usEmailLarge" class="text-sm text-stone-500">admin@example.com</div>
+                                <div id="usEmailLarge" class="text-sm text-stone-500 truncate">admin@example.com</div>
                                 <div class="text-[11px] text-stone-400 mt-1">成員自 <span id="usCreatedAt">—</span></div>
+                                <button type="button" id="usAvatarRemoveBtn" onclick="removeUserAvatar()"
+                                    class="text-[11px] text-rose-600 hover:underline mt-1 hidden">
+                                    <i class="fa-solid fa-xmark"></i> 移除大頭貼
+                                </button>
                             </div>
                         </div>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2731,10 +2740,19 @@ driver.swipe(100, 800, 100, 200, 500)"
                                 <input type="email" id="usEmail"
                                     class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400">
                             </div>
-                            <div class="md:col-span-2">
+                            <div>
                                 <label for="usDisplayName" class="block text-xs font-semibold text-stone-600 mb-1">顯示名稱</label>
-                                <input type="text" id="usDisplayName" placeholder="選填，會顯示在報告的「觸發者」欄位"
+                                <input type="text" id="usDisplayName" placeholder="選填,會顯示在報告的「觸發者」欄位"
                                     class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400">
+                            </div>
+                            <div>
+                                <label for="usRoleSel" class="block text-xs font-semibold text-stone-600 mb-1">
+                                    角色
+                                    <span class="text-[10px] text-stone-400 font-normal">(決定可用功能)</span>
+                                </label>
+                                <select id="usRoleSel" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400">
+                                    <option value="">— 無角色 —</option>
+                                </select>
                             </div>
                         </div>
                         <div class="flex justify-end mt-5">
@@ -2942,160 +2960,17 @@ driver.swipe(100, 800, 100, 200, 500)"
                                     <button onclick="openAiTokenModal()" class="text-xs px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold"><i class="fa-solid fa-plus"></i> 新增 Token</button>
                                 </div>
                             </div>
-                            <p class="text-xs text-stone-500 mb-3">支援 <b>OpenAI (GPT)</b>、<b>Anthropic (Claude)</b>、<b>Google (Gemini)</b>、<b>本地模型</b>（Ollama / vLLM / LMStudio 等 OpenAI-compatible API）。同 provider 內可有多個 Token，但只有一個能設為預設。</p>
+                            <p class="text-xs text-stone-500 mb-3">填 <b>AI 公司名稱</b>(OpenAI / Anthropic / DeepSeek / Groq / OpenRouter / Ollama / 任何 OpenAI-compatible)+ <b>API key</b>,按「拉模型清單」即可選用該公司提供的模型。同 provider 內可多個 Token,但只能一個是預設。</p>
                             <div class="overflow-hidden border border-stone-100 rounded-md">
                                 <table class="w-full text-sm">
                                     <thead class="bg-amber-50/60 text-stone-600 text-xs uppercase">
-                                        <tr><th class="p-3 text-left w-28">Provider</th><th class="p-3 text-left">名稱 / 模型</th><th class="p-3 text-left">Base URL</th><th class="p-3 w-20 text-center">啟用</th><th class="p-3 w-20 text-center">預設</th><th class="p-3 w-28 text-center">操作</th></tr>
+                                        <tr><th class="p-3 text-left w-28">公司</th><th class="p-3 text-left">名稱 / 模型</th><th class="p-3 text-left w-28">思考程度</th><th class="p-3 w-20 text-center">啟用</th><th class="p-3 w-20 text-center">預設</th><th class="p-3 w-28 text-center">操作</th></tr>
                                     </thead>
                                     <tbody id="aiTokensListBody" class="divide-y divide-stone-100"></tbody>
                                 </table>
                             </div>
                         </section>
                     </div>
-
-                    <!-- ─── Pane 7: 組織管理（superuser-only） ─── -->
-                    <div id="setPaneOrgs" class="hidden space-y-4">
-                        <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-4">
-                            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
-                                <h3 class="font-bold text-stone-700 text-base flex items-center gap-2"><i class="fa-solid fa-building text-amber-500"></i> 組織管理</h3>
-                                <div class="flex items-center gap-2">
-                                    <button onclick="renderOrgsList()" class="text-xs px-2.5 py-1.5 border border-stone-300 rounded hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
-                                    <button onclick="openOrgModal()" class="text-xs px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold"><i class="fa-solid fa-plus"></i> 新增組織</button>
-                                </div>
-                            </div>
-                            <p class="text-xs text-stone-500 mb-3">每個「組織」都是一個獨立租戶；專案 / 角色 / SMTP / AI Token / 待辦都以組織為邊界互相隔離。<b>僅 superuser 可看到此分頁</b>。</p>
-                            <div id="orgsListWrap" class="overflow-hidden border border-stone-100 rounded-md">
-                                <table class="w-full text-sm">
-                                    <thead class="bg-amber-50/60 text-stone-600 text-xs uppercase">
-                                        <tr><th class="p-3 text-left">名稱</th><th class="p-3 w-32 font-mono">slug</th><th class="p-3 w-24">方案</th><th class="p-3 text-left">說明</th><th class="p-3 w-28 text-center">操作</th></tr>
-                                    </thead>
-                                    <tbody id="orgsListBody" class="divide-y divide-stone-100"></tbody>
-                                </table>
-                            </div>
-                        </section>
-                    </div>
-
-                    <!-- ─── Pane 8: 審計紀錄（superuser-only） ─── -->
-                    <div id="setPaneAudit" class="hidden space-y-4">
-                        <section class="grid grid-cols-2 md:grid-cols-5 gap-3">
-                            <div class="bg-white rounded-xl p-3 border border-amber-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-solid fa-database"></i> 總筆數</div><div class="text-2xl font-bold text-stone-700" id="auditKpiTotal">—</div></div>
-                            <div class="bg-white rounded-xl p-3 border border-amber-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-solid fa-circle-check text-emerald-500"></i> 2xx/3xx</div><div class="text-2xl font-bold text-emerald-700" id="auditKpiOk">—</div></div>
-                            <div class="bg-white rounded-xl p-3 border border-amber-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-solid fa-triangle-exclamation text-amber-600"></i> 4xx</div><div class="text-2xl font-bold text-amber-700" id="auditKpi4xx">—</div></div>
-                            <div class="bg-white rounded-xl p-3 border border-amber-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-solid fa-fire text-rose-500"></i> 5xx</div><div class="text-2xl font-bold text-rose-700" id="auditKpi5xx">—</div></div>
-                            <div class="bg-white rounded-xl p-3 border border-amber-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-regular fa-clock text-blue-500"></i> 24 小時</div><div class="text-2xl font-bold text-blue-700" id="auditKpi24h">—</div></div>
-                        </section>
-                        <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-4">
-                            <div class="flex items-center gap-2 mb-3 flex-wrap">
-                                <h3 class="font-bold text-stone-700 text-base flex items-center gap-2"><i class="fa-solid fa-clipboard-check text-amber-500"></i> 審計紀錄</h3>
-                                <input id="auditFilterUser" type="text" placeholder="使用者" aria-label="依使用者過濾" class="text-xs px-2 py-1 border border-stone-300 rounded">
-                                <input id="auditFilterEntity" type="text" placeholder="實體 (如 projects)" aria-label="依實體過濾" class="text-xs px-2 py-1 border border-stone-300 rounded">
-                                <select id="auditFilterMethod" aria-label="依 HTTP method 過濾" title="依 HTTP method 過濾" class="text-xs px-2 py-1 border border-stone-300 rounded bg-white">
-                                    <option value="">全部 method</option>
-                                    <option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option>
-                                </select>
-                                <button onclick="loadAuditLogs()" class="text-xs px-2.5 py-1 border border-stone-300 rounded hover:bg-amber-50"><i class="fa-solid fa-magnifying-glass"></i> 套用</button>
-                                <button onclick="loadAuditLogs(true)" class="text-xs px-2.5 py-1 border border-stone-300 rounded hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
-                                <span class="ml-auto text-[11px] text-stone-500">最近 100 筆，依時間倒序</span>
-                            </div>
-                            <div class="overflow-hidden border border-stone-100 rounded-md">
-                                <table class="w-full text-xs">
-                                    <thead class="bg-amber-50/60 text-stone-600 uppercase text-[10px]">
-                                        <tr><th class="p-2 w-44 text-left">時間</th><th class="p-2 w-20 text-left">使用者</th><th class="p-2 w-16">Method</th><th class="p-2 w-16 text-center">Status</th><th class="p-2 text-left">Path</th><th class="p-2 w-20 text-right">耗時 ms</th></tr>
-                                    </thead>
-                                    <tbody id="auditLogsBody" class="divide-y divide-stone-100 font-mono"></tbody>
-                                </table>
-                            </div>
-                        </section>
-                    </div>
-
-                    <!-- ─── Pane 9: SSO / OIDC ─── -->
-                    <div id="setPaneSso" class="hidden space-y-4">
-                        <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-4">
-                            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
-                                <h3 class="font-bold text-stone-700 text-base flex items-center gap-2"><i class="fa-solid fa-key text-amber-500"></i> SSO / OIDC 提供者</h3>
-                                <div class="flex items-center gap-2">
-                                    <button onclick="renderOidcProvidersList()" class="text-xs px-2.5 py-1.5 border border-stone-300 rounded hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
-                                    <button onclick="openOidcProviderModal()" class="text-xs px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold"><i class="fa-solid fa-plus"></i> 新增 SSO</button>
-                                </div>
-                            </div>
-                            <p class="text-xs text-stone-500 mb-3">每個 SSO 提供者對應一個外部 IdP（Google / Azure AD / Okta / Auth0 …）。最簡設定：在 IdP 申請一個 OIDC client，把 redirect URI 設為 <code class="bg-stone-100 px-1 py-0.5 rounded font-mono">http://&lt;這台&gt;/api/auth/oidc/callback</code>，再把 IdP 的 discovery URL（通常是 <code class="bg-stone-100 px-1 py-0.5 rounded font-mono">.../.well-known/openid-configuration</code>）填到下方即可。</p>
-                            <div class="overflow-hidden border border-stone-100 rounded-md">
-                                <table class="w-full text-sm">
-                                    <thead class="bg-amber-50/60 text-stone-600 text-xs uppercase">
-                                        <tr><th class="p-3 text-left">名稱</th><th class="p-3 w-28 font-mono text-left">slug</th><th class="p-3 text-left">Discovery / Issuer</th><th class="p-3 w-20 text-center">啟用</th><th class="p-3 w-28 text-center">操作</th></tr>
-                                    </thead>
-                                    <tbody id="oidcProvidersListBody" class="divide-y divide-stone-100"></tbody>
-                                </table>
-                            </div>
-                        </section>
-                    </div>
-                </div>
-            </div>
-
-            <!-- OIDC Provider Modal -->
-            <div id="oidcProviderModal" class="hidden fixed inset-0 z-[150] bg-black/40 flex items-center justify-center p-4">
-                <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl border border-amber-200 max-h-[92vh] overflow-y-auto">
-                    <div class="px-6 py-4 border-b border-stone-200 bg-amber-50/60 flex items-center justify-between">
-                        <h3 id="oidcProviderModalTitle" class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-key text-amber-500"></i> 新增 SSO 提供者</h3>
-                        <button type="button" onclick="closeOidcProviderModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
-                    </div>
-                    <form onsubmit="return oidcProviderSubmit(event)" class="p-6 space-y-3">
-                        <div class="grid grid-cols-2 gap-3">
-                            <div><label for="oidcName" class="block text-xs font-semibold text-stone-600 mb-1">名稱（顯示在登入按鈕） *</label><input type="text" id="oidcName" required placeholder="Google / Azure AD / Company SSO" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
-                            <div><label for="oidcSlug" class="block text-xs font-semibold text-stone-600 mb-1">slug *</label><input type="text" id="oidcSlug" required placeholder="google" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm font-mono"></div>
-                        </div>
-                        <div>
-                            <label for="oidcDiscovery" class="block text-xs font-semibold text-stone-600 mb-1">Discovery URL（推薦）</label>
-                            <input type="url" id="oidcDiscovery" placeholder="https://accounts.google.com/.well-known/openid-configuration" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm font-mono">
-                            <p class="text-[10px] text-stone-500 mt-0.5">填了之後 authorize/token/jwks 端點會自動抓；不需要再手動填下方欄位。</p>
-                        </div>
-                        <details class="border border-stone-200 rounded p-2">
-                            <summary class="text-xs text-stone-600 cursor-pointer">手動填 endpoint（discovery 不可用時）</summary>
-                            <div class="mt-2 space-y-2">
-                                <div><label for="oidcIssuer" class="block text-[11px] font-semibold text-stone-600 mb-0.5">Issuer</label><input type="text" id="oidcIssuer" class="w-full px-2 py-1 border border-stone-300 rounded text-xs font-mono"></div>
-                                <div><label for="oidcAuth" class="block text-[11px] font-semibold text-stone-600 mb-0.5">authorize_url</label><input type="url" id="oidcAuth" class="w-full px-2 py-1 border border-stone-300 rounded text-xs font-mono"></div>
-                                <div><label for="oidcToken" class="block text-[11px] font-semibold text-stone-600 mb-0.5">token_url</label><input type="url" id="oidcToken" class="w-full px-2 py-1 border border-stone-300 rounded text-xs font-mono"></div>
-                                <div><label for="oidcJwks" class="block text-[11px] font-semibold text-stone-600 mb-0.5">jwks_url</label><input type="url" id="oidcJwks" class="w-full px-2 py-1 border border-stone-300 rounded text-xs font-mono"></div>
-                            </div>
-                        </details>
-                        <div class="grid grid-cols-2 gap-3">
-                            <div><label for="oidcClientId" class="block text-xs font-semibold text-stone-600 mb-1">Client ID *</label><input type="text" id="oidcClientId" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm font-mono"></div>
-                            <div><label for="oidcClientSecret" class="block text-xs font-semibold text-stone-600 mb-1">Client Secret</label><input type="password" id="oidcClientSecret" autocomplete="new-password" placeholder="留空表示不變更" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm font-mono"></div>
-                        </div>
-                        <div><label for="oidcScopes" class="block text-xs font-semibold text-stone-600 mb-1">Scopes</label><input type="text" id="oidcScopes" placeholder="openid email profile" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm font-mono"></div>
-                        <div class="grid grid-cols-2 gap-3">
-                            <div><label for="oidcButtonIcon" class="block text-xs font-semibold text-stone-600 mb-1">按鈕圖示（FontAwesome class）</label><input type="text" id="oidcButtonIcon" placeholder="fa-brands fa-google" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm font-mono"></div>
-                            <div><label for="oidcButtonLabel" class="block text-xs font-semibold text-stone-600 mb-1">按鈕文字（可選）</label><input type="text" id="oidcButtonLabel" placeholder="Sign in with Google" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
-                        </div>
-                        <label class="flex items-center gap-2 cursor-pointer text-sm text-stone-700"><input type="checkbox" id="oidcEnabled" class="rounded border-stone-300 text-amber-500 focus:ring-amber-400"> 啟用（登入頁顯示）</label>
-                        <div class="flex justify-end gap-2 pt-2"><button type="button" onclick="closeOidcProviderModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button><button type="submit" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button></div>
-                    </form>
-                </div>
-            </div>
-
-            <!-- Organization Modal -->
-            <div id="orgModal" class="hidden fixed inset-0 z-[150] bg-black/40 flex items-center justify-center p-4">
-                <div class="bg-white rounded-xl shadow-2xl w-full max-w-md border border-amber-200">
-                    <div class="px-6 py-4 border-b border-stone-200 bg-amber-50/60 flex items-center justify-between">
-                        <h3 id="orgModalTitle" class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-building text-amber-500"></i> 新增組織</h3>
-                        <button type="button" onclick="closeOrgModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
-                    </div>
-                    <form onsubmit="return orgSubmit(event)" class="p-6 space-y-3">
-                        <div><label for="orgName" class="block text-xs font-semibold text-stone-600 mb-1">組織名稱 *</label><input type="text" id="orgName" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
-                        <div><label for="orgSlug" class="block text-xs font-semibold text-stone-600 mb-1">slug *（小寫英數底線連字號；建立後不可更改）</label><input type="text" id="orgSlug" required pattern="[a-z0-9][a-z0-9_-]{1,58}" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm font-mono"></div>
-                        <div><label for="orgPlan" class="block text-xs font-semibold text-stone-600 mb-1">方案</label>
-                            <select id="orgPlan" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
-                                <option value="free" selected>free</option>
-                                <option value="pro">pro</option>
-                                <option value="enterprise">enterprise</option>
-                            </select>
-                        </div>
-                        <div><label for="orgDesc" class="block text-xs font-semibold text-stone-600 mb-1">說明</label><textarea id="orgDesc" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
-                        <div class="flex justify-end gap-2 pt-2"><button type="button" onclick="closeOrgModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button><button type="submit" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button></div>
-                    </form>
-                </div>
-            </div>
 
             <!-- 角色 Modal -->
             <div id="roleModal" class="hidden fixed inset-0 z-[150] bg-black/40 flex items-center justify-center p-4">
@@ -3127,25 +3002,47 @@ driver.swipe(100, 800, 100, 200, 500)"
                     </div>
                     <form onsubmit="return aiTokenSubmit(event)" class="p-6 space-y-3">
                         <div class="grid grid-cols-2 gap-3">
-                            <div><label for="aiTokName" class="block text-xs font-semibold text-stone-600 mb-1">名稱 *</label><input type="text" id="aiTokName" aria-label="名稱" required placeholder="例：dev-gpt4-mini" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
-                            <div><label for="aiTokProvider" class="block text-xs font-semibold text-stone-600 mb-1">Provider</label>
-                                <select id="aiTokProvider" aria-label="Provider" onchange="aiTokenOnProviderChange()" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
-                                    <option value="OpenAI">OpenAI (GPT-3.5 / 4 / 4o)</option>
-                                    <option value="Anthropic">Anthropic (Claude)</option>
-                                    <option value="Google">Google (Gemini)</option>
-                                    <option value="Local">本地模型 (Ollama / vLLM / LMStudio)</option>
-                                </select>
+                            <div><label for="aiTokName" class="block text-xs font-semibold text-stone-600 mb-1">名稱 *</label><input type="text" id="aiTokName" aria-label="名稱" required placeholder="例:dev-gpt4-mini" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                            <div>
+                                <label for="aiTokProvider" class="block text-xs font-semibold text-stone-600 mb-1">AI 公司名稱 *</label>
+                                <input type="text" id="aiTokProvider" list="aiProviderList" aria-label="AI 公司" required placeholder="OpenAI / Anthropic / DeepSeek / ..." class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm">
+                                <datalist id="aiProviderList">
+                                    <option value="OpenAI"><option value="Anthropic"><option value="DeepSeek">
+                                    <option value="Groq"><option value="OpenRouter"><option value="Together">
+                                    <option value="Mistral"><option value="xAI"><option value="Google">
+                                    <option value="Ollama"><option value="LM Studio">
+                                </datalist>
                             </div>
                         </div>
-                        <div><label for="aiTokKey" class="block text-xs font-semibold text-stone-600 mb-1">API Key</label><input type="password" id="aiTokKey" aria-label="API Key" autocomplete="new-password" placeholder="sk-... / sk-ant-... / AIza... (Local 可留空)" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm font-mono"></div>
-                        <div class="grid grid-cols-2 gap-3">
-                            <div><label for="aiTokBase" class="block text-xs font-semibold text-stone-600 mb-1">Base URL</label><input type="url" id="aiTokBase" aria-label="Base URL" placeholder="https://api.openai.com/v1" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm font-mono"></div>
-                            <div><label for="aiTokModel" class="block text-xs font-semibold text-stone-600 mb-1">模型</label><input type="text" id="aiTokModel" aria-label="模型" placeholder="gpt-4o-mini / claude-3-5-sonnet / gemini-1.5-pro / llama3.1" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm font-mono"></div>
+                        <div><label for="aiTokKey" class="block text-xs font-semibold text-stone-600 mb-1">API Key</label><input type="password" id="aiTokKey" aria-label="API Key" autocomplete="new-password" placeholder="sk-... / sk-ant-... (本地 Ollama 可留空)" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm font-mono"></div>
+                        <div>
+                            <div class="flex items-center justify-between mb-1">
+                                <label for="aiTokModel" class="block text-xs font-semibold text-stone-600">AI 名稱(模型)*</label>
+                                <button type="button" id="aiTokFetchModelsBtn" onclick="aiTokenFetchModels()"
+                                    class="text-[11px] px-2 py-0.5 border border-amber-300 text-amber-700 rounded hover:bg-amber-50">
+                                    <i class="fa-solid fa-rotate"></i> 用 token 拉模型清單
+                                </button>
+                            </div>
+                            <input type="text" id="aiTokModel" list="aiModelList" required placeholder="(填 API key 後按右上「拉模型清單」)" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm font-mono">
+                            <datalist id="aiModelList"></datalist>
+                            <p id="aiTokModelsHint" class="text-[10px] text-stone-400 mt-0.5">尚未拉取模型清單</p>
+                        </div>
+                        <div>
+                            <label for="aiTokReasoning" class="block text-xs font-semibold text-stone-600 mb-1">
+                                思考程度
+                                <span class="text-[10px] text-stone-400 font-normal">(僅 OpenAI o1 / o3 等推理模型支援;其他模型留空)</span>
+                            </label>
+                            <select id="aiTokReasoning" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
+                                <option value="">— 不啟用(預設) —</option>
+                                <option value="low">low(快、省 token)</option>
+                                <option value="medium">medium(平衡)</option>
+                                <option value="high">high(深思,慢但精準)</option>
+                            </select>
                         </div>
                         <div><label for="aiTokDesc" class="block text-xs font-semibold text-stone-600 mb-1">說明</label><input type="text" id="aiTokDesc" aria-label="說明" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
                         <div class="flex items-center gap-6">
                             <label class="flex items-center gap-2 cursor-pointer text-sm text-stone-700"><input type="checkbox" id="aiTokEnabled" checked class="rounded border-stone-300 text-amber-500 focus:ring-amber-400"> 啟用</label>
-                            <label class="flex items-center gap-2 cursor-pointer text-sm text-stone-700"><input type="checkbox" id="aiTokDefault" class="rounded border-stone-300 text-amber-500 focus:ring-amber-400"> 設為此 Provider 的預設</label>
+                            <label class="flex items-center gap-2 cursor-pointer text-sm text-stone-700"><input type="checkbox" id="aiTokDefault" class="rounded border-stone-300 text-amber-500 focus:ring-amber-400"> 設為預設</label>
                         </div>
                         <div class="flex justify-end gap-2 pt-2"><button type="button" onclick="closeAiTokenModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button><button type="submit" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button></div>
                     </form>
@@ -9159,25 +9056,87 @@ driver.swipe(100, 800, 100, 200, 500)"
             try { i18nApply(document.getElementById('mainHeader')); } catch (_) {}
         }
 
-        function loadUserSettingsView() {
+        async function loadUserSettingsView() {
             const u = authCurrentUser();
             const s = _authReadSession();
             if (!u) return;
-            const initial = (u.displayName || u.username || '?').charAt(0).toUpperCase();
-            document.getElementById('usAvatarLarge').textContent = initial;
-            document.getElementById('usNameLarge').textContent = u.displayName || u.username;
-            document.getElementById('usEmailLarge').textContent = u.email || '';
-            document.getElementById('usCreatedAt').textContent = u.createdAt ? u.createdAt.slice(0, 10) : '—';
-            document.getElementById('usUsername').value = u.username || '';
-            document.getElementById('usEmail').value = u.email || '';
-            document.getElementById('usDisplayName').value = u.displayName || '';
+            // 從後端拉最新 me(取 avatar_url + role_id 等)
+            let me = u;
+            try { me = await apiFetch('/api/auth/me'); } catch (_) {}
+            _renderUserAvatar(me);
+            document.getElementById('usNameLarge').textContent = me.display_name || me.username || u.displayName || u.username;
+            document.getElementById('usEmailLarge').textContent = me.email || u.email || '';
+            document.getElementById('usCreatedAt').textContent = me.created_at ? me.created_at.slice(0, 10) : (u.createdAt ? u.createdAt.slice(0, 10) : '—');
+            document.getElementById('usUsername').value = me.username || u.username || '';
+            document.getElementById('usEmail').value = me.email || '';
+            document.getElementById('usDisplayName').value = me.display_name || '';
             document.getElementById('usLastLogin').textContent = s && s.loginAt ? s.loginAt.replace('T', ' ').slice(0, 19) : '—';
             document.getElementById('usLoginCount').textContent = s && s.loginCount ? String(s.loginCount) : '1';
+            // 角色下拉:拉系統內所有 role,選中目前的
+            try {
+                const roles = await apiFetch('/api/settings/roles');
+                const sel = document.getElementById('usRoleSel');
+                sel.innerHTML = '<option value="">— 無角色 —</option>' +
+                    (roles || []).map(r => `<option value="${_esc(r.id)}">${_esc(r.name)}${r.is_system ? ' <span class="text-stone-400">(系統)</span>' : ''}</option>`).join('');
+                sel.value = me.role_id || '';
+            } catch (e) {
+                console.warn('load roles failed', e);
+            }
             // 偏好
             const prefs = _loadUserPrefs();
             document.getElementById('usPrefDefaultExec').value = prefs.defaultExec || 'docker';
             document.getElementById('usPrefAutoRefresh').checked = prefs.autoRefresh !== false;
             document.getElementById('usPrefConfirmDiscard').checked = prefs.confirmDiscard !== false;
+        }
+
+        function _renderUserAvatar(me) {
+            const el = document.getElementById('usAvatarLarge');
+            const removeBtn = document.getElementById('usAvatarRemoveBtn');
+            if (!el) return;
+            if (me.avatar_url) {
+                el.innerHTML = `<img src="${_esc(me.avatar_url)}" alt="" class="w-full h-full object-cover">`;
+                if (removeBtn) removeBtn.classList.remove('hidden');
+            } else {
+                const initial = (me.display_name || me.username || '?').charAt(0).toUpperCase();
+                el.textContent = initial;
+                if (removeBtn) removeBtn.classList.add('hidden');
+            }
+        }
+
+        async function uploadUserAvatar(input) {
+            if (!input.files || !input.files.length) return;
+            const file = input.files[0];
+            if (!file.type.startsWith('image/')) {
+                showToast('請選擇圖片檔', 'error'); return;
+            }
+            if (file.size > 5 * 1024 * 1024) {
+                showToast('檔案過大(≤ 5 MB)', 'error'); return;
+            }
+            const fd = new FormData();
+            fd.append('file', file);
+            try {
+                const me = await apiFetch('/api/auth/me/avatar', { method: 'POST', body: fd });
+                _renderUserAvatar(me);
+                // 同步更新上方列的小頭像
+                if (typeof updateUserMenuUI === 'function') updateUserMenuUI();
+                showToast('大頭貼已更新', 'success');
+            } catch (e) {
+                showToast('上傳失敗:' + (e.message || e), 'error');
+            } finally {
+                input.value = '';
+            }
+        }
+
+        async function removeUserAvatar() {
+            if (!confirm('確定移除大頭貼?')) return;
+            try {
+                const me = await apiFetch('/api/auth/me/avatar', { method: 'DELETE' });
+                _renderUserAvatar(me);
+                if (typeof updateUserMenuUI === 'function') updateUserMenuUI();
+                showToast('大頭貼已移除', 'success');
+            } catch (e) {
+                showToast('移除失敗:' + (e.message || e), 'error');
+            }
         }
 
         function _loadUserPrefs() {
@@ -9192,17 +9151,33 @@ driver.swipe(100, 800, 100, 200, 500)"
             try { localStorage.setItem(AUTH_KEYS.prefs(u), JSON.stringify(prefs)); } catch (_) { }
         }
 
-        function saveUserProfile() {
+        async function saveUserProfile() {
             const uname = authCurrentUsername();
-            const users = _authReadUsers();
-            const idx = users.findIndex(x => x.username === uname);
-            if (idx < 0) { showToast('找不到使用者', 'error'); return; }
-            users[idx].email = document.getElementById('usEmail').value.trim() || users[idx].email;
-            users[idx].displayName = document.getElementById('usDisplayName').value.trim() || uname;
-            _authWriteUsers(users);
-            showToast('帳戶資訊已更新', 'success');
-            updateUserMenuUI();
-            loadUserSettingsView();
+            const payload = {
+                email: document.getElementById('usEmail').value.trim(),
+                display_name: document.getElementById('usDisplayName').value.trim(),
+                role_id: document.getElementById('usRoleSel')?.value || null,
+            };
+            try {
+                const me = await apiFetch('/api/auth/me', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+                // 同步 localStorage(舊 client-side state 仍有些地方用到)
+                const users = _authReadUsers();
+                const idx = users.findIndex(x => x.username === uname);
+                if (idx >= 0) {
+                    users[idx].email = me.email || users[idx].email;
+                    users[idx].displayName = me.display_name || uname;
+                    _authWriteUsers(users);
+                }
+                showToast('帳戶資訊已更新', 'success');
+                if (typeof updateUserMenuUI === 'function') updateUserMenuUI();
+                loadUserSettingsView();
+            } catch (e) {
+                showToast('儲存失敗:' + (e.message || e), 'error');
+            }
         }
 
         function changeUserPassword(ev) {
@@ -14711,7 +14686,7 @@ gantt
         }
 
         // ─── 設定（Settings）── 9 個 tab
-        const _SETTINGS_TABS = ['user','perms','roles','notif','email','ai','orgs','audit','sso'];
+        const _SETTINGS_TABS = ['user','perms','roles','notif','email','ai'];
         const _SETTINGS_TAB_BTN_ON  = 'px-3 py-1.5 text-sm font-medium rounded text-amber-700 bg-amber-50 border border-amber-300';
         const _SETTINGS_TAB_BTN_OFF = 'px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50';
         function settingsSwitchTab(name) {
@@ -14733,9 +14708,6 @@ gantt
             else if (name === 'notif') loadNotificationPrefs();
             else if (name === 'email') loadEmailConfig();
             else if (name === 'ai') renderAiTokensList();
-            else if (name === 'orgs') renderOrgsList();
-            else if (name === 'audit') loadAuditLogs(true);
-            else if (name === 'sso') renderOidcProvidersList();
         }
 
         // ─── 權限清單（唯讀） ─────────────────────────────────────────
@@ -14954,22 +14926,8 @@ gantt
         }
 
         // ─── AI Token ────────────────────────────────────────────────
-        const _AI_PROVIDER_DEFAULTS = {
-            OpenAI:    { base_url: 'https://api.openai.com/v1', model: 'gpt-4o-mini' },
-            Anthropic: { base_url: 'https://api.anthropic.com',  model: 'claude-3-5-sonnet-20241022' },
-            Google:    { base_url: 'https://generativelanguage.googleapis.com/v1beta', model: 'gemini-1.5-pro' },
-            Local:     { base_url: 'http://localhost:11434/v1',  model: 'llama3.1' },
-        };
         let _aiTokensCache = [];
         let _editingAiTokenId = null;
-        function aiTokenOnProviderChange() {
-            const prov = document.getElementById('aiTokProvider').value;
-            const def = _AI_PROVIDER_DEFAULTS[prov] || {};
-            const baseEl = document.getElementById('aiTokBase');
-            const modelEl = document.getElementById('aiTokModel');
-            if (baseEl && !baseEl.value) baseEl.value = def.base_url || '';
-            if (modelEl && !modelEl.value) modelEl.value = def.model || '';
-        }
         async function renderAiTokensList() {
             const tbody = document.getElementById('aiTokensListBody');
             if (!tbody) return;
@@ -14979,12 +14937,10 @@ gantt
                 if (!r.ok) throw new Error('HTTP '+r.status);
                 _aiTokensCache = await r.json();
                 if (!_aiTokensCache.length) { tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-stone-400">尚無 AI Token</td></tr>'; return; }
-                const provLabel = { OpenAI:'OpenAI (GPT)', Anthropic:'Anthropic (Claude)', Google:'Google (Gemini)', Local:'本地模型' };
-                const provColor = { OpenAI:'bg-emerald-100 text-emerald-700', Anthropic:'bg-orange-100 text-orange-700', Google:'bg-blue-100 text-blue-700', Local:'bg-purple-100 text-purple-700' };
                 tbody.innerHTML = _aiTokensCache.map(t => `<tr class="hover:bg-amber-50/30">
-                    <td class="p-3"><span class="text-xs px-2 py-0.5 rounded font-medium ${provColor[t.provider]||'bg-stone-100'}">${_esc(provLabel[t.provider]||t.provider)}</span></td>
-                    <td class="p-3"><div class="font-semibold text-stone-800">${_esc(t.name)}</div><div class="text-[10px] font-mono text-stone-400">${_esc(t.model||'')}</div></td>
-                    <td class="p-3 text-xs font-mono text-stone-500 break-all">${_esc(t.base_url||'—')}</td>
+                    <td class="p-3"><span class="text-xs px-2 py-0.5 rounded font-medium bg-stone-100 text-stone-700">${_esc(t.provider)}</span></td>
+                    <td class="p-3"><div class="font-semibold text-stone-800">${_esc(t.name)}</div><div class="text-[10px] font-mono text-stone-400">${_esc(t.model||'(未設模型)')}</div></td>
+                    <td class="p-3 text-xs">${t.reasoning_effort ? `<span class="px-1.5 py-0.5 rounded bg-violet-100 text-violet-700">${_esc(t.reasoning_effort)}</span>` : '<span class="text-stone-400">—</span>'}</td>
                     <td class="p-3 text-center">${t.enabled ? '<i class="fa-solid fa-circle-check text-emerald-500"></i>' : '<i class="fa-regular fa-circle text-stone-300"></i>'}</td>
                     <td class="p-3 text-center">${t.is_default ? '<span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-200">預設</span>' : ''}</td>
                     <td class="p-3 text-center whitespace-nowrap space-x-1">
@@ -14993,7 +14949,7 @@ gantt
                     </td>
                 </tr>`).join('');
             } catch (e) {
-                tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-red-500">載入失敗：${_esc(e.message)}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-red-500">載入失敗:${_esc(e.message)}</td></tr>`;
             }
         }
         function openAiTokenModal(id) {
@@ -15005,22 +14961,58 @@ gantt
             document.getElementById('aiTokName').value = t?.name || '';
             document.getElementById('aiTokProvider').value = t?.provider || 'OpenAI';
             document.getElementById('aiTokKey').value = t?.api_key || '';
-            document.getElementById('aiTokBase').value = t?.base_url || _AI_PROVIDER_DEFAULTS.OpenAI.base_url;
-            document.getElementById('aiTokModel').value = t?.model || _AI_PROVIDER_DEFAULTS.OpenAI.model;
+            document.getElementById('aiTokModel').value = t?.model || '';
+            document.getElementById('aiTokReasoning').value = t?.reasoning_effort || '';
             document.getElementById('aiTokDesc').value = t?.description || '';
             document.getElementById('aiTokEnabled').checked = t ? !!t.enabled : true;
             document.getElementById('aiTokDefault').checked = !!t?.is_default;
+            document.getElementById('aiTokModelsHint').textContent = t?.model
+                ? `目前模型:${t.model};按右上「拉模型清單」可重新整理`
+                : '尚未拉取模型清單';
+            document.getElementById('aiModelList').innerHTML = '';
             document.getElementById('aiTokenModal').classList.remove('hidden');
         }
         function closeAiTokenModal() { document.getElementById('aiTokenModal').classList.add('hidden'); _editingAiTokenId = null; }
+
+        async function aiTokenFetchModels() {
+            const provider = document.getElementById('aiTokProvider').value.trim();
+            const apiKey = document.getElementById('aiTokKey').value.trim();
+            if (!provider) { showToast('請先填 AI 公司名稱', 'error'); return; }
+            const btn = document.getElementById('aiTokFetchModelsBtn');
+            const orig = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 拉取中…';
+            try {
+                const data = await apiFetch('/api/settings/ai-tokens/fetch-models', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ provider, api_key: apiKey || null }),
+                });
+                const list = document.getElementById('aiModelList');
+                list.innerHTML = (data.models || []).map(m =>
+                    `<option value="${_esc(m.id)}">${_esc(m.name || m.id)}</option>`
+                ).join('');
+                document.getElementById('aiTokModelsHint').textContent =
+                    `已抓到 ${(data.models||[]).length} 個模型(${data.base_url}),點輸入框可看下拉建議`;
+                showToast(`已拉到 ${(data.models||[]).length} 個模型`, 'success');
+            } catch (e) {
+                showToast('拉取模型失敗:' + (e.message || e), 'error');
+                document.getElementById('aiTokModelsHint').textContent =
+                    '拉取失敗:' + (e.message || e);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = orig;
+            }
+        }
+
         async function aiTokenSubmit(ev) {
             ev.preventDefault();
             const payload = {
                 name: document.getElementById('aiTokName').value.trim(),
-                provider: document.getElementById('aiTokProvider').value,
+                provider: document.getElementById('aiTokProvider').value.trim() || 'OpenAI',
                 api_key: document.getElementById('aiTokKey').value || null,
-                base_url: document.getElementById('aiTokBase').value.trim() || null,
                 model: document.getElementById('aiTokModel').value.trim() || null,
+                reasoning_effort: document.getElementById('aiTokReasoning').value || null,
                 description: document.getElementById('aiTokDesc').value.trim() || null,
                 enabled: document.getElementById('aiTokEnabled').checked,
                 is_default: document.getElementById('aiTokDefault').checked,

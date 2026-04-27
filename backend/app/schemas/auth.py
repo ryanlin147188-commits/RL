@@ -26,6 +26,7 @@ class UserResponse(BaseModel):
     username: str
     display_name: Optional[str] = None
     email: Optional[str] = None
+    avatar_url: Optional[str] = None
     role_id: Optional[str] = None
     organization_id: Optional[str] = None
     is_active: bool = True
@@ -36,7 +37,7 @@ class UserResponse(BaseModel):
 
 
 class UserCreateRequest(BaseModel):
-    """建立新使用者（管理者用）。"""
+    """建立新使用者(管理者用)。"""
     username: str
     password: str
     display_name: Optional[str] = None
@@ -44,6 +45,13 @@ class UserCreateRequest(BaseModel):
     role_id: Optional[str] = None
     organization_id: Optional[str] = None
     is_superuser: bool = False
+
+
+class UserUpdateMeRequest(BaseModel):
+    """目前登入的使用者更新自己的個人資料(/auth/me PUT)。"""
+    display_name: Optional[str] = None
+    email: Optional[str] = None
+    role_id: Optional[str] = None  # 想換角色
 
 
 class ChangePasswordRequest(BaseModel):

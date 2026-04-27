@@ -8,10 +8,15 @@
 from datetime import datetime
 from typing import Optional
 
+import io
+import uuid
+
 import jwt as pyjwt
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.services.storage_service import save_bytes
 
 from app.auth.dependencies import get_current_user
 from app.auth.security import (
@@ -33,6 +38,7 @@ from app.schemas.auth import (
     TokenResponse,
     UserCreateRequest,
     UserResponse,
+    UserUpdateMeRequest,
 )
 
 router = APIRouter()
@@ -85,6 +91,81 @@ async def refresh_token(payload: RefreshRequest, db: AsyncSession = Depends(get_
 
 @router.get("/auth/me", response_model=UserResponse, tags=["U · 認證"])
 async def me(user: User = Depends(get_current_user)):
+    return user
+
+
+@router.put("/auth/me", response_model=UserResponse, tags=["U · 認證"])
+async def update_me(
+    payload: UserUpdateMeRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """目前登入的使用者更新自己的個人資料。
+    包含 display_name / email / role_id;不能改 username 或 password
+    (改 password 走 /auth/change-password)。
+    """
+    if payload.display_name is not None:
+        user.display_name = payload.display_name.strip()[:120] or None
+    if payload.email is not None:
+        user.email = payload.email.strip()[:255] or None
+    if payload.role_id is not None:
+        # 驗證角色存在(可空,代表無角色)
+        if payload.role_id:
+            role = (await db.execute(select(Role).where(Role.id == payload.role_id))).scalar_one_or_none()
+            if not role:
+                raise HTTPException(404, "找不到該角色")
+            user.role_id = payload.role_id
+        else:
+            user.role_id = None
+    await db.flush()
+    await db.refresh(user)
+    return user
+
+
+@router.post("/auth/me/avatar", response_model=UserResponse, tags=["U · 認證"])
+async def upload_avatar(
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """上傳大頭貼到 SeaweedFS pic bucket;路徑格式 avatars/<username>/<uuid>.<ext>。
+
+    限制:
+    - MIME type 必須是 image/*
+    - 檔案 ≤ 5 MB
+    - 不刪舊檔(歷史保留;之後想清乾淨可另開 cleanup task)
+    """
+    if not (file.content_type or "").startswith("image/"):
+        raise HTTPException(400, "請上傳圖片檔(image/*)")
+    raw = await file.read()
+    if len(raw) > 5 * 1024 * 1024:
+        raise HTTPException(400, "檔案過大(≤ 5 MB)")
+    if not raw:
+        raise HTTPException(400, "檔案為空")
+    # 副檔名(從 content-type 推;沒推到就用 jpg)
+    ct = file.content_type or "image/jpeg"
+    ext = ct.split("/")[-1].split(";")[0].strip().lower()
+    if ext == "jpeg":
+        ext = "jpg"
+    if ext not in {"jpg", "png", "webp", "gif"}:
+        ext = "jpg"
+    key = f"avatars/{user.username}/{uuid.uuid4().hex}.{ext}"
+    url = save_bytes(raw, key, bucket="pic", content_type=ct)
+    user.avatar_url = url
+    await db.flush()
+    await db.refresh(user)
+    return user
+
+
+@router.delete("/auth/me/avatar", response_model=UserResponse, tags=["U · 認證"])
+async def remove_avatar(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """清掉大頭貼(實體檔留在 SeaweedFS,只清欄位)。"""
+    user.avatar_url = None
+    await db.flush()
+    await db.refresh(user)
     return user
 
 

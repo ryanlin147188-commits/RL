@@ -114,6 +114,13 @@ async def init_db() -> None:
         "CREATE INDEX IF NOT EXISTS ix_ai_conversations_owner ON ai_conversations (owner)",
         "CREATE INDEX IF NOT EXISTS ix_ai_conversations_org ON ai_conversations (organization_id)",
         "CREATE INDEX IF NOT EXISTS ix_ai_messages_conv ON ai_messages (conversation_id)",
+        # User 加 avatar_url(本來只有文字頭像)
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(500)",
+        # AI Token Config:加 reasoning_effort(low/medium/high,o1/o3 系列才會用)
+        "ALTER TABLE ai_token_configs ADD COLUMN IF NOT EXISTS reasoning_effort VARCHAR(10)",
+        # provider 從 enum 改為 varchar 以支援自由輸入(GROQ / DeepSeek / Together / ...)
+        "ALTER TABLE ai_token_configs ALTER COLUMN provider TYPE VARCHAR(40)",
+        "DROP TYPE IF EXISTS aiprovider CASCADE",
     )
     for stmt in migration_stmts:
         await _run_safe(stmt)

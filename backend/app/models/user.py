@@ -22,6 +22,8 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(80), primary_key=True)
     display_name: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
     email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    # SeaweedFS URL(/pics/avatars/<uuid>.jpg);空 → 用 username 首字當文字頭像
+    avatar_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     role_id: Mapped[Optional[str]] = mapped_column(
         String(36), ForeignKey("roles.id", ondelete="SET NULL"), nullable=True
