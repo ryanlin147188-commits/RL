@@ -135,49 +135,17 @@ async def save_screenshot(file: UploadFile) -> str:
 def save_bytes(data: bytes, key: str, *, bucket: BucketName = "results", content_type: str = "application/octet-stream") -> str:
     """Persist arbitrary bytes (used by Robot listener for screenshots / reports)."""
     return _backend.put_bytes(data, bucket, key, content_type)
-import os
-import uuid
-
-import aiofiles
-from fastapi import HTTPException, UploadFile
-
-from app.config import settings
-
-ALLOWED_MIME = {"image/png", "image/jpeg", "image/webp"}
-MAX_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB
 
 
-async def save_screenshot(file: UploadFile) -> str:
+async def save_upload(file: UploadFile, *, bucket: BucketName = "pic", key: str | None = None) -> str:
+    """Persist a generic UploadFile via the active backend (SeaweedFS or local fallback).
+
+    Returns the relative URL (`/pics/<key>` or `/results/<key>`).
     """
-    將上傳的截圖存到 PIC 資料夾，回傳可公開存取的 URL。
-    ── 安全措施 ──────────────────────────────────────────────
-    1. 白名單 MIME 驗證（拒絕非圖片檔）
-    2. 強制覆寫副檔名（防止副檔名偽裝）
-    3. UUID 隨機檔名（防路徑遍歷攻擊）
-    4. 10 MB 大小限制
-    """
-    if file.content_type not in ALLOWED_MIME:
-        raise HTTPException(
-            status_code=415,
-            detail=f"不支援的檔案類型：{file.content_type}，請上傳 PNG / JPEG / WebP",
-        )
-
-    ext_map = {
-        "image/png": ".png",
-        "image/jpeg": ".jpg",
-        "image/webp": ".webp",
-    }
-    ext = ext_map[file.content_type]  # type: ignore[index]
-    filename = f"{uuid.uuid4()}{ext}"
-
-    os.makedirs(settings.PIC_FOLDER, exist_ok=True)
-    filepath = os.path.join(settings.PIC_FOLDER, filename)
-
-    content = await file.read()
-    if len(content) > MAX_SIZE_BYTES:
-        raise HTTPException(status_code=413, detail="截圖檔案超過 10 MB 上限")
-
-    async with aiofiles.open(filepath, "wb") as f:
-        await f.write(content)
-
-    return f"{settings.BASE_URL}/pics/{filename}"
+    if key is None:
+        # 推 ext 失敗就用 .bin
+        ext = ""
+        if file.filename and "." in file.filename:
+            ext = "." + file.filename.rsplit(".", 1)[-1]
+        key = f"{uuid.uuid4()}{ext}"
+    return await _backend.put_upload(file, bucket, key)

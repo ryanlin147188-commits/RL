@@ -249,34 +249,31 @@ async def upload_screenshot(
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
 ):
-    """Agent 上傳單張截圖；backend 寫到 PIC_FOLDER/<report_id>/<filename> 並回 URL。
+    """Agent 上傳單張截圖;透過 storage_service 寫入 SeaweedFS(或 local fallback)。
 
-    URL 格式與 Docker runner 產出的一致：`{BASE_URL}/pics/<report_id>/<filename>`
+    URL 格式為 relative `/pics/<report_id>/<filename>`,與 Docker runner 一致。
     """
-    # 驗證 report 存在（避免任意寫入）
+    # 驗證 report 存在(避免任意寫入)
     report = await db.get(ExecutionReport, report_id)
     if report is None:
         raise HTTPException(status_code=404, detail="report_id 不存在")
 
-    # 檔名防穿越：只保留英數與 . _ -
+    # 檔名防穿越:只保留英數與 . _ -
     safe_name = _SAFE_FILENAME_RE.sub("_", filename.strip())
     if not safe_name or safe_name in (".", ".."):
         raise HTTPException(status_code=400, detail="filename 不合法")
     if "." not in safe_name:
         safe_name += ".png"
 
-    dest_dir = os.path.join(settings.PIC_FOLDER, report_id)
-    os.makedirs(dest_dir, exist_ok=True)
-    dest_path = os.path.join(dest_dir, safe_name)
-    try:
-        content = await file.read()
-        with open(dest_path, "wb") as fh:
-            fh.write(content)
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"寫檔失敗：{exc}")
+    content = await file.read()
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="截圖超過 10 MB 上限")
 
-    base = (getattr(settings, "BASE_URL", "") or "").rstrip("/")
-    url = f"{base}/pics/{report_id}/{safe_name}" if base else f"/pics/{report_id}/{safe_name}"
+    # 寫到 SeaweedFS(STORAGE_BACKEND=minio)或 PIC_FOLDER(local fallback)
+    from app.services.storage_service import save_bytes
+    key = f"{report_id}/{safe_name}"
+    content_type = file.content_type or "image/png"
+    url = save_bytes(content, key, bucket="pic", content_type=content_type)
     return {"ok": True, "url": url, "size": len(content)}
 
 

@@ -10544,32 +10544,102 @@ driver.swipe(100, 800, 100, 200, 500)"
         let _selectedDbCfgIdx = null;
         const _dbCfgStatus = new Map();  // id -> 'ok' / 'fail' / 'pending'
 
-        function _dbStorageKey() {
-            const pid = currentProjectId || '_none';
-            return `autotest.dbconfigs.${pid}`;
+        // 已被刪除但尚未 commit 的後端 ID(save 時 DELETE)
+        let _dbConfigsPendingDelete = new Set();
+        // 前端 type(MYSQL/POSTGRES/...) ↔ 後端 db_type(mysql/postgresql/...) 對應
+        const _DB_TYPE_FE_TO_BE = {
+            MYSQL: 'mysql', POSTGRES: 'postgresql', MSSQL: 'mssql',
+            ORACLE: 'oracle', MONGO: 'mongodb', REDIS: 'redis', SQLITE: 'sqlite',
+        };
+        const _DB_TYPE_BE_TO_FE = Object.fromEntries(
+            Object.entries(_DB_TYPE_FE_TO_BE).map(([k, v]) => [v, k])
+        );
+        function _apiToFeDbCfg(row) {
+            return {
+                id: row.id,
+                _backendId: row.id,
+                name: row.name || '',
+                type: _DB_TYPE_BE_TO_FE[row.db_type] || 'MYSQL',
+                host: row.host || '',
+                port: row.port || 0,
+                username: row.username || '',
+                password: row.password || '',
+                database: row.database || '',
+                charset: row.extra_options || '',
+                dsn: row.custom_dsn || '',
+                description: row.description || '',
+            };
         }
-        function loadDbConfigs() {
+        function _feToApiDbCfg(d) {
+            return {
+                project_id: currentProjectId || null,
+                name: d.name,
+                db_type: _DB_TYPE_FE_TO_BE[d.type] || 'mysql',
+                host: d.host || null,
+                port: d.port ? Number(d.port) : null,
+                database: d.database || null,
+                username: d.username || null,
+                password: d.password || null,
+                extra_options: d.charset || null,
+                custom_dsn: d.dsn || null,
+                description: d.description || null,
+                enabled: true,
+            };
+        }
+        async function loadDbConfigs() {
+            dbConfigsBuffer = [];
+            _dbConfigsPendingDelete = new Set();
             try {
-                const raw = localStorage.getItem(_dbStorageKey());
-                dbConfigsBuffer = raw ? JSON.parse(raw) : [];
-                if (!Array.isArray(dbConfigsBuffer)) dbConfigsBuffer = [];
-            } catch { dbConfigsBuffer = []; }
+                const qs = currentProjectId ? `?project_id=${encodeURIComponent(currentProjectId)}` : '';
+                const rows = await apiFetch(`/api/db-configs${qs}`);
+                dbConfigsBuffer = (rows || []).map(_apiToFeDbCfg);
+            } catch (e) {
+                showToast(`載入 DB 連線失敗:${e.message || e}`, 'error');
+                dbConfigsBuffer = [];
+            }
             _selectedDbCfgIdx = dbConfigsBuffer.length ? 0 : null;
             renderDbConfigList();
             renderDbConfigEditor();
         }
-        function saveDbConfigs() {
-            // 驗證 name 格式
+        async function saveDbConfigs() {
             for (const d of dbConfigsBuffer) {
                 if (!(d.name || '').trim()) { showToast('DB 連線必須填寫 name', 'error'); return; }
                 if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(d.name)) {
-                    showToast(`name 不合法：${d.name}（限英數+底線、不可數字開頭）`, 'error'); return;
+                    showToast(`name 不合法:${d.name}(限英數+底線、不可數字開頭)`, 'error'); return;
                 }
             }
-            try {
-                localStorage.setItem(_dbStorageKey(), JSON.stringify(dbConfigsBuffer));
-                showToast(`已儲存 ${dbConfigsBuffer.length} 筆 DB 連線（本機）`, 'success');
-            } catch (e) { showToast(`儲存失敗：${e.message}`, 'error'); }
+            let created = 0, updated = 0, deleted = 0, errors = 0;
+            for (const id of _dbConfigsPendingDelete) {
+                try {
+                    await apiFetch(`/api/db-configs/${id}`, { method: 'DELETE' });
+                    deleted++;
+                } catch (e) { errors++; }
+            }
+            _dbConfigsPendingDelete = new Set();
+            for (const d of dbConfigsBuffer) {
+                try {
+                    if (d._backendId) {
+                        await apiFetch(`/api/db-configs/${d._backendId}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(_feToApiDbCfg(d)),
+                        });
+                        updated++;
+                    } else {
+                        const created_row = await apiFetch('/api/db-configs', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(_feToApiDbCfg(d)),
+                        });
+                        d._backendId = created_row.id;
+                        d.id = created_row.id;
+                        created++;
+                    }
+                } catch (e) { errors++; }
+            }
+            const msg = `DB 連線儲存:新增 ${created} / 更新 ${updated} / 刪除 ${deleted}` + (errors ? ` / ${errors} 筆失敗` : '');
+            showToast(msg, errors ? 'error' : 'success');
+            renderDbConfigList();
         }
         function _defaultPortFor(type) {
             return ({ MYSQL: 3306, POSTGRES: 5432, MSSQL: 1433, ORACLE: 1521, MONGO: 27017, REDIS: 6379, SQLITE: 0 })[type] || 0;
@@ -10743,8 +10813,11 @@ driver.swipe(100, 800, 100, 200, 500)"
         }
         function removeSelectedDbConfig() {
             if (_selectedDbCfgIdx == null) return;
-            if (!confirm('確定移除此 DB 連線？')) return;
-            dbConfigsBuffer.splice(_selectedDbCfgIdx, 1);
+            if (!confirm('確定移除此 DB 連線？(需按「儲存」才會同步到後端)')) return;
+            const removed = dbConfigsBuffer.splice(_selectedDbCfgIdx, 1)[0];
+            if (removed && removed._backendId) {
+                _dbConfigsPendingDelete.add(removed._backendId);
+            }
             if (_selectedDbCfgIdx >= dbConfigsBuffer.length) _selectedDbCfgIdx = dbConfigsBuffer.length - 1;
             if (_selectedDbCfgIdx < 0) _selectedDbCfgIdx = null;
             renderDbConfigList();
@@ -10811,36 +10884,118 @@ driver.swipe(100, 800, 100, 200, 500)"
         let _selectedMockIdx = null;
         let _mockServerRunning = false;
 
-        function _mockStorageKey() {
-            const pid = currentProjectId || '_none';
-            return `autotest.mocks.${pid}`;
+        let _mocksPendingDelete = new Set();
+        function _apiToFeMock(row) {
+            const headers = row.response_headers_json || {};
+            // 取出 Content-Type 當成 content_type 欄位顯示;其餘 header 序列化成字串
+            let content_type = '';
+            const restHeaders = {};
+            for (const [k, v] of Object.entries(headers)) {
+                if (k.toLowerCase() === 'content-type') content_type = v;
+                else restHeaders[k] = v;
+            }
+            const reqHeaders = row.request_headers_json || {};
+            return {
+                id: row.id,
+                _backendId: row.id,
+                method: (row.method || 'GET').toUpperCase(),
+                path: row.path || '/',
+                status: row.status_code || 200,
+                delay_ms: row.delay_ms || 0,
+                content_type: content_type || 'application/json',
+                headers: Object.keys(restHeaders).length ? JSON.stringify(restHeaders, null, 2) : '',
+                body: row.response_body_text || '',
+                req_headers: Object.keys(reqHeaders).length ? JSON.stringify(reqHeaders, null, 2) : '',
+                req_body: row.request_body_text || '',
+                description: row.description || '',
+                enabled: !!row.enabled,
+            };
         }
-        function loadMockEndpoints() {
+        function _feToApiMock(m) {
+            // 將 content_type 合併進 response_headers
+            let respHeaders = {};
+            if (m.headers && m.headers.trim()) {
+                try { respHeaders = JSON.parse(m.headers); } catch { respHeaders = {}; }
+            }
+            if (m.content_type) respHeaders['Content-Type'] = m.content_type;
+            let reqHeaders = null;
+            if (m.req_headers && m.req_headers.trim()) {
+                try { reqHeaders = JSON.parse(m.req_headers); } catch { reqHeaders = null; }
+            }
+            return {
+                project_id: currentProjectId || null,
+                name: m.path || '(unnamed)',
+                method: (m.method || 'GET').toUpperCase(),
+                path: m.path,
+                description: m.description || null,
+                enabled: !!m.enabled,
+                status_code: Number(m.status) || 200,
+                delay_ms: Number(m.delay_ms) || 0,
+                response_headers_json: Object.keys(respHeaders).length ? respHeaders : null,
+                response_body_text: m.body || null,
+                request_headers_json: reqHeaders,
+                request_body_text: m.req_body || null,
+            };
+        }
+        async function loadMockEndpoints() {
+            mocksBuffer = [];
+            _mocksPendingDelete = new Set();
             try {
-                const raw = localStorage.getItem(_mockStorageKey());
-                mocksBuffer = raw ? JSON.parse(raw) : [];
-                if (!Array.isArray(mocksBuffer)) mocksBuffer = [];
-            } catch { mocksBuffer = []; }
+                const qs = currentProjectId ? `?project_id=${encodeURIComponent(currentProjectId)}` : '';
+                const rows = await apiFetch(`/api/mock-endpoints${qs}`);
+                mocksBuffer = (rows || []).map(_apiToFeMock);
+            } catch (e) {
+                showToast(`載入 Mock 失敗:${e.message || e}`, 'error');
+                mocksBuffer = [];
+            }
             _selectedMockIdx = mocksBuffer.length ? 0 : null;
             renderMockList();
             renderMockEditor();
             renderMockServerBadge();
         }
-        function saveMockEndpoints() {
+        async function saveMockEndpoints() {
             for (const m of mocksBuffer) {
                 if (!(m.path || '').trim()) { showToast('Mock 必須填寫 path', 'error'); return; }
-                if (!m.path.startsWith('/')) { showToast(`path 需以 / 開頭：${m.path}`, 'error'); return; }
+                if (!m.path.startsWith('/')) { showToast(`path 需以 / 開頭:${m.path}`, 'error'); return; }
                 if (m.headers && m.headers.trim()) {
-                    try { JSON.parse(m.headers); } catch { showToast(`回應 Headers 不是合法 JSON：${m.path}`, 'error'); return; }
+                    try { JSON.parse(m.headers); } catch { showToast(`回應 Headers 不是合法 JSON:${m.path}`, 'error'); return; }
                 }
                 if (m.req_headers && m.req_headers.trim()) {
-                    try { JSON.parse(m.req_headers); } catch { showToast(`發出 Headers 不是合法 JSON：${m.path}`, 'error'); return; }
+                    try { JSON.parse(m.req_headers); } catch { showToast(`發出 Headers 不是合法 JSON:${m.path}`, 'error'); return; }
                 }
             }
-            try {
-                localStorage.setItem(_mockStorageKey(), JSON.stringify(mocksBuffer));
-                showToast(`已儲存 ${mocksBuffer.length} 個 Mock 端點（本機）`, 'success');
-            } catch (e) { showToast(`儲存失敗：${e.message}`, 'error'); }
+            let created = 0, updated = 0, deleted = 0, errors = 0;
+            for (const id of _mocksPendingDelete) {
+                try {
+                    await apiFetch(`/api/mock-endpoints/${id}`, { method: 'DELETE' });
+                    deleted++;
+                } catch (e) { errors++; }
+            }
+            _mocksPendingDelete = new Set();
+            for (const m of mocksBuffer) {
+                try {
+                    if (m._backendId) {
+                        await apiFetch(`/api/mock-endpoints/${m._backendId}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(_feToApiMock(m)),
+                        });
+                        updated++;
+                    } else {
+                        const row = await apiFetch('/api/mock-endpoints', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(_feToApiMock(m)),
+                        });
+                        m._backendId = row.id;
+                        m.id = row.id;
+                        created++;
+                    }
+                } catch (e) { errors++; }
+            }
+            const msg = `Mock 儲存:新增 ${created} / 更新 ${updated} / 刪除 ${deleted}` + (errors ? ` / ${errors} 筆失敗` : '');
+            showToast(msg, errors ? 'error' : 'success');
+            renderMockList();
         }
         function addMockEndpoint(method) {
             const m = (method || 'GET').toUpperCase();
@@ -10974,8 +11129,11 @@ driver.swipe(100, 800, 100, 200, 500)"
         }
         function removeSelectedMock() {
             if (_selectedMockIdx == null) return;
-            if (!confirm('確定移除此 Mock？')) return;
-            mocksBuffer.splice(_selectedMockIdx, 1);
+            if (!confirm('確定移除此 Mock？(需按「儲存」才會同步到後端)')) return;
+            const removed = mocksBuffer.splice(_selectedMockIdx, 1)[0];
+            if (removed && removed._backendId) {
+                _mocksPendingDelete.add(removed._backendId);
+            }
             if (_selectedMockIdx >= mocksBuffer.length) _selectedMockIdx = mocksBuffer.length - 1;
             if (_selectedMockIdx < 0) _selectedMockIdx = null;
             renderMockList();

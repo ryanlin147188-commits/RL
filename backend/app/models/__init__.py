@@ -13,7 +13,9 @@ from .requirement import (
 )
 from .ai_token_config import AiProvider, AiTokenConfig
 from .audit_log import AuditLog
+from .db_config import DbConfig
 from .email_config import EmailConfig
+from .mock_endpoint import MockEndpoint
 from .notification import Notification
 from .notification_preference import NotificationPreference
 from .oidc_provider import OidcProvider
@@ -58,4 +60,6 @@ __all__ = [
     "Organization", "AuditLog",
     # SSO / OIDC
     "OidcProvider",
+    # Mock + DB connection persistence (取代 localStorage)
+    "MockEndpoint", "DbConfig",
 ]

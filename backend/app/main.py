@@ -8,13 +8,14 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.database import init_db
-from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings, schedules, local_runner, test_rounds, project_settings, screenshot_baselines, system, defects, test_milestones, test_plans, requirements, test_data_sets, test_documents, wbs_items, settings as app_settings, todos, auth, ai, audit_logs, organizations, oidc, notifications
+from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings, schedules, local_runner, test_rounds, project_settings, screenshot_baselines, system, defects, test_milestones, test_plans, requirements, test_data_sets, test_documents, wbs_items, settings as app_settings, todos, auth, ai, audit_logs, organizations, oidc, notifications, mock_endpoints, db_configs
 # 確保新增 model 在 init_db() 前已 import 註冊到 Base.metadata
 from app.models import (  # noqa: F401
     Defect, TestMilestone, TestPlan, Requirement, RequirementTestcaseLink,
     TestDataSet, TestDocument, WbsItem,
     Role, NotificationPreference, Notification, EmailConfig, AiTokenConfig, TodoItem, User,
     Organization, AuditLog, OidcProvider,
+    MockEndpoint, DbConfig,
 )
 from app.middleware import AuthMiddleware
 from app.audit import AuditMiddleware
@@ -220,8 +221,8 @@ app.add_middleware(AuditMiddleware)
 # Auth middleware：在 CORS 之後加，確保 OPTIONS 預檢已被 CORS 處理
 app.add_middleware(AuthMiddleware)
 
-# 提供靜態截圖檔案
-app.mount("/pics", StaticFiles(directory=settings.PIC_FOLDER), name="pics")
+# /pics/* 由 nginx 直接反代到 SeaweedFS(pic bucket),backend 不再服務本地檔案。
+# (歷史:STORAGE_BACKEND=local 時使用過 StaticFiles,改全 SeaweedFS 後移除)
 
 # ── 路由註冊（REST 端點掛 /api，WebSocket 掛 /ws）──
 app.include_router(projects.router,        prefix="/api", tags=["A · 專案與樹"])
@@ -254,6 +255,8 @@ app.include_router(audit_logs.router,      prefix="/api", tags=["W · 審計"])
 app.include_router(organizations.router,   prefix="/api", tags=["X · 組織"])
 app.include_router(notifications.router,   prefix="/api", tags=["Y · 通知"])
 app.include_router(oidc.router,            prefix="/api")
+app.include_router(mock_endpoints.router,  prefix="/api", tags=["Z · Mock 端點"])
+app.include_router(db_configs.router,      prefix="/api", tags=["AA · DB 連線"])
 
 
 @app.get("/", tags=["Health"])

@@ -299,28 +299,28 @@ async def upload_recording(
     if not session:
         raise HTTPException(404, "Recording session not found")
 
-    folder = _session_dir(session_id)
-
     if script is not None:
         content = await script.read()
-        # 安全：限制大小 1MB
+        # 安全:限制大小 1MB
         if len(content) > 1_000_000:
             raise HTTPException(413, "Script too large (>1MB)")
         try:
             session.script_text = content.decode("utf-8", errors="replace")
         except Exception:
             session.script_text = content.decode("latin-1", errors="replace")
-        with open(os.path.join(folder, "recorded.py"), "wb") as f:
-            f.write(content)
+        # script_text 已存 DB,不需另外寫到本地檔(會跟著 RecordingSession 一起)
 
     if trace is not None:
         content = await trace.read()
         if len(content) > 50_000_000:
             raise HTTPException(413, "Trace too large (>50MB)")
-        trace_file = os.path.join(folder, "trace.zip")
-        with open(trace_file, "wb") as f:
-            f.write(content)
-        session.trace_path = f"recordings/{session_id}/trace.zip"
+        # trace.zip 寫到 SeaweedFS,relative URL 寫到 session.trace_path
+        from app.services.storage_service import save_bytes
+        key = f"recordings/{session_id}/trace.zip"
+        url = save_bytes(content, key, bucket="pic", content_type="application/zip")
+        # trace_path 統一儲存 relative URL(/pics/recordings/<id>/trace.zip)
+        # 而非 PIC_FOLDER 下的相對路徑 — 讓下載端直接 redirect 即可
+        session.trace_path = url
 
     if session.script_text or session.trace_path:
         session.status = "UPLOADED"
@@ -335,17 +335,17 @@ async def upload_recording(
     tags=["E · 錄製"],
 )
 async def download_trace(session_id: str, db: AsyncSession = Depends(get_db)):
+    """重導向到 trace.zip 的物件儲存 URL。早期版本可能存舊式相對路徑(`recordings/<id>/trace.zip`),
+    這裡為相容性處理:含 `/` 但不以 `/` 開頭代表是舊路徑,自動補上 `/pics/`。
+    """
+    from fastapi.responses import RedirectResponse
     session = await db.get(RecordingSession, session_id)
     if not session or not session.trace_path:
         raise HTTPException(404, "Trace not found")
-    full = os.path.join(settings.PIC_FOLDER, session.trace_path)
-    if not os.path.exists(full):
-        raise HTTPException(404, "Trace file missing on disk")
-    return FileResponse(
-        full,
-        media_type="application/zip",
-        filename=f"trace_{session_id[:8]}.zip",
-    )
+    url = session.trace_path
+    if not url.startswith(("/", "http://", "https://")):
+        url = f"/pics/{url}"
+    return RedirectResponse(url=url, status_code=302)
 
 
 # ─────────────────────────────────────────────────────────

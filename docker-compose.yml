@@ -105,7 +105,7 @@ services:
       REDIS_URL: redis://valkey:6379/0
       PIC_FOLDER: /app/PIC
       BASE_URL: ${BASE_URL:-http://localhost}
-      STORAGE_BACKEND: ${STORAGE_BACKEND:-local}
+      STORAGE_BACKEND: ${STORAGE_BACKEND:-minio}
       # MINIO_* 環境變數沿用作為「S3 端點」設定（內容指向 SeaweedFS）
       MINIO_ENDPOINT: http://seaweedfs:8333
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-admin}
@@ -114,7 +114,7 @@ services:
       APP_PORT: 8000
       DEBUG: "False"
     volumes:
-      - pic_data:/app/PIC
+      # 截圖 / 影片 / Trace / 附件全部存 SeaweedFS,backend 不再需要 PIC volume
       # 掛入 docker socket，讓 /api/system/status 能查詢 Docker 狀態
       - /var/run/docker.sock:/var/run/docker.sock
     ports:
@@ -141,7 +141,7 @@ services:
       REDIS_URL: redis://valkey:6379/0
       PIC_FOLDER: /app/PIC
       BASE_URL: ${BASE_URL:-http://localhost}
-      STORAGE_BACKEND: ${STORAGE_BACKEND:-local}
+      STORAGE_BACKEND: ${STORAGE_BACKEND:-minio}
       MINIO_ENDPOINT: http://seaweedfs:8333
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-admin}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-admin123}
@@ -150,7 +150,7 @@ services:
       # 與下方 networks.default.name 保持一致
       ROBOT_RUNNER_NETWORK: ${ROBOT_RUNNER_NETWORK:-autotest_default}
     volumes:
-      - pic_data:/app/PIC
+      # Celery worker 透過 storage_service 直接寫 SeaweedFS,不需 PIC volume
       # 把 host 的 docker daemon 開放給 celery worker 用（spawn 子容器時呼叫）
       - /var/run/docker.sock:/var/run/docker.sock
 
@@ -220,7 +220,6 @@ services:
 
 volumes:
   postgres_data:
-  pic_data:
   seaweedfs_data:
   victoria_logs_data:
 

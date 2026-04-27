@@ -27,8 +27,10 @@ async def init_db() -> None:
     """應用程式啟動時，若資料表不存在則自動建立，並補上新增欄位（idempotent）。"""
     # 確保所有 model 都已被 import，才能讓 metadata 認識它們
     from app.models import (  # noqa: F401
+        db_config,
         execution_report,
         execution_step_log,
+        mock_endpoint,
         project,
         project_device,
         project_env_var,
@@ -85,6 +87,11 @@ async def init_db() -> None:
         "ALTER TABLE todo_items ADD COLUMN IF NOT EXISTS sprint_label VARCHAR(80)",
         "CREATE INDEX IF NOT EXISTS ix_todo_items_parent ON todo_items (parent_id)",
         "CREATE INDEX IF NOT EXISTS ix_todo_items_sprint ON todo_items (sprint_label)",
+        # Mock + DB connection persistence (取代 localStorage)
+        "CREATE INDEX IF NOT EXISTS ix_mock_endpoints_org ON mock_endpoints (organization_id)",
+        "CREATE INDEX IF NOT EXISTS ix_mock_endpoints_project ON mock_endpoints (project_id)",
+        "CREATE INDEX IF NOT EXISTS ix_db_configs_org ON db_configs (organization_id)",
+        "CREATE INDEX IF NOT EXISTS ix_db_configs_project ON db_configs (project_id)",
     )
     for stmt in migration_stmts:
         await _run_safe(stmt)
