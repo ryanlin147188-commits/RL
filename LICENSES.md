@@ -75,7 +75,7 @@
 - `procps-ng` — GPL-2.0+（**僅執行檔，不影響你的程式碼**）
 
 ### 2.3 Frontend CDN Scripts
-來源：[`index.html`](index.html#L7-L14)
+來源：[`frontend/index.html`](frontend/index.html#L7-L14)
 
 | 資源 | 版本 / Tag | 授權 | SaaS 商用 |
 |---|---|---|---|
@@ -141,7 +141,7 @@
 | ⚠️ 在 footer / about 頁加上 "Icons by Font Awesome" 註腳 | **須做** |
 | ❌ 把 icons 修改後當成自己的圖示集賣 | 須附上原 attribution |
 
-**建議改動**（SaaS 上線前）：在 [`index.html`](index.html) 的 footer 區或登入頁加一行：
+**建議改動**（SaaS 上線前）：在 [`frontend/index.html`](frontend/index.html) 的 footer 區或登入頁加一行：
 
 ```html
 <p class="text-[10px] text-stone-400">

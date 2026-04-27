@@ -192,7 +192,7 @@ AutoTest 的核心設計理念是「**讓每一種主流測試方法論都能在
 
 **架構亮點**:
 
-- **前端**:單一 `index.html` + Tailwind CDN + Vanilla JS,**零 build step**
+- **前端**:單一 `frontend/index.html` + Tailwind CDN + Vanilla JS,**零 build step**
 - **每案隔離**:Celery Worker 透過 Docker SDK spawn 獨立 runner 容器,跑完自毀
 - **物件儲存**:截圖 / 影片 / Trace 即時上傳 SeaweedFS(S3 相容,Apache 2.0)
 - **集中式 log**:Fluent Bit → VictoriaLogs(自帶 vmui 查詢面板,port 9428)
