@@ -911,7 +911,7 @@
 
         <!-- 左側專案樹面板:drawer < md / inline ≥ md
              header 單列 h-14 = 56px (功能 nav 已移到左側 #navDrawer);用 top-14 -->
-        <aside id="sidebar" class="bg-amber-50/40 border-r border-amber-100 flex flex-col shrink-0 shadow-[2px_0_5px_rgba(0,0,0,0.02)] z-50 fixed md:relative top-14 bottom-0 md:top-auto md:bottom-auto md:inset-y-0 left-0 transform -translate-x-full md:translate-x-0 transition-transform duration-300 w-[85vw] max-w-[360px] md:max-w-none md:w-auto">
+        <aside id="sidebar" class="bg-amber-50/40 border-r border-amber-100 flex flex-col shrink-0 shadow-[2px_0_5px_rgba(0,0,0,0.02)] z-50 fixed md:relative top-14 bottom-0 md:top-auto md:bottom-auto md:inset-y-0 left-0 transform translate-x-0 transition-transform duration-300 w-[85vw] max-w-[360px] md:max-w-none md:w-auto">
             <div class="p-4 border-b border-slate-200 flex flex-col gap-3 bg-white z-10">
 
                 <!-- 專案目錄 Header：右側為「新增專案」icon（對齊下方刪除專案欄位上方）-->
@@ -1069,60 +1069,21 @@
                     <p id="recSessionInfo" class="mt-3 text-xs text-slate-500">尚未建立 session</p>
                 </section>
 
-                <!-- ② 在本機執行 codegen / 在 Docker 容器內錄製(雙模式切換) -->
+                <!-- ② Docker 容器錄製(Sprint 11.9 — 已移除本機模式,只支援 Docker) -->
                 <section id="recCmdSection" class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm hidden">
-                    <h3 class="font-bold text-slate-700 flex items-center gap-2 mb-3"><i class="fa-solid fa-circle-2 text-rose-500"></i> 啟動錄製器</h3>
-                    <!-- 模式切換 -->
-                    <div class="flex gap-2 mb-4 bg-slate-100 p-1 rounded-lg" role="tablist" aria-label="錄製執行模式">
-                        <button type="button" id="recModeBtnLocal" role="tab" aria-selected="true" aria-controls="recCmdLocal" onclick="recSetMode('local')"
-                            class="flex-1 px-3 py-2 rounded-md text-sm font-medium bg-white text-rose-600 shadow-sm flex items-center justify-center gap-2">
-                            <i class="fa-solid fa-laptop"></i> 本機錄製
-                        </button>
-                        <button type="button" id="recModeBtnDocker" role="tab" aria-selected="false" aria-controls="recCmdDocker" onclick="recSetMode('docker')"
-                            class="flex-1 px-3 py-2 rounded-md text-sm font-medium text-slate-500 hover:text-slate-700 flex items-center justify-center gap-2">
-                            <i class="fa-brands fa-docker"></i> Docker 容器錄製 <span class="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">伺服器側</span>
-                        </button>
-                    </div>
-                    <p class="text-xs text-slate-500 mb-3">
-                        <b>本機</b>:後端發指令,你在自己的終端機跑 Playwright codegen;適合進階開發者。
-                        <b>Docker</b>:後端開個容器內含瀏覽器,你在這頁面的 iframe 內直接操作即可,免裝 Playwright。
-                    </p>
-
-                    <!-- ── 本機模式:沿用既有的 PowerShell / bash 一鍵指令 ── -->
-                    <div id="recCmdLocal" class="space-y-3">
-                        <p class="text-xs text-slate-600 bg-amber-50 border border-amber-200 rounded p-3">
-                            <i class="fa-solid fa-bolt text-amber-500"></i>
-                            <b>使用方式：</b>建立 session 後，下方已備好 <b>Windows (PowerShell)</b> 與 <b>macOS / Linux (bash)</b> 兩種一鍵指令；
-                            依自己的作業系統複製對應那一欄，貼進終端機 Enter 即可開啟 Playwright 錄製器。
-                            操作完成後關閉視窗，會自動產生 trace.zip 並上傳至本系統。
-                        </p>
-                        <div>
-                            <div class="flex items-center justify-between mb-1">
-                                <span class="text-xs font-mono text-slate-500"><i class="fa-brands fa-windows text-blue-500"></i> Windows (PowerShell) — 一鍵指令</span>
-                                <button type="button" onclick="recCopy('cmdPs')" class="text-xs text-blue-600 hover:underline"><i class="fa-solid fa-copy"></i> 複製</button>
-                            </div>
-                            <textarea id="cmdPs" aria-label="Windows PowerShell 一鍵錄製加上傳指令" readonly rows="4" class="w-full text-xs font-mono p-2 bg-slate-50 border border-slate-200 rounded"></textarea>
-                        </div>
-                        <div>
-                            <div class="flex items-center justify-between mb-1">
-                                <span class="text-xs font-mono text-slate-500"><i class="fa-brands fa-apple text-slate-700"></i><i class="fa-brands fa-linux text-slate-700 ml-1"></i> macOS / Ubuntu / Linux (bash / zsh) — 一鍵指令</span>
-                                <button type="button" onclick="recCopy('cmdBash')" class="text-xs text-blue-600 hover:underline"><i class="fa-solid fa-copy"></i> 複製</button>
-                            </div>
-                            <textarea id="cmdBash" aria-label="macOS / Linux bash 一鍵錄製加上傳指令" readonly rows="5" class="w-full text-xs font-mono p-2 bg-slate-50 border border-slate-200 rounded"></textarea>
-                        </div>
-                        <!-- 隱藏欄位：保留以維持 recCreateSession 既有寫入邏輯 -->
-                        <textarea id="cmdNpx" class="hidden" aria-hidden="true"></textarea>
-                        <textarea id="cmdPip" class="hidden" aria-hidden="true"></textarea>
-                        <textarea id="cmdRfb" class="hidden" aria-hidden="true"></textarea>
-                        <p class="mt-3 text-xs text-slate-500"><i class="fa-solid fa-circle-info text-amber-500"></i>
-                            <b>Windows：</b>第一次若出現「執行原則」警告，在 PowerShell 中執行 <code>Set-ExecutionPolicy -Scope CurrentUser RemoteSigned</code> 一次即可。
-                            <b>macOS / Linux：</b>需已安裝 <code>python</code> 與 <code>curl</code>（大多數系統預設內建）；若沒裝 Playwright，第一次執行會自動從 pip 安裝。
-                            RF Browser 已內建 playwright，無需額外安裝。
-                        </p>
-                    </div>
+                    <h3 class="font-bold text-slate-700 flex items-center gap-2 mb-3">
+                        <i class="fa-solid fa-circle-2 text-rose-500"></i> 啟動錄製器
+                        <span class="text-[11px] font-normal text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded ml-2"><i class="fa-brands fa-docker"></i> Docker 容器錄製</span>
+                    </h3>
+                    <!-- 隱藏欄位:保留以維持 recCreateSession 既有寫入邏輯不爆 -->
+                    <textarea id="cmdPs" class="hidden" aria-hidden="true"></textarea>
+                    <textarea id="cmdBash" class="hidden" aria-hidden="true"></textarea>
+                    <textarea id="cmdNpx" class="hidden" aria-hidden="true"></textarea>
+                    <textarea id="cmdPip" class="hidden" aria-hidden="true"></textarea>
+                    <textarea id="cmdRfb" class="hidden" aria-hidden="true"></textarea>
 
                     <!-- ── Docker 模式:啟容器 + iframe 嵌入 noVNC ── -->
-                    <div id="recCmdDocker" class="hidden space-y-3">
+                    <div id="recCmdDocker" class="space-y-3">
                         <div id="recDockerIdle" class="text-xs text-slate-600 bg-blue-50 border border-blue-200 rounded p-3">
                             <i class="fa-solid fa-circle-info text-blue-500"></i>
                             <b>容器錄製:</b>後端會開一個 image=<code>autotest-recorder</code> 的容器,內含 Xvfb + Playwright codegen + noVNC。啟動後你會在下方 iframe 看到容器內的瀏覽器,可直接用滑鼠 / 鍵盤操作;Playwright Inspector 視窗關閉(在 codegen 介面點 Stop / 視窗 X)時容器會自動把 .py + trace.zip 上傳。
@@ -1152,65 +1113,20 @@
                     </div>
                 </section>
 
-                <!-- ③ 上傳結果 -->
-                <section id="recUploadSection" class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm hidden">
-                    <h3 class="font-bold text-slate-700 flex items-center gap-2 mb-3"><i class="fa-solid fa-circle-3 text-rose-500"></i> 上傳錄製結果</h3>
-                    <div class="grid grid-cols-2 gap-4">
-                        <label class="border-2 border-dashed border-slate-300 hover:border-rose-400 rounded p-4 text-center cursor-pointer transition">
-                            <i class="fa-solid fa-file-code text-2xl text-slate-400 mb-2"></i>
-                            <p class="text-sm text-slate-600">codegen 腳本 (.py)</p>
-                            <p id="recScriptName" class="text-xs text-slate-400 mt-1">尚未選擇</p>
-                            <input id="recScriptInput" type="file" accept=".py,text/x-python" class="hidden" onchange="recPickFile(this,'recScriptName')" />
-                        </label>
-                        <label class="border-2 border-dashed border-slate-300 hover:border-rose-400 rounded p-4 text-center cursor-pointer transition">
-                            <i class="fa-solid fa-file-zipper text-2xl text-slate-400 mb-2"></i>
-                            <p class="text-sm text-slate-600">trace.zip <span class="text-amber-600">(可選)</span></p>
-                            <p id="recTraceName" class="text-xs text-slate-400 mt-1">尚未選擇</p>
-                            <input id="recTraceInput" type="file" accept=".zip,application/zip" class="hidden" onchange="recPickFile(this,'recTraceName')" />
-                        </label>
-                    </div>
-                    <div class="mt-4 flex flex-wrap gap-2">
-                        <button onclick="recUpload()" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded text-sm font-medium flex items-center gap-2"><i class="fa-solid fa-cloud-arrow-up"></i> 上傳</button>
-                        <button onclick="recConvertAndApply()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium flex items-center gap-2"><i class="fa-solid fa-wand-magic-sparkles"></i> 解析並套用至當前案例</button>
-                        <button onclick="recDownloadTrace()" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-sm font-medium flex items-center gap-2"><i class="fa-solid fa-download"></i> 下載 trace.zip</button>
-                    </div>
-                    <p id="recStatus" class="mt-3 text-xs text-slate-500"></p>
-                </section>
+                <!-- Sprint 11.9 — 上傳區已移除:Docker 模式由容器內自動上傳 .py + trace.zip,不需使用者手動 -->
                 </div>
 
-                <!-- API 錄製區:雙模式(本機貼 cURL / Docker mitmproxy 容器錄製) -->
+                <!-- API 錄製區(Sprint 11.9 — 已移除本機貼 cURL,只支援 Docker mitmproxy) -->
                 <section id="recApiSection" class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm hidden">
-                    <h3 class="font-bold text-slate-700 flex items-center gap-2 mb-3"><i class="fa-solid fa-server text-purple-500"></i> API 錄製</h3>
-                    <!-- 模式切換 -->
-                    <div class="flex gap-2 mb-4 bg-slate-100 p-1 rounded-lg" role="tablist" aria-label="API 錄製執行模式">
-                        <button type="button" id="recApiModeBtnLocal" role="tab" aria-selected="true" aria-controls="recApiLocal" onclick="recApiSetMode('local')"
-                            class="flex-1 px-3 py-2 rounded-md text-sm font-medium bg-white text-purple-600 shadow-sm flex items-center justify-center gap-2">
-                            <i class="fa-solid fa-laptop"></i> 本機(貼 cURL)
-                        </button>
-                        <button type="button" id="recApiModeBtnDocker" role="tab" aria-selected="false" aria-controls="recApiDocker" onclick="recApiSetMode('docker')"
-                            class="flex-1 px-3 py-2 rounded-md text-sm font-medium text-slate-500 hover:text-slate-700 flex items-center justify-center gap-2">
-                            <i class="fa-brands fa-docker"></i> Docker mitmproxy 錄製 <span class="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">伺服器側</span>
-                        </button>
-                    </div>
-
-                    <!-- 本機模式:沿用既有貼 cURL -->
-                    <div id="recApiLocal" class="space-y-3">
-                        <p class="text-xs text-slate-600 bg-purple-50 border border-purple-200 rounded p-3">
-                            <i class="fa-solid fa-bolt text-purple-500"></i>
-                            <b>用法：</b>在 Chrome DevTools 的 Network 分頁對請求按右鍵 → Copy → Copy as cURL。可一次貼多個,以空行分隔。
-                            解析時會自動轉換為 <code>Http.SetHeader</code> / <code>Http.GET / POST / ...</code> 步驟。
-                        </p>
-                        <textarea id="recCurlText" rows="10" aria-label="cURL 指令"
-                            placeholder="curl 'https://api.example.com/users' -X POST -H 'Content-Type: application/json' --data-raw '{&quot;name&quot;:&quot;foo&quot;}'"
-                            class="w-full text-xs font-mono p-3 border border-slate-300 rounded focus:ring-2 focus:ring-purple-100 focus:border-purple-400 outline-none"></textarea>
-                        <div class="flex gap-2">
-                            <button onclick="recParseCurl()" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-medium flex items-center gap-2"><i class="fa-solid fa-wand-magic-sparkles"></i> 解析為 Http.* 步驟</button>
-                            <button onclick="document.getElementById('recCurlText').value=''" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-sm"><i class="fa-solid fa-eraser"></i> 清空</button>
-                        </div>
-                    </div>
+                    <h3 class="font-bold text-slate-700 flex items-center gap-2 mb-3">
+                        <i class="fa-solid fa-server text-purple-500"></i> API 錄製
+                        <span class="text-[11px] font-normal text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded ml-2"><i class="fa-brands fa-docker"></i> Docker mitmproxy 錄製</span>
+                    </h3>
+                    <!-- 隱藏欄位:保留 textarea 給 recParseCurl 還在引用,避免 null pointer -->
+                    <textarea id="recCurlText" class="hidden" aria-hidden="true"></textarea>
 
                     <!-- Docker 模式:啟 mitmproxy 容器,user 設 proxy → 自動擷取 → HAR 解析 -->
-                    <div id="recApiDocker" class="hidden space-y-3">
+                    <div id="recApiDocker" class="space-y-3">
                         <div id="recApiDockerIdle" class="text-xs text-slate-600 bg-blue-50 border border-blue-200 rounded p-3">
                             <i class="fa-solid fa-circle-info text-blue-500"></i>
                             <b>容器 mitmproxy 錄製:</b>後端開一個 mitmproxy 容器擷取所有 HTTP/HTTPS 流量。啟動後會顯示一個 <b>HTTP Proxy 位址</b>,你把瀏覽器 / Postman / 手機 app 的 proxy 指過去,所有請求會被擷取;同時下方 iframe 會嵌入 mitmweb 即時看 captured flows。按「停止錄製」會自動把 HAR 解析成 Http.* 步驟。
@@ -1350,13 +1266,11 @@ driver.swipe(100, 800, 100, 200, 500)"
                                     <th class="p-2 text-left">建立時間</th>
                                     <th class="p-2 text-left">Session ID</th>
                                     <th class="p-2 text-left">目標 URL</th>
-                                    <th class="p-2 text-left">狀態</th>
-                                    <th class="p-2 text-left">檔案</th>
                                     <th class="p-2 text-left">操作</th>
                                 </tr>
                             </thead>
                             <tbody id="recListBody" class="divide-y divide-slate-100">
-                                <tr><td colspan="7" class="p-4 text-center text-slate-400">載入中...</td></tr>
+                                <tr><td colspan="5" class="p-4 text-center text-slate-400">載入中...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -2675,6 +2589,11 @@ driver.swipe(100, 800, 100, 200, 500)"
                             <div class="w-10 h-10 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-plug"></i></div>
                             <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.mock">Mock</div>
                             <div class="text-xs text-slate-500" data-i18n="home.card.mock.desc">REST Mock 端點管理</div>
+                        </button>
+                        <button onclick="showTestVersionsView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-amber-300 transition group">
+                            <div class="w-10 h-10 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-tag"></i></div>
+                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.testVersions">測試版號</div>
+                            <div class="text-xs text-slate-500" data-i18n="home.card.testVersions.desc">WEB / API / APP 版號管理</div>
                         </button>
                     </div>
 
@@ -8952,10 +8871,9 @@ driver.swipe(100, 800, 100, 200, 500)"
             if (backdrop) backdrop.classList.remove('hidden');
         }
         function closeMobileSidebar() {
-            const sidebar = document.getElementById('sidebar');
+            // Sprint 11.11 — 側邊欄改為永遠展開,closeMobileSidebar 變成 noop;
+            // 只關 backdrop(避免 drawer overlay 殘留)
             const backdrop = document.getElementById('sidebarBackdrop');
-            // 僅在手機寬度下加回 -translate-x-full；桌面版 lg:translate-x-0 保持原樣
-            if (sidebar) sidebar.classList.add('-translate-x-full');
             if (backdrop) backdrop.classList.add('hidden');
         }
         // 視窗變大回桌面尺寸時自動清掉手機狀態，避免殘留 drawer 位置
@@ -10117,8 +10035,22 @@ driver.swipe(100, 800, 100, 200, 500)"
             recPopulateApplyTarget();
             // 預設停留在上次平台（首次進入則為 WEB）
             switchRecPlatform(recCurrentPlatform || 'WEB');
+            // Sprint 11.9 — WEB / API 錄製只支援 Docker 容器模式,不再有 local tab,故不需呼叫 recSetMode
+            // Sprint 11.8 — 預設啟用「自動建案模式」+ 自動選第一個 SCENARIO,免使用者手動勾
+            try {
+                const cb = document.getElementById('recAutoCreate');
+                if (cb && !cb.checked) {
+                    cb.checked = true;
+                    if (typeof recOnAutoCreateToggle === 'function') recOnAutoCreateToggle();
+                }
+                // 等下拉填好(recOnAutoCreateToggle 是同步收集 tree 不用 await)
+                const sel = document.getElementById('recAutoCreateScenario');
+                if (sel && !sel.value && sel.options.length) {
+                    sel.value = sel.options[0].value;
+                }
+            } catch (_) {}
             try { _afterViewChange(); } catch (_) {}
-        
+
         }
 
         // ==================== 排程 (Schedule) ====================
@@ -12828,18 +12760,19 @@ driver.swipe(100, 800, 100, 200, 500)"
                 if (appiumLink && data.commands.appium_inspector_url) {
                     appiumLink.href = data.commands.appium_inspector_url;
                 }
-                document.getElementById('recCmdSection').classList.remove('hidden');
-                document.getElementById('recUploadSection').classList.remove('hidden');
-                document.getElementById('recPreviewSection').classList.add('hidden');
-                document.getElementById('recStatus').textContent = '';
-                document.getElementById('recScriptName').textContent = '尚未選擇';
-                document.getElementById('recTraceName').textContent = '尚未選擇';
+                document.getElementById('recCmdSection')?.classList.remove('hidden');
+                // Sprint 11.9 — recUploadSection / recScriptName / recTraceName 已移除(只支援 Docker)
+                document.getElementById('recUploadSection')?.classList.remove('hidden');
+                document.getElementById('recPreviewSection')?.classList.add('hidden');
+                const stEl = document.getElementById('recStatus');
+                if (stEl) stEl.textContent = '';
+                const sn = document.getElementById('recScriptName');
+                if (sn) sn.textContent = '尚未選擇';
+                const tn = document.getElementById('recTraceName');
+                if (tn) tn.textContent = '尚未選擇';
                 recScriptFile = null; recTraceFile = null;
-                showToast('Session 已建立；請依作業系統複製 PowerShell 或 bash 指令', 'success');
+                showToast('Session 已建立;請按下「啟動容器並開始錄製」', 'success');
                 recRefreshList();
-                // 兩種指令都已顯示在頁面上；預設把 PowerShell 指令複製到剪貼簿（Windows 使用者佔多數）
-                // macOS / Linux 使用者按對應那欄的「複製」按鈕即可
-                try { navigator.clipboard.writeText(data.commands.powershell_oneliner || ''); } catch (e) { /* ignore */ }
             } catch (e) {
                 showToast('建立失敗：' + e.message, 'error');
             }
@@ -13322,6 +13255,44 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById(labelId).textContent = f.name + ' (' + Math.round(f.size / 1024) + ' KB)';
             if (labelId === 'recScriptName') recScriptFile = f;
             else recTraceFile = f;
+            // Sprint 11.8 — 拖入即自動跑 upload → convert → 建新案例
+            // 等 200ms 讓使用者可同時挑兩個檔案再合併送一次(避免兩個 onchange 各跑一次)
+            if (window._recAutoFireTimer) clearTimeout(window._recAutoFireTimer);
+            window._recAutoFireTimer = setTimeout(() => { _recAutoUploadConvertCreate(); }, 250);
+        }
+
+        // Sprint 11.8 — local 模式自動鏈:upload → convert → 建為新案例(免按鈕)
+        async function _recAutoUploadConvertCreate() {
+            if (!recCurrentSession || !recCurrentSession.id) {
+                showToast('請先按「建立 / 重新開始」建立 session', 'error'); return;
+            }
+            if (!recScriptFile) {
+                showToast('請至少放入 .py 腳本檔', 'error'); return;
+            }
+            const status = document.getElementById('recStatus');
+            try {
+                if (status) status.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 上傳中…';
+                await recUpload();
+                if (status) status.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 解析中…';
+                await recConvertAndApply();
+                if (!recLastSteps.length) {
+                    if (status) status.innerHTML = '<span class="text-amber-600">解析完成但沒有步驟,請檢查 .py 內容</span>';
+                    return;
+                }
+                // 自動建案:讀「自動建案模式」勾選 + SCENARIO 下拉
+                const autoEnabled = document.getElementById('recAutoCreate')?.checked;
+                const scenarioId = document.getElementById('recAutoCreateScenario')?.value;
+                if (autoEnabled && scenarioId) {
+                    if (status) status.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 自動建為新案例中…';
+                    await _recAutoCreateNewCase(scenarioId);
+                    if (status) status.innerHTML = '<span class="text-emerald-600"><i class="fa-solid fa-check"></i> 已自動建為新測試案例,請查看左側樹</span>';
+                } else {
+                    if (status) status.innerHTML = '<span class="text-amber-600">解析完成,但「自動建案模式」未勾或未選 SCENARIO,請手動處理</span>';
+                }
+            } catch (e) {
+                if (status) status.innerHTML = `<span class="text-rose-600"><i class="fa-solid fa-circle-xmark"></i> ${_esc(e.message)}</span>`;
+                showToast('自動處理失敗:' + e.message, 'error');
+            }
         }
 
         async function recUpload() {
@@ -13939,13 +13910,13 @@ driver.swipe(100, 800, 100, 200, 500)"
         async function recRefreshList() {
             const tbody = document.getElementById('recListBody');
             if (!tbody) return;
-            tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-slate-400">載入中...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-slate-400">載入中...</td></tr>';
             try {
                 const res = await fetch('/api/recordings');
                 if (!res.ok) throw new Error('HTTP ' + res.status);
                 const list = await res.json();
                 if (!list.length) {
-                    tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-slate-400">尚無錄製紀錄</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-slate-400">尚無錄製紀錄</td></tr>';
                     recUpdateBulkBtn();
                     return;
                 }
@@ -13954,31 +13925,16 @@ driver.swipe(100, 800, 100, 200, 500)"
                     const tr = document.createElement('tr');
                     const created = s.created_at ? new Date(s.created_at).toLocaleString('zh-TW', { hour12: false }) : '-';
                     const sidShort = s.id ? s.id.slice(0, 8) : '-';
-                    const statusColor = s.status === 'UPLOADED'
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-slate-100 text-slate-600';
-                    const hasScript = !!s.script_text;
                     const hasTrace = !!s.trace_path;
-                    const fileBadges =
-                        (hasScript ? '<span class="inline-block px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-xs mr-1">.py</span>' : '') +
-                        (hasTrace ? '<span class="inline-block px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded text-xs">trace.zip</span>' : '') +
-                        (!hasScript && !hasTrace ? '<span class="text-slate-400 text-xs">無</span>' : '');
                     const traceBtn = hasTrace
                         ? `<a href="/api/recordings/${s.id}/trace" target="_blank" class="text-blue-600 hover:underline text-xs"><i class="fa-solid fa-download"></i> trace</a>`
-                        : '';
-                    const scriptBtn = hasScript
-                        ? `<button onclick="recViewScript('${s.id}')" class="text-blue-600 hover:underline text-xs"><i class="fa-solid fa-eye"></i> .py</button>`
                         : '';
                     tr.innerHTML = `
                         <td class="p-2"><input type="checkbox" class="recRowChk" value="${recEscape(s.id)}" onchange="recUpdateBulkBtn()" aria-label="選取 ${recEscape(sidShort)}"></td>
                         <td class="p-2 text-xs text-slate-600">${recEscape(created)}</td>
                         <td class="p-2 font-mono text-xs text-rose-600" title="${recEscape(s.id)}">${recEscape(sidShort)}</td>
                         <td class="p-2 text-xs text-slate-600 max-w-xs truncate" title="${recEscape(s.target_url)}">${recEscape(s.target_url)}</td>
-                        <td class="p-2"><span class="inline-block px-2 py-0.5 rounded text-xs font-medium ${statusColor}">${recEscape(s.status)}</span></td>
-                        <td class="p-2">${fileBadges}</td>
                         <td class="p-2 space-x-2">
-                            <button onclick="recLoadSession('${recEscape(s.id)}')" class="text-rose-600 hover:underline text-xs"><i class="fa-solid fa-pen-to-square"></i> 載入</button>
-                            ${scriptBtn}
                             ${traceBtn}
                             <button onclick="recDeleteSession('${recEscape(s.id)}')" class="text-red-600 hover:underline text-xs"><i class="fa-solid fa-trash"></i> 刪除</button>
                         </td>`;
@@ -13986,7 +13942,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 });
                 recUpdateBulkBtn();
             } catch (e) {
-                tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-red-500">載入失敗：${e.message}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-red-500">載入失敗:${e.message}</td></tr>`;
             }
         }
 
@@ -14009,8 +13965,8 @@ driver.swipe(100, 800, 100, 200, 500)"
                 document.getElementById('recUrl').value = s.target_url || '';
                 document.getElementById('recSessionInfo').innerHTML =
                     `<i class="fa-solid fa-check text-green-500"></i> Session: <code class="text-rose-600">${s.id}</code> · 狀態：${s.status}`;
-                document.getElementById('recCmdSection').classList.remove('hidden');
-                document.getElementById('recUploadSection').classList.remove('hidden');
+                document.getElementById('recCmdSection')?.classList.remove('hidden');
+                document.getElementById('recUploadSection')?.classList.remove('hidden');
                 showToast('已載入 session', 'success');
             } catch (e) {
                 showToast('載入失敗：' + e.message, 'error');
@@ -17603,7 +17559,7 @@ gantt
                 // 開新 modal 讓使用者選要建哪些 + 選 SCENARIO
                 _aiGenItems = items;
                 _aiGenReqId = reqId;
-                _showAiGenResultModal(data);
+                aiChatRenderGenResult(data);
             } catch (e) {
                 showToast('AI 產生失敗:' + e.message, 'error');
             }
@@ -17711,6 +17667,127 @@ gantt
             document.body.appendChild(modal);
         }
 
+        // Sprint 11.3 — 把 AI 生案結果改成 inline 顯示在 AI Chat 對話框,
+        // 取代彈出 modal,讓使用者一條龍流程都在 chat panel 內完成。
+        function aiChatRenderGenResult(data) {
+            // 1) 確保 AI Chat 開著
+            const panel = document.getElementById('aiChatPanel');
+            if (panel && panel.classList.contains('translate-x-full')) {
+                aiChatToggle();
+            }
+            // 2) SCENARIO 收集(復用既有 walk 邏輯)
+            const scenarios = [];
+            (function walk(nodes, path) {
+                if (!nodes) return;
+                for (const n of nodes) {
+                    const nextPath = path ? path + ' / ' + (n.title || n.name) : (n.title || n.name);
+                    if (n.level_type === 'SCENARIO') scenarios.push({ id: n.id, label: nextPath });
+                    if (n.children && n.children.length) walk(n.children, nextPath);
+                }
+            })(activeTreeData || [], '');
+            const scenarioOpts = scenarios.length
+                ? scenarios.map(s => `<option value="${_esc(s.id)}">${_esc(s.label)}</option>`).join('')
+                : '<option value="">— 請先建 SCENARIO 節點 —</option>';
+
+            const cards = (data.generated || []).map((it, idx) => {
+                const steps = it.steps_json || [];
+                const stepRows = steps.map((s, i) => `
+                    <tr class="border-t border-stone-200">
+                      <td class="px-1.5 py-0.5 text-stone-500 text-center">${i+1}</td>
+                      <td class="px-1.5 py-0.5 font-mono text-blue-600">${_esc(s.keyword || 'When')}</td>
+                      <td class="px-1.5 py-0.5 font-mono text-emerald-700">${_esc(s.action || '')}</td>
+                      <td class="px-1.5 py-0.5 font-mono text-stone-700 break-all">${_esc(s.locator || '')}</td>
+                      <td class="px-1.5 py-0.5 break-all">${_esc(s.input || '')}</td>
+                      <td class="px-1.5 py-0.5 break-all">${_esc(s.expected || '')}</td>
+                    </tr>`).join('');
+                const previewBlock = steps.length
+                    ? `<details class="mt-1 text-[10px]">
+                        <summary class="cursor-pointer text-violet-600 hover:underline select-none">▸ 預覽 ${steps.length} 個 steps</summary>
+                        <div class="mt-1 overflow-x-auto">
+                          <table class="w-full text-[10px] border border-stone-200 bg-stone-50/40">
+                            <thead class="bg-stone-100 text-stone-600">
+                              <tr>
+                                <th class="px-1 py-0.5 text-left w-6">#</th>
+                                <th class="px-1 py-0.5 text-left">BDD</th>
+                                <th class="px-1 py-0.5 text-left">動作</th>
+                                <th class="px-1 py-0.5 text-left">定位器</th>
+                                <th class="px-1 py-0.5 text-left">輸入</th>
+                                <th class="px-1 py-0.5 text-left">預期</th>
+                              </tr>
+                            </thead>
+                            <tbody>${stepRows}</tbody>
+                          </table>
+                        </div>
+                      </details>`
+                    : `<div class="mt-1 text-[10px] text-amber-600">⚠ 無 steps_json</div>`;
+                return `
+                  <label class="flex items-start gap-1.5 p-2 border border-stone-200 rounded hover:border-violet-300 cursor-pointer bg-white">
+                    <input type="checkbox" class="ai-gen-pick mt-0.5" data-idx="${idx}" checked>
+                    <div class="flex-1 min-w-0">
+                      <div class="font-semibold text-stone-800 text-xs">${_esc(it.title || '(no title)')}</div>
+                      <div class="text-[10px] text-stone-500 whitespace-pre-line">${_esc(it.ac || '')}</div>
+                      <div class="text-[10px] text-violet-600">${steps.length} 個 step</div>
+                      ${previewBlock}
+                    </div>
+                  </label>`;
+            }).join('');
+
+            // 3) 在 chat 訊息區插一顆 system bubble
+            const box = document.getElementById('aiChatMessages');
+            if (!box) { showToast('找不到 chat 區塊,改用 modal', 'error'); _showAiGenResultModal(data); return; }
+            // 移掉先前殘留的 result bubble(只保留最新一份)
+            box.querySelectorAll('.ai-gen-result-bubble').forEach(el => el.remove());
+            const empty = document.getElementById('aiChatEmpty');
+            if (empty && empty.parentElement) empty.remove();
+
+            const wrap = document.createElement('div');
+            wrap.className = 'ai-gen-result-bubble flex justify-start';
+            wrap.innerHTML = `
+              <div class="max-w-[95%] w-full rounded-lg border-2 border-violet-300 bg-violet-50/40 p-3 text-xs shadow-sm">
+                <div class="font-bold text-stone-800 text-[13px] flex items-center gap-1 mb-2">
+                  <i class="fa-solid fa-bolt text-violet-500"></i>
+                  AI 生成 ${(data.generated || []).length} 個測試案例
+                  <span class="text-[10px] font-normal text-stone-500 ml-1">(${_esc(data.provider||'?')} · ${_esc((data.model||'?')+'').slice(0,28)})</span>
+                </div>
+                <div class="mb-2">
+                  <label class="block text-[10px] font-semibold text-stone-600 mb-0.5">建為新案例時 — 建到哪個 SCENARIO</label>
+                  <select id="aiGenScenario" class="w-full px-2 py-1 border border-stone-300 rounded text-xs bg-white">${scenarioOpts}</select>
+                </div>
+                <div class="space-y-1.5 max-h-[40vh] overflow-y-auto pr-1">
+                  ${cards}
+                </div>
+                <div class="mt-2 text-[10px] text-stone-500 italic">↓ 在下方 toolbar 選動作:套用 / 建立 / 執行(可先勾選或取消勾選上方案例)</div>
+              </div>`;
+            box.appendChild(wrap);
+            box.scrollTop = box.scrollHeight;
+        }
+
+        // Sprint 11.4 — Toolbar 動作:整合在 chat panel 底部 toolbar,取代 result bubble 內按鈕
+        function aiChatToolbarGenerate() {
+            const inp = document.getElementById('aiChatInput');
+            const text = (inp?.value || '').trim();
+            if (!text) { showToast('請先在輸入框寫需求', 'error'); inp?.focus(); return; }
+            aiChatGenerateFromMessage(text);
+        }
+        function aiChatToolbarApply() {
+            if (!document.querySelectorAll('.ai-gen-pick').length) {
+                showToast('請先用「生成案例」或 MCP 自動操作產生案例', 'error'); return;
+            }
+            _aiGenApplyToCurrent();
+        }
+        function aiChatToolbarCreate() {
+            if (!document.querySelectorAll('.ai-gen-pick').length) {
+                showToast('請先用「生成案例」或 MCP 自動操作產生案例', 'error'); return;
+            }
+            _aiGenCreateSelected();
+        }
+        function aiChatToolbarRun() {
+            if (!document.querySelectorAll('.ai-gen-pick').length) {
+                showToast('請先用「生成案例」或 MCP 自動操作產生案例', 'error'); return;
+            }
+            _aiGenCreateAndRunSelected();
+        }
+
         // Sprint 9.2 — 取消正在跑的 MCP loop(送 abort flag,下一輪 LLM tick 會中止)
         async function aiChatAbortMcp() {
             const btn = document.getElementById('mcpAbortBtn');
@@ -17726,30 +17803,55 @@ gantt
             }
         }
 
-        // Sprint 7 — AI Chat 觸發 MCP 多輪 tool calling loop
+        // Sprint 7 + 11.7 — AI Chat 觸發 MCP 多輪 tool calling loop。
+        // mode=autonomous(預設):AI 自己跑完整流程
+        // mode=assist:AI 輔助錄製,只導航 + 截圖 + 抓變數 + 補斷言,不替代使用者
         // 把 textarea 內的需求 + 可選 URL 餵 backend → LLM 透過 MCP 操作瀏覽器
         // 完成後 LLM 回 steps_json,前端跳 modal 讓使用者一鍵建為新案例
-        async function aiChatRunMcpLoop() {
+        async function aiChatRunMcpLoop(opts) {
+            const mode = (opts && opts.mode) || 'autonomous';
+            const isAssist = mode === 'assist';
             const inp = document.getElementById('aiChatInput');
-            const text = (inp?.value || '').trim();
-            if (!text) { showToast('請先在輸入框寫需求(也可指定 URL)', 'error'); return; }
+            const rawText = (inp?.value || '').trim();
+            if (!rawText) { showToast('請先在輸入框寫需求(也可指定 URL)', 'error'); return; }
             if (!currentProjectId) { showToast('請先選擇專案', 'error'); return; }
-            // 試從 prompt 抓 URL(http(s)://...)當 target_url
-            const urlMatch = text.match(/https?:\/\/[\w\-./?#&=%:+]+/);
+
+            // assist mode 在使用者 prompt 前面加錄製助理指令(LLM 端讀到後會調整行為)
+            const ASSIST_PREFIX = `[ROLE] 你是錄製助理。
+不要替使用者跑完整流程,只做以下事:
+1. 用 browser_navigate 導到目標 URL
+2. 用 browser_take_screenshot 抓一張當下截圖
+3. 觀察畫面後,在最後產出的 steps_json 內:
+   - 補上 1-3 個 Capture step(從畫面抓重要文字 / 屬性值存成變數)
+   - 補上 3-5 個 AssertText / AssertVisible / AssertURL 斷言條件
+   - 涵蓋正向 + 反向 + 邊界三類斷言可能(例:必填欄空驗證、URL 是否如預期等)
+4. 最多用 3 個 navigation/click,把空間留給斷言補強
+5. title 加上 [AI輔助] 前綴
+
+# 使用者需求
+`;
+            const text = isAssist ? (ASSIST_PREFIX + rawText) : rawText;
+
+            // 試從原始 prompt 抓 URL(http(s)://...)當 target_url
+            const urlMatch = rawText.match(/https?:\/\/[\w\-./?#&=%:+]+/);
             const targetUrl = urlMatch ? urlMatch[0] : null;
+
+            const modeLabel = isAssist ? 'AI 輔助錄製' : '自動操作';
+            const titleColor = isAssist ? 'sky' : 'fuchsia';
 
             // 進度 modal
             const modal = document.createElement('div');
             modal.id = 'mcpRunModal';
             modal.className = 'fixed inset-0 z-[160] bg-black/40 flex items-center justify-center p-4';
             modal.innerHTML = `
-              <div class="bg-white rounded-xl shadow-2xl w-full max-w-md border border-fuchsia-200">
-                <div class="px-6 py-4 border-b border-stone-200 bg-fuchsia-50/60 flex items-center justify-between">
-                  <h3 class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-robot fa-bounce text-fuchsia-500"></i> AI 透過 MCP 自動操作中</h3>
+              <div class="bg-white rounded-xl shadow-2xl w-full max-w-md border border-${titleColor}-200">
+                <div class="px-6 py-4 border-b border-stone-200 bg-${titleColor}-50/60 flex items-center justify-between">
+                  <h3 class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid ${isAssist ? 'fa-user-pen' : 'fa-robot'} fa-bounce text-${titleColor}-500"></i> AI 透過 MCP ${modeLabel}中</h3>
                 </div>
                 <div class="p-6 space-y-3">
-                  <p class="text-xs text-stone-600">需求:<span class="font-mono text-stone-800">${_esc(text.slice(0, 200))}${text.length > 200 ? '…' : ''}</span></p>
-                  ${targetUrl ? `<p class="text-xs text-stone-600">起始 URL:<code class="text-fuchsia-700 font-mono">${_esc(targetUrl)}</code></p>` : '<p class="text-xs text-amber-700"><i class="fa-solid fa-triangle-exclamation"></i> 沒在需求中找到 URL,LLM 會自己決定要不要先 navigate</p>'}
+                  <p class="text-xs text-stone-600">需求:<span class="font-mono text-stone-800">${_esc(rawText.slice(0, 200))}${rawText.length > 200 ? '…' : ''}</span></p>
+                  ${targetUrl ? `<p class="text-xs text-stone-600">起始 URL:<code class="text-${titleColor}-700 font-mono">${_esc(targetUrl)}</code></p>` : '<p class="text-xs text-amber-700"><i class="fa-solid fa-triangle-exclamation"></i> 沒在需求中找到 URL,LLM 會自己決定要不要先 navigate</p>'}
+                  ${isAssist ? '<p class="text-xs text-sky-700"><i class="fa-solid fa-info-circle"></i> 輔助模式:AI 只做導頁 + 截圖 + 補斷言/Capture,不會替你跑完整流程</p>' : ''}
                   <p class="text-xs text-stone-500"><i class="fa-solid fa-spinner fa-spin"></i> LLM ↔ MCP 多輪互動中,可能要 30-180 秒(看模型 + 操作步數)</p>
                   <p class="text-[10px] text-stone-400">支援 OpenAI / Claude / Gemini / Local(模型需支援 function calling,例 Ollama 的 qwen2.5)</p>
                   <div class="flex justify-end pt-2 border-t border-stone-200">
@@ -17759,12 +17861,51 @@ gantt
               </div>`;
             document.body.appendChild(modal);
 
-            try {
-                const r = await fetch('/api/ai/mcp/run', {
+            // Sprint 11.6 — 自動啟動 MCP:第一次 run 收 409(server 沒在跑)時自動 POST /mcp/start
+            // 並等到 ready 再重試,使用者不用手動先到設定頁啟動。
+            async function _tryRun() {
+                return await fetch('/api/ai/mcp/run', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ prompt: text, target_url: targetUrl, max_turns: 10 }),
                 });
+            }
+            async function _ensureMcpStarted(progressEl) {
+                if (progressEl) progressEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> MCP 容器未啟動,正在自動啟動…';
+                let r = await fetch('/api/ai/mcp/start', { method: 'POST' });
+                if (r.status === 425) {
+                    // image 還沒 build,polling /image-status 直到 ready(最多 5 分鐘)
+                    if (progressEl) progressEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> MCP image 首次建置中(約 2-5 分鐘),請耐心等待…';
+                    const deadline = Date.now() + 5 * 60 * 1000;
+                    while (Date.now() < deadline) {
+                        await new Promise(res => setTimeout(res, 5000));
+                        try {
+                            const sr = await fetch('/api/ai/mcp/image-status');
+                            if (sr.ok) {
+                                const sd = await sr.json();
+                                if (sd.status === 'ready') break;
+                                if (sd.status === 'failed') throw new Error('MCP image build 失敗');
+                            }
+                        } catch (_) { /* keep polling */ }
+                    }
+                    // 重 POST /start
+                    r = await fetch('/api/ai/mcp/start', { method: 'POST' });
+                }
+                if (!r.ok) {
+                    const d = await r.json().catch(() => ({}));
+                    throw new Error('MCP 啟動失敗:' + (d.detail || `HTTP ${r.status}`));
+                }
+                if (progressEl) progressEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> MCP 已啟動,LLM ↔ MCP 多輪互動中…';
+            }
+
+            try {
+                let r = await _tryRun();
+                if (r.status === 409) {
+                    // MCP 沒在跑 → 自動啟動 + 重試
+                    const progressEl = modal.querySelector('p.text-xs.text-stone-500');
+                    await _ensureMcpStarted(progressEl);
+                    r = await _tryRun();
+                }
                 const data = await r.json();
                 if (!r.ok) {
                     throw new Error(data.detail || ('HTTP ' + r.status));
@@ -17789,23 +17930,25 @@ gantt
                     document.body.appendChild(errModal);
                     return;
                 }
-                // 成功 → 重用既有 AI 生案 modal(_aiGenItems / _showAiGenResultModal)
+                // 成功 → 改成在 AI Chat 內 inline 顯示(取代 modal)
                 _aiGenItems = [{
-                    title: 'MCP 自動操作:' + text.slice(0, 30),
-                    ac: 'AI 透過 MCP tools 自動產生',
+                    title: `${isAssist ? '[AI輔助] ' : 'MCP 自動操作:'}` + rawText.slice(0, 30),
+                    ac: isAssist
+                        ? 'AI 輔助錄製產出(含截圖 / Capture / 多條件斷言)'
+                        : 'AI 透過 MCP tools 自動產生',
                     steps_md: '',
                     steps_json: data.steps_json,
                 }];
                 _aiGenReqId = null;
-                _showAiGenResultModal({
-                    provider: 'MCP',
+                aiChatRenderGenResult({
+                    provider: isAssist ? 'MCP-Assist' : 'MCP',
                     model: `${data.turns} 輪 / ${data.tool_calls_log.length} tool calls`,
                     generated: _aiGenItems,
                 });
                 showToast(`完成!${data.turns} 輪互動,${data.steps_json.length} 個 step`, 'success');
             } catch (e) {
                 modal.remove();
-                showToast('MCP 自動操作失敗:' + e.message, 'error');
+                showToast(`MCP ${modeLabel}失敗:` + e.message, 'error');
             }
         }
 
@@ -17838,7 +17981,7 @@ gantt
                 }
                 _aiGenItems = items;
                 _aiGenReqId = null;  // 不從需求來,從 chat 來
-                _showAiGenResultModal(data);
+                aiChatRenderGenResult(data);
             } catch (e) {
                 showToast('AI 產生失敗:' + e.message, 'error');
             }
@@ -18795,15 +18938,32 @@ curl -X POST http://localhost:8000/api/defects \\
                     <i class="fa-solid fa-paper-plane text-xs"></i>
                 </button>
             </div>
-            <div class="flex items-center justify-between mt-1 gap-2 flex-wrap">
-                <p class="text-[10px] text-stone-400">
-                    Provider 設定:<a href="javascript:showSettingsView();aiChatToggle();" class="text-violet-600 hover:underline">設定 → AI Token</a>
-                </p>
+            <div class="mt-1 flex items-center gap-1 flex-wrap justify-end">
+                <!-- Sprint 11.4 — chat toolbar:取代 result bubble 內按鈕,集中在 MCP 左側 -->
+                <button type="button" onclick="aiChatToolbarGenerate()" class="text-[10px] px-2 py-0.5 rounded bg-amber-500 hover:bg-amber-600 text-white flex items-center gap-1" title="把上方 textarea 內容當需求,讓 AI 生測試案例(會涵蓋正向/反向/邊界三類)">
+                    <i class="fa-solid fa-bolt"></i> 生成案例
+                </button>
+                <button type="button" onclick="aiChatToolbarApply()" class="text-[10px] px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1" title="把勾選的第一筆寫進當前打開的測試案例編輯器(未存 DB,可手動修改後再儲存)">
+                    <i class="fa-solid fa-pen"></i> 套用
+                </button>
+                <button type="button" onclick="aiChatToolbarCreate()" class="text-[10px] px-2 py-0.5 rounded bg-violet-600 hover:bg-violet-700 text-white flex items-center gap-1" title="把勾選的案例逐一建為新 TESTCASE(直接寫 DB)">
+                    <i class="fa-solid fa-plus"></i> 建立
+                </button>
+                <button type="button" onclick="aiChatToolbarRun()" class="text-[10px] px-2 py-0.5 rounded bg-orange-600 hover:bg-orange-700 text-white flex items-center gap-1" title="建立勾選的案例後立即送 /api/executions 並跳測試報告">
+                    <i class="fa-solid fa-rocket"></i> 執行
+                </button>
+                <!-- Sprint 11.7 — AI 輔助錄製:啟動 MCP 瀏覽器 + 截圖 + 補斷言條件,協助使用者 -->
+                <button type="button" onclick="aiChatRunMcpLoop({mode:'assist'})" class="text-[10px] px-2 py-0.5 rounded bg-sky-500 hover:bg-sky-600 text-white flex items-center gap-1" title="AI 啟動 MCP 瀏覽器,輔助錄製:導頁 + 截圖 + 補 Capture 變數抓取 + 補多條件斷言(不替代你跑完整流程)">
+                    <i class="fa-solid fa-user-pen"></i> AI 輔助
+                </button>
                 <!-- Sprint 7 — MCP 自動操作入口 -->
                 <button type="button" onclick="aiChatRunMcpLoop()" class="text-[10px] px-2 py-0.5 rounded bg-fuchsia-500 hover:bg-fuchsia-600 text-white flex items-center gap-1" title="把上方 textarea 的內容當需求,讓 AI 透過 MCP 自動操作瀏覽器產生案例(支援 GPT / Claude / Gemini / Local;模型需有 function calling)">
                     <i class="fa-solid fa-robot"></i> MCP 自動操作
                 </button>
             </div>
+            <p class="text-[9px] text-stone-400 mt-1">
+                Provider 設定:<a href="javascript:showSettingsView();aiChatToggle();" class="text-violet-600 hover:underline">設定 → AI Token</a>
+            </p>
         </div>
     </aside>
 
@@ -18894,15 +19054,11 @@ curl -X POST http://localhost:8000/api/defects \\
             : '';
         // 簡單 markdown:換行 + 程式區塊
         const html = _aiChatRenderContent(m.content);
-        // Sprint 2.3 — user 訊息泡泡旁加「⚡ 生案例」按鈕
-        // (assistant 訊息也提供,因為 user 可能想用 AI 回答的步驟描述當需求生案例)
-        const rawContent = (m.content || '').replace(/'/g, '&#39;').replace(/"/g, '&quot;');
-        const genBtn = `<button onclick="aiChatGenerateFromMessage('${rawContent}')" class="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 hover:bg-amber-200 ml-1 border border-amber-200" title="把這段內容當需求,讓 AI 生測試案例"><i class="fa-solid fa-bolt"></i> 生案例</button>`;
+        // Sprint 11.4 — 移除每則訊息上的 ⚡ 生案例 按鈕,改集中到 toolbar
         return `<div class="flex ${align}">
             <div class="max-w-[85%] rounded-lg px-3 py-2 text-sm ${bg} shadow-sm">
                 ${html}
                 ${meta}
-                <div class="mt-1 flex gap-1 flex-wrap">${genBtn}</div>
             </div>
         </div>`;
     }
