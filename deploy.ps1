@@ -122,6 +122,19 @@ function New-RecorderApiImage {
     Write-Success "Recorder-API image 已建置"
 }
 
+# ── 建 MCP image (autotest-mcp:Playwright MCP server) ──────────────
+function New-McpImage {
+    docker image inspect 'autotest-mcp:latest' 2>$null | Out-Null
+    if ($LASTEXITCODE -eq 0) {
+        Write-Info "autotest-mcp 已存在（跳過重建;需更新請先 docker rmi autotest-mcp:latest）"
+        return
+    }
+    Write-Info "建 MCP 容器 image (Playwright MCP;第一次約 2-3 分鐘)..."
+    docker build -f backend/Dockerfile.mcp -t autotest-mcp:latest backend/
+    if ($LASTEXITCODE -ne 0) { Write-Err "MCP image 建置失敗。"; exit 1 }
+    Write-Success "MCP image 已建置"
+}
+
 # ── 啟動 Compose ─────────────────────────────────────────────────────
 function Start-ComposeStack {
     Write-Step "啟動服務（docker compose up -d --build）"
@@ -221,6 +234,7 @@ Initialize-EnvFile
 New-RunnerImage
 New-RecorderImage
 New-RecorderApiImage
+New-McpImage
 Start-ComposeStack
 Wait-ForReady
 Initialize-PostgresAdmin

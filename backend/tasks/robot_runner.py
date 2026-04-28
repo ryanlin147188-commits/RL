@@ -982,6 +982,21 @@ def _build_robot_file(
             lines.append(f"    Log    AT_STEP idx={global_idx}")
             # 截圖以非 Browser action 包起來避免抓不到 page；對 Http/Db/Mobile 仍會嘗試但 keyword 失敗會被 ignore
             action_lower = (step.get("action") or "").strip().lower()
+            # Sprint 4.1 — 條件分支邊界 step:If / ElseIf / Else / EndIf
+            # 用 expected 欄位當 condition expression(例 "${count} > 5" 或 "'${status}' == 'success'")
+            # 不截圖、不 translate,直接輸出 Robot 5.0+ 原生 IF/ELSE/END 語法
+            if action_lower in ("if", "elseif", "else", "endif"):
+                if action_lower == "if":
+                    cond = _substitute(step.get("expected") or step.get("input") or "True", ctx)
+                    lines.append(f"    IF    {cond}")
+                elif action_lower == "elseif":
+                    cond = _substitute(step.get("expected") or step.get("input") or "True", ctx)
+                    lines.append(f"    ELSE IF    {cond}")
+                elif action_lower == "else":
+                    lines.append("    ELSE")
+                elif action_lower == "endif":
+                    lines.append("    END")
+                continue  # 跳過後續截圖 + _translate_step
             is_browser = (
                 not action_lower.startswith(("http.", "db.", "mobile."))
                 and action_lower not in ("",)

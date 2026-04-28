@@ -39,6 +39,8 @@ class Settings(BaseSettings):
     RECORDER_IMAGE: str = "autotest-recorder:latest"
     # API:容器內跑 mitmweb(HTTP proxy + web UI)+ HAR addon
     RECORDER_API_IMAGE: str = "autotest-recorder-api:latest"
+    # MCP:Playwright MCP server,讓 LLM 透過 tool calling 操作 chromium
+    MCP_IMAGE: str = "autotest-mcp:latest"
     # 啟動的容器加入 docker compose 的同一 network(讓 codegen 完成後 curl
     # 上傳能解析到 backend hostname);預設與 docker-compose.yml networks 一致
     RECORDER_NETWORK: str = "autotest_default"

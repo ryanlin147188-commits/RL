@@ -1,0 +1,34 @@
+# 衍生 image:autotest-mcp
+#
+# Sprint 4.3 — Playwright MCP server PoC。
+# Model Context Protocol (MCP) 是 Anthropic 推的 LLM tool 協定;Playwright MCP
+# 讓 LLM 透過 JSON-RPC 直接控制 chromium(navigate / click / fill / screenshot
+# / get text / 等等)。
+#
+# Base:Playwright 官方 Node 版(已含 chromium / firefox / webkit + Node 22+)。
+# 容器內透過 npx 啟 @playwright/mcp,監聽 stdio 或 SSE。
+#
+# 對外 expose 8931:SSE 模式的 MCP 通訊埠。
+# backend 用 httpx 連 http://<host>:<port>/sse 拿 tool 清單 + 發 RPC 呼叫。
+#
+# 注意:這是 PoC,完整 AI tool-calling 整合(多輪對話 / state / function
+# calling)留作後續 sprint;目前 backend 只負責「啟 / 停容器 + 暴露 SSE URL」,
+# 真正讓 AI 用 MCP 操作瀏覽器需要前端 / AI Chat 端配合 OpenAI tool calling
+# 或 Anthropic tools 功能。
+
+FROM mcr.microsoft.com/playwright:v1.50.0-jammy
+
+USER root
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    TZ=Asia/Taipei \
+    NODE_ENV=production
+
+# 預先把 @playwright/mcp 全域裝起來,啟動更快
+RUN npm install -g @playwright/mcp@latest 2>&1 | tail -5 || true
+
+EXPOSE 8931
+
+# 預設啟 SSE 模式;backend 啟容器時可 override 端口
+# --port 8931:SSE 監聽;--host 0.0.0.0 讓外部連得進
+ENTRYPOINT ["npx", "-y", "@playwright/mcp@latest", "--port", "8931", "--host", "0.0.0.0"]

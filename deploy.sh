@@ -114,6 +114,20 @@ build_recorder_api_image() {
     success "Recorder-API image 已建置"
 }
 
+# ── 建 MCP image (autotest-mcp:Playwright MCP server) ──────────────
+# Sprint 4.3 PoC:讓 LLM 透過 tool calling 直接控制 chromium。
+# 第一次 build 會抓 npm @playwright/mcp,約 2-3 分鐘。
+build_mcp_image() {
+    if docker image inspect autotest-mcp:latest >/dev/null 2>&1; then
+        info "autotest-mcp 已存在（跳過重建;需更新請先 docker rmi autotest-mcp:latest）"
+        return
+    fi
+    info "建 MCP 容器 image (Playwright MCP;第一次約 2-3 分鐘)..."
+    docker build -f backend/Dockerfile.mcp -t autotest-mcp:latest backend/ \
+        || { error "MCP image 建置失敗。"; exit 1; }
+    success "MCP image 已建置"
+}
+
 # ── 啟動 Compose ─────────────────────────────────────────────────────
 compose_up() {
     step "啟動服務（docker compose up -d --build）"
@@ -193,6 +207,7 @@ case "$CMD" in
         build_runner_image
         build_recorder_image
         build_recorder_api_image
+        build_mcp_image
         compose_up
         wait_for_ready
         ensure_postgres_admin

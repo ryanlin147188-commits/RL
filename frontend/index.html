@@ -5464,11 +5464,14 @@ driver.swipe(100, 800, 100, 200, 500)"
             ],
         };
         // Sprint 2.1 — Capture(自動把元素文字 / 屬性 / JSON path 抓進 ${var} suite variable)
+        // Sprint 4.1 — 條件分支邊界 If / ElseIf / Else / EndIf(用 expected 當條件運算式)
         // 跨平台通用,自動 push 到所有平台清單尾端
         ['WEB', 'API', 'APP', 'E2E', 'UI'].forEach(p => {
-            if (ACTION_OPTIONS_BY_PLATFORM[p] && !ACTION_OPTIONS_BY_PLATFORM[p].includes('Capture')) {
-                ACTION_OPTIONS_BY_PLATFORM[p].push('Capture');
-            }
+            const list = ACTION_OPTIONS_BY_PLATFORM[p];
+            if (!list) return;
+            ['Capture', 'If', 'ElseIf', 'Else', 'EndIf'].forEach(act => {
+                if (!list.includes(act)) list.push(act);
+            });
         });
         const COMPARE_OPTIONS = [
             'Equals', 'NotEquals', 'Contains', 'NotContains',
@@ -5527,13 +5530,38 @@ driver.swipe(100, 800, 100, 200, 500)"
                 return list;
             };
 
+            // Sprint 4.1 — 計算每個 step 的條件分支縮排深度(視覺輔助)
+            // If 開區塊 +1,EndIf 關區塊 -1;Else/ElseIf 在區塊「中間」自身 depth -1
+            // depth 用 Tailwind padding-left 顯示("pl-2" / "pl-6" / "pl-12" 等)
+            const _stepDepths = (() => {
+                const depths = [];
+                let lvl = 0;
+                tc.steps.forEach(s => {
+                    const a = (s.action || '').toLowerCase();
+                    if (a === 'endif') lvl = Math.max(0, lvl - 1);
+                    if (a === 'else' || a === 'elseif') {
+                        depths.push(Math.max(0, lvl - 1));
+                    } else {
+                        depths.push(lvl);
+                    }
+                    if (a === 'if') lvl += 1;
+                });
+                return depths;
+            })();
+
             tc.steps.forEach((step, idx) => {
                 const actList = mergeOpts(actionOptions, step.action);
                 const cmpList = mergeOpts(compareOptions, step.compare);
                 const tr = document.createElement('tr');
-                tr.className = 'hover:bg-slate-50 transition align-top step-row';
+                // 條件分支邊界 step 視覺強調(綠色背景);非邊界 step 依 depth 加左 padding
+                const _actLow = (step.action || '').toLowerCase();
+                const _isBoundary = ['if', 'elseif', 'else', 'endif'].includes(_actLow);
+                const _depth = _stepDepths[idx] || 0;
+                const _bgClass = _isBoundary ? 'bg-emerald-50/40' : 'hover:bg-slate-50';
+                tr.className = `${_bgClass} transition align-top step-row`;
                 tr.dataset.stepIdx = String(idx);
-                // 啟用整列拖曳；實際 drag handle 在第一欄，使用者要從那邊拖，但整列 draggable 也可
+                if (_depth > 0) tr.style.borderLeft = `${_depth * 4}px solid rgb(167 243 208)`;
+                // 啟用整列拖曳;實際 drag handle 在第一欄,使用者要從那邊拖,但整列 draggable 也可
                 tr.draggable = true;
                 tr.innerHTML = `
                     <td class="p-2 text-center text-slate-400 hover:text-slate-700 cursor-grab select-none drag-handle" title="拖曳以重排" aria-label="拖曳以重排">
