@@ -6,6 +6,7 @@
 import asyncio
 import json
 import logging
+import re
 from typing import Optional
 
 import httpx
@@ -519,6 +520,320 @@ async def mcp_call(payload: McpCallRequest, user: User = Depends(get_current_use
         result=result if isinstance(result, dict) else {"value": result},
         content=result.get("content") if isinstance(result, dict) else None,
     )
+
+
+# ─── Sprint 7 — LLM ↔ MCP multi-turn tool calling loop ────────────────
+# 流程:
+#   1. 確保 MCP container 跑著(沒跑自動 start)
+#   2. 從 MCP server 抓 tools/list → 轉成 OpenAI tools schema
+#   3. 進 loop:LLM 回 tool_calls → 對每個 call 透過 MCP 跑 → result 加進 messages
+#   4. LLM finish_reason=stop 或達 max_turns → 結束
+#   5. 從 LLM 最後輸出抽 steps_json(prompt 要求 LLM 完成後回 GeneratedStep 陣列)
+#
+# 目前只做 OpenAI / OpenAI-compatible(Local/Ollama/DeepSeek 等)。
+# Anthropic / Google 的 tools 格式不同,留下個 sprint 補齊;
+# 走非 OpenAI provider 會回 501 Not Implemented。
+
+class McpRunRequest(BaseModel):
+    prompt: str
+    target_url: Optional[str] = None
+    max_turns: int = 10
+    provider: Optional[str] = None
+
+
+class McpRunResponse(BaseModel):
+    ok: bool
+    turns: int
+    finish_reason: Optional[str] = None
+    final_text: Optional[str] = None
+    steps_json: list[dict] = []
+    tool_calls_log: list[dict] = []
+    error: Optional[str] = None
+
+
+_MCP_LOOP_SYSTEM_PROMPT = """你是 QA 自動化工程師,你能透過 Playwright MCP tools 操作真實瀏覽器來探索受測網站,然後產出一組可重現的測試案例 step。
+
+工作流:
+1. 收到 user 的測試需求 + 起始 URL,先用 navigate / browser_navigate 開頁
+2. 用 browser_snapshot / browser_click / browser_type 等 tool 模擬使用者操作
+3. **完成探索後**,用最後一個 assistant message 回傳 JSON 陣列(GeneratedStep 結構),
+   把剛才的操作翻譯成可重現的測試 step。**不要有圍欄、解釋。**
+
+GeneratedStep 結構:
+{"keyword": "Given|When|Then|And", "description": "...", "action": "Goto|Click|Fill|Press|AssertText|AssertVisible|...", "locator": "CSS / role= / text=", "input": "...", "condition": "Equals|Contains|...", "expected": "..."}
+
+注意:
+- tool 互動目的是「實際看到頁面回應」推斷正確 step
+- 最終輸出要產 5-15 個 step;包含至少一個 AssertText / AssertVisible 斷言
+- 若需求過於抽象 → tool 探索 1-2 步即可,直接合理推斷產 step
+"""
+
+
+def _mcp_tools_to_openai_schema(mcp_tools: list[dict]) -> list[dict]:
+    """把 MCP 的 tool definition 轉成 OpenAI tools format。"""
+    out = []
+    for t in mcp_tools or []:
+        if not isinstance(t, dict) or not t.get("name"):
+            continue
+        schema = t.get("input_schema") or t.get("inputSchema") or {"type": "object", "properties": {}}
+        out.append({
+            "type": "function",
+            "function": {
+                "name": t["name"],
+                "description": (t.get("description") or "")[:1024],
+                "parameters": schema,
+            },
+        })
+    return out
+
+
+async def _mcp_jsonrpc(method: str, params: dict, *, timeout: int = 30) -> dict:
+    """純 JSON-RPC 呼叫 MCP server(共用工具)。"""
+    if not _mcp_state.get("container_name"):
+        raise RuntimeError("MCP server 沒在跑")
+    mcp_url = f"http://{_mcp_state['container_name']}:8931/mcp"
+    payload = {"jsonrpc": "2.0", "id": 1, "method": method, "params": params}
+    headers = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        r = await client.post(mcp_url, json=payload, headers=headers)
+        r.raise_for_status()
+        text = r.text
+        if text.startswith("event:") or text.startswith("data:"):
+            for line in text.splitlines():
+                if line.startswith("data:"):
+                    try:
+                        return json.loads(line[5:].strip())
+                    except json.JSONDecodeError:
+                        continue
+            raise RuntimeError("無法解析 SSE 回應")
+        return r.json()
+
+
+def _extract_steps_from_text(text: str) -> list[dict]:
+    """從 LLM 最後輸出抽 step 陣列(同 ai_test_gen 的解析邏輯)。"""
+    if not text:
+        return []
+    cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip(),
+                     flags=re.IGNORECASE | re.MULTILINE)
+    m = re.search(r"\[[\s\S]*\]", cleaned)
+    if not m:
+        return []
+    try:
+        data = json.loads(m.group(0))
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(data, list):
+        return []
+    out = []
+    for s in data:
+        if not isinstance(s, dict):
+            continue
+        out.append({
+            "keyword": str(s.get("keyword") or "When").strip()[:10],
+            "description": str(s.get("description") or "").strip()[:300],
+            "action": str(s.get("action") or "").strip()[:40],
+            "locator": str(s.get("locator") or "").strip()[:500],
+            "input": str(s.get("input") or "").strip()[:2000],
+            "condition": str(s.get("condition") or "Equals").strip()[:40],
+            "expected": str(s.get("expected") or "").strip()[:500],
+        })
+    return out
+
+
+async def _run_mcp_loop(
+    token,
+    prompt: str,
+    target_url: Optional[str],
+    max_turns: int,
+    mcp_tools: list[dict],
+) -> dict:
+    """OpenAI / OpenAI-compatible 的多輪 tool-calling loop。"""
+    base_url = token.base_url or {
+        "OpenAI": "https://api.openai.com/v1",
+        "Local": "http://host.docker.internal:11434/v1",
+    }.get(str(token.provider).split(".")[-1] if hasattr(token.provider, "value") else token.provider, "")
+    if not base_url:
+        from app.services.ai_test_gen import _default_base_url, _default_model
+        base_url = _default_base_url(token.provider)
+    model = token.model or "gpt-4o-mini"
+
+    headers = {"Content-Type": "application/json"}
+    if token.api_key:
+        headers["Authorization"] = f"Bearer {token.api_key}"
+
+    user_intro = f"# 測試需求\n{prompt}"
+    if target_url:
+        user_intro += f"\n\n# 起始 URL\n{target_url}\n\n請用 tools 開頁並探索。"
+
+    messages: list[dict] = [
+        {"role": "system", "content": _MCP_LOOP_SYSTEM_PROMPT},
+        {"role": "user", "content": user_intro},
+    ]
+    tools_schema = _mcp_tools_to_openai_schema(mcp_tools)
+    tool_calls_log: list[dict] = []
+    final_text: Optional[str] = None
+    finish_reason: Optional[str] = None
+    last_turn = 0
+
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        for turn in range(max_turns):
+            last_turn = turn + 1
+            payload: dict = {
+                "model": model,
+                "messages": messages,
+                "temperature": 0.2,
+            }
+            if tools_schema:
+                payload["tools"] = tools_schema
+                payload["tool_choice"] = "auto"
+            url = base_url.rstrip("/") + "/chat/completions"
+            try:
+                r = await client.post(url, headers=headers, json=payload)
+                r.raise_for_status()
+                resp = r.json()
+            except Exception as e:
+                raise RuntimeError(f"LLM 呼叫失敗(turn {turn+1}):{e}")
+
+            choice = (resp.get("choices") or [{}])[0]
+            msg = choice.get("message") or {}
+            finish_reason = choice.get("finish_reason")
+            content = msg.get("content")
+            tool_calls = msg.get("tool_calls") or []
+
+            if not tool_calls:
+                # LLM 不再呼叫 tool → 結束 loop
+                final_text = content or ""
+                break
+
+            # 把 assistant 的 tool_calls 訊息加進 history
+            messages.append({
+                "role": "assistant",
+                "content": content,
+                "tool_calls": tool_calls,
+            })
+
+            # 對每個 tool_call 透過 MCP 執行
+            for tc in tool_calls:
+                fn = tc.get("function") or {}
+                tool_name = fn.get("name") or ""
+                args_raw = fn.get("arguments") or "{}"
+                try:
+                    args = json.loads(args_raw) if isinstance(args_raw, str) else args_raw
+                except Exception:
+                    args = {}
+                tool_result_text: str
+                try:
+                    rpc = await _mcp_jsonrpc("tools/call", {"name": tool_name, "arguments": args}, timeout=45)
+                    if "error" in rpc:
+                        tool_result_text = json.dumps({"error": str(rpc["error"])}, ensure_ascii=False)
+                    else:
+                        rr = rpc.get("result") or {}
+                        # MCP tool result 通常含 content 陣列;只取 text 部分(避免巨大 base64 圖塞 LLM)
+                        if isinstance(rr, dict):
+                            text_parts = []
+                            for c in (rr.get("content") or []):
+                                if isinstance(c, dict) and c.get("type") == "text":
+                                    text_parts.append(c.get("text") or "")
+                            tool_result_text = "\n".join(text_parts) if text_parts else json.dumps(rr, ensure_ascii=False)[:4000]
+                        else:
+                            tool_result_text = str(rr)[:4000]
+                except Exception as e:
+                    tool_result_text = json.dumps({"error": f"MCP call exception: {e}"}, ensure_ascii=False)
+
+                tool_calls_log.append({
+                    "turn": turn + 1, "tool": tool_name,
+                    "arguments": args, "result_preview": tool_result_text[:300],
+                })
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc.get("id") or f"call_{len(tool_calls_log)}",
+                    "name": tool_name,
+                    "content": tool_result_text,
+                })
+        else:
+            # 跑滿 max_turns 仍沒 finish → 強制要 LLM 給最終 step list
+            messages.append({
+                "role": "user",
+                "content": "已經操作很多輪了,請立刻停止 tool 呼叫,直接輸出 GeneratedStep JSON 陣列(沒圍欄沒解釋)。",
+            })
+            try:
+                r = await client.post(
+                    base_url.rstrip("/") + "/chat/completions",
+                    headers=headers,
+                    json={"model": model, "messages": messages, "temperature": 0.2},
+                )
+                r.raise_for_status()
+                resp = r.json()
+                final_text = ((resp.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
+                finish_reason = "stop_forced"
+            except Exception as e:
+                final_text = ""
+                finish_reason = f"error_after_max_turns:{e}"
+
+    steps = _extract_steps_from_text(final_text or "")
+    return {
+        "ok": bool(steps),
+        "turns": last_turn,
+        "finish_reason": finish_reason,
+        "final_text": (final_text or "")[:4000],
+        "steps_json": steps,
+        "tool_calls_log": tool_calls_log,
+    }
+
+
+@router.post("/ai/mcp/run", response_model=McpRunResponse, tags=["V · AI"])
+@limiter.limit("10/hour")  # MCP 流量 + tokens 都很重,限速嚴一點
+async def mcp_run(
+    request: Request,
+    payload: McpRunRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Sprint 7 — LLM 透過 MCP 自動探索 + 產 steps_json。
+    流程: 確保 MCP 啟動 → 抓 tools → OpenAI tool-calling loop → 解析 LLM 最終輸出。
+
+    僅支援 OpenAI / OpenAI-compatible provider(Local Ollama / DeepSeek 也可,
+    需要該模型支援 function calling);Anthropic / Google 留作後續。
+    """
+    if not (payload.prompt or "").strip():
+        raise HTTPException(400, "prompt 不能為空")
+    if not _mcp_state.get("container_name"):
+        raise HTTPException(409, "MCP server 沒在跑;請先 POST /api/ai/mcp/start(或從 設定 → AI Token → MCP PoC 啟動)")
+
+    from app.services.ai_test_gen import pick_token
+    from app.models.ai_token_config import AiProvider
+    try:
+        token = await pick_token(db, preferred_provider=payload.provider, organization_id=user.organization_id)
+    except RuntimeError as e:
+        raise HTTPException(400, str(e))
+
+    if token.provider not in (AiProvider.OPENAI, AiProvider.LOCAL):
+        # 非 OpenAI 走非標準 tool format,留下個 sprint
+        raise HTTPException(
+            501,
+            f"目前 MCP loop 只支援 OpenAI / Local;選定的 provider={token.provider.value if hasattr(token.provider, 'value') else token.provider} 還沒適配,請切到 GPT 或本地模型(需支援 function calling,例 Ollama 的 qwen2.5)",
+        )
+
+    # 抓 MCP tools
+    try:
+        rpc = await _mcp_jsonrpc("tools/list", {})
+    except Exception as e:
+        raise HTTPException(502, f"MCP tools/list 失敗:{e}")
+    if "error" in rpc:
+        raise HTTPException(502, f"MCP error:{rpc['error']}")
+    mcp_tools = (rpc.get("result") or {}).get("tools") or []
+    if not mcp_tools:
+        raise HTTPException(502, "MCP server 沒回任何 tool;確認 mcp 容器已 ready")
+
+    max_turns = max(1, min(int(payload.max_turns or 10), 30))
+    try:
+        result = await _run_mcp_loop(token, payload.prompt, payload.target_url, max_turns, mcp_tools)
+    except RuntimeError as e:
+        raise HTTPException(502, str(e))
+    except Exception as e:
+        log.exception("mcp_run failed")
+        raise HTTPException(502, f"MCP loop 例外:{e}")
+    return McpRunResponse(**result)
 
 
 @router.get("/ai/mcp/status", response_model=McpStatus, tags=["V · AI"])

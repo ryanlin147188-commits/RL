@@ -17667,6 +17667,86 @@ gantt
             document.body.appendChild(modal);
         }
 
+        // Sprint 7 — AI Chat 觸發 MCP 多輪 tool calling loop
+        // 把 textarea 內的需求 + 可選 URL 餵 backend → LLM 透過 MCP 操作瀏覽器
+        // 完成後 LLM 回 steps_json,前端跳 modal 讓使用者一鍵建為新案例
+        async function aiChatRunMcpLoop() {
+            const inp = document.getElementById('aiChatInput');
+            const text = (inp?.value || '').trim();
+            if (!text) { showToast('請先在輸入框寫需求(也可指定 URL)', 'error'); return; }
+            if (!currentProjectId) { showToast('請先選擇專案', 'error'); return; }
+            // 試從 prompt 抓 URL(http(s)://...)當 target_url
+            const urlMatch = text.match(/https?:\/\/[\w\-./?#&=%:+]+/);
+            const targetUrl = urlMatch ? urlMatch[0] : null;
+
+            // 進度 modal
+            const modal = document.createElement('div');
+            modal.id = 'mcpRunModal';
+            modal.className = 'fixed inset-0 z-[160] bg-black/40 flex items-center justify-center p-4';
+            modal.innerHTML = `
+              <div class="bg-white rounded-xl shadow-2xl w-full max-w-md border border-fuchsia-200">
+                <div class="px-6 py-4 border-b border-stone-200 bg-fuchsia-50/60 flex items-center justify-between">
+                  <h3 class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-robot fa-bounce text-fuchsia-500"></i> AI 透過 MCP 自動操作中</h3>
+                </div>
+                <div class="p-6 space-y-3">
+                  <p class="text-xs text-stone-600">需求:<span class="font-mono text-stone-800">${_esc(text.slice(0, 200))}${text.length > 200 ? '…' : ''}</span></p>
+                  ${targetUrl ? `<p class="text-xs text-stone-600">起始 URL:<code class="text-fuchsia-700 font-mono">${_esc(targetUrl)}</code></p>` : '<p class="text-xs text-amber-700"><i class="fa-solid fa-triangle-exclamation"></i> 沒在需求中找到 URL,LLM 會自己決定要不要先 navigate</p>'}
+                  <p class="text-xs text-stone-500"><i class="fa-solid fa-spinner fa-spin"></i> LLM ↔ MCP 多輪互動中,可能要 30-180 秒(看模型 + 操作步數)</p>
+                  <p class="text-[10px] text-stone-400">⚠ 限 OpenAI / Local provider(需支援 function calling)。Anthropic / Google 還在開發。</p>
+                </div>
+              </div>`;
+            document.body.appendChild(modal);
+
+            try {
+                const r = await fetch('/api/ai/mcp/run', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt: text, target_url: targetUrl, max_turns: 10 }),
+                });
+                const data = await r.json();
+                if (!r.ok) {
+                    throw new Error(data.detail || ('HTTP ' + r.status));
+                }
+                modal.remove();
+                if (!data.steps_json || !data.steps_json.length) {
+                    const errModal = document.createElement('div');
+                    errModal.className = 'fixed inset-0 z-[160] bg-black/40 flex items-center justify-center p-4';
+                    errModal.innerHTML = `
+                      <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl border border-rose-200">
+                        <div class="px-6 py-4 border-b border-stone-200 bg-rose-50/60 flex items-center justify-between">
+                          <h3 class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-circle-xmark text-rose-500"></i> AI 沒給有效 steps</h3>
+                          <button onclick="this.closest('.fixed').remove()" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        <div class="p-4 text-xs space-y-2">
+                          <p>跑了 <b>${data.turns}</b> 輪,${_esc(data.tool_calls_log.length+'')} 個 tool calls,但最終沒解析出合法 step JSON。</p>
+                          <p class="text-stone-500">finish: ${_esc(data.finish_reason || '')}</p>
+                          <details><summary class="cursor-pointer text-fuchsia-600">tool calls log</summary><pre class="text-[10px] bg-stone-50 p-2 mt-1 rounded max-h-60 overflow-auto">${_esc(JSON.stringify(data.tool_calls_log, null, 2))}</pre></details>
+                          <details><summary class="cursor-pointer text-fuchsia-600">LLM 最終輸出(前 4000 字)</summary><pre class="text-[10px] bg-stone-50 p-2 mt-1 rounded max-h-60 overflow-auto whitespace-pre-wrap">${_esc(data.final_text || '')}</pre></details>
+                        </div>
+                      </div>`;
+                    document.body.appendChild(errModal);
+                    return;
+                }
+                // 成功 → 重用既有 AI 生案 modal(_aiGenItems / _showAiGenResultModal)
+                _aiGenItems = [{
+                    title: 'MCP 自動操作:' + text.slice(0, 30),
+                    ac: 'AI 透過 MCP tools 自動產生',
+                    steps_md: '',
+                    steps_json: data.steps_json,
+                }];
+                _aiGenReqId = null;
+                _showAiGenResultModal({
+                    provider: 'MCP',
+                    model: `${data.turns} 輪 / ${data.tool_calls_log.length} tool calls`,
+                    generated: _aiGenItems,
+                });
+                showToast(`完成!${data.turns} 輪互動,${data.steps_json.length} 個 step`, 'success');
+            } catch (e) {
+                modal.remove();
+                showToast('MCP 自動操作失敗:' + e.message, 'error');
+            }
+        }
+
         // Sprint 2.3 — 從 AI Chat 訊息生案例(重用 _showAiGenResultModal)
         async function aiChatGenerateFromMessage(text) {
             if (!text || !text.trim()) { showToast('內容是空的', 'error'); return; }
@@ -18532,9 +18612,15 @@ curl -X POST http://localhost:8000/api/defects \\
                     <i class="fa-solid fa-paper-plane text-xs"></i>
                 </button>
             </div>
-            <p class="text-[10px] text-stone-400 mt-1">
-                Provider 設定:<a href="javascript:showSettingsView();aiChatToggle();" class="text-violet-600 hover:underline">設定 → AI Token</a>
-            </p>
+            <div class="flex items-center justify-between mt-1 gap-2 flex-wrap">
+                <p class="text-[10px] text-stone-400">
+                    Provider 設定:<a href="javascript:showSettingsView();aiChatToggle();" class="text-violet-600 hover:underline">設定 → AI Token</a>
+                </p>
+                <!-- Sprint 7 — MCP 自動操作入口 -->
+                <button type="button" onclick="aiChatRunMcpLoop()" class="text-[10px] px-2 py-0.5 rounded bg-fuchsia-500 hover:bg-fuchsia-600 text-white flex items-center gap-1" title="把上方 textarea 的內容當需求,讓 AI 透過 MCP 自動操作瀏覽器產生案例(限 OpenAI / Local + function calling)">
+                    <i class="fa-solid fa-robot"></i> MCP 自動操作
+                </button>
+            </div>
         </div>
     </aside>
 
