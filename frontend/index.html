@@ -17633,6 +17633,12 @@ gantt
                 ? scenarios.map(s => `<option value="${_esc(s.id)}">${_esc(s.label)}</option>`).join('')
                 : '<option value="">— 請先建 SCENARIO 節點 —</option>';
 
+            // 是否有當前打開的編輯器(影響「套用到當前案例」按鈕的可用性)
+            const hasOpenCase = !!(typeof currentTestCase !== 'undefined' && currentTestCase && testCases && testCases[currentTestCase]);
+            const applyBtnAttrs = hasOpenCase
+                ? `onclick="_aiGenApplyToCurrent()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-sm font-semibold"`
+                : `disabled title="請先在左側樹點選一個 TESTCASE,讓編輯器打開該案例" class="px-4 py-2 bg-stone-300 text-stone-500 rounded-md text-sm font-semibold cursor-not-allowed"`;
+
             modal.innerHTML = `
               <div class="bg-white rounded-xl shadow-2xl w-full max-w-3xl border border-violet-200 max-h-[92vh] overflow-y-auto">
                 <div class="px-6 py-4 border-b border-stone-200 bg-violet-50/60 flex items-center justify-between">
@@ -17642,24 +17648,61 @@ gantt
                 <div class="p-6 space-y-3">
                   <div class="grid grid-cols-2 gap-3">
                     <div>
-                      <label class="block text-xs font-semibold text-stone-600 mb-1">建到哪個 SCENARIO</label>
+                      <label class="block text-xs font-semibold text-stone-600 mb-1">建為新案例時 — 建到哪個 SCENARIO</label>
                       <select id="aiGenScenario" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">${scenarioOpts}</select>
                     </div>
-                    <div class="text-xs text-stone-500 self-end">勾選下方要建的案例,按右下「⚡ 建立」會逐一建為新測試案例。</div>
+                    <div class="text-[11px] text-stone-600 self-end space-y-1">
+                      <div><span class="text-emerald-600 font-semibold">📝 套用到當前案例</span>:寫入打開的編輯器,<b>未存 DB,可手動修改後再儲存</b>(僅勾第一筆)${hasOpenCase ? '' : '<span class="text-amber-600"> · 需先點選 TESTCASE</span>'}</div>
+                      <div><span class="text-violet-600 font-semibold">⚡ 建立勾選的案例</span>:逐一建為新 TESTCASE,<b>直接寫 DB</b>(可多選)</div>
+                    </div>
                   </div>
                   <div class="space-y-2 max-h-[50vh] overflow-y-auto">
-                    ${data.generated.map((it, idx) => `
+                    ${data.generated.map((it, idx) => {
+                      const steps = it.steps_json || [];
+                      const stepRows = steps.map((s, i) => `
+                        <tr class="border-t border-stone-200">
+                          <td class="px-1.5 py-1 text-stone-500 text-center">${i+1}</td>
+                          <td class="px-1.5 py-1 font-mono text-blue-600">${_esc(s.keyword || 'When')}</td>
+                          <td class="px-1.5 py-1 font-mono text-emerald-700">${_esc(s.action || '')}</td>
+                          <td class="px-1.5 py-1 font-mono text-stone-700 break-all">${_esc(s.locator || '')}</td>
+                          <td class="px-1.5 py-1 break-all">${_esc(s.input || '')}</td>
+                          <td class="px-1.5 py-1 break-all">${_esc(s.expected || '')}</td>
+                        </tr>`).join('');
+                      const previewBlock = steps.length
+                        ? `<details class="mt-2 text-xs">
+                            <summary class="cursor-pointer text-violet-600 hover:underline select-none">▸ 預覽 ${steps.length} 個 steps</summary>
+                            <div class="mt-1 overflow-x-auto">
+                              <table class="w-full text-[11px] border border-stone-200 bg-stone-50/40">
+                                <thead class="bg-stone-100 text-stone-600">
+                                  <tr>
+                                    <th class="px-1.5 py-1 text-left w-8">#</th>
+                                    <th class="px-1.5 py-1 text-left">BDD</th>
+                                    <th class="px-1.5 py-1 text-left">動作</th>
+                                    <th class="px-1.5 py-1 text-left">定位器</th>
+                                    <th class="px-1.5 py-1 text-left">輸入</th>
+                                    <th class="px-1.5 py-1 text-left">預期</th>
+                                  </tr>
+                                </thead>
+                                <tbody>${stepRows}</tbody>
+                              </table>
+                            </div>
+                          </details>`
+                        : `<div class="mt-1 text-[10px] text-amber-600">⚠ LLM 沒給 steps_json,將以 steps_md 內容暫存,使用者需手動編輯</div>`;
+                      return `
                       <label class="flex items-start gap-2 p-3 border border-stone-200 rounded hover:border-violet-300 cursor-pointer">
                         <input type="checkbox" class="ai-gen-pick mt-1" data-idx="${idx}" checked>
                         <div class="flex-1 min-w-0">
                           <div class="font-semibold text-stone-800 text-sm">${_esc(it.title || '(no title)')}</div>
                           <div class="text-[11px] text-stone-500 mt-1 whitespace-pre-line">${_esc(it.ac || '')}</div>
-                          <div class="text-[10px] text-violet-600 mt-1">${(it.steps_json || []).length} 個 step ${(it.steps_json || []).length === 0 ? '(LLM 沒給 steps_json,將以 steps_md 內容暫存,使用者需手動編輯)' : ''}</div>
+                          <div class="text-[10px] text-violet-600 mt-1">${steps.length} 個 step</div>
+                          ${previewBlock}
                         </div>
-                      </label>`).join('')}
+                      </label>`;
+                    }).join('')}
                   </div>
-                  <div class="flex justify-end gap-2 pt-2">
+                  <div class="flex justify-end gap-2 pt-2 flex-wrap">
                     <button onclick="document.getElementById('aiGenResultModal').remove()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button>
+                    <button ${applyBtnAttrs}><i class="fa-solid fa-pen"></i> 套用到當前案例</button>
                     <button onclick="_aiGenCreateSelected()" class="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-bolt"></i> 建立勾選的案例</button>
                   </div>
                 </div>
@@ -17800,6 +17843,58 @@ gantt
             }
         }
 
+        // 把 AI 生成 step 正規化成編輯器可吃的 schema(預設值與 _aiGenCreateSelected 一致)
+        function _aiGenNormalizeSteps(steps) {
+            return (steps || []).map((s, i) => ({
+                id: 'ai_' + Date.now() + '_' + i,
+                keyword: s.keyword || 'When',
+                description: s.description || '',
+                action: s.action || '',
+                locator: s.locator || '',
+                input: s.input || '',
+                condition: s.condition || 'Equals',
+                expected: s.expected || '',
+            }));
+        }
+
+        // Sprint 11 — 「📝 套用到當前案例(編輯器預覽)」
+        // 把 AI 生的 steps 寫進當前打開的編輯器,標 dirty,讓使用者按儲存才真正存 DB
+        function _aiGenApplyToCurrent() {
+            if (!currentTestCase || !testCases[currentTestCase]) {
+                showToast('請先在左側樹點選一個 TESTCASE,讓編輯器打開該案例', 'error');
+                return;
+            }
+            const picked = Array.from(document.querySelectorAll('.ai-gen-pick'))
+                .filter(cb => cb.checked).map(cb => parseInt(cb.dataset.idx, 10));
+            if (!picked.length) { showToast('沒勾選任何案例', 'error'); return; }
+            if (picked.length > 1) {
+                showToast('編輯器只能裝一個案例,僅取第一筆勾選的;其他請改用「建立勾選的案例」', 'info');
+            }
+            const it = _aiGenItems[picked[0]];
+            if (!it) { showToast('找不到該案例', 'error'); return; }
+            const newSteps = _aiGenNormalizeSteps(it.steps_json || []);
+            if (!newSteps.length) {
+                showToast('該案例沒有 steps_json 可套用(只有 steps_md);請改用「建立勾選的案例」', 'error');
+                return;
+            }
+            const tc = testCases[currentTestCase];
+            const existingCount = (tc.steps || []).length;
+            if (existingCount > 0) {
+                if (!confirm(`這會覆蓋當前編輯器的 ${existingCount} 個 step,確定要繼續嗎?\n\n(套用後可手動修改,按 💾 儲存才會存進資料庫;不存可關掉案例放棄變更)`)) {
+                    return;
+                }
+            }
+            // 寫進 in-memory:steps 全覆蓋,ac 只在當前為空時補(避免破壞使用者寫好的 AC)
+            tc.steps = newSteps;
+            if (it.ac && !(tc.ac && tc.ac.trim())) {
+                tc.ac = it.ac;
+            }
+            markDirty();
+            renderEditor();
+            document.getElementById('aiGenResultModal')?.remove();
+            showToast(`已寫入 ${newSteps.length} 個 step 到編輯器,請檢查後按 💾 儲存`, 'success');
+        }
+
         async function _aiGenCreateSelected() {
             const scenarioId = document.getElementById('aiGenScenario')?.value;
             if (!scenarioId) { showToast('請選 SCENARIO', 'error'); return; }
@@ -17820,16 +17915,7 @@ gantt
                     });
                     // 2. 灌 steps_json + ac_text
                     if (created && created.id) {
-                        const steps = (it.steps_json || []).map((s, i) => ({
-                            id: 'ai_' + Date.now() + '_' + i,
-                            keyword: s.keyword || 'When',
-                            description: s.description || '',
-                            action: s.action || '',
-                            locator: s.locator || '',
-                            input: s.input || '',
-                            condition: s.condition || 'Equals',
-                            expected: s.expected || '',
-                        }));
+                        const steps = _aiGenNormalizeSteps(it.steps_json || []);
                         await apiFetch(`/api/testcases/${encodeURIComponent(created.id)}`, {
                             method: 'PUT',
                             headers: {'Content-Type': 'application/json'},
