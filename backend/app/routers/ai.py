@@ -24,10 +24,23 @@ class AiGenerateRequest(BaseModel):
     provider: Optional[str] = None  # 不指定 → 用系統預設
 
 
+class AiGeneratedStep(BaseModel):
+    keyword: str = "When"
+    description: str = ""
+    action: str = ""
+    locator: str = ""
+    input: str = ""
+    condition: str = "Equals"
+    expected: str = ""
+
+
 class AiGeneratedItem(BaseModel):
     title: str
     ac: str
     steps_md: str
+    # Sprint 1.3 — 新增:LLM 直接回的 step 陣列(GeneratedStep 結構)
+    # 前端可一鍵套用到既有案例或新建案例;若空,fallback 走 steps_md 人工編輯
+    steps_json: list[AiGeneratedStep] = []
 
 
 class AiGenerateResponse(BaseModel):

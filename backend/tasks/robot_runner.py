@@ -17,7 +17,9 @@ DDT：每一列產生一個 Test Case，header 變成 ${var} 變數可在 locato
 """
 from __future__ import annotations
 
+import ast
 import json
+import operator
 import os
 import re
 import shlex
@@ -66,14 +68,184 @@ class CaseResult:
 
 _VAR_PATTERN = re.compile(r"\$\{([^}]+)\}|\$([A-Za-z_][A-Za-z0-9_]*)")
 
+# Sprint 1 — mini DSL:`{{= 表達式 | filter | filter }}`
+# 例:
+#   {{= ${count} + 1 }}                算術:把 count 加 1
+#   {{= ${name} | upper }}             pipe filter:轉大寫
+#   {{= ${rows} | len }}               長度
+#   {{= ${api_resp} | json:id }}       從 JSON 字串取 path "id"
+# 不支援函式呼叫 / 屬性存取(防 injection),只允許算術 / 比較 / literal。
+_EXPR_PATTERN = re.compile(r"\{\{=(.+?)\}\}", re.DOTALL)
+
+_AST_OPS: dict[type, Any] = {
+    ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul,
+    ast.Div: operator.truediv, ast.FloorDiv: operator.floordiv, ast.Mod: operator.mod,
+    ast.Pow: operator.pow, ast.UAdd: operator.pos, ast.USub: operator.neg,
+    ast.Eq: operator.eq, ast.NotEq: operator.ne,
+    ast.Lt: operator.lt, ast.LtE: operator.le, ast.Gt: operator.gt, ast.GtE: operator.ge,
+    ast.And: lambda a, b: a and b, ast.Or: lambda a, b: a or b, ast.Not: operator.not_,
+}
+
+
+def _safe_eval(expr: str, names: dict | None = None):
+    """只允許算術 / 比較 / 邏輯運算 / literal / 已知變數;不允許函式呼叫 / 屬性存取。"""
+    names = names or {}
+    tree = ast.parse(expr, mode="eval")
+
+    def _eval(node):
+        if isinstance(node, ast.Expression):
+            return _eval(node.body)
+        if isinstance(node, ast.Constant):
+            return node.value
+        if isinstance(node, ast.Name):
+            if node.id in names:
+                return names[node.id]
+            if node.id in ("True", "False", "None"):
+                return {"True": True, "False": False, "None": None}[node.id]
+            raise ValueError(f"未知變數:{node.id}")
+        if isinstance(node, ast.BinOp):
+            op = _AST_OPS.get(type(node.op))
+            if not op:
+                raise ValueError(f"不允許的運算子:{type(node.op).__name__}")
+            return op(_eval(node.left), _eval(node.right))
+        if isinstance(node, ast.UnaryOp):
+            op = _AST_OPS.get(type(node.op))
+            if not op:
+                raise ValueError(f"不允許的一元運算子:{type(node.op).__name__}")
+            return op(_eval(node.operand))
+        if isinstance(node, ast.Compare):
+            left = _eval(node.left)
+            for op_node, right_node in zip(node.ops, node.comparators):
+                op = _AST_OPS.get(type(op_node))
+                if not op:
+                    raise ValueError(f"不允許的比較運算子:{type(op_node).__name__}")
+                right = _eval(right_node)
+                if not op(left, right):
+                    return False
+                left = right
+            return True
+        if isinstance(node, ast.BoolOp):
+            op = _AST_OPS.get(type(node.op))
+            if not op:
+                raise ValueError("不允許的布林運算")
+            vals = [_eval(v) for v in node.values]
+            result = vals[0]
+            for v in vals[1:]:
+                result = op(result, v)
+            return result
+        if isinstance(node, ast.List):
+            return [_eval(el) for el in node.elts]
+        if isinstance(node, ast.Tuple):
+            return tuple(_eval(el) for el in node.elts)
+        raise ValueError(f"不允許的語法:{type(node).__name__}")
+
+    return _eval(tree)
+
+
+def _apply_filter(value: Any, spec: str) -> Any:
+    """套單個 filter,支援帶參數(json:path)。"""
+    spec = spec.strip()
+    if not spec:
+        return value
+    name, _, arg = spec.partition(":")
+    name = name.strip()
+    arg = arg.strip()
+    if name == "upper":
+        return str(value).upper()
+    if name == "lower":
+        return str(value).lower()
+    if name == "strip":
+        return str(value).strip()
+    if name == "len":
+        try:
+            return len(value)
+        except TypeError:
+            return len(str(value))
+    if name == "int":
+        return int(value)
+    if name == "float":
+        return float(value)
+    if name == "str":
+        return str(value)
+    if name == "json":
+        # 把 value 當 JSON 字串解析,然後取 arg 為 dotted path
+        try:
+            data = value if not isinstance(value, str) else json.loads(value)
+        except (ValueError, json.JSONDecodeError):
+            return ""
+        if not arg:
+            return data
+        cur = data
+        for part in arg.split("."):
+            if isinstance(cur, dict):
+                cur = cur.get(part)
+            elif isinstance(cur, list) and part.isdigit():
+                idx = int(part)
+                cur = cur[idx] if 0 <= idx < len(cur) else None
+            else:
+                cur = None
+            if cur is None:
+                break
+        return cur if cur is not None else ""
+    # 未知 filter:回原值
+    return value
+
+
+def _eval_dsl(body: str, ctx: dict) -> str:
+    """評估 {{= ... }} 內容。先把 ${var} 變成 _safe_eval 的 names dict,再套 pipe filters。"""
+    # 切 main expr 跟 filters
+    parts = body.split("|")
+    main = parts[0].strip()
+    filters = [p.strip() for p in parts[1:] if p.strip()]
+
+    # 收集 main 內用到的變數,把它們轉成合法 Python 識別字 + 餵給 _safe_eval
+    # 例:`${count} + 1` → 替換成 `_v_count + 1`,names = {"_v_count": ctx["count"]}
+    names: dict[str, Any] = {}
+    def _var_to_ident(m: re.Match) -> str:
+        key = m.group(1) or m.group(2)
+        if key not in ctx and f"${key}" not in ctx:
+            return m.group(0)  # 找不到 → 保留原樣讓下方 ast.parse 報錯
+        val = ctx.get(key) if key in ctx else ctx.get(f"${key}")
+        # 嘗試把字串值轉成數值;失敗保留字串
+        try:
+            num = float(val) if "." in str(val) else int(val)
+            val_for_expr = num
+        except (ValueError, TypeError):
+            val_for_expr = val
+        ident = f"_v_{re.sub(r'[^A-Za-z0-9_]', '_', str(key))}"
+        names[ident] = val_for_expr
+        return ident
+
+    py_expr = _VAR_PATTERN.sub(_var_to_ident, main)
+
+    # 算 main expr
+    try:
+        result = _safe_eval(py_expr, names) if py_expr.strip() else ""
+    except Exception as e:
+        # DSL 評估失敗 → 保留原 raw 字串(避免整個 step 爆掉)
+        return f"<<DSL error: {e}>>"
+
+    # 套 filters
+    for f in filters:
+        try:
+            result = _apply_filter(result, f)
+        except Exception:
+            pass
+
+    return str(result)
+
 
 def _substitute(text: Any, ctx: dict) -> str:
-    """將 ${var} / $var 用 ctx 取代；非字串轉成空字串。"""
+    """將 ${var} / $var / {{= 表達式 }} 用 ctx 取代;非字串轉成空字串。"""
     if text is None:
         return ""
     if not isinstance(text, str):
         text = str(text)
 
+    # Step 1: 先處理 mini DSL `{{= ... }}`(可內含 ${var})
+    text = _EXPR_PATTERN.sub(lambda m: _eval_dsl(m.group(1), ctx), text)
+
+    # Step 2: 處理單純的 ${var} / $var(沒包在 DSL 內的)
     def repl(m: re.Match) -> str:
         key = m.group(1) or m.group(2)
         if key in ctx:

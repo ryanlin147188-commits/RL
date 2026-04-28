@@ -38,30 +38,60 @@ from app.models.requirement import Requirement
 
 log = logging.getLogger(__name__)
 
-# 系統 prompt：要求 AI 一律輸出 JSON 陣列、結構固定
-_SYSTEM_PROMPT = """你是一位資深的 QA 測試工程師，擅長 ATDD / BDD（Given-When-Then）的測試案例設計。
+# Sprint 1.3 — 系統 prompt 改成「直接輸出 steps_json」(GeneratedStep 結構)
+# 同時保留 steps_md 給人類閱讀;但前端優先用 steps_json 一鍵套用。
+# action 取值參考 robot_runner._translate_step:Goto / Click / Fill / Press /
+# AssertText / AssertVisible / AssertChecked / Upload / Http.Get / Http.Post / ...
+_SYSTEM_PROMPT = """你是一位資深的 QA 測試工程師,擅長 ATDD / BDD(Given-When-Then)的測試案例設計。
 
-任務：根據使用者提供的「需求」，生成 N 個簡短但完整的測試案例骨架。
+任務:根據使用者提供的「需求」,生成 N 個簡短但完整的測試案例。
 
-**嚴格要求：你的回應必須是「合法的 JSON 陣列」，不能包含任何解釋文字 / Markdown 圍欄 / 註解。**
+**嚴格要求:你的回應必須是「合法的 JSON 陣列」,不能包含任何解釋文字 / Markdown 圍欄 / 註解。**
 
-每個元素的格式：
+每個元素的格式:
 {
-  "title": "測試案例標題（一行，不要超過 40 字）",
-  "ac": "驗收條件（Given ... When ... Then ... 風格，可多行）",
-  "steps_md": "Markdown 格式的測試步驟（含步驟編號、預期結果）"
+  "title": "測試案例標題(一行,不超過 40 字)",
+  "ac": "驗收條件(Given ... When ... Then ... 風格,可多行)",
+  "steps_md": "Markdown 格式的測試步驟(供閱讀)",
+  "steps_json": [
+    {
+      "keyword": "Given|When|Then|And",
+      "description": "步驟描述",
+      "action": "Goto | Click | Fill | Press | AssertText | AssertVisible | AssertChecked | Upload | Http.Get | Http.Post | ...",
+      "locator": "CSS / role= / text= / xpath / URL(Http.* 用)",
+      "input": "輸入值或 body(可空)",
+      "condition": "Equals | Contains | StartsWith | EndsWith | Regex | GreaterThan | LessThan | IsVisible | IsHidden | IsChecked",
+      "expected": "預期結果(支援 ${var} 變數 或 {{= 表達式 }} 動態運算式)"
+    }
+  ]
 }
 
-範例：
+action 速查:
+- Goto:locator=URL,action="Goto"
+- Click:locator=CSS / role=button[name="X"]
+- Fill:locator=CSS,input=要填的字
+- AssertText:locator=元素 css,condition=Equals|Contains,expected=文字
+- AssertVisible:locator=元素 css,condition=IsVisible,expected=true
+- Http.Get / Post / Put / Delete:locator=URL,input=body(POST 用),expected=狀態碼
+
+範例:
 [
   {
     "title": "登入成功 - 正確帳密",
     "ac": "Given 使用者已註冊\\nWhen 輸入正確帳號密碼\\nThen 進入首頁",
-    "steps_md": "## 測試步驟\\n1. 開啟登入頁\\n2. 輸入 admin / admin123\\n3. 點選「登入」\\n\\n## 預期結果\\n- 跳轉到首頁\\n- 上方顯示「歡迎，admin」"
+    "steps_md": "## 步驟\\n1. 開啟登入頁\\n2. 輸入 admin/admin123\\n3. 點選登入\\n## 預期\\n- 跳轉到首頁",
+    "steps_json": [
+      {"keyword": "Given", "description": "開啟登入頁", "action": "Goto", "locator": "https://example.com/login", "input": "", "condition": "Equals", "expected": ""},
+      {"keyword": "When", "description": "輸入帳號", "action": "Fill", "locator": "#username", "input": "admin", "condition": "Equals", "expected": ""},
+      {"keyword": "When", "description": "輸入密碼", "action": "Fill", "locator": "#password", "input": "admin123", "condition": "Equals", "expected": ""},
+      {"keyword": "When", "description": "點選登入", "action": "Click", "locator": "button[type=submit]", "input": "", "condition": "Equals", "expected": ""},
+      {"keyword": "Then", "description": "首頁標題顯示歡迎", "action": "AssertText", "locator": "h1.title", "input": "", "condition": "Contains", "expected": "歡迎"}
+    ]
   }
 ]
 
-請涵蓋：正向情境 1-2 個 + 邊界 / 失敗情境 1-2 個。語言與需求一致（需求用中文 → 回中文）。"""
+請涵蓋:正向情境 1-2 個 + 邊界 / 失敗情境 1-2 個。語言與需求一致(需求用中文 → 回中文)。
+若需求過於抽象無法給出明確 locator,steps_json 仍要列出但 locator 用合理猜測(例:`#login-btn`)。"""
 
 
 def _user_prompt(requirement: Requirement, n: int) -> str:
@@ -202,10 +232,27 @@ def _extract_json_array(text: str) -> list[dict[str, Any]]:
     for item in data:
         if not isinstance(item, dict):
             continue
+        # steps_json 為 GeneratedStep 結構陣列;允許空(LLM 解析失敗時前端 fallback steps_md)
+        raw_steps = item.get("steps_json")
+        steps_json: list[dict] = []
+        if isinstance(raw_steps, list):
+            for s in raw_steps:
+                if not isinstance(s, dict):
+                    continue
+                steps_json.append({
+                    "keyword": str(s.get("keyword") or "When").strip()[:10],
+                    "description": str(s.get("description") or "").strip()[:300],
+                    "action": str(s.get("action") or "").strip()[:40],
+                    "locator": str(s.get("locator") or "").strip()[:500],
+                    "input": str(s.get("input") or "").strip()[:2000],
+                    "condition": str(s.get("condition") or "Equals").strip()[:40],
+                    "expected": str(s.get("expected") or "").strip()[:500],
+                })
         out.append({
             "title": str(item.get("title") or "").strip()[:300],
             "ac": str(item.get("ac") or "").strip(),
             "steps_md": str(item.get("steps_md") or "").strip(),
+            "steps_json": steps_json,
         })
     return out
 
