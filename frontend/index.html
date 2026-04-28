@@ -17704,6 +17704,7 @@ gantt
                     <button onclick="document.getElementById('aiGenResultModal').remove()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button>
                     <button ${applyBtnAttrs}><i class="fa-solid fa-pen"></i> 套用到當前案例</button>
                     <button onclick="_aiGenCreateSelected()" class="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-bolt"></i> 建立勾選的案例</button>
+                    <button onclick="_aiGenCreateAndRunSelected()" class="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-md text-sm font-semibold" title="建立後立刻送 /api/executions 並跳轉到測試報告即時觀察"><i class="fa-solid fa-rocket"></i> 建立並執行</button>
                   </div>
                 </div>
               </div>`;
@@ -17937,6 +17938,84 @@ gantt
             document.getElementById('aiGenResultModal')?.remove();
             await switchProject(currentProjectId);
             showToast(`AI 建案完成:${success} 成功 / ${fail} 失敗`, success > 0 ? 'success' : 'error');
+        }
+
+        // Sprint 11.2 — 「⚡ 建立並執行」:建新案例 → 立即送 /api/executions → 跳測試報告頁
+        async function _aiGenCreateAndRunSelected() {
+            const scenarioId = document.getElementById('aiGenScenario')?.value;
+            if (!scenarioId) { showToast('請選 SCENARIO', 'error'); return; }
+            const picked = Array.from(document.querySelectorAll('.ai-gen-pick'))
+                .filter(cb => cb.checked).map(cb => parseInt(cb.dataset.idx, 10));
+            if (!picked.length) { showToast('沒勾選任何案例', 'error'); return; }
+            if (!confirm(`將建立 ${picked.length} 個新案例並立即執行(送 /api/executions),確定?\n\n注意:AI 生的步驟可能不準,直接執行可能會跑出大量 FAIL。建議只在示範或想看結果時用此按鈕。`)) {
+                return;
+            }
+            const dateStr = new Date().toISOString().slice(0, 10);
+            const execMode = (typeof getExecutionMode === 'function') ? getExecutionMode() : 'docker';
+            const opts = (typeof getRunOptions === 'function') ? getRunOptions() : { enable_recording: true, ddt_expand: false };
+            const trigger = (typeof authCurrentUsername === 'function') ? (authCurrentUsername() || 'AI-Generated') : 'AI-Generated';
+
+            let buildOk = 0, buildFail = 0, runOk = 0, runFail = 0;
+            const triggered = [];
+            for (const idx of picked) {
+                const it = _aiGenItems[idx];
+                if (!it) continue;
+                const name = `${it.title || 'AI生成案例'}_${dateStr}.md`.replace(/[\\/:*?"<>|]/g, '_');
+                let createdId = null;
+                try {
+                    const created = await apiFetch('/api/nodes', {
+                        method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ project_id: currentProjectId, parent_id: scenarioId, name }),
+                    });
+                    if (created && created.id) {
+                        createdId = created.id;
+                        const steps = _aiGenNormalizeSteps(it.steps_json || []);
+                        await apiFetch(`/api/testcases/${encodeURIComponent(created.id)}`, {
+                            method: 'PUT',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({
+                                ac_text: it.ac || '',
+                                steps_json: steps,
+                                ddt_json: { headers: [], rows: [] },
+                            }),
+                        });
+                        buildOk++;
+                    } else {
+                        buildFail++;
+                    }
+                } catch (e) {
+                    console.error('AI 建案失敗:', e);
+                    buildFail++;
+                }
+                if (!createdId) continue;
+                try {
+                    const resp = await apiFetch('/api/executions', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            node_id: createdId,
+                            trigger_type: trigger,
+                            execution_mode: execMode,
+                            ddt_expand: opts.ddt_expand,
+                            enable_recording: opts.enable_recording,
+                        }),
+                    });
+                    triggered.push({ name, task_id: resp.task_id, report_id: resp.report_id });
+                    runOk++;
+                } catch (e) {
+                    console.error('AI 執行失敗:', e);
+                    runFail++;
+                }
+            }
+            document.getElementById('aiGenResultModal')?.remove();
+            await switchProject(currentProjectId);
+            showToast(
+                `AI 建案 ${buildOk}/${buildOk+buildFail} 成功;送執行 ${runOk}/${runOk+runFail} 成功`,
+                (buildOk > 0 && runOk > 0) ? 'success' : 'error'
+            );
+            if (runOk > 0 && typeof showReportView === 'function') {
+                setTimeout(() => showReportView(), 200);
+            }
         }
 
         // ─── 首頁：行事曆 + 待辦 ─────────────────────────────────────
