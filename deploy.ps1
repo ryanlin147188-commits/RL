@@ -94,6 +94,21 @@ function New-RunnerImage {
     Write-Success "Runner image 已建置"
 }
 
+# ── 建 Docker 模式錄製 image（autotest-recorder） ────────────────────
+# Phase 1:容器內跑 Xvfb + noVNC + Playwright codegen,讓使用者透過瀏覽器
+# iframe 在伺服器側錄製,免裝 Playwright。
+function New-RecorderImage {
+    docker image inspect 'autotest-recorder:latest' 2>$null | Out-Null
+    if ($LASTEXITCODE -eq 0) {
+        Write-Info "autotest-recorder 已存在（跳過重建；需更新請先 docker rmi autotest-recorder:latest）"
+        return
+    }
+    Write-Info "建 Recorder 容器 image（含 noVNC + Playwright，第一次約 3-5 分鐘）..."
+    docker build -f backend/Dockerfile.recorder -t autotest-recorder:latest backend/
+    if ($LASTEXITCODE -ne 0) { Write-Err "Recorder image 建置失敗。"; exit 1 }
+    Write-Success "Recorder image 已建置"
+}
+
 # ── 啟動 Compose ─────────────────────────────────────────────────────
 function Start-ComposeStack {
     Write-Step "啟動服務（docker compose up -d --build）"
@@ -191,6 +206,7 @@ Test-DockerEnvironment
 Test-ProjectDir
 Initialize-EnvFile
 New-RunnerImage
+New-RecorderImage
 Start-ComposeStack
 Wait-ForReady
 Initialize-PostgresAdmin

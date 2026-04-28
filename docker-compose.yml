@@ -115,12 +115,18 @@ services:
       APP_HOST: 0.0.0.0
       APP_PORT: 8000
       DEBUG: "False"
+      # ── Docker 模式錄製(Phase 1) ──
+      RECORDER_IMAGE: ${RECORDER_IMAGE:-autotest-recorder:latest}
+      RECORDER_NETWORK: ${RECORDER_NETWORK:-autotest_default}
+      RECORDER_INTERNAL_BASE_URL: http://backend:8000
+      RECORDER_IDLE_TIMEOUT_MIN: 30
     volumes:
       # 截圖 / 影片 / Trace / 附件全部存 SeaweedFS,backend 不再需要 PIC volume
-      # 掛入 docker socket，讓 /api/system/status 能查詢 Docker 狀態
+      # 掛入 docker socket,讓 /api/system/status 查 Docker 狀態 + recorder 容器啟停
       - /var/run/docker.sock:/var/run/docker.sock
     ports:
       - "8000:8000"
+      # 動態錄製容器會 publish 到 host 的 6080-6200 區段 port,不用在 backend 區塊另外 expose
 
   celery:
     build:

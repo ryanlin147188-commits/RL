@@ -421,6 +421,8 @@
         html.dark .backlog-row { background: rgb(41 37 36); border-color: rgb(68 64 60); color: rgb(231 229 228); }
         html.dark .backlog-row .br-title-text { color: rgb(231 229 228); }
         html.dark .backlog-row:hover { background: rgb(68 64 60); }
+        /* Docker 模式錄製:noVNC iframe 容器固定高度(70vh,但不小於 600px) */
+        .rec-vnc-wrap { height: 70vh; min-height: 600px; }
     </style>
 </head>
 <body class="h-screen flex flex-col bg-stone-50 text-stone-800 font-sans overflow-hidden relative">
@@ -1052,10 +1054,27 @@
                     <p id="recSessionInfo" class="mt-3 text-xs text-slate-500">尚未建立 session</p>
                 </section>
 
-                <!-- ② 在本機執行 codegen -->
+                <!-- ② 在本機執行 codegen / 在 Docker 容器內錄製(雙模式切換) -->
                 <section id="recCmdSection" class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm hidden">
                     <h3 class="font-bold text-slate-700 flex items-center gap-2 mb-3"><i class="fa-solid fa-circle-2 text-rose-500"></i> 啟動錄製器</h3>
-                    <div class="space-y-3">
+                    <!-- 模式切換 -->
+                    <div class="flex gap-2 mb-4 bg-slate-100 p-1 rounded-lg" role="tablist" aria-label="錄製執行模式">
+                        <button type="button" id="recModeBtnLocal" onclick="recSetMode('local')"
+                            class="flex-1 px-3 py-2 rounded-md text-sm font-medium bg-white text-rose-600 shadow-sm flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-laptop"></i> 本機錄製
+                        </button>
+                        <button type="button" id="recModeBtnDocker" onclick="recSetMode('docker')"
+                            class="flex-1 px-3 py-2 rounded-md text-sm font-medium text-slate-500 hover:text-slate-700 flex items-center justify-center gap-2">
+                            <i class="fa-brands fa-docker"></i> Docker 容器錄製 <span class="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">伺服器側</span>
+                        </button>
+                    </div>
+                    <p class="text-xs text-slate-500 mb-3">
+                        <b>本機</b>:後端發指令,你在自己的終端機跑 Playwright codegen;適合進階開發者。
+                        <b>Docker</b>:後端開個容器內含瀏覽器,你在這頁面的 iframe 內直接操作即可,免裝 Playwright。
+                    </p>
+
+                    <!-- ── 本機模式:沿用既有的 PowerShell / bash 一鍵指令 ── -->
+                    <div id="recCmdLocal" class="space-y-3">
                         <p class="text-xs text-slate-600 bg-amber-50 border border-amber-200 rounded p-3">
                             <i class="fa-solid fa-bolt text-amber-500"></i>
                             <b>使用方式：</b>建立 session 後，下方已備好 <b>Windows (PowerShell)</b> 與 <b>macOS / Linux (bash)</b> 兩種一鍵指令；
@@ -1086,6 +1105,37 @@
                         <b>macOS / Linux：</b>需已安裝 <code>python</code> 與 <code>curl</code>（大多數系統預設內建）；若沒裝 Playwright，第一次執行會自動從 pip 安裝。
                         RF Browser 已內建 playwright，無需額外安裝。
                     </p>
+                    </div>
+
+                    <!-- ── Docker 模式:啟容器 + iframe 嵌入 noVNC ── -->
+                    <div id="recCmdDocker" class="hidden space-y-3">
+                        <div id="recDockerIdle" class="text-xs text-slate-600 bg-blue-50 border border-blue-200 rounded p-3">
+                            <i class="fa-solid fa-circle-info text-blue-500"></i>
+                            <b>容器錄製:</b>後端會開一個 image=<code>autotest-recorder</code> 的容器,內含 Xvfb + Playwright codegen + noVNC。啟動後你會在下方 iframe 看到容器內的瀏覽器,可直接用滑鼠 / 鍵盤操作;Playwright Inspector 視窗關閉(在 codegen 介面點 Stop / 視窗 X)時容器會自動把 .py + trace.zip 上傳。
+                            <div class="mt-2 text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded p-2">
+                                <i class="fa-solid fa-wand-magic-sparkles"></i> <b>第一次使用</b>會自動 build image(約 5-10 分鐘),完成後會自動接著啟動容器,你不用手動執行 <code>docker build</code>。
+                            </div>
+                        </div>
+                        <div class="flex gap-2">
+                            <button id="recDockerStartBtn" onclick="recDockerStart()" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded font-medium text-sm flex items-center gap-2"><i class="fa-solid fa-play"></i> 啟動容器並開始錄製</button>
+                            <button id="recDockerStopBtn" onclick="recDockerStop()" class="hidden px-4 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded font-medium text-sm flex items-center gap-2"><i class="fa-solid fa-stop"></i> 停止錄製(關閉容器)</button>
+                            <span id="recDockerStatus" class="text-xs text-slate-500 self-center"></span>
+                        </div>
+                        <!-- iframe 嵌入 noVNC -->
+                        <div id="recDockerVncWrap" class="rec-vnc-wrap hidden border border-rose-200 rounded-md bg-black overflow-hidden">
+                            <iframe id="recDockerVncFrame" src="about:blank" allow="fullscreen"
+                                class="w-full h-full block" title="noVNC — 在容器內錄製"></iframe>
+                        </div>
+                        <!-- Image build 進度區塊(image missing 時顯示) -->
+                        <div id="recRecorderBuildBox" class="hidden border border-amber-200 bg-amber-50/40 rounded-md p-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <h4 class="text-sm font-semibold text-amber-700 flex items-center gap-2"><i class="fa-solid fa-hammer fa-spin"></i> 正在自動 build recorder image</h4>
+                                <span id="recRecorderBuildStatus" class="text-xs px-2 py-0.5 rounded bg-amber-200 text-amber-800">準備中…</span>
+                            </div>
+                            <p class="text-xs text-amber-700 mb-2">第一次使用會 build 一個約 2 GB 的 image(內含 Playwright + noVNC),通常 5-10 分鐘。完成後會自動開始錄製,你可以離開此頁繼續做別的事,build 不會中斷。</p>
+                            <div class="text-[11px] font-mono text-stone-700 bg-white border border-stone-200 rounded p-2 max-h-64 overflow-y-auto whitespace-pre-wrap" id="recRecorderBuildLog">等待 log…</div>
+                        </div>
+                    </div>
                 </section>
 
                 <!-- ③ 上傳結果 -->
@@ -12211,6 +12261,188 @@ driver.swipe(100, 800, 100, 200, 500)"
             }
         }
 
+        // ─── Docker 模式錄製(Phase 1) ─────────────────────────────────
+        let _recDockerInfo = null;       // 啟動後存 backend 回的 host_port / novnc_path
+        let _recDockerPollTimer = null;
+
+        function recSetMode(mode) {
+            const localBox = document.getElementById('recCmdLocal');
+            const dockerBox = document.getElementById('recCmdDocker');
+            const btnL = document.getElementById('recModeBtnLocal');
+            const btnD = document.getElementById('recModeBtnDocker');
+            if (!localBox || !dockerBox) return;
+            if (mode === 'docker') {
+                localBox.classList.add('hidden');
+                dockerBox.classList.remove('hidden');
+                btnD.className = 'flex-1 px-3 py-2 rounded-md text-sm font-medium bg-white text-rose-600 shadow-sm flex items-center justify-center gap-2';
+                btnL.className = 'flex-1 px-3 py-2 rounded-md text-sm font-medium text-slate-500 hover:text-slate-700 flex items-center justify-center gap-2';
+            } else {
+                dockerBox.classList.add('hidden');
+                localBox.classList.remove('hidden');
+                btnL.className = 'flex-1 px-3 py-2 rounded-md text-sm font-medium bg-white text-rose-600 shadow-sm flex items-center justify-center gap-2';
+                btnD.className = 'flex-1 px-3 py-2 rounded-md text-sm font-medium text-slate-500 hover:text-slate-700 flex items-center justify-center gap-2';
+            }
+        }
+
+        let _recBuildPollTimer = null;
+
+        async function recDockerStart() {
+            if (!recCurrentSession || !recCurrentSession.id) {
+                showToast('請先建立 session', 'error'); return;
+            }
+            const btn = document.getElementById('recDockerStartBtn');
+            const status = document.getElementById('recDockerStatus');
+            const orig = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 啟動中…';
+            status.textContent = '';
+            try {
+                const r = await fetch(`/api/recordings/${encodeURIComponent(recCurrentSession.id)}/docker-start`, {
+                    method: 'POST',
+                });
+                // 425 (Too Early) = image 還沒 build,後端已自動觸發 build → 進 build progress 流程
+                if (r.status === 425) {
+                    const body = await r.json().catch(() => ({}));
+                    const detail = (body && body.detail) || {};
+                    showToast(detail.message || 'Recorder image 自動 build 中,完成後會自動開始錄製', 'info');
+                    btn.disabled = false;
+                    btn.innerHTML = orig;
+                    _recRecorderBuildPollAndRetry();
+                    return;
+                }
+                if (!r.ok) {
+                    const detail = (await r.json().catch(()=>({}))).detail || ('HTTP '+r.status);
+                    throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
+                }
+                _recDockerInfo = await r.json();
+                _recRenderVncIframe(_recDockerInfo);
+                btn.classList.add('hidden');
+                document.getElementById('recDockerStopBtn').classList.remove('hidden');
+                status.innerHTML = `<span class="text-emerald-600"><i class="fa-solid fa-circle-check"></i> 容器已啟動 (port ${_recDockerInfo.host_port})  · 在 iframe 內操作 → 關閉 Inspector 視窗即自動上傳</span>`;
+                showToast('容器已啟動,請在下方畫面內錄製', 'success');
+                _recDockerStartPolling();
+            } catch (e) {
+                showToast('啟動失敗:' + e.message, 'error');
+                status.innerHTML = `<span class="text-rose-600"><i class="fa-solid fa-circle-xmark"></i> ${_esc(e.message)}</span>`;
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = orig;
+            }
+        }
+
+        function _recRenderVncIframe(info) {
+            // 組 noVNC URL — host 用瀏覽器看到的 hostname,port 由 backend 回
+            const host = window.location.hostname || 'localhost';
+            const url = `http://${host}:${info.host_port}${info.novnc_path}`;
+            document.getElementById('recDockerVncFrame').src = url;
+            document.getElementById('recDockerVncWrap').classList.remove('hidden');
+            document.getElementById('recDockerIdle').classList.add('hidden');
+            document.getElementById('recRecorderBuildBox').classList.add('hidden');
+        }
+
+        // 觸發 / 接管 recorder image build,polling 完 ready 自動重試 docker-start
+        function _recRecorderBuildPollAndRetry() {
+            // 顯示 build progress UI
+            document.getElementById('recRecorderBuildBox').classList.remove('hidden');
+            document.getElementById('recDockerIdle').classList.add('hidden');
+            const statusBadge = document.getElementById('recRecorderBuildStatus');
+            const logBox = document.getElementById('recRecorderBuildLog');
+
+            if (_recBuildPollTimer) clearInterval(_recBuildPollTimer);
+
+            const tick = async () => {
+                try {
+                    const r = await fetch('/api/recordings/recorder-image/status');
+                    if (!r.ok) return;
+                    const s = await r.json();
+                    statusBadge.textContent = ({
+                        'missing': '未建構',
+                        'building': '建構中…',
+                        'ready': '就緒 ✓',
+                        'error': '失敗',
+                        'unknown': '查詢中',
+                    })[s.status] || s.status;
+                    statusBadge.className = 'text-xs px-2 py-0.5 rounded ' + (
+                        s.status === 'ready' ? 'bg-emerald-200 text-emerald-800' :
+                        s.status === 'error' ? 'bg-rose-200 text-rose-800' :
+                        s.status === 'building' ? 'bg-amber-200 text-amber-800' :
+                        'bg-stone-200 text-stone-700'
+                    );
+                    if (Array.isArray(s.log_tail) && s.log_tail.length) {
+                        logBox.textContent = s.log_tail.join('\n');
+                        // auto scroll bottom
+                        logBox.scrollTop = logBox.scrollHeight;
+                    }
+                    if (s.status === 'ready') {
+                        clearInterval(_recBuildPollTimer); _recBuildPollTimer = null;
+                        showToast('recorder image 已就緒,即將自動啟動容器…', 'success');
+                        // 自動重試 docker-start
+                        setTimeout(() => recDockerStart(), 600);
+                    } else if (s.status === 'error') {
+                        clearInterval(_recBuildPollTimer); _recBuildPollTimer = null;
+                        showToast('Image build 失敗:' + (s.error || '未知錯誤'), 'error');
+                    } else if (s.status === 'missing') {
+                        // 還沒開始 build → 主動觸發
+                        await fetch('/api/recordings/recorder-image/build', { method: 'POST' });
+                    }
+                } catch (_) {}
+            };
+            _recBuildPollTimer = setInterval(tick, 3000);
+            tick();  // 立即跑一次
+        }
+
+        function _recDockerStartPolling() {
+            if (_recDockerPollTimer) clearInterval(_recDockerPollTimer);
+            _recDockerPollTimer = setInterval(async () => {
+                if (!recCurrentSession || !recCurrentSession.id) return;
+                try {
+                    const r = await fetch(`/api/recordings/${encodeURIComponent(recCurrentSession.id)}/docker-status`);
+                    if (!r.ok) return;
+                    const data = await r.json();
+                    if (data === null || data === undefined) {
+                        // 容器已結束(codegen 退出 → 上傳完 → 容器退出)
+                        clearInterval(_recDockerPollTimer);
+                        _recDockerPollTimer = null;
+                        _recDockerResetUI();
+                        document.getElementById('recDockerStatus').innerHTML =
+                            '<span class="text-emerald-600"><i class="fa-solid fa-circle-check"></i> 錄製結束;檔案已自動上傳。可至下方「③ 上傳錄製結果」按「解析並套用」</span>';
+                        showToast('錄製結束,檔案已上傳', 'success');
+                        // 從 backend 重抓 session 看是否已 UPLOADED + 自動解析套用 UI
+                        try {
+                            const sr = await fetch(`/api/recordings/${encodeURIComponent(recCurrentSession.id)}`);
+                            if (sr.ok) recCurrentSession = await sr.json();
+                        } catch(_) {}
+                        recRefreshList();
+                    }
+                } catch(_) {}
+            }, 5000);
+        }
+
+        async function recDockerStop() {
+            if (!recCurrentSession || !recCurrentSession.id) return;
+            if (!confirm('確定停止錄製?容器會被關閉;若 codegen 還沒上傳,腳本會遺失。')) return;
+            try {
+                const r = await fetch(`/api/recordings/${encodeURIComponent(recCurrentSession.id)}/docker-stop`, {
+                    method: 'POST',
+                });
+                if (!r.ok && r.status !== 204) throw new Error('HTTP '+r.status);
+                _recDockerResetUI();
+                showToast('容器已停止', 'success');
+            } catch (e) {
+                showToast('停止失敗:' + e.message, 'error');
+            }
+        }
+
+        function _recDockerResetUI() {
+            if (_recDockerPollTimer) { clearInterval(_recDockerPollTimer); _recDockerPollTimer = null; }
+            _recDockerInfo = null;
+            document.getElementById('recDockerVncFrame').src = 'about:blank';
+            document.getElementById('recDockerVncWrap').classList.add('hidden');
+            document.getElementById('recDockerIdle').classList.remove('hidden');
+            document.getElementById('recDockerStopBtn').classList.add('hidden');
+            document.getElementById('recDockerStartBtn').classList.remove('hidden');
+        }
+
         function recCopy(id) {
             const el = document.getElementById(id);
             if (!el) { showToast('找不到欄位', 'error'); return; }
@@ -16411,13 +16643,14 @@ gantt
             document.getElementById('todoStatus').value = t?.status || 'Todo';
             document.getElementById('todoPriority').value = t?.priority || 'P2';
             // 指派人下拉:預設新建時填當前使用者,編輯時填現存值
+            // 注意:openTodoModal 第三個參數已叫 defaultType,內部用 assigneeType 避免重複宣告
             const defaultAssignee = t?.assignee || (typeof authCurrentUsername === 'function' ? (authCurrentUsername()||'') : '');
-            const defaultType = t?.assignee_type || 'user';
-            document.getElementById('todoAssigneeType').value = defaultType;
+            const assigneeType = t?.assignee_type || 'user';
+            document.getElementById('todoAssigneeType').value = assigneeType;
             // 先以 cache 渲染(可能是空 placeholder),再非同步拉資料補上
-            _populateTodoAssigneeOptions(defaultAssignee, defaultType);
+            _populateTodoAssigneeOptions(defaultAssignee, assigneeType);
             Promise.all([_loadAssignableUsers(), _loadAssignableGroups()])
-                .then(() => _populateTodoAssigneeOptions(defaultAssignee, defaultType));
+                .then(() => _populateTodoAssigneeOptions(defaultAssignee, assigneeType));
             document.getElementById('todoDesc').value = t?.description || '';
             document.getElementById('todoType').value = t?.item_type || defaultType || 'Task';
             document.getElementById('todoSprint').value = t?.sprint_label || '';

@@ -1,0 +1,46 @@
+# 衍生 image：autotest-recorder
+#
+# 用於「Docker 模式錄製」(Phase 1 of 在伺服器內錄製):
+#   - 容器內跑 Xvfb + fluxbox + 有頭 Chromium + Playwright codegen
+#   - 暴露 noVNC(port 6080)讓使用者透過瀏覽器 iframe 看畫面 / 用滑鼠鍵盤操作
+#   - codegen 視窗關閉後自動 curl 上傳 recorded.py + trace.zip 到 backend
+#   - 容器隨後自然退出(--rm 會清掉)
+#
+# Base:Microsoft 官方 Playwright Python image(v1.50.0-jammy)— 已內建
+# Python 3.10、Playwright(含 chromium/firefox/webkit)、Node.js、Ubuntu 22.04。
+
+FROM mcr.microsoft.com/playwright/python:v1.50.0-jammy
+
+USER root
+
+# 安裝 noVNC 需要的元件:
+#   xvfb        虛擬顯示(headless 容器內也能跑有頭瀏覽器)
+#   x11vnc      把 X 顯示對外開為 VNC 伺服器
+#   fluxbox     輕量視窗管理器(不裝就無法拖動 / 最大化 codegen 視窗)
+#   novnc       noVNC 的 HTML/JS 套件(/usr/share/novnc/)
+#   websockify  把 VNC 的 TCP 連線包成 WebSocket 給瀏覽器用
+#   curl        錄完上傳 recorded.py + trace.zip 用
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        xvfb x11vnc fluxbox \
+        novnc websockify \
+        curl ca-certificates \
+        dbus-x11 && \
+    rm -rf /var/lib/apt/lists/*
+
+# noVNC 慣用 vnc.html / vnc_lite.html;有的 distro 沒附 index.html
+# 直接 symlink 讓 / 也能進入 vnc_lite
+RUN ln -sf /usr/share/novnc/vnc.html /usr/share/novnc/index.html
+
+WORKDIR /work
+
+COPY tasks/recorder_entrypoint.sh /usr/local/bin/recorder-entrypoint.sh
+RUN chmod +x /usr/local/bin/recorder-entrypoint.sh
+
+# 6080 = noVNC web(websockify),5900 = 純 VNC(內部用,不對外)
+EXPOSE 6080
+
+ENV PYTHONUNBUFFERED=1 \
+    DISPLAY=:99
+
+ENTRYPOINT ["/usr/local/bin/recorder-entrypoint.sh"]

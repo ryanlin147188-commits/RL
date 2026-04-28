@@ -34,6 +34,17 @@ class Settings(BaseSettings):
     APP_PORT: int = 8000
     DEBUG: bool = True
 
+    # ─── Docker 模式錄製(Phase 1) ────────────────────────────────────
+    # 容器內透過此 image 跑 Xvfb + noVNC + Playwright codegen
+    RECORDER_IMAGE: str = "autotest-recorder:latest"
+    # 啟動的容器加入 docker compose 的同一 network(讓 codegen 完成後 curl
+    # 上傳能解析到 backend hostname);預設與 docker-compose.yml networks 一致
+    RECORDER_NETWORK: str = "autotest_default"
+    # 容器內 codegen 完成後 curl 上傳的目標(從容器內看);走 internal hostname
+    RECORDER_INTERNAL_BASE_URL: str = "http://backend:8000"
+    # 預設 idle 多久後自動回收 recorder 容器(分鐘)
+    RECORDER_IDLE_TIMEOUT_MIN: int = 30
+
     @property
     def DATABASE_URL(self) -> str:
         """Async URL 供 FastAPI / SQLAlchemy asyncio 使用（PostgreSQL via asyncpg）"""

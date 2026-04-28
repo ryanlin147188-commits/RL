@@ -16,9 +16,13 @@ trace.zip 存於 PIC_FOLDER/recordings/{id}/trace.zip，並掛在 /pics 靜態�
 """
 from __future__ import annotations
 
+import asyncio
+import logging
 import os
 import re
+import secrets
 import uuid
+from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import (
@@ -30,6 +34,7 @@ from fastapi import (
     UploadFile,
 )
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -43,6 +48,26 @@ from app.schemas.recording import (
     RecordingSessionCreate,
     RecordingSessionResponse,
 )
+
+log = logging.getLogger(__name__)
+
+# Phase 1 docker 模式錄製的容器追蹤(in-memory,backend 重啟會孤兒)
+# key=session_id;value=dict(container_id / host_port / vnc_password / started_at)
+# 後續若要持久化,改加 RecordingSession 對應欄位
+_recorder_containers: dict[str, dict] = {}
+
+# Recorder image 自動 build 狀態(全域單例;同一時刻只會有一條 build 在跑)
+# status 流向:
+#   missing  → building → ready
+#                    └→ error(可重試 → 回到 missing)
+_recorder_image_state: dict = {
+    "status": "unknown",     # unknown / missing / building / ready / error
+    "log": [],               # 最近 200 行 build log 給前端 stream
+    "started_at": None,
+    "finished_at": None,
+    "error": None,
+}
+_recorder_image_lock = asyncio.Lock()  # 防止並發觸發 double-build
 
 router = APIRouter()
 
@@ -846,3 +871,419 @@ async def convert_recording(session_id: str, db: AsyncSession = Depends(get_db))
         raise HTTPException(409, "尚未上傳 codegen 腳本，無法轉換")
     steps = _parse_script(session.script_text)
     return ConvertResponse(steps=steps)
+
+
+# ─────────────────────────────────────────────────────────
+# Docker 模式錄製(Phase 1)
+# 啟一個 autotest-recorder 容器,內含 Xvfb + noVNC + Playwright codegen;
+# 把 noVNC port 對外 publish,前端用 iframe 嵌入該 URL 操作。
+# ─────────────────────────────────────────────────────────
+
+
+class DockerRecorderResponse(BaseModel):
+    """啟動 docker 錄製容器後回給前端的資訊。"""
+    session_id: str
+    container_id: str
+    container_name: str
+    host_port: int
+    vnc_password: str
+    # 前端 iframe 用;組好的 noVNC lite client URL,密碼已 url-encoded 帶入
+    novnc_path: str
+    started_at: datetime
+    expires_at: datetime
+
+
+def _get_docker_client():
+    """延後 import docker 套件 — 沒裝 / 沒 socket 時給友善錯誤。"""
+    try:
+        import docker  # type: ignore
+    except ImportError:
+        raise HTTPException(
+            500,
+            "後端缺少 docker 套件,無法使用 docker 模式錄製;"
+            "請安裝 `pip install docker`(已列在 backend/requirements.txt)",
+        )
+    try:
+        return docker.from_env()
+    except Exception as e:
+        raise HTTPException(
+            500,
+            f"無法連到 docker daemon:{e};"
+            "請確認 backend container 有 mount /var/run/docker.sock",
+        )
+
+
+# ─── Recorder image 自動 build ───────────────────────────────────────
+
+def _recorder_image_exists() -> bool:
+    """同步檢查 image 是否存在(快;不需 lock)。"""
+    try:
+        client = _get_docker_client()
+    except HTTPException:
+        return False
+    try:
+        client.images.get(settings.RECORDER_IMAGE)
+        return True
+    except Exception:
+        return False
+
+
+def _append_build_log(line: str, max_lines: int = 200) -> None:
+    """把一行 log 推進 state(限制最大長度避免無限累積)。"""
+    state = _recorder_image_state
+    state["log"].append(line)
+    if len(state["log"]) > max_lines:
+        state["log"] = state["log"][-max_lines:]
+
+
+def _build_recorder_image_sync() -> None:
+    """**Blocking** 的 build 流程,給 asyncio.to_thread 用。
+
+    Build context 取自 backend image 內的 /app(Dockerfile 已 `COPY . /app`,
+    所以 Dockerfile.recorder + tasks/recorder_entrypoint.sh 都在裡面)。
+    Docker SDK 會把 path 整個打包成 tar 上傳到 daemon — daemon 不需要看到
+    backend 容器內的檔案系統,只需要拿到 tar context 就能 build。
+    """
+    import docker  # type: ignore
+    state = _recorder_image_state
+    try:
+        api = docker.APIClient(base_url="unix:///var/run/docker.sock")
+    except Exception as e:
+        state["status"] = "error"
+        state["error"] = f"連不上 docker daemon:{e}"
+        state["finished_at"] = datetime.utcnow()
+        return
+
+    state["status"] = "building"
+    state["log"] = []
+    state["error"] = None
+    state["started_at"] = datetime.utcnow()
+    state["finished_at"] = None
+    _append_build_log(f"[backend] 開始 build {settings.RECORDER_IMAGE}")
+    _append_build_log("[backend] context = /app, dockerfile = Dockerfile.recorder")
+
+    try:
+        # decode=True 把每個 chunk 解析成 dict;low-level api 讓我們即時讀 stream
+        for chunk in api.build(
+            path="/app",
+            dockerfile="Dockerfile.recorder",
+            tag=settings.RECORDER_IMAGE,
+            rm=True,
+            forcerm=True,
+            decode=True,
+            pull=False,
+        ):
+            if "stream" in chunk:
+                for line in chunk["stream"].splitlines():
+                    line = line.rstrip()
+                    if line:
+                        _append_build_log(line)
+            elif "status" in chunk:
+                # 拉 layer 進度;只記關鍵 step,不每個 byte 都打
+                msg = chunk["status"]
+                if "id" in chunk:
+                    msg = f"{chunk['id']}: {msg}"
+                _append_build_log(msg)
+            elif "errorDetail" in chunk or "error" in chunk:
+                err = chunk.get("errorDetail", {}).get("message") or chunk.get("error")
+                _append_build_log(f"[error] {err}")
+                state["status"] = "error"
+                state["error"] = err
+                state["finished_at"] = datetime.utcnow()
+                return
+
+        # build 結束 → 確認 image 真的存在
+        if _recorder_image_exists():
+            state["status"] = "ready"
+            _append_build_log(f"[backend] build 完成,image={settings.RECORDER_IMAGE}")
+        else:
+            state["status"] = "error"
+            state["error"] = "build 結束但 image 不存在(未知原因)"
+        state["finished_at"] = datetime.utcnow()
+    except Exception as e:
+        log.exception("recorder image build failed")
+        _append_build_log(f"[exception] {type(e).__name__}: {e}")
+        state["status"] = "error"
+        state["error"] = f"{type(e).__name__}: {e}"
+        state["finished_at"] = datetime.utcnow()
+
+
+async def _trigger_build_if_needed() -> str:
+    """確保 build 在跑(若還沒跑且 image missing)。回傳當下 status。
+
+    用 asyncio.Lock 避免兩個 request 同時觸發 double build。
+    若已經 ready,直接回 ready,不啟新 build。
+    若已在 building,直接回 building,不重啟。
+    """
+    async with _recorder_image_lock:
+        state = _recorder_image_state
+        if state["status"] == "building":
+            return "building"
+        if _recorder_image_exists():
+            state["status"] = "ready"
+            return "ready"
+        # missing:啟非同步 build
+        state["status"] = "building"
+        # 在執行緒中跑(blocking I/O),不擋住 event loop
+        asyncio.create_task(asyncio.to_thread(_build_recorder_image_sync))
+        return "building"
+
+
+class RecorderImageStatus(BaseModel):
+    """Recorder image build 狀態(給前端 polling)。"""
+    status: str  # missing / building / ready / error
+    error: Optional[str] = None
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    log_tail: list[str] = []
+
+
+@router.get(
+    "/recordings/recorder-image/status",
+    response_model=RecorderImageStatus,
+    tags=["E · 錄製"],
+)
+async def recorder_image_status():
+    """查 recorder image 當前狀態 + build log tail。前端 polling 用。"""
+    state = _recorder_image_state
+    # 若 status=unknown 或 error 但可能 user 手動 build 過,再驗一次
+    if state["status"] in ("unknown", "missing") and _recorder_image_exists():
+        state["status"] = "ready"
+    return RecorderImageStatus(
+        status=state["status"] if state["status"] != "unknown"
+            else ("ready" if _recorder_image_exists() else "missing"),
+        error=state["error"],
+        started_at=state["started_at"],
+        finished_at=state["finished_at"],
+        log_tail=list(state["log"][-80:]),  # 最後 80 行
+    )
+
+
+@router.post(
+    "/recordings/recorder-image/build",
+    response_model=RecorderImageStatus,
+    tags=["E · 錄製"],
+)
+async def trigger_recorder_image_build():
+    """觸發 recorder image build(若 image 已存在直接回 ready;
+    若已在 build 中也不重啟,直接回 building)。"""
+    new_status = await _trigger_build_if_needed()
+    state = _recorder_image_state
+    return RecorderImageStatus(
+        status=new_status,
+        error=state["error"],
+        started_at=state["started_at"],
+        finished_at=state["finished_at"],
+        log_tail=list(state["log"][-80:]),
+    )
+
+
+@router.post(
+    "/recordings/{session_id}/docker-start",
+    response_model=DockerRecorderResponse,
+    tags=["E · 錄製"],
+)
+async def docker_start(session_id: str, db: AsyncSession = Depends(get_db)):
+    """啟一個 recorder 容器,回 noVNC iframe 可用的資訊。
+
+    流程:
+      1. 找 session,確認狀態
+      2. 若該 session 已有跑著的容器 → 先 stop(避免 double-spawn)
+      3. 啟新容器,Docker auto-assign host port 給 6080
+      4. 反查實際 host port,組 noVNC URL 回前端
+    """
+    session = await db.get(RecordingSession, session_id)
+    if not session:
+        raise HTTPException(404, "Recording session not found")
+    if not session.target_url:
+        raise HTTPException(400, "session 沒有 target_url,無法啟動 codegen")
+
+    docker_client = _get_docker_client()
+
+    # 先清掉舊的(若有)
+    old = _recorder_containers.pop(session_id, None)
+    if old:
+        try:
+            c = docker_client.containers.get(old["container_id"])
+            c.remove(force=True)
+        except Exception:
+            pass
+
+    vnc_password = secrets.token_urlsafe(12)
+    upload_url = f"{settings.RECORDER_INTERNAL_BASE_URL.rstrip('/')}/api/recordings/{session_id}/upload"
+    container_name = f"autotest-recorder-{session_id[:8]}"
+
+    # Image 預檢:若 missing 直接觸發背景 build + 回 425 (Too Early),前端會
+    # polling status,等 ready 後再 retry docker-start。避免 user 等同步 5-10
+    # 分鐘 build 把 HTTP request 卡住。
+    if not _recorder_image_exists():
+        new_status = await _trigger_build_if_needed()
+        # 若剛剛 image_exists() 才 false 但鎖住期間 status 變 ready(罕見 race),繼續
+        if new_status != "ready":
+            raise HTTPException(
+                status_code=425,  # Too Early
+                detail={
+                    "code": "recorder_image_building",
+                    "message": (
+                        f"Recorder image 還沒 build 完(image={settings.RECORDER_IMAGE});"
+                        "後端已自動開始 build,請在前端等待 progress 完成後再試。"
+                    ),
+                    "status": new_status,
+                },
+            )
+
+    try:
+        container = docker_client.containers.run(
+            image=settings.RECORDER_IMAGE,
+            name=container_name,
+            detach=True,
+            auto_remove=False,  # 我們手動管理;codegen 結束後容器留著直到 docker-stop
+            network=settings.RECORDER_NETWORK,
+            ports={"6080/tcp": None},  # auto-assign host port
+            environment={
+                "TARGET_URL": session.target_url,
+                "SESSION_ID": session_id,
+                "UPLOAD_URL": upload_url,
+                "VNC_PASSWORD": vnc_password,
+            },
+            labels={
+                "autotest.role": "recorder",
+                "autotest.session_id": session_id,
+            },
+        )
+    except Exception as e:
+        msg = str(e)
+        if "No such image" in msg or "not found" in msg.lower():
+            # 罕見:images.get 過了但 run 又說 missing(image 中途被刪)→ 觸發 rebuild
+            await _trigger_build_if_needed()
+            raise HTTPException(
+                status_code=425,
+                detail={
+                    "code": "recorder_image_building",
+                    "message": "Recorder image 不見了,已重新觸發 build,請稍後再試。",
+                    "status": "building",
+                },
+            )
+        raise HTTPException(500, f"啟動 recorder 容器失敗:{msg}")
+
+    # Docker 對 6080 自動分配的 host port
+    container.reload()
+    port_info = (container.attrs.get("NetworkSettings", {}).get("Ports") or {}).get("6080/tcp")
+    if not port_info:
+        # 啟容器但 port 沒映射成功 → 回收
+        try:
+            container.remove(force=True)
+        except Exception:
+            pass
+        raise HTTPException(500, "容器啟動但 6080 port 未對外映射,請檢查 docker daemon 設定")
+    host_port = int(port_info[0]["HostPort"])
+
+    started_at = datetime.utcnow()
+    expires_at = started_at + timedelta(minutes=settings.RECORDER_IDLE_TIMEOUT_MIN)
+
+    _recorder_containers[session_id] = {
+        "container_id": container.id,
+        "container_name": container_name,
+        "host_port": host_port,
+        "vnc_password": vnc_password,
+        "started_at": started_at,
+        "expires_at": expires_at,
+    }
+    session.status = "RECORDING"
+    await db.flush()
+
+    # noVNC lite 連線 URL(查詢字串只是路徑,host 由前端用 window.location 填)
+    # autoconnect=1 + reconnect=1 + resize=remote 是體驗最好的組合
+    from urllib.parse import quote
+    novnc_path = (
+        f"/vnc_lite.html?path=websockify"
+        f"&autoconnect=1&reconnect=1&resize=remote"
+        f"&password={quote(vnc_password)}"
+    )
+
+    return DockerRecorderResponse(
+        session_id=session_id,
+        container_id=container.id,
+        container_name=container_name,
+        host_port=host_port,
+        vnc_password=vnc_password,
+        novnc_path=novnc_path,
+        started_at=started_at,
+        expires_at=expires_at,
+    )
+
+
+@router.post(
+    "/recordings/{session_id}/docker-stop",
+    status_code=204,
+    tags=["E · 錄製"],
+)
+async def docker_stop(session_id: str, db: AsyncSession = Depends(get_db)):
+    """停掉 session 對應的 recorder 容器。
+
+    使用者按「停止錄製」時呼叫;若容器內 codegen 已先退出(自動上傳完),
+    這個端點只是把容器移除。
+    """
+    info = _recorder_containers.pop(session_id, None)
+    if not info:
+        # 已經沒在跑了,不算錯誤
+        return
+    docker_client = _get_docker_client()
+    try:
+        c = docker_client.containers.get(info["container_id"])
+        # 先 stop 給 entrypoint 機會 trap → upload(若還沒上傳)
+        try:
+            c.stop(timeout=15)
+        except Exception:
+            pass
+        c.remove(force=True)
+    except Exception as e:
+        log.warning("docker_stop:remove %s failed: %s", info.get("container_name"), e)
+
+    # 回寫 session.status:若使用者中途停止且沒上傳成功,session 還是 PENDING
+    session = await db.get(RecordingSession, session_id)
+    if session and session.status == "RECORDING":
+        # 如果已經 upload 過了 status 會被 upload endpoint 改成 UPLOADED
+        # 還在 RECORDING 代表沒成功上傳 → 退回 PENDING 讓使用者可重來
+        session.status = "PENDING"
+        await db.flush()
+
+
+@router.get(
+    "/recordings/{session_id}/docker-status",
+    response_model=Optional[DockerRecorderResponse],
+    tags=["E · 錄製"],
+)
+async def docker_status(session_id: str):
+    """查目前 session 的 recorder 容器是否還活著(給前端 polling 用)。
+
+    回 200 + DockerRecorderResponse 表示還在跑;
+    回 200 + null 表示沒跑(已結束或從沒啟動)。
+    """
+    info = _recorder_containers.get(session_id)
+    if not info:
+        return None
+    # 順便驗一下 docker daemon 真的還有這個容器(避免 backend 重啟造成幽靈)
+    try:
+        docker_client = _get_docker_client()
+        c = docker_client.containers.get(info["container_id"])
+        if c.status not in ("running", "created"):
+            _recorder_containers.pop(session_id, None)
+            return None
+    except Exception:
+        _recorder_containers.pop(session_id, None)
+        return None
+    return DockerRecorderResponse(
+        session_id=session_id,
+        container_id=info["container_id"],
+        container_name=info["container_name"],
+        host_port=info["host_port"],
+        vnc_password=info["vnc_password"],
+        novnc_path=(
+            f"/vnc_lite.html?path=websockify"
+            f"&autoconnect=1&reconnect=1&resize=remote"
+            f"&password={info['vnc_password']}"
+        ),
+        started_at=info["started_at"],
+        expires_at=info["expires_at"],
+    )
