@@ -98,6 +98,7 @@ class ReportListItem(BaseModel):
     source_platform: Optional[str] = None
     source_page: Optional[str] = None
     enable_recording: bool = True
+    test_version_id: Optional[str] = None
     created_at: datetime
 
 

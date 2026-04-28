@@ -1,3 +1,5 @@
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import desc, func, select
@@ -150,19 +152,24 @@ async def list_reports(
     project_id: str = Query(...),
     page: int = Query(1, ge=1, description="頁碼（從 1 開始）"),
     limit: int = Query(10, ge=1, le=100, description="每頁筆數"),
+    test_version_id: Optional[str] = Query(None, description="只顯示某版號相關的報告"),
     db: AsyncSession = Depends(get_db),
 ):
     offset = (page - 1) * limit
-    total = await db.scalar(
-        select(func.count()).where(ExecutionReport.project_id == project_id)
-    ) or 0
-    result = await db.execute(
+    base = select(func.count()).where(ExecutionReport.project_id == project_id)
+    if test_version_id:
+        base = base.where(ExecutionReport.test_version_id == test_version_id)
+    total = await db.scalar(base) or 0
+    list_stmt = (
         select(ExecutionReport)
         .where(ExecutionReport.project_id == project_id)
         .order_by(desc(ExecutionReport.created_at))
         .offset(offset)
         .limit(limit)
     )
+    if test_version_id:
+        list_stmt = list_stmt.where(ExecutionReport.test_version_id == test_version_id)
+    result = await db.execute(list_stmt)
     items = result.scalars().all()
 
     # 補上 step-level 統計（passed_steps / failed_steps），給前端列表顯示

@@ -61,6 +61,7 @@ async def _to_response(db: AsyncSession, r: TestRound) -> TestRoundResponse:
         node_titles=titles,
         description=r.description,
         execution_mode=(r.execution_mode or "docker"),
+        test_version_id=getattr(r, "test_version_id", None),
         created_at=r.created_at,
         updated_at=r.updated_at,
     )
@@ -69,11 +70,14 @@ async def _to_response(db: AsyncSession, r: TestRound) -> TestRoundResponse:
 @router.get("/rounds", response_model=list[TestRoundResponse], tags=["H · 測試回合"])
 async def list_rounds(
     project_id: Optional[str] = Query(None),
+    test_version_id: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
     stmt = select(TestRound).order_by(desc(TestRound.created_at))
     if project_id:
         stmt = stmt.where(TestRound.project_id == project_id)
+    if test_version_id:
+        stmt = stmt.where(TestRound.test_version_id == test_version_id)
     result = await db.execute(stmt)
     rows = list(result.scalars())
     return [await _to_response(db, r) for r in rows]
@@ -90,6 +94,7 @@ async def create_round(payload: TestRoundCreate, db: AsyncSession = Depends(get_
         node_ids_json=json.dumps(list(dict.fromkeys(payload.node_ids)), ensure_ascii=False),
         description=payload.description,
         execution_mode=(payload.execution_mode or "docker").lower(),
+        test_version_id=payload.test_version_id,
     )
     db.add(r)
     await db.flush()
@@ -122,6 +127,8 @@ async def update_round(
         r.description = payload.description
     if payload.execution_mode is not None:
         r.execution_mode = (payload.execution_mode or "docker").lower()
+    if "test_version_id" in payload.model_fields_set:
+        r.test_version_id = payload.test_version_id
     await db.flush()
     return await _to_response(db, r)
 

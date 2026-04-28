@@ -969,8 +969,29 @@
             </div>
             
             <!-- 動態渲染的樹狀容器 -->
-            <div id="treeContainer" class="flex-1 overflow-y-auto p-3 pb-20 text-sm bg-amber-50/20">
+            <div id="treeContainer" class="flex-1 overflow-y-auto p-3 pb-4 text-sm bg-amber-50/20">
                 <!-- 由 JavaScript 產生 -->
+            </div>
+
+            <!-- ── 測試版號 panel(常駐 sidebar 底部;含 CRUD 與「篩選」)── -->
+            <div id="testVersionPanel" class="shrink-0 border-t border-amber-200 bg-white" style="max-height: 320px; display: flex; flex-direction: column;">
+                <div class="px-3 py-2 flex items-center justify-between gap-2 bg-amber-50/60 border-b border-amber-100">
+                    <button type="button" id="tvPanelToggle" onclick="tvTogglePanel()" class="flex-1 text-left flex items-center gap-2 text-xs font-semibold text-stone-600 uppercase tracking-wider hover:text-amber-700">
+                        <i id="tvPanelChevron" class="fa-solid fa-chevron-down text-[10px] transition-transform"></i>
+                        <i class="fa-solid fa-tag text-amber-500"></i>
+                        <span data-i18n="sidebar.testVersions">測試版號</span>
+                        <span id="tvFilterBadge" class="hidden text-[9px] px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 font-normal normal-case tracking-normal">已篩選</span>
+                    </button>
+                    <button type="button" onclick="tvOpenCreate()" title="新增版號" aria-label="新增版號"
+                        class="w-7 h-7 shrink-0 flex items-center justify-center bg-gradient-to-br from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-md shadow-sm transition">
+                        <i class="fa-solid fa-plus text-[11px]"></i>
+                    </button>
+                </div>
+                <div id="tvPanelBody" class="overflow-y-auto p-2 text-xs" style="flex: 1; min-height: 0;">
+                    <div id="tvList" class="space-y-2">
+                        <div class="text-stone-400 text-center py-4">尚未載入</div>
+                    </div>
+                </div>
             </div>
         </aside>
 
@@ -3291,6 +3312,58 @@ driver.swipe(100, 800, 100, 200, 500)"
                 </div>
             </div>
 
+            <!-- 測試版號 Modal(新增 / 編輯) -->
+            <div id="tvModal" class="hidden fixed inset-0 z-[150] bg-black/40 flex items-center justify-center p-4">
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg border border-amber-200 max-h-[92vh] overflow-y-auto">
+                    <div class="px-6 py-4 border-b border-stone-200 bg-amber-50/60 flex items-center justify-between">
+                        <h3 id="tvModalTitle" class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-tag text-amber-500"></i> 新增測試版號</h3>
+                        <button type="button" onclick="tvCloseModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <form onsubmit="return tvSubmit(event)" class="p-6 space-y-3">
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label for="tvPlatform" class="block text-xs font-semibold text-stone-600 mb-1">平台 <span class="text-rose-500">*</span></label>
+                                <select id="tvPlatform" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
+                                    <option value="WEB">🌐 WEB</option>
+                                    <option value="API">🔌 API</option>
+                                    <option value="APP">📱 APP</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="tvLabel" class="block text-xs font-semibold text-stone-600 mb-1">版號 <span class="text-rose-500">*</span></label>
+                                <input type="text" id="tvLabel" required placeholder="例:1.2.3 / v3.5-rc1 / build-1234" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm font-mono">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label for="tvStatus" class="block text-xs font-semibold text-stone-600 mb-1">狀態</label>
+                                <select id="tvStatus" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
+                                    <option value="planned">📋 planned (規劃中)</option>
+                                    <option value="released" selected>✅ released (已發布)</option>
+                                    <option value="deprecated">🚫 deprecated (已停用)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="tvReleasedAt" class="block text-xs font-semibold text-stone-600 mb-1">發布日期</label>
+                                <input type="date" id="tvReleasedAt" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm">
+                            </div>
+                        </div>
+                        <div>
+                            <label for="tvDesc" class="block text-xs font-semibold text-stone-600 mb-1">說明 / Release notes</label>
+                            <textarea id="tvDesc" rows="4" placeholder="這個版號包含哪些功能 / 修正…" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea>
+                        </div>
+                        <p id="tvUsageHint" class="hidden text-[11px] text-stone-500 bg-stone-50 border border-stone-200 rounded p-2"></p>
+                        <div class="flex justify-between items-center pt-2">
+                            <button type="button" id="tvDeleteBtn" onclick="tvDeleteCurrent()" class="hidden px-3 py-2 bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 rounded-md text-sm font-medium"><i class="fa-solid fa-trash"></i> 刪除</button>
+                            <div class="flex gap-2 ml-auto">
+                                <button type="button" onclick="tvCloseModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button>
+                                <button type="submit" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
             <!-- 群組 Modal(新增 / 編輯) -->
             <div id="groupModal" class="hidden fixed inset-0 z-[150] bg-black/40 flex items-center justify-center p-4">
                 <div class="bg-white rounded-xl shadow-2xl w-full max-w-xl border border-amber-200 max-h-[92vh] overflow-y-auto">
@@ -4062,14 +4135,25 @@ driver.swipe(100, 800, 100, 200, 500)"
                             <div><label for="defExpected" class="block text-xs font-semibold text-stone-600 mb-1">預期結果</label><textarea id="defExpected" aria-label="預期結果" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
                             <div><label for="defActual" class="block text-xs font-semibold text-stone-600 mb-1">實際結果</label><textarea id="defActual" aria-label="實際結果" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
                         </div>
-                        <div>
-                            <label for="defLinkedTestcase" class="block text-xs font-semibold text-stone-600 mb-1">
-                                關聯測試案例
-                                <span class="text-[10px] text-stone-400 font-normal">(設定後此缺陷會出現在 RTM 追溯鏈中)</span>
-                            </label>
-                            <select id="defLinkedTestcase" aria-label="關聯測試案例" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
-                                <option value="">— 未關聯 —</option>
-                            </select>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label for="defLinkedTestcase" class="block text-xs font-semibold text-stone-600 mb-1">
+                                    關聯測試案例
+                                    <span class="text-[10px] text-stone-400 font-normal">(RTM 追溯)</span>
+                                </label>
+                                <select id="defLinkedTestcase" aria-label="關聯測試案例" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
+                                    <option value="">— 未關聯 —</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="defTestVersion" class="block text-xs font-semibold text-stone-600 mb-1">
+                                    發現於版號
+                                    <span class="text-[10px] text-stone-400 font-normal">(同 project 各平台)</span>
+                                </label>
+                                <select id="defTestVersion" aria-label="發現於版號" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
+                                    <option value="">— 不指定 —</option>
+                                </select>
+                            </div>
                         </div>
                         <div>
                             <label for="defAttachmentInput" class="block text-xs font-semibold text-stone-600 mb-1">附件(圖片或文件,可多選)</label>
@@ -4452,6 +4536,12 @@ driver.swipe(100, 800, 100, 200, 500)"
                         class="w-full border border-slate-300 rounded p-2 text-sm focus:ring-2 focus:ring-purple-100 focus:border-purple-400 outline-none resize-none"></textarea>
                 </div>
                 <div>
+                    <label for="trTestVersion" class="block text-sm font-medium text-slate-700 mb-1">目標版號（選填）<span class="text-[10px] text-slate-400 font-normal ml-1">這次回合針對哪個版號</span></label>
+                    <select id="trTestVersion" aria-label="目標版號" class="w-full border border-slate-300 rounded p-2 text-sm bg-white focus:ring-2 focus:ring-purple-100 focus:border-purple-400 outline-none">
+                        <option value="">— 不指定 —</option>
+                    </select>
+                </div>
+                <div>
                     <div class="flex items-center justify-between mb-1">
                         <label class="block text-sm font-medium text-slate-700">選擇測試案例（可多選）</label>
                         <div class="flex items-center gap-2 text-xs">
@@ -4591,6 +4681,206 @@ driver.swipe(100, 800, 100, 200, 500)"
         let currentProjectId = null;
         let currentTestCase = null;
         let activeTreeData = [];
+
+        // ─── 測試版號(sidebar 底部 panel + CRUD + 全域過濾) ───────────────
+        let _tvCache = [];               // 當前 project 的版號列表
+        let _tvEditingId = null;
+        let _tvFilterId = null;          // 全域過濾:點某個版號 → reports/defects/rounds 套 ?test_version_id=
+
+        // 給其他模組用:回傳當前 filter 對應的版號物件;沒過濾就 null
+        window.getActiveTestVersion = () => {
+            if (!_tvFilterId) return null;
+            return _tvCache.find(v => v.id === _tvFilterId) || null;
+        };
+        // 給其他模組用:把 ?test_version_id=... 加到 URLSearchParams
+        window.appendTestVersionFilter = (params) => {
+            if (_tvFilterId && params && typeof params.set === 'function') {
+                params.set('test_version_id', _tvFilterId);
+            }
+            return params;
+        };
+
+        function tvTogglePanel() {
+            const body = document.getElementById('tvPanelBody');
+            const chevron = document.getElementById('tvPanelChevron');
+            if (!body) return;
+            const isOpen = body.style.display !== 'none';
+            body.style.display = isOpen ? 'none' : '';
+            if (chevron) chevron.style.transform = isOpen ? 'rotate(-90deg)' : '';
+        }
+
+        async function tvReloadList() {
+            const list = document.getElementById('tvList');
+            if (!list) return;
+            if (!currentProjectId) {
+                list.innerHTML = '<div class="text-stone-400 text-center py-4">請先選擇專案</div>';
+                _tvCache = [];
+                return;
+            }
+            list.innerHTML = '<div class="text-stone-400 text-center py-4">載入中…</div>';
+            try {
+                const params = new URLSearchParams();
+                params.set('project_id', currentProjectId);
+                const r = await fetch('/api/test-versions?' + params.toString());
+                if (!r.ok) throw new Error('HTTP '+r.status);
+                _tvCache = await r.json();
+                _tvRender();
+            } catch (e) {
+                list.innerHTML = `<div class="text-rose-500 text-center py-3">載入失敗:${_esc(e.message)}</div>`;
+            }
+        }
+
+        function _tvRender() {
+            const list = document.getElementById('tvList');
+            if (!list) return;
+            if (!_tvCache.length) {
+                list.innerHTML = '<div class="text-stone-400 text-center py-4">尚無版號;點 ＋ 新增</div>';
+                _tvUpdateFilterBadge();
+                return;
+            }
+            const groups = { WEB: [], API: [], APP: [] };
+            _tvCache.forEach(v => { (groups[v.platform] || []).push(v); });
+            const platMeta = {
+                WEB: { icon: '🌐', color: 'blue' },
+                API: { icon: '🔌', color: 'purple' },
+                APP: { icon: '📱', color: 'pink' },
+            };
+            const statusBadge = (s) => ({
+                planned:    '<span class="text-[9px] px-1 py-0.5 rounded bg-amber-100 text-amber-700">planned</span>',
+                released:   '<span class="text-[9px] px-1 py-0.5 rounded bg-emerald-100 text-emerald-700">released</span>',
+                deprecated: '<span class="text-[9px] px-1 py-0.5 rounded bg-stone-200 text-stone-500">deprecated</span>',
+            }[s] || '');
+            const html = ['WEB', 'API', 'APP'].map(plat => {
+                const items = groups[plat];
+                if (!items || !items.length) return '';
+                const meta = platMeta[plat];
+                return `<div>
+                    <div class="text-[10px] font-bold text-${meta.color}-600 uppercase tracking-wider mb-1 px-1">${meta.icon} ${plat}</div>
+                    <div class="space-y-1">
+                        ${items.map(v => {
+                            const isActive = v.id === _tvFilterId;
+                            return `<div class="flex items-center gap-1 px-2 py-1.5 rounded border ${isActive ? 'bg-amber-100 border-amber-400' : 'bg-white border-stone-200 hover:border-amber-300'} transition cursor-pointer"
+                                onclick="tvToggleFilter('${_esc(v.id)}')" title="點擊將下方報告 / 缺陷 / 回合過濾為此版號">
+                                <i class="fa-solid fa-tag text-[10px] text-${meta.color}-500"></i>
+                                <span class="font-mono text-[11px] text-stone-700 flex-1 truncate">${_esc(v.version_label)}</span>
+                                ${statusBadge(v.status)}
+                                ${v.usage_count > 0 ? `<span class="text-[9px] text-stone-500">(${v.usage_count})</span>` : ''}
+                                <button onclick="event.stopPropagation();tvOpenEdit('${_esc(v.id)}')" class="text-stone-400 hover:text-blue-600 px-0.5" title="編輯"><i class="fa-solid fa-pen text-[10px]"></i></button>
+                            </div>`;
+                        }).join('')}
+                    </div>
+                </div>`;
+            }).filter(Boolean).join('');
+            list.innerHTML = html || '<div class="text-stone-400 text-center py-4">尚無版號</div>';
+            _tvUpdateFilterBadge();
+        }
+
+        function tvToggleFilter(versionId) {
+            _tvFilterId = (_tvFilterId === versionId) ? null : versionId;
+            _tvRender();
+            // 觸發各 view 重載(若目前在那 view)
+            try { if (typeof renderDefectsList === 'function' && document.getElementById('defectsWorkspace') && !document.getElementById('defectsWorkspace').classList.contains('hidden')) renderDefectsList(); } catch (_) {}
+            try { if (typeof loadReports === 'function' && document.getElementById('reportWorkspace') && !document.getElementById('reportWorkspace').classList.contains('hidden')) loadReports(); } catch (_) {}
+            try { if (typeof reloadTestRounds === 'function' && document.getElementById('testRoundWorkspace') && !document.getElementById('testRoundWorkspace').classList.contains('hidden')) reloadTestRounds(); } catch (_) {}
+            const v = _tvCache.find(x => x.id === _tvFilterId);
+            if (v) showToast(`已過濾為 ${v.platform} ${v.version_label}`, 'info');
+        }
+
+        function _tvUpdateFilterBadge() {
+            const badge = document.getElementById('tvFilterBadge');
+            if (!badge) return;
+            badge.classList.toggle('hidden', !_tvFilterId);
+        }
+
+        function tvOpenCreate() {
+            if (!currentProjectId) { showToast('請先選擇專案', 'error'); return; }
+            _tvEditingId = null;
+            document.getElementById('tvModalTitle').innerHTML = '<i class="fa-solid fa-tag text-amber-500"></i> 新增測試版號';
+            document.getElementById('tvPlatform').value = 'WEB';
+            document.getElementById('tvLabel').value = '';
+            document.getElementById('tvStatus').value = 'released';
+            document.getElementById('tvReleasedAt').value = new Date().toISOString().slice(0, 10);
+            document.getElementById('tvDesc').value = '';
+            document.getElementById('tvDeleteBtn').classList.add('hidden');
+            document.getElementById('tvUsageHint').classList.add('hidden');
+            document.getElementById('tvModal').classList.remove('hidden');
+        }
+
+        function tvOpenEdit(id) {
+            const v = _tvCache.find(x => x.id === id);
+            if (!v) return;
+            _tvEditingId = id;
+            document.getElementById('tvModalTitle').innerHTML = `<i class="fa-solid fa-tag text-amber-500"></i> 編輯版號 · ${_esc(v.platform)} ${_esc(v.version_label)}`;
+            document.getElementById('tvPlatform').value = v.platform;
+            document.getElementById('tvLabel').value = v.version_label;
+            document.getElementById('tvStatus').value = v.status;
+            document.getElementById('tvReleasedAt').value = v.released_at || '';
+            document.getElementById('tvDesc').value = v.description || '';
+            document.getElementById('tvDeleteBtn').classList.remove('hidden');
+            const hint = document.getElementById('tvUsageHint');
+            if (v.usage_count > 0) {
+                hint.textContent = `⚠ 此版號已被 ${v.usage_count} 筆紀錄(報告 / 缺陷 / 回合)引用;刪除時要加 force 才會生效(被引用方 test_version_id 會 set null)。`;
+                hint.classList.remove('hidden');
+            } else {
+                hint.classList.add('hidden');
+            }
+            document.getElementById('tvModal').classList.remove('hidden');
+        }
+
+        function tvCloseModal() {
+            document.getElementById('tvModal').classList.add('hidden');
+            _tvEditingId = null;
+        }
+
+        async function tvSubmit(ev) {
+            ev.preventDefault();
+            const payload = {
+                project_id: currentProjectId,
+                platform: document.getElementById('tvPlatform').value,
+                version_label: document.getElementById('tvLabel').value.trim(),
+                status: document.getElementById('tvStatus').value,
+                released_at: document.getElementById('tvReleasedAt').value || null,
+                description: document.getElementById('tvDesc').value.trim() || null,
+            };
+            if (!payload.version_label) { showToast('版號必填', 'error'); return false; }
+            try {
+                const url = _tvEditingId ? '/api/test-versions/'+_tvEditingId : '/api/test-versions';
+                const method = _tvEditingId ? 'PUT' : 'POST';
+                const r = await fetch(url, { method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+                if (!r.ok && r.status !== 201) {
+                    const detail = (await r.json().catch(()=>({}))).detail || ('HTTP '+r.status);
+                    throw new Error(detail);
+                }
+                showToast(_tvEditingId ? '已更新' : '已建立', 'success');
+                tvCloseModal();
+                tvReloadList();
+            } catch (e) { showToast('儲存失敗:'+e.message, 'error'); }
+            return false;
+        }
+
+        async function tvDeleteCurrent() {
+            if (!_tvEditingId) return;
+            const v = _tvCache.find(x => x.id === _tvEditingId);
+            if (!v) return;
+            const force = (v.usage_count > 0);
+            const msg = force
+                ? `此版號被 ${v.usage_count} 筆紀錄引用,確定強制刪除?(被引用方的 test_version_id 會 set null)`
+                : `確定刪除版號 ${v.platform} ${v.version_label}?`;
+            if (!confirm(msg)) return;
+            try {
+                const url = '/api/test-versions/'+_tvEditingId + (force ? '?force=1' : '');
+                const r = await fetch(url, { method: 'DELETE' });
+                if (!r.ok && r.status !== 204) {
+                    const detail = (await r.json().catch(()=>({}))).detail || ('HTTP '+r.status);
+                    throw new Error(detail);
+                }
+                showToast('已刪除', 'success');
+                if (_tvFilterId === _tvEditingId) _tvFilterId = null;
+                tvCloseModal();
+                tvReloadList();
+            } catch (e) { showToast('刪除失敗:'+e.message, 'error'); }
+        }
+
 
         // ==================== 1. 終端機功能 ====================
         async function runTest() {
@@ -5597,7 +5887,9 @@ driver.swipe(100, 800, 100, 200, 500)"
             const page = isAll ? 1 : recentReportsPage;
             const limit = isAll ? 100 : recentReportsPageSize;
             try {
-                const list = await apiFetch(`/api/reports?project_id=${pid}&page=${page}&limit=${limit}`);
+                const tvFilter = (typeof window.getActiveTestVersion === 'function') ? window.getActiveTestVersion() : null;
+                const tvSuffix = tvFilter ? `&test_version_id=${encodeURIComponent(tvFilter.id)}` : '';
+                const list = await apiFetch(`/api/reports?project_id=${pid}&page=${page}&limit=${limit}${tvSuffix}`);
                 recentReportsTotal = list.total || (list.items || []).length;
                 renderRecentReports(list.items || []);
                 updateRecentPagination(list.items || []);
@@ -6967,6 +7259,8 @@ driver.swipe(100, 800, 100, 200, 500)"
             }
             // 切換專案時一律帶到首頁（顯示新專案統計 / 近期案例 / 系統狀態）
             try { showHomeView(); } catch (_) { /* 若 home 元素缺失則安全略過 */ }
+            // 切專案 → 重載側邊欄測試版號清單(每個 project 各自的版號)
+            try { tvReloadList(); } catch (_) {}
         }
 
         function renderAllTree() {
@@ -11805,6 +12099,22 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('trName').value = target ? target.name : '';
             document.getElementById('trDesc').value = target?.description || '';
             document.getElementById('trExecMode').value = target?.execution_mode || getExecutionMode();
+            // 目標版號:從 _tvCache 填入下拉(group by platform)
+            const tvSel = document.getElementById('trTestVersion');
+            if (tvSel) {
+                const opts = ['<option value="">— 不指定 —</option>'];
+                ['WEB', 'API', 'APP'].forEach(plat => {
+                    const items = (_tvCache || []).filter(v => v.platform === plat);
+                    if (!items.length) return;
+                    opts.push(`<optgroup label="${plat}">`);
+                    items.forEach(v => {
+                        opts.push(`<option value="${_esc(v.id)}">${_esc(v.version_label)}${v.status === 'deprecated' ? ' (deprecated)' : ''}</option>`);
+                    });
+                    opts.push('</optgroup>');
+                });
+                tvSel.innerHTML = opts.join('');
+                tvSel.value = target?.test_version_id || '';
+            }
             setTestRoundSelection(target?.node_ids || []);
             const fb = document.getElementById('trNodeFilter'); if (fb) fb.value = '';
             renderTestRoundNodeList();
@@ -11881,6 +12191,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 execution_mode: mode,
                 node_ids: nodeIds,
                 project_id: currentProjectId,
+                test_version_id: document.getElementById('trTestVersion')?.value || null,
             };
             try {
                 const url = testRoundEditingId ? `/api/rounds/${testRoundEditingId}` : '/api/rounds';
@@ -13403,6 +13714,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 const sv = document.getElementById('defSeverityFilter')?.value;
                 if (st) params.set('status', st);
                 if (sv) params.set('severity', sv);
+                if (typeof window.appendTestVersionFilter === 'function') window.appendTestVersionFilter(params);
                 const res = await fetch('/api/defects?'+params);
                 if (!res.ok) throw new Error('HTTP '+res.status);
                 _defectsCache = await res.json();
@@ -13452,6 +13764,22 @@ driver.swipe(100, 800, 100, 200, 500)"
                 linkedSel.innerHTML = '<option value="">— 未關聯 —</option>' +
                     tcs.map(tc => `<option value="${_esc(tc.id)}">${_esc(tc.path ? tc.path + ' / ' : '')}${_esc(tc.title)}</option>`).join('');
                 linkedSel.value = r?.linked_testcase_id || '';
+            }
+            // 發現於版號:從 _tvCache(本 project 的所有版號)填入下拉,group by platform
+            const tvSel = document.getElementById('defTestVersion');
+            if (tvSel) {
+                const opts = ['<option value="">— 不指定 —</option>'];
+                ['WEB', 'API', 'APP'].forEach(plat => {
+                    const items = (_tvCache || []).filter(v => v.platform === plat);
+                    if (!items.length) return;
+                    opts.push(`<optgroup label="${plat}">`);
+                    items.forEach(v => {
+                        opts.push(`<option value="${_esc(v.id)}">${_esc(v.version_label)}${v.status === 'deprecated' ? ' (deprecated)' : ''}</option>`);
+                    });
+                    opts.push('</optgroup>');
+                });
+                tvSel.innerHTML = opts.join('');
+                tvSel.value = r?.test_version_id || '';
             }
             // 附件：只在「編輯」模式可上傳，建立模式需先存後再上傳
             _editingDefectAttachments = Array.isArray(r?.attachments_json) ? [...r.attachments_json] : [];
@@ -13545,6 +13873,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 expected_result: document.getElementById('defExpected').value || null,
                 actual_result: document.getElementById('defActual').value || null,
                 linked_testcase_id: document.getElementById('defLinkedTestcase')?.value || null,
+                test_version_id: document.getElementById('defTestVersion')?.value || null,
             };
             try {
                 const url = _editingDefectId ? '/api/defects/'+_editingDefectId : '/api/defects';

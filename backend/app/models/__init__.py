@@ -29,6 +29,7 @@ from .test_data_set import DataSetCategory, TestDataSet
 from .test_document import DocumentCategory, TestDocument
 from .test_milestone import MilestoneStatus, TestMilestone
 from .test_plan import TestPlan, TestPlanStatus
+from .test_version import TestVersion, VersionPlatform, VersionStatus
 from .testcase_content import TestcaseContent
 from .todo_item import TodoItem, TodoItemType, TodoPriority, TodoStatus
 from .todo_link import ALLOWED_TARGET_TYPES, TodoLink
@@ -50,6 +51,7 @@ __all__ = [
     "Defect", "DefectSeverity", "DefectPriority", "DefectStatus",
     "TestMilestone", "MilestoneStatus",
     "TestPlan", "TestPlanStatus",
+    "TestVersion", "VersionPlatform", "VersionStatus",
     "Requirement", "RequirementSource", "RequirementPriority",
     "RequirementStatus", "RequirementTestcaseLink",
     "TestDataSet", "DataSetCategory",

@@ -33,6 +33,10 @@ class TestRound(Base):
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     # 預設執行環境（docker / local）；立即執行時可被 override
     execution_mode: Mapped[str] = mapped_column(String(16), default="docker", nullable=False)
+    # 反向關聯到 TestVersion(可空;若版號被刪 → set null)
+    test_version_id: Mapped[Optional[str]] = mapped_column(
+        String(36), ForeignKey("test_versions.id", ondelete="SET NULL"), nullable=True, index=True,
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow

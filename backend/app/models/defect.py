@@ -76,6 +76,10 @@ class Defect(Base):
         String(36), ForeignKey("tree_nodes.id", ondelete="SET NULL"), nullable=True
     )
     linked_report_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    # 反向關聯到 TestVersion(可空;若版號被刪 → set null)
+    test_version_id: Mapped[Optional[str]] = mapped_column(
+        String(36), ForeignKey("test_versions.id", ondelete="SET NULL"), nullable=True, index=True,
+    )
     attachments_json: Mapped[Optional[list[dict[str, Any]]]] = mapped_column(
         JSON, nullable=True, default=list
     )

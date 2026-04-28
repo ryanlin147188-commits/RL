@@ -18,6 +18,7 @@ class DefectBase(BaseModel):
     assignee: Optional[str] = None
     linked_testcase_id: Optional[str] = None
     linked_report_id: Optional[str] = None
+    test_version_id: Optional[str] = None
     attachments_json: Optional[list[dict[str, Any]]] = None
 
 
@@ -38,6 +39,7 @@ class DefectUpdate(BaseModel):
     assignee: Optional[str] = None
     linked_testcase_id: Optional[str] = None
     linked_report_id: Optional[str] = None
+    test_version_id: Optional[str] = None
     attachments_json: Optional[list[dict[str, Any]]] = None
 
 

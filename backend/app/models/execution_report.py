@@ -46,6 +46,10 @@ class ExecutionReport(Base):
     ddt_expand: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     # 是否啟用 Trace（軌跡追蹤，trace.zip）與 Video（錄影）收集。預設 True；關閉可大幅降低執行時間與磁碟用量。
     enable_recording: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # 反向關聯到 TestVersion(可空;若版號被刪 → set null)
+    test_version_id: Mapped[Optional[str]] = mapped_column(
+        String(36), ForeignKey("test_versions.id", ondelete="SET NULL"), nullable=True, index=True,
+    )
 
     project: Mapped["Project"] = relationship(
         "Project", back_populates="execution_reports", lazy="noload"

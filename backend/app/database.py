@@ -34,6 +34,7 @@ async def init_db() -> None:
         group,
         mock_endpoint,
         org_invite,
+        test_version,
         project,
         project_device,
         project_env_var,
@@ -135,6 +136,16 @@ async def init_db() -> None:
         "ALTER TABLE organizations ADD COLUMN IF NOT EXISTS email_domains VARCHAR(500)",
         # Q4 邀請碼(create_all 會建表,index 補保險;token 已是 unique)
         "CREATE INDEX IF NOT EXISTS ix_org_invites_org ON org_invites (organization_id)",
+        # TestVersion(create_all 會建 test_versions 表)
+        "CREATE INDEX IF NOT EXISTS ix_test_versions_org ON test_versions (organization_id)",
+        "CREATE INDEX IF NOT EXISTS ix_test_versions_project ON test_versions (project_id)",
+        # 三表反向 FK:nullable + ON DELETE SET NULL
+        "ALTER TABLE execution_reports ADD COLUMN IF NOT EXISTS test_version_id VARCHAR(36)",
+        "ALTER TABLE defects ADD COLUMN IF NOT EXISTS test_version_id VARCHAR(36)",
+        "ALTER TABLE test_rounds ADD COLUMN IF NOT EXISTS test_version_id VARCHAR(36)",
+        "CREATE INDEX IF NOT EXISTS ix_execution_reports_tv ON execution_reports (test_version_id)",
+        "CREATE INDEX IF NOT EXISTS ix_defects_tv ON defects (test_version_id)",
+        "CREATE INDEX IF NOT EXISTS ix_test_rounds_tv ON test_rounds (test_version_id)",
     )
     for stmt in migration_stmts:
         await _run_safe(stmt)

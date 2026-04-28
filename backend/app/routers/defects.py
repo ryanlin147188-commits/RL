@@ -47,6 +47,7 @@ async def list_defects(
     project_id: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
     severity: Optional[str] = Query(None),
+    test_version_id: Optional[str] = Query(None),
     page: Pagination = Depends(Pagination.from_query),
     db: AsyncSession = Depends(get_db),
 ):
@@ -57,6 +58,8 @@ async def list_defects(
         stmt = stmt.where(Defect.status == DefectStatus(status))
     if severity:
         stmt = stmt.where(Defect.severity == DefectSeverity(severity))
+    if test_version_id:
+        stmt = stmt.where(Defect.test_version_id == test_version_id)
     stmt = page.apply(stmt)
     rows = (await db.execute(stmt)).scalars().all()
     return list(rows)
@@ -80,6 +83,7 @@ async def create_defect(payload: DefectCreate, db: AsyncSession = Depends(get_db
         assignee=payload.assignee,
         linked_testcase_id=payload.linked_testcase_id,
         linked_report_id=payload.linked_report_id,
+        test_version_id=payload.test_version_id,
         attachments_json=payload.attachments_json or [],
     )
     db.add(defect)

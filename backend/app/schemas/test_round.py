@@ -10,6 +10,7 @@ class TestRoundBase(BaseModel):
     node_ids: list[str] = Field(..., min_length=1)
     description: Optional[str] = None
     execution_mode: str = "docker"
+    test_version_id: Optional[str] = None
 
 
 class TestRoundCreate(TestRoundBase):
@@ -21,6 +22,7 @@ class TestRoundUpdate(BaseModel):
     node_ids: Optional[list[str]] = None
     description: Optional[str] = None
     execution_mode: Optional[str] = None
+    test_version_id: Optional[str] = None
 
 
 class TestRoundResponse(BaseModel):
@@ -33,6 +35,7 @@ class TestRoundResponse(BaseModel):
     node_titles: list[str] = []
     description: Optional[str] = None
     execution_mode: str = "docker"
+    test_version_id: Optional[str] = None
     # 最近一次執行結果（由 router 動態填入）
     last_run_at: Optional[datetime] = None
     last_report_ids: list[str] = []
