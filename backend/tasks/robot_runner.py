@@ -777,6 +777,51 @@ def _translate_step(step: dict, ctx: dict) -> list[str]:
     if raw_action == "Mobile.AssertEnabled":
         return out(line("Element Should Be Enabled", locator))
 
+    # ─── Capture(自動 capture 變數;Sprint 2.1) ─────────────────────
+    # step.locator    = 來源:Browser 用 css/role=,Mobile 用元素 locator,Http 後讀 ${HTTP_RESP}
+    # step.input      = capture spec:
+    #                     ""              / "text"    → 元素文字 (Get Text)
+    #                     "attr:href"                  → 元素屬性 (Get Attribute)
+    #                     "json:user.id"               → 從 ${HTTP_RESP} 取 JSON path
+    #                     "value"                      → input value (Get Value)
+    # step.expected   = 變數名(會被存成 Suite Variable,後續 step 可 ${name} 引用)
+    if raw_action == "Capture" or action == "capture":
+        # 變數名:用 expected 欄位(若沒填用 "captured");清成合法 Python 識別字
+        raw_var = (step.get("expected") or step.get("var_name") or "captured").strip()
+        var_name = re.sub(r"[^A-Za-z0-9_]", "_", raw_var) or "captured"
+        spec = (step.get("input") or "").strip()
+        if spec.startswith("attr:"):
+            attr = spec[5:].strip() or "value"
+            return out(
+                line(f"${{{var_name}}}=", "Get Attribute", locator, attr),
+                line("Set Suite Variable", f"${{{var_name}}}"),
+            )
+        if spec.startswith("json:"):
+            path = spec[5:].strip()
+            # 從 ${HTTP_RESP}(Http.* 動作存的 dict)取 dotted path
+            # 用 Evaluate 比較安全;失敗回空字串
+            py_expr = (
+                "(lambda d, p: __import__('functools').reduce("
+                "lambda v, k: (v.get(k) if isinstance(v, dict) else (v[int(k)] if isinstance(v, list) and k.isdigit() else None))"
+                ", p.split('.'), d) if isinstance(d, (dict, list)) else '')"
+                f"(${{HTTP_RESP}}, '{_rf_escape(path)}')"
+            )
+            return out(
+                line(f"${{{var_name}}}=", "Evaluate", py_expr),
+                line("Set Suite Variable", f"${{{var_name}}}"),
+            )
+        if spec == "value":
+            # input 元素的 value 屬性
+            return out(
+                line(f"${{{var_name}}}=", "Get Property", locator, "value"),
+                line("Set Suite Variable", f"${{{var_name}}}"),
+            )
+        # 預設:取元素文字
+        return out(
+            line(f"${{{var_name}}}=", "Get Text", locator),
+            line("Set Suite Variable", f"${{{var_name}}}"),
+        )
+
     # 未識別
     return [line("Fail", f"Unknown action: {raw_action!r}")]
 

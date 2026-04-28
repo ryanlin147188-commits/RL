@@ -14,7 +14,10 @@ from app.database import get_db
 from app.models.requirement import Requirement
 from app.models.user import User
 from app.rate_limit import limiter
-from app.services.ai_test_gen import generate_testcases_from_requirement
+from app.services.ai_test_gen import (
+    generate_testcases_from_requirement,
+    generate_testcases_from_text,
+)
 
 router = APIRouter()
 
@@ -75,5 +78,38 @@ async def generate_testcases_from_req(
     except RuntimeError as e:
         raise HTTPException(400, str(e))
     except Exception as e:  # 收所有 httpx / json / 其他例外
+        raise HTTPException(502, f"AI 服務呼叫失敗：{e}")
+    return result
+
+
+# Sprint 2.3 — 從純文字產測試案例(AI Chat 訊息 / 任意需求描述都可用)
+class AiGenerateFromTextRequest(BaseModel):
+    text: str
+    n: int = 3
+    provider: Optional[str] = None
+
+
+@router.post(
+    "/ai/generate-testcases",
+    response_model=AiGenerateResponse,
+    tags=["V · AI"],
+)
+@limiter.limit("30/hour")
+async def generate_testcases_from_text_ep(
+    request: Request,
+    payload: AiGenerateFromTextRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if not (payload.text or "").strip():
+        raise HTTPException(400, "text 不能為空")
+    try:
+        result = await generate_testcases_from_text(
+            db, payload.text, n=payload.n, provider=payload.provider,
+            organization_id=user.organization_id,
+        )
+    except RuntimeError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
         raise HTTPException(502, f"AI 服務呼叫失敗：{e}")
     return result

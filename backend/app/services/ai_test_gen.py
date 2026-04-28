@@ -103,6 +103,14 @@ def _user_prompt(requirement: Requirement, n: int) -> str:
     return "\n".join(parts)
 
 
+def _user_prompt_from_text(text: str, n: int) -> str:
+    """Sprint 2.3 — 從純文字(AI Chat 對話內容 / 任意需求描述)生案例。"""
+    parts = [f"請依下列描述產出 {n} 個測試案例骨架。"]
+    parts.append(f"\n# 需求描述\n{text.strip()}")
+    parts.append("\n再次提醒:只輸出合法的 JSON 陣列,沒有圍欄、沒有解釋。")
+    return "\n".join(parts)
+
+
 # ── Provider 適配器 ───────────────────────────────────────────────────
 
 async def _call_openai_compat(
@@ -306,6 +314,65 @@ async def generate_testcases_from_requirement(
             "generated": [],
             "raw": text[:2000],
             "error": "AI 回應無法解析為 JSON 陣列；請嘗試其他 provider 或調整 prompt",
+        }
+    return {
+        "provider": token.provider.value if hasattr(token.provider, "value") else str(token.provider),
+        "model": model,
+        "generated": items,
+    }
+
+
+async def generate_testcases_from_text(
+    db: AsyncSession,
+    text: str,
+    *,
+    n: int = 3,
+    provider: Optional[str] = None,
+    organization_id: Optional[str] = None,
+) -> dict[str, Any]:
+    """Sprint 2.3 — 從純文字(AI Chat 對話 / 任意描述)生 N 個測試案例。
+
+    跟 generate_testcases_from_requirement 同邏輯,只是輸入是 text 而非 Requirement。
+    """
+    n = max(1, min(int(n or 3), 10))
+    text = (text or "").strip()
+    if not text:
+        raise RuntimeError("text 不能為空")
+    token = await pick_token(db, preferred_provider=provider, organization_id=organization_id)
+    system = _SYSTEM_PROMPT
+    user = _user_prompt_from_text(text, n)
+    base_url = token.base_url or _default_base_url(token.provider)
+    model = token.model or _default_model(token.provider)
+    log.info("ai_test_gen(text): provider=%s model=%s n=%s len=%s",
+             token.provider, model, n, len(text))
+
+    if token.provider == AiProvider.OPENAI or token.provider == AiProvider.LOCAL:
+        out = await _call_openai_compat(
+            base_url=base_url, api_key=token.api_key, model=model, system=system, user=user,
+        )
+    elif token.provider == AiProvider.ANTHROPIC:
+        if not token.api_key:
+            raise RuntimeError("Anthropic 需要 api_key")
+        out = await _call_anthropic(
+            base_url=base_url, api_key=token.api_key, model=model, system=system, user=user,
+        )
+    elif token.provider == AiProvider.GOOGLE:
+        if not token.api_key:
+            raise RuntimeError("Google Gemini 需要 api_key")
+        out = await _call_google(
+            base_url=base_url, api_key=token.api_key, model=model, system=system, user=user,
+        )
+    else:
+        raise RuntimeError(f"未知 provider: {token.provider}")
+
+    items = _extract_json_array(out)
+    if not items:
+        return {
+            "provider": token.provider.value if hasattr(token.provider, "value") else str(token.provider),
+            "model": model,
+            "generated": [],
+            "raw": out[:2000],
+            "error": "AI 回應無法解析為 JSON 陣列;請嘗試其他 provider 或調整 prompt",
         }
     return {
         "provider": token.provider.value if hasattr(token.provider, "value") else str(token.provider),
