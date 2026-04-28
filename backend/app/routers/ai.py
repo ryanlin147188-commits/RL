@@ -159,6 +159,62 @@ def _get_user_mcp_state(username: str) -> dict:
 # Sprint 9.2 — Run loop abort flag,key = username
 _mcp_run_abort_flags: dict[str, bool] = {}
 
+# Sprint 10.2 — 紀錄正在跑的 mcp_run asyncio task,讓 /run-abort 即時 cancel
+_mcp_run_tasks: dict[str, "asyncio.Task"] = {}
+
+
+def _touch_mcp(username: str) -> None:
+    """Sprint 10.1 — user 操作 MCP(start / tools / call / run)時更新 last_active_at,
+    讓 idle sweeper 不會誤殺正在用的容器。"""
+    state = _mcp_state_by_user.get(username)
+    if state and state.get("container_id"):
+        state["last_active_at"] = datetime.utcnow()
+
+
+async def _mcp_idle_sweeper_loop():
+    """Sprint 10.1 — 每 60 秒掃 _mcp_state_by_user,找超過 IDLE_TIMEOUT_MIN
+    沒活動的 entry → docker stop + 清 state。
+
+    沿用 settings.RECORDER_IDLE_TIMEOUT_MIN(預設 30 分鐘)。
+    """
+    while True:
+        try:
+            await asyncio.sleep(60)
+            timeout_min = int(getattr(_settings, "RECORDER_IDLE_TIMEOUT_MIN", 30) or 30)
+            now = datetime.utcnow()
+            cutoff = now - timedelta(minutes=timeout_min)
+            stale = []
+            for username, state in list(_mcp_state_by_user.items()):
+                la = state.get("last_active_at") or state.get("started_at")
+                if la and la < cutoff and state.get("container_id"):
+                    stale.append((username, state))
+            if not stale:
+                continue
+            try:
+                client = _get_mcp_docker()
+            except Exception as e:
+                log.warning("MCP sweeper:無法連 docker daemon: %s", e)
+                continue
+            for username, state in stale:
+                cid = state.get("container_id")
+                cname = state.get("container_name")
+                try:
+                    c = client.containers.get(cid)
+                    try:
+                        c.stop(timeout=10)
+                    except Exception:
+                        pass
+                    log.info("MCP sweeper:回收 idle container user=%s name=%s",
+                             username, cname)
+                except Exception as e:
+                    log.info("MCP sweeper:容器 %s 已不在(%s),清 state", cname, e)
+                _mcp_state_by_user.pop(username, None)
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            log.exception("MCP sweeper 例外: %s", e)
+            await asyncio.sleep(60)
+
 
 # 舊變數名 alias:有些函式吃 module-level 全域(_mcp_jsonrpc / 三條 loop),
 # 我改成傳 username 進去 → 從 by_user dict 取。為了向後相容,_mcp_state 不再用,
@@ -382,6 +438,7 @@ async def mcp_start(user: User = Depends(get_current_user)):
         "container_name": name,
         "sse_port": sse_port,
         "started_at": started_at,
+        "last_active_at": started_at,  # Sprint 10.1
     })
     return McpStatus(
         running=True,
@@ -432,6 +489,7 @@ async def mcp_tools(user: User = Depends(get_current_user)):
     state = _get_user_mcp_state(user.username)
     if not state.get("container_id") or not state.get("container_name"):
         return McpToolsResponse(running=False, error="MCP server 沒在跑;請先 POST /api/ai/mcp/start")
+    _touch_mcp(user.username)
 
     # 從 backend 容器內走 internal docker network 連 MCP server(用 container_name 當 hostname)
     mcp_url = f"http://{state['container_name']}:8931/mcp"
@@ -506,6 +564,7 @@ async def mcp_call(payload: McpCallRequest, user: User = Depends(get_current_use
     state = _get_user_mcp_state(user.username)
     if not state.get("container_name"):
         raise HTTPException(409, "MCP server 沒在跑;請先 POST /api/ai/mcp/start")
+    _touch_mcp(user.username)
 
     mcp_url = f"http://{state['container_name']}:8931/mcp"
     payload_rpc = {
@@ -1146,15 +1205,28 @@ async def mcp_run(
 
     # Sprint 9.2 — reset abort flag(若上次留下)
     _mcp_run_abort_flags.pop(user.username, None)
+    _touch_mcp(user.username)  # Sprint 10.1 — run 開始算活動
 
     max_turns = max(1, min(int(payload.max_turns or 10), 30))
+    if token.provider == AiProvider.ANTHROPIC:
+        coro = _run_mcp_loop_anthropic(token, payload.prompt, payload.target_url, max_turns, mcp_tools, user.username)
+    elif token.provider == AiProvider.GOOGLE:
+        coro = _run_mcp_loop_google(token, payload.prompt, payload.target_url, max_turns, mcp_tools, user.username)
+    else:
+        coro = _run_mcp_loop(token, payload.prompt, payload.target_url, max_turns, mcp_tools, user.username)
+
+    # Sprint 10.2 — 包成 asyncio Task,讓 /run-abort 能 task.cancel() 即時中止
+    task = asyncio.create_task(coro)
+    _mcp_run_tasks[user.username] = task
     try:
-        if token.provider == AiProvider.ANTHROPIC:
-            result = await _run_mcp_loop_anthropic(token, payload.prompt, payload.target_url, max_turns, mcp_tools, user.username)
-        elif token.provider == AiProvider.GOOGLE:
-            result = await _run_mcp_loop_google(token, payload.prompt, payload.target_url, max_turns, mcp_tools, user.username)
-        else:
-            result = await _run_mcp_loop(token, payload.prompt, payload.target_url, max_turns, mcp_tools, user.username)
+        result = await task
+    except asyncio.CancelledError:
+        # /run-abort 主動取消 → 回部分結果(空 steps)讓前端知道
+        result = {
+            "ok": False, "turns": 0, "finish_reason": "cancelled",
+            "final_text": "(使用者即時取消,LLM 中斷)",
+            "steps_json": [], "tool_calls_log": [],
+        }
     except RuntimeError as e:
         raise HTTPException(502, str(e))
     except Exception as e:
@@ -1162,13 +1234,19 @@ async def mcp_run(
         raise HTTPException(502, f"MCP loop 例外:{e}")
     finally:
         _mcp_run_abort_flags.pop(user.username, None)
+        _mcp_run_tasks.pop(user.username, None)
     return McpRunResponse(**result)
 
 
 @router.post("/ai/mcp/run-abort", status_code=204, tags=["V · AI"])
 async def mcp_run_abort(user: User = Depends(get_current_user)):
-    """Sprint 9.2 — 設定 abort flag,正在跑的 LLM ↔ MCP loop 會在下一輪檢查時中止。"""
+    """Sprint 9.2 + 10.2 — 取消當前 user 正在跑的 LLM ↔ MCP loop。
+    雙保險:flag 給 loop 內 turn 切換時 break,task.cancel() 即時中斷 httpx。
+    """
     _mcp_run_abort_flags[user.username] = True
+    task = _mcp_run_tasks.get(user.username)
+    if task and not task.done():
+        task.cancel()
 
 
 @router.get("/ai/mcp/status", response_model=McpStatus, tags=["V · AI"])

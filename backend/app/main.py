@@ -186,15 +186,19 @@ async def lifespan(app: FastAPI):
         import logging
         logging.getLogger(__name__).warning("seed default admin failed: %s", e)
     scheduler_task = asyncio.create_task(scheduler_loop())
+    # Sprint 10.1 — MCP idle sweeper
+    from app.routers.ai import _mcp_idle_sweeper_loop
+    mcp_sweeper_task = asyncio.create_task(_mcp_idle_sweeper_loop())
     try:
         yield
     finally:
-        # Shutdown：停掉排程背景任務
-        scheduler_task.cancel()
-        try:
-            await scheduler_task
-        except (asyncio.CancelledError, Exception):
-            pass
+        # Shutdown:停掉所有背景 task
+        for t in (scheduler_task, mcp_sweeper_task):
+            t.cancel()
+            try:
+                await t
+            except (asyncio.CancelledError, Exception):
+                pass
 
 
 app = FastAPI(
