@@ -142,8 +142,27 @@ class McpStatus(BaseModel):
     started_at: Optional[datetime] = None
 
 
-# 單例(同 _recorder_containers 模式但只允許一個)
-_mcp_state: dict = {}
+# Sprint 9.1 — Per-user MCP container 狀態。
+# key = username,value = dict(container_id / container_name / sse_port / vnc_password / started_at / expires_at)
+# 沿用既有 _mcp_state 變數名給舊程式碼相容(指向當前 user 的子 dict);
+# 真正資料存在 _mcp_state_by_user。
+_mcp_state_by_user: dict[str, dict] = {}
+
+
+def _get_user_mcp_state(username: str) -> dict:
+    """取或建立當前使用者的 MCP state。"""
+    if username not in _mcp_state_by_user:
+        _mcp_state_by_user[username] = {}
+    return _mcp_state_by_user[username]
+
+
+# Sprint 9.2 — Run loop abort flag,key = username
+_mcp_run_abort_flags: dict[str, bool] = {}
+
+
+# 舊變數名 alias:有些函式吃 module-level 全域(_mcp_jsonrpc / 三條 loop),
+# 我改成傳 username 進去 → 從 by_user dict 取。為了向後相容,_mcp_state 不再用,
+# 全部都走 _get_user_mcp_state(username)。
 
 
 def _get_mcp_docker():
@@ -294,23 +313,24 @@ async def trigger_mcp_image_build():
 
 @router.post("/ai/mcp/start", response_model=McpStatus, tags=["V · AI"])
 async def mcp_start(user: User = Depends(get_current_user)):
-    """啟一個 Playwright MCP server 容器(若已有跑著的不重啟,直接回現狀)。"""
-    if _mcp_state.get("container_id"):
+    """啟一個 Playwright MCP server 容器(per-user;若該 user 已有跑著的不重啟,直接回現狀)。"""
+    state = _get_user_mcp_state(user.username)
+    if state.get("container_id"):
         # 驗證仍 alive
         try:
             client = _get_mcp_docker()
-            c = client.containers.get(_mcp_state["container_id"])
+            c = client.containers.get(state["container_id"])
             if c.status in ("running", "created"):
                 return McpStatus(
                     running=True,
-                    container_id=_mcp_state["container_id"],
-                    container_name=_mcp_state.get("container_name"),
-                    sse_port=_mcp_state.get("sse_port"),
-                    sse_url=f"/mcp/sse?port={_mcp_state.get('sse_port')}",
-                    started_at=_mcp_state.get("started_at"),
+                    container_id=state["container_id"],
+                    container_name=state.get("container_name"),
+                    sse_port=state.get("sse_port"),
+                    sse_url=f"/mcp/sse?port={state.get('sse_port')}",
+                    started_at=state.get("started_at"),
                 )
         except Exception:
-            _mcp_state.clear()
+            state.clear()
 
     client = _get_mcp_docker()
     try:
@@ -331,7 +351,9 @@ async def mcp_start(user: User = Depends(get_current_user)):
                 },
             )
 
-    name = f"autotest-mcp-{secrets.token_hex(4)}"
+    # Sprint 9.1 — container name 加 user-safe slug,避免不同 user 撞名
+    user_slug = re.sub(r"[^A-Za-z0-9_-]", "_", user.username)[:24]
+    name = f"autotest-mcp-{user_slug}-{secrets.token_hex(4)}"
     try:
         c = client.containers.run(
             image=_settings.MCP_IMAGE,
@@ -340,7 +362,10 @@ async def mcp_start(user: User = Depends(get_current_user)):
             auto_remove=True,
             network=_settings.RECORDER_NETWORK,
             ports={"8931/tcp": None},
-            labels={"autotest.role": "mcp"},
+            labels={
+                "autotest.role": "mcp",
+                "autotest.user": user.username,
+            },
         )
     except Exception as e:
         raise HTTPException(500, f"啟動 MCP 容器失敗:{e}")
@@ -352,7 +377,7 @@ async def mcp_start(user: User = Depends(get_current_user)):
         raise HTTPException(500, "MCP 容器啟動但 8931 未對外映射")
     sse_port = int(port_info[0]["HostPort"])
     started_at = datetime.utcnow()
-    _mcp_state.update({
+    state.update({
         "container_id": c.id,
         "container_name": name,
         "sse_port": sse_port,
@@ -370,8 +395,9 @@ async def mcp_start(user: User = Depends(get_current_user)):
 
 @router.post("/ai/mcp/stop", status_code=204, tags=["V · AI"])
 async def mcp_stop(user: User = Depends(get_current_user)):
-    info = dict(_mcp_state)
-    _mcp_state.clear()
+    state = _get_user_mcp_state(user.username)
+    info = dict(state)
+    state.clear()
     if not info.get("container_id"):
         return
     try:
@@ -403,11 +429,12 @@ async def mcp_tools(user: User = Depends(get_current_user)):
     Playwright MCP server 在 SSE 模式下接受 JSON-RPC over HTTP POST 到 /mcp endpoint。
     透過 `tools/list` method 拿可用 tool。前端可用此清單顯示給使用者「LLM 能做哪些事」。
     """
-    if not _mcp_state.get("container_id") or not _mcp_state.get("container_name"):
+    state = _get_user_mcp_state(user.username)
+    if not state.get("container_id") or not state.get("container_name"):
         return McpToolsResponse(running=False, error="MCP server 沒在跑;請先 POST /api/ai/mcp/start")
 
     # 從 backend 容器內走 internal docker network 連 MCP server(用 container_name 當 hostname)
-    mcp_url = f"http://{_mcp_state['container_name']}:8931/mcp"
+    mcp_url = f"http://{state['container_name']}:8931/mcp"
     payload = {
         "jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {},
     }
@@ -476,10 +503,11 @@ async def mcp_call(payload: McpCallRequest, user: User = Depends(get_current_use
     - 前端「測試 MCP」面板手動驗證 tool 能不能跑
     - 後續完整 LLM tool calling loop 的內部 RPC building block
     """
-    if not _mcp_state.get("container_name"):
+    state = _get_user_mcp_state(user.username)
+    if not state.get("container_name"):
         raise HTTPException(409, "MCP server 沒在跑;請先 POST /api/ai/mcp/start")
 
-    mcp_url = f"http://{_mcp_state['container_name']}:8931/mcp"
+    mcp_url = f"http://{state['container_name']}:8931/mcp"
     payload_rpc = {
         "jsonrpc": "2.0", "id": 2,
         "method": "tools/call",
@@ -587,11 +615,12 @@ def _mcp_tools_to_openai_schema(mcp_tools: list[dict]) -> list[dict]:
     return out
 
 
-async def _mcp_jsonrpc(method: str, params: dict, *, timeout: int = 30) -> dict:
-    """純 JSON-RPC 呼叫 MCP server(共用工具)。"""
-    if not _mcp_state.get("container_name"):
+async def _mcp_jsonrpc(method: str, params: dict, *, username: str, timeout: int = 30) -> dict:
+    """純 JSON-RPC 呼叫 MCP server(共用工具,Sprint 9.1 改成 per-user)。"""
+    state = _get_user_mcp_state(username)
+    if not state.get("container_name"):
         raise RuntimeError("MCP server 沒在跑")
-    mcp_url = f"http://{_mcp_state['container_name']}:8931/mcp"
+    mcp_url = f"http://{state['container_name']}:8931/mcp"
     payload = {"jsonrpc": "2.0", "id": 1, "method": method, "params": params}
     headers = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
     async with httpx.AsyncClient(timeout=timeout) as client:
@@ -646,8 +675,9 @@ async def _run_mcp_loop(
     target_url: Optional[str],
     max_turns: int,
     mcp_tools: list[dict],
+    username: str,
 ) -> dict:
-    """OpenAI / OpenAI-compatible 的多輪 tool-calling loop。"""
+    """OpenAI / OpenAI-compatible 的多輪 tool-calling loop(Sprint 9.1 加 username,Sprint 9.2 加 abort)。"""
     base_url = token.base_url or {
         "OpenAI": "https://api.openai.com/v1",
         "Local": "http://host.docker.internal:11434/v1",
@@ -678,6 +708,12 @@ async def _run_mcp_loop(
     async with httpx.AsyncClient(timeout=120.0) as client:
         for turn in range(max_turns):
             last_turn = turn + 1
+            # Sprint 9.2 — abort 檢查
+            if _mcp_run_abort_flags.get(username):
+                _mcp_run_abort_flags.pop(username, None)
+                final_text = "(使用者取消)"
+                finish_reason = "aborted"
+                break
             payload: dict = {
                 "model": model,
                 "messages": messages,
@@ -723,7 +759,7 @@ async def _run_mcp_loop(
                     args = {}
                 tool_result_text: str
                 try:
-                    rpc = await _mcp_jsonrpc("tools/call", {"name": tool_name, "arguments": args}, timeout=45)
+                    rpc = await _mcp_jsonrpc("tools/call", {"name": tool_name, "arguments": args}, username=username, timeout=45)
                     if "error" in rpc:
                         tool_result_text = json.dumps({"error": str(rpc["error"])}, ensure_ascii=False)
                     else:
@@ -798,9 +834,9 @@ def _mcp_tools_to_anthropic_schema(mcp_tools: list[dict]) -> list[dict]:
 
 
 async def _run_mcp_loop_anthropic(
-    token, prompt: str, target_url: Optional[str], max_turns: int, mcp_tools: list[dict],
+    token, prompt: str, target_url: Optional[str], max_turns: int, mcp_tools: list[dict], username: str,
 ) -> dict:
-    """Anthropic Claude Messages API 多輪 tool_use 迴圈。"""
+    """Anthropic Claude Messages API 多輪 tool_use 迴圈(Sprint 9.1 per-user / 9.2 abort)。"""
     from app.services.ai_test_gen import _default_base_url, _default_model
     if not token.api_key:
         raise RuntimeError("Anthropic 需要 api_key")
@@ -826,6 +862,12 @@ async def _run_mcp_loop_anthropic(
     async with httpx.AsyncClient(timeout=120.0) as client:
         for turn in range(max_turns):
             last_turn = turn + 1
+            # Sprint 9.2 — abort 檢查
+            if _mcp_run_abort_flags.get(username):
+                _mcp_run_abort_flags.pop(username, None)
+                final_text = "(使用者取消)"
+                finish_reason = "aborted"
+                break
             payload = {
                 "model": model,
                 "max_tokens": 4000,
@@ -865,7 +907,7 @@ async def _run_mcp_loop_anthropic(
                 tool_name = tu.get("name") or ""
                 args = tu.get("input") or {}
                 try:
-                    rpc = await _mcp_jsonrpc("tools/call", {"name": tool_name, "arguments": args}, timeout=45)
+                    rpc = await _mcp_jsonrpc("tools/call", {"name": tool_name, "arguments": args}, username=username, timeout=45)
                     if "error" in rpc:
                         result_text = json.dumps({"error": str(rpc["error"])}, ensure_ascii=False)
                     else:
@@ -931,9 +973,9 @@ def _mcp_tools_to_google_schema(mcp_tools: list[dict]) -> list[dict]:
 
 
 async def _run_mcp_loop_google(
-    token, prompt: str, target_url: Optional[str], max_turns: int, mcp_tools: list[dict],
+    token, prompt: str, target_url: Optional[str], max_turns: int, mcp_tools: list[dict], username: str,
 ) -> dict:
-    """Google Gemini generateContent function calling 多輪迴圈。"""
+    """Google Gemini generateContent function calling 多輪迴圈(Sprint 9.1 per-user / 9.2 abort)。"""
     from app.services.ai_test_gen import _default_base_url, _default_model
     if not token.api_key:
         raise RuntimeError("Google Gemini 需要 api_key")
@@ -955,6 +997,12 @@ async def _run_mcp_loop_google(
     async with httpx.AsyncClient(timeout=120.0) as client:
         for turn in range(max_turns):
             last_turn = turn + 1
+            # Sprint 9.2 — abort 檢查
+            if _mcp_run_abort_flags.get(username):
+                _mcp_run_abort_flags.pop(username, None)
+                final_text = "(使用者取消)"
+                finish_reason = "aborted"
+                break
             payload = {
                 "system_instruction": {"parts": [{"text": _MCP_LOOP_SYSTEM_PROMPT}]},
                 "contents": contents,
@@ -1000,7 +1048,7 @@ async def _run_mcp_loop_google(
                 tool_name = fc.get("name") or ""
                 args = fc.get("args") or {}
                 try:
-                    rpc = await _mcp_jsonrpc("tools/call", {"name": tool_name, "arguments": args}, timeout=45)
+                    rpc = await _mcp_jsonrpc("tools/call", {"name": tool_name, "arguments": args}, username=username, timeout=45)
                     if "error" in rpc:
                         result_text = json.dumps({"error": str(rpc["error"])}, ensure_ascii=False)
                     else:
@@ -1073,7 +1121,8 @@ async def mcp_run(
     """
     if not (payload.prompt or "").strip():
         raise HTTPException(400, "prompt 不能為空")
-    if not _mcp_state.get("container_name"):
+    state = _get_user_mcp_state(user.username)
+    if not state.get("container_name"):
         raise HTTPException(409, "MCP server 沒在跑;請先 POST /api/ai/mcp/start(或從 設定 → AI Token → MCP PoC 啟動)")
 
     from app.services.ai_test_gen import pick_token
@@ -1083,11 +1132,10 @@ async def mcp_run(
     except RuntimeError as e:
         raise HTTPException(400, str(e))
 
-    # Sprint 8 — 三 provider 全支援(OpenAI / Anthropic / Google);
-    # Local Ollama 走 OpenAI-compatible(模型本身要支援 function calling,例 qwen2.5 / mistral-nemo)
+    # Sprint 8 — 三 provider 全支援(OpenAI / Anthropic / Google)
     # 抓 MCP tools(共用一次)
     try:
-        rpc = await _mcp_jsonrpc("tools/list", {})
+        rpc = await _mcp_jsonrpc("tools/list", {}, username=user.username)
     except Exception as e:
         raise HTTPException(502, f"MCP tools/list 失敗:{e}")
     if "error" in rpc:
@@ -1096,41 +1144,52 @@ async def mcp_run(
     if not mcp_tools:
         raise HTTPException(502, "MCP server 沒回任何 tool;確認 mcp 容器已 ready")
 
+    # Sprint 9.2 — reset abort flag(若上次留下)
+    _mcp_run_abort_flags.pop(user.username, None)
+
     max_turns = max(1, min(int(payload.max_turns or 10), 30))
     try:
         if token.provider == AiProvider.ANTHROPIC:
-            result = await _run_mcp_loop_anthropic(token, payload.prompt, payload.target_url, max_turns, mcp_tools)
+            result = await _run_mcp_loop_anthropic(token, payload.prompt, payload.target_url, max_turns, mcp_tools, user.username)
         elif token.provider == AiProvider.GOOGLE:
-            result = await _run_mcp_loop_google(token, payload.prompt, payload.target_url, max_turns, mcp_tools)
+            result = await _run_mcp_loop_google(token, payload.prompt, payload.target_url, max_turns, mcp_tools, user.username)
         else:
-            # OpenAI / Local(OpenAI-compatible)
-            result = await _run_mcp_loop(token, payload.prompt, payload.target_url, max_turns, mcp_tools)
+            result = await _run_mcp_loop(token, payload.prompt, payload.target_url, max_turns, mcp_tools, user.username)
     except RuntimeError as e:
         raise HTTPException(502, str(e))
     except Exception as e:
         log.exception("mcp_run failed")
         raise HTTPException(502, f"MCP loop 例外:{e}")
+    finally:
+        _mcp_run_abort_flags.pop(user.username, None)
     return McpRunResponse(**result)
+
+
+@router.post("/ai/mcp/run-abort", status_code=204, tags=["V · AI"])
+async def mcp_run_abort(user: User = Depends(get_current_user)):
+    """Sprint 9.2 — 設定 abort flag,正在跑的 LLM ↔ MCP loop 會在下一輪檢查時中止。"""
+    _mcp_run_abort_flags[user.username] = True
 
 
 @router.get("/ai/mcp/status", response_model=McpStatus, tags=["V · AI"])
 async def mcp_status(user: User = Depends(get_current_user)):
-    if not _mcp_state.get("container_id"):
+    state = _get_user_mcp_state(user.username)
+    if not state.get("container_id"):
         return McpStatus(running=False)
     try:
         client = _get_mcp_docker()
-        c = client.containers.get(_mcp_state["container_id"])
+        c = client.containers.get(state["container_id"])
         if c.status not in ("running", "created"):
-            _mcp_state.clear()
+            state.clear()
             return McpStatus(running=False)
     except Exception:
-        _mcp_state.clear()
+        state.clear()
         return McpStatus(running=False)
     return McpStatus(
         running=True,
-        container_id=_mcp_state["container_id"],
-        container_name=_mcp_state.get("container_name"),
-        sse_port=_mcp_state.get("sse_port"),
-        sse_url=f"/mcp/sse?port={_mcp_state.get('sse_port')}",
-        started_at=_mcp_state.get("started_at"),
+        container_id=state["container_id"],
+        container_name=state.get("container_name"),
+        sse_port=state.get("sse_port"),
+        sse_url=f"/mcp/sse?port={state.get('sse_port')}",
+        started_at=state.get("started_at"),
     )

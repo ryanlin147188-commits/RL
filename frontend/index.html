@@ -17667,6 +17667,21 @@ gantt
             document.body.appendChild(modal);
         }
 
+        // Sprint 9.2 — 取消正在跑的 MCP loop(送 abort flag,下一輪 LLM tick 會中止)
+        async function aiChatAbortMcp() {
+            const btn = document.getElementById('mcpAbortBtn');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 已送出取消…';
+            }
+            try {
+                await fetch('/api/ai/mcp/run-abort', { method: 'POST' });
+                showToast('已送取消;LLM 完成當前回合後會中止', 'info');
+            } catch (e) {
+                showToast('取消失敗:' + e.message, 'error');
+            }
+        }
+
         // Sprint 7 — AI Chat 觸發 MCP 多輪 tool calling loop
         // 把 textarea 內的需求 + 可選 URL 餵 backend → LLM 透過 MCP 操作瀏覽器
         // 完成後 LLM 回 steps_json,前端跳 modal 讓使用者一鍵建為新案例
@@ -17693,6 +17708,9 @@ gantt
                   ${targetUrl ? `<p class="text-xs text-stone-600">起始 URL:<code class="text-fuchsia-700 font-mono">${_esc(targetUrl)}</code></p>` : '<p class="text-xs text-amber-700"><i class="fa-solid fa-triangle-exclamation"></i> 沒在需求中找到 URL,LLM 會自己決定要不要先 navigate</p>'}
                   <p class="text-xs text-stone-500"><i class="fa-solid fa-spinner fa-spin"></i> LLM ↔ MCP 多輪互動中,可能要 30-180 秒(看模型 + 操作步數)</p>
                   <p class="text-[10px] text-stone-400">支援 OpenAI / Claude / Gemini / Local(模型需支援 function calling,例 Ollama 的 qwen2.5)</p>
+                  <div class="flex justify-end pt-2 border-t border-stone-200">
+                    <button id="mcpAbortBtn" onclick="aiChatAbortMcp()" class="text-xs px-3 py-1 bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 rounded font-medium"><i class="fa-solid fa-stop"></i> 取消(下一輪會中止)</button>
+                  </div>
                 </div>
               </div>`;
             document.body.appendChild(modal);
