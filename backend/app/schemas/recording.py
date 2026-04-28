@@ -53,3 +53,6 @@ class RecorderCommandResponse(BaseModel):
     powershell_oneliner: str
     # macOS / Linux 一鍵（bash / zsh）
     bash_oneliner: str = ""
+    # APP 平台:啟 Appium server + Inspector 提示
+    appium_server_command: str = ""
+    appium_inspector_url: str = ""

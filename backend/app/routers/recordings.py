@@ -197,6 +197,17 @@ def _build_commands(session_id: str, target_url: str) -> RecorderCommandResponse
     # 不用 bash -c '...' 包裝，避免 target_url 內含單引號時破壞外層引號
     bash_one_liner = bash_script
 
+    # ── APP:啟 Appium server 一鍵指令(本機模式) ───────────────────
+    # 使用者:
+    #   1. 跑下面 npm/pip 指令(只一次性)
+    #   2. 用 Appium Inspector 連 http://127.0.0.1:4723 開始錄製
+    #   3. 錄完 Export → Python 腳本貼回 textarea 解析
+    appium_install_npm = "npm install -g appium && appium driver install uiautomator2"
+    appium_server_cmd = (
+        f'{appium_install_npm}; appium --address 127.0.0.1 --port 4723 --base-path /'
+    )
+    appium_inspector_url = "https://github.com/appium/appium-inspector/releases"
+
     return RecorderCommandResponse(
         session_id=session_id,
         upload_url=upload_url,
@@ -205,6 +216,8 @@ def _build_commands(session_id: str, target_url: str) -> RecorderCommandResponse
         rfbrowser_command=rf_cmd,
         powershell_oneliner=ps_one_liner,
         bash_oneliner=bash_one_liner,
+        appium_server_command=appium_server_cmd,
+        appium_inspector_url=appium_inspector_url,
     )
 
 
@@ -868,8 +881,13 @@ async def convert_recording(session_id: str, db: AsyncSession = Depends(get_db))
     if not session:
         raise HTTPException(404, "Recording session not found")
     if not session.script_text:
-        raise HTTPException(409, "尚未上傳 codegen 腳本，無法轉換")
-    steps = _parse_script(session.script_text)
+        raise HTTPException(409, "尚未上傳 codegen 腳本或 HAR,無法轉換")
+    text = session.script_text.lstrip()
+    # API 模式上傳的是 HAR JSON;WEB 模式是 Playwright Python 腳本
+    if text.startswith("{") and '"log"' in text[:200] and '"entries"' in text[:500]:
+        steps = _parse_har_to_steps(session.script_text)
+    else:
+        steps = _parse_script(session.script_text)
     return ConvertResponse(steps=steps)
 
 
@@ -1137,7 +1155,11 @@ async def docker_start(session_id: str, db: AsyncSession = Depends(get_db)):
             image=settings.RECORDER_IMAGE,
             name=container_name,
             detach=True,
-            auto_remove=False,  # 我們手動管理;codegen 結束後容器留著直到 docker-stop
+            # auto_remove=True:容器 process 結束(codegen 退出 + 自動 curl 上傳完)
+            # 後 docker daemon 自動 rm 容器,避免遺留 Exited 容器堆積。
+            # 缺點:exited 容器立即消失,無法 docker logs 除錯;若要 debug
+            # 把這個改成 False 即可。
+            auto_remove=True,
             network=settings.RECORDER_NETWORK,
             ports={"6080/tcp": None},  # auto-assign host port
             environment={
@@ -1231,14 +1253,16 @@ async def docker_stop(session_id: str, db: AsyncSession = Depends(get_db)):
     docker_client = _get_docker_client()
     try:
         c = docker_client.containers.get(info["container_id"])
-        # 先 stop 給 entrypoint 機會 trap → upload(若還沒上傳)
+        # 先 stop 給 entrypoint 機會 trap → upload(若還沒上傳);
+        # auto_remove=True 之下 stop 後容器會自動 remove,不需手動 remove。
         try:
             c.stop(timeout=15)
         except Exception:
             pass
-        c.remove(force=True)
     except Exception as e:
-        log.warning("docker_stop:remove %s failed: %s", info.get("container_name"), e)
+        # 容器可能已被 auto_remove 自然清掉(codegen 自然退出後),不算錯誤
+        log.info("docker_stop:container %s already gone (auto_remove): %s",
+                 info.get("container_name"), e)
 
     # 回寫 session.status:若使用者中途停止且沒上傳成功,session 還是 PENDING
     session = await db.get(RecordingSession, session_id)
@@ -1247,6 +1271,278 @@ async def docker_stop(session_id: str, db: AsyncSession = Depends(get_db)):
         # 還在 RECORDING 代表沒成功上傳 → 退回 PENDING 讓使用者可重來
         session.status = "PENDING"
         await db.flush()
+
+
+# ─────────────────────────────────────────────────────────
+# API 模式 Docker 錄製(mitmproxy / mitmweb)
+# 跟 WEB 模式共用 _recorder_containers dict,但 key 加前綴 "api:" 避免衝突。
+# ─────────────────────────────────────────────────────────
+
+
+class ApiRecorderResponse(BaseModel):
+    """API 模式啟容器後回的資訊;沒有 vnc_password 因為 mitmweb 無密碼。"""
+    session_id: str
+    container_id: str
+    container_name: str
+    proxy_port: int     # 容器外 host port,使用者把 HTTP proxy 設這個
+    web_port: int       # 容器外 host port,前端 iframe 嵌入
+    web_path: str       # mitmweb 的 path(預設 "/")
+    started_at: datetime
+    expires_at: datetime
+
+
+def _api_key(session_id: str) -> str:
+    return f"api:{session_id}"
+
+
+@router.post(
+    "/recordings/{session_id}/api-docker-start",
+    response_model=ApiRecorderResponse,
+    tags=["E · 錄製"],
+)
+async def api_docker_start(session_id: str, db: AsyncSession = Depends(get_db)):
+    """啟一個 mitmproxy 容器,回 mitmweb iframe 與 proxy port 的資訊。"""
+    session = await db.get(RecordingSession, session_id)
+    if not session:
+        raise HTTPException(404, "Recording session not found")
+
+    docker_client = _get_docker_client()
+
+    # Image 預檢:autotest-recorder-api 不存在 → 回 425(前端去 polling 直到 build 完)
+    try:
+        docker_client.images.get(settings.RECORDER_API_IMAGE)
+    except Exception:
+        # 自動觸發 build(共用 image build 機制改寫;這裡先簡化:直接拋 425
+        # 提示 user 跑 ./deploy.sh 或手動 build。後續再做 auto-build for api image)
+        raise HTTPException(
+            status_code=425,
+            detail={
+                "code": "recorder_api_image_missing",
+                "message": (
+                    f"找不到 image `{settings.RECORDER_API_IMAGE}`;"
+                    "請跑 `./deploy.sh` / `deploy.ps1` 重新部署(已自動 build 此 image),"
+                    "或手動執行:`docker build -f backend/Dockerfile.recorder-api "
+                    "-t autotest-recorder-api:latest backend/`"
+                ),
+            },
+        )
+
+    key = _api_key(session_id)
+    # 清掉舊的(若有)
+    old = _recorder_containers.pop(key, None)
+    if old:
+        try:
+            c = docker_client.containers.get(old["container_id"])
+            c.remove(force=True)
+        except Exception:
+            pass
+
+    upload_url = (
+        f"{settings.RECORDER_INTERNAL_BASE_URL.rstrip('/')}"
+        f"/api/recordings/{session_id}/upload-har"
+    )
+    container_name = f"autotest-recorder-api-{session_id[:8]}"
+
+    try:
+        container = docker_client.containers.run(
+            image=settings.RECORDER_API_IMAGE,
+            name=container_name,
+            detach=True,
+            auto_remove=True,
+            network=settings.RECORDER_NETWORK,
+            ports={
+                "8080/tcp": None,  # proxy
+                "8081/tcp": None,  # web UI
+            },
+            environment={
+                "SESSION_ID": session_id,
+                "UPLOAD_URL": upload_url,
+            },
+            labels={
+                "autotest.role": "recorder-api",
+                "autotest.session_id": session_id,
+            },
+        )
+    except Exception as e:
+        raise HTTPException(500, f"啟動 mitmproxy 容器失敗:{e}")
+
+    container.reload()
+    ports = container.attrs.get("NetworkSettings", {}).get("Ports") or {}
+    proxy_info = ports.get("8080/tcp")
+    web_info = ports.get("8081/tcp")
+    if not proxy_info or not web_info:
+        try:
+            container.remove(force=True)
+        except Exception:
+            pass
+        raise HTTPException(500, "容器啟動但 8080/8081 未對外映射")
+    proxy_port = int(proxy_info[0]["HostPort"])
+    web_port = int(web_info[0]["HostPort"])
+
+    started_at = datetime.utcnow()
+    expires_at = started_at + timedelta(minutes=settings.RECORDER_IDLE_TIMEOUT_MIN)
+    _recorder_containers[key] = {
+        "container_id": container.id,
+        "container_name": container_name,
+        "proxy_port": proxy_port,
+        "web_port": web_port,
+        "started_at": started_at,
+        "expires_at": expires_at,
+    }
+    session.status = "RECORDING"
+    await db.flush()
+
+    return ApiRecorderResponse(
+        session_id=session_id,
+        container_id=container.id,
+        container_name=container_name,
+        proxy_port=proxy_port,
+        web_port=web_port,
+        web_path="/",
+        started_at=started_at,
+        expires_at=expires_at,
+    )
+
+
+@router.post(
+    "/recordings/{session_id}/api-docker-stop",
+    status_code=204,
+    tags=["E · 錄製"],
+)
+async def api_docker_stop(session_id: str, db: AsyncSession = Depends(get_db)):
+    """停止 mitmproxy 容器(SIGTERM 觸發 entrypoint 把 HAR 上傳)。"""
+    info = _recorder_containers.pop(_api_key(session_id), None)
+    if not info:
+        return
+    docker_client = _get_docker_client()
+    try:
+        c = docker_client.containers.get(info["container_id"])
+        try:
+            # timeout=20 給 entrypoint trap 跑 curl 上傳 HAR
+            c.stop(timeout=20)
+        except Exception:
+            pass
+    except Exception as e:
+        log.info("api_docker_stop:container %s already gone: %s",
+                 info.get("container_name"), e)
+
+
+@router.get(
+    "/recordings/{session_id}/api-docker-status",
+    response_model=Optional[ApiRecorderResponse],
+    tags=["E · 錄製"],
+)
+async def api_docker_status(session_id: str):
+    info = _recorder_containers.get(_api_key(session_id))
+    if not info:
+        return None
+    try:
+        docker_client = _get_docker_client()
+        c = docker_client.containers.get(info["container_id"])
+        if c.status not in ("running", "created"):
+            _recorder_containers.pop(_api_key(session_id), None)
+            return None
+    except Exception:
+        _recorder_containers.pop(_api_key(session_id), None)
+        return None
+    return ApiRecorderResponse(
+        session_id=session_id,
+        container_id=info["container_id"],
+        container_name=info["container_name"],
+        proxy_port=info["proxy_port"],
+        web_port=info["web_port"],
+        web_path="/",
+        started_at=info["started_at"],
+        expires_at=info["expires_at"],
+    )
+
+
+@router.post(
+    "/recordings/{session_id}/upload-har",
+    tags=["E · 錄製"],
+)
+async def upload_har(
+    session_id: str,
+    har: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """容器內 SIGTERM 收尾時 curl 上傳的 HAR 檔。
+
+    存到 SeaweedFS,session.script_text 同時填入解析後的 JSON 摘要供前端
+    convert 端點解析。
+    """
+    import json as _json
+    session = await db.get(RecordingSession, session_id)
+    if not session:
+        raise HTTPException(404, "Recording session not found")
+    raw = await har.read()
+    if len(raw) > 50_000_000:
+        raise HTTPException(413, "HAR 過大(>50MB)")
+    if not raw:
+        raise HTTPException(400, "HAR 是空的(代表沒擷取到任何流量)")
+    # 存到 SeaweedFS
+    try:
+        from app.services.storage_service import save_bytes
+        key = f"recordings/{session_id}/flows.har"
+        save_bytes(raw, key, bucket="pic", content_type="application/json")
+    except Exception as e:
+        log.warning("HAR storage failed: %s", e)
+
+    # 把 HAR JSON 整段塞進 script_text 讓 /convert 端點能解析(API 模式判定:
+    # script_text 開頭是 `{` 表 HAR JSON,否則是 Playwright Python 腳本)
+    try:
+        # 驗證確實是合法 HAR JSON
+        _ = _json.loads(raw.decode("utf-8", errors="replace"))
+        session.script_text = raw.decode("utf-8", errors="replace")
+        session.status = "UPLOADED"
+    except Exception:
+        raise HTTPException(400, "HAR JSON 解析失敗,可能容器內 addon 出錯")
+    await db.flush()
+    return {"ok": True, "size": len(raw)}
+
+
+def _parse_har_to_steps(har_json: str) -> list[GeneratedStep]:
+    """把 HAR JSON 解析成 Http.* 步驟。"""
+    import json as _json
+    try:
+        data = _json.loads(har_json)
+    except Exception:
+        return []
+    entries = (data.get("log") or {}).get("entries") or []
+    steps: list[GeneratedStep] = []
+    for entry in entries:
+        req = entry.get("request") or {}
+        resp = entry.get("response") or {}
+        method = (req.get("method") or "GET").upper()
+        url = req.get("url") or ""
+        if not url:
+            continue
+        # 跳過明顯的靜態資源 / 預檢 OPTIONS
+        if method == "OPTIONS":
+            continue
+        if any(url.lower().endswith(ext) for ext in (
+            ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".svg",
+            ".css", ".woff", ".woff2", ".ttf", ".map",
+        )):
+            continue
+        # body
+        body = ""
+        post = req.get("postData") or {}
+        if isinstance(post, dict):
+            body = post.get("text") or ""
+
+        action = f"Http.{method.title() if method != 'GET' else 'Get'}"
+        steps.append(GeneratedStep(
+            id=str(uuid.uuid4()),
+            keyword="When",
+            description=f"{method} {url}",
+            action=action,
+            locator=url,
+            input=body[:2000],  # 截短避免步驟過長
+            condition="Equals",
+            expected=str(resp.get("status") or ""),
+        ))
+    return steps
 
 
 @router.get(

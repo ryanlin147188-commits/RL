@@ -102,6 +102,18 @@ build_recorder_image() {
     success "Recorder image 已建置"
 }
 
+# ── 建 API 模式錄製 image (autotest-recorder-api：mitmproxy + HAR addon) ────
+build_recorder_api_image() {
+    if docker image inspect autotest-recorder-api:latest >/dev/null 2>&1; then
+        info "autotest-recorder-api 已存在（跳過重建；需更新請先 docker rmi autotest-recorder-api:latest）"
+        return
+    fi
+    info "建 Recorder-API 容器 image (mitmproxy；第一次約 1-2 分鐘)..."
+    docker build -f backend/Dockerfile.recorder-api -t autotest-recorder-api:latest backend/ \
+        || { error "Recorder-API image 建置失敗。"; exit 1; }
+    success "Recorder-API image 已建置"
+}
+
 # ── 啟動 Compose ─────────────────────────────────────────────────────
 compose_up() {
     step "啟動服務（docker compose up -d --build）"
@@ -180,6 +192,7 @@ case "$CMD" in
         ensure_env
         build_runner_image
         build_recorder_image
+        build_recorder_api_image
         compose_up
         wait_for_ready
         ensure_postgres_admin

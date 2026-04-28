@@ -13,6 +13,12 @@ FROM mcr.microsoft.com/playwright/python:v1.50.0-jammy
 
 USER root
 
+# 必須:DEBIAN_FRONTEND=noninteractive + TZ;否則裝 novnc/x11vnc 會把 tzdata
+# 也帶進來,tzdata 會跳互動式 prompt 問地理區+城市,把 docker build 卡死。
+# TZ 預設 Asia/Taipei(與其他容器一致);要改去 build args 或 docker run -e TZ=...
+ENV DEBIAN_FRONTEND=noninteractive \
+    TZ=Asia/Taipei
+
 # 安裝 noVNC 需要的元件:
 #   xvfb        虛擬顯示(headless 容器內也能跑有頭瀏覽器)
 #   x11vnc      把 X 顯示對外開為 VNC 伺服器
@@ -20,7 +26,11 @@ USER root
 #   novnc       noVNC 的 HTML/JS 套件(/usr/share/novnc/)
 #   websockify  把 VNC 的 TCP 連線包成 WebSocket 給瀏覽器用
 #   curl        錄完上傳 recorded.py + trace.zip 用
-RUN apt-get update && \
+#   tzdata      被 x11vnc / novnc 拉進來;先預先 ln -s 鎖死避免 dpkg 跳互動 prompt
+RUN ln -snf "/usr/share/zoneinfo/$TZ" /etc/localtime && \
+    echo "$TZ" > /etc/timezone && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends tzdata && \
     apt-get install -y --no-install-recommends \
         xvfb x11vnc fluxbox \
         novnc websockify \

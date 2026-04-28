@@ -109,6 +109,19 @@ function New-RecorderImage {
     Write-Success "Recorder image 已建置"
 }
 
+# ── 建 API 模式錄製 image (autotest-recorder-api：mitmproxy + HAR addon) ────
+function New-RecorderApiImage {
+    docker image inspect 'autotest-recorder-api:latest' 2>$null | Out-Null
+    if ($LASTEXITCODE -eq 0) {
+        Write-Info "autotest-recorder-api 已存在（跳過重建；需更新請先 docker rmi autotest-recorder-api:latest）"
+        return
+    }
+    Write-Info "建 Recorder-API 容器 image (mitmproxy；第一次約 1-2 分鐘)..."
+    docker build -f backend/Dockerfile.recorder-api -t autotest-recorder-api:latest backend/
+    if ($LASTEXITCODE -ne 0) { Write-Err "Recorder-API image 建置失敗。"; exit 1 }
+    Write-Success "Recorder-API image 已建置"
+}
+
 # ── 啟動 Compose ─────────────────────────────────────────────────────
 function Start-ComposeStack {
     Write-Step "啟動服務（docker compose up -d --build）"
@@ -207,6 +220,7 @@ Test-ProjectDir
 Initialize-EnvFile
 New-RunnerImage
 New-RecorderImage
+New-RecorderApiImage
 Start-ComposeStack
 Wait-ForReady
 Initialize-PostgresAdmin

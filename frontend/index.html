@@ -1059,11 +1059,11 @@
                     <h3 class="font-bold text-slate-700 flex items-center gap-2 mb-3"><i class="fa-solid fa-circle-2 text-rose-500"></i> 啟動錄製器</h3>
                     <!-- 模式切換 -->
                     <div class="flex gap-2 mb-4 bg-slate-100 p-1 rounded-lg" role="tablist" aria-label="錄製執行模式">
-                        <button type="button" id="recModeBtnLocal" onclick="recSetMode('local')"
+                        <button type="button" id="recModeBtnLocal" role="tab" aria-selected="true" aria-controls="recCmdLocal" onclick="recSetMode('local')"
                             class="flex-1 px-3 py-2 rounded-md text-sm font-medium bg-white text-rose-600 shadow-sm flex items-center justify-center gap-2">
                             <i class="fa-solid fa-laptop"></i> 本機錄製
                         </button>
-                        <button type="button" id="recModeBtnDocker" onclick="recSetMode('docker')"
+                        <button type="button" id="recModeBtnDocker" role="tab" aria-selected="false" aria-controls="recCmdDocker" onclick="recSetMode('docker')"
                             class="flex-1 px-3 py-2 rounded-md text-sm font-medium text-slate-500 hover:text-slate-700 flex items-center justify-center gap-2">
                             <i class="fa-brands fa-docker"></i> Docker 容器錄製 <span class="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">伺服器側</span>
                         </button>
@@ -1099,12 +1099,11 @@
                         <textarea id="cmdNpx" class="hidden" aria-hidden="true"></textarea>
                         <textarea id="cmdPip" class="hidden" aria-hidden="true"></textarea>
                         <textarea id="cmdRfb" class="hidden" aria-hidden="true"></textarea>
-                    </div>
-                    <p class="mt-3 text-xs text-slate-500"><i class="fa-solid fa-circle-info text-amber-500"></i>
-                        <b>Windows：</b>第一次若出現「執行原則」警告，在 PowerShell 中執行 <code>Set-ExecutionPolicy -Scope CurrentUser RemoteSigned</code> 一次即可。
-                        <b>macOS / Linux：</b>需已安裝 <code>python</code> 與 <code>curl</code>（大多數系統預設內建）；若沒裝 Playwright，第一次執行會自動從 pip 安裝。
-                        RF Browser 已內建 playwright，無需額外安裝。
-                    </p>
+                        <p class="mt-3 text-xs text-slate-500"><i class="fa-solid fa-circle-info text-amber-500"></i>
+                            <b>Windows：</b>第一次若出現「執行原則」警告，在 PowerShell 中執行 <code>Set-ExecutionPolicy -Scope CurrentUser RemoteSigned</code> 一次即可。
+                            <b>macOS / Linux：</b>需已安裝 <code>python</code> 與 <code>curl</code>（大多數系統預設內建）；若沒裝 Playwright，第一次執行會自動從 pip 安裝。
+                            RF Browser 已內建 playwright，無需額外安裝。
+                        </p>
                     </div>
 
                     <!-- ── Docker 模式:啟容器 + iframe 嵌入 noVNC ── -->
@@ -1164,39 +1163,122 @@
                 </section>
                 </div>
 
-                <!-- API 錄製區（貼上 cURL） -->
+                <!-- API 錄製區:雙模式(本機貼 cURL / Docker mitmproxy 容器錄製) -->
                 <section id="recApiSection" class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm hidden">
-                    <h3 class="font-bold text-slate-700 flex items-center gap-2 mb-3"><i class="fa-solid fa-server text-purple-500"></i> 貼上 cURL 指令</h3>
-                    <p class="text-xs text-slate-600 bg-purple-50 border border-purple-200 rounded p-3 mb-3">
-                        <i class="fa-solid fa-bolt text-purple-500"></i>
-                        <b>用法：</b>在 Chrome DevTools 的 Network 分頁對請求按右鍵 → Copy → Copy as cURL。可一次貼多個，以空行分隔。
-                        解析時會自動轉換為 <code>Http.SetHeader</code> / <code>Http.GET / POST / ...</code> 步驟。
-                    </p>
-                    <textarea id="recCurlText" rows="10" aria-label="cURL 指令"
-                        placeholder="curl 'https://api.example.com/users' -X POST -H 'Content-Type: application/json' --data-raw '{&quot;name&quot;:&quot;foo&quot;}'"
-                        class="w-full text-xs font-mono p-3 border border-slate-300 rounded focus:ring-2 focus:ring-purple-100 focus:border-purple-400 outline-none"></textarea>
-                    <div class="mt-3 flex gap-2">
-                        <button onclick="recParseCurl()" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-medium flex items-center gap-2"><i class="fa-solid fa-wand-magic-sparkles"></i> 解析為 Http.* 步驟</button>
-                        <button onclick="document.getElementById('recCurlText').value=''" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-sm"><i class="fa-solid fa-eraser"></i> 清空</button>
+                    <h3 class="font-bold text-slate-700 flex items-center gap-2 mb-3"><i class="fa-solid fa-server text-purple-500"></i> API 錄製</h3>
+                    <!-- 模式切換 -->
+                    <div class="flex gap-2 mb-4 bg-slate-100 p-1 rounded-lg" role="tablist" aria-label="API 錄製執行模式">
+                        <button type="button" id="recApiModeBtnLocal" role="tab" aria-selected="true" aria-controls="recApiLocal" onclick="recApiSetMode('local')"
+                            class="flex-1 px-3 py-2 rounded-md text-sm font-medium bg-white text-purple-600 shadow-sm flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-laptop"></i> 本機(貼 cURL)
+                        </button>
+                        <button type="button" id="recApiModeBtnDocker" role="tab" aria-selected="false" aria-controls="recApiDocker" onclick="recApiSetMode('docker')"
+                            class="flex-1 px-3 py-2 rounded-md text-sm font-medium text-slate-500 hover:text-slate-700 flex items-center justify-center gap-2">
+                            <i class="fa-brands fa-docker"></i> Docker mitmproxy 錄製 <span class="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">伺服器側</span>
+                        </button>
+                    </div>
+
+                    <!-- 本機模式:沿用既有貼 cURL -->
+                    <div id="recApiLocal" class="space-y-3">
+                        <p class="text-xs text-slate-600 bg-purple-50 border border-purple-200 rounded p-3">
+                            <i class="fa-solid fa-bolt text-purple-500"></i>
+                            <b>用法：</b>在 Chrome DevTools 的 Network 分頁對請求按右鍵 → Copy → Copy as cURL。可一次貼多個,以空行分隔。
+                            解析時會自動轉換為 <code>Http.SetHeader</code> / <code>Http.GET / POST / ...</code> 步驟。
+                        </p>
+                        <textarea id="recCurlText" rows="10" aria-label="cURL 指令"
+                            placeholder="curl 'https://api.example.com/users' -X POST -H 'Content-Type: application/json' --data-raw '{&quot;name&quot;:&quot;foo&quot;}'"
+                            class="w-full text-xs font-mono p-3 border border-slate-300 rounded focus:ring-2 focus:ring-purple-100 focus:border-purple-400 outline-none"></textarea>
+                        <div class="flex gap-2">
+                            <button onclick="recParseCurl()" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-medium flex items-center gap-2"><i class="fa-solid fa-wand-magic-sparkles"></i> 解析為 Http.* 步驟</button>
+                            <button onclick="document.getElementById('recCurlText').value=''" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-sm"><i class="fa-solid fa-eraser"></i> 清空</button>
+                        </div>
+                    </div>
+
+                    <!-- Docker 模式:啟 mitmproxy 容器,user 設 proxy → 自動擷取 → HAR 解析 -->
+                    <div id="recApiDocker" class="hidden space-y-3">
+                        <div id="recApiDockerIdle" class="text-xs text-slate-600 bg-blue-50 border border-blue-200 rounded p-3">
+                            <i class="fa-solid fa-circle-info text-blue-500"></i>
+                            <b>容器 mitmproxy 錄製:</b>後端開一個 mitmproxy 容器擷取所有 HTTP/HTTPS 流量。啟動後會顯示一個 <b>HTTP Proxy 位址</b>,你把瀏覽器 / Postman / 手機 app 的 proxy 指過去,所有請求會被擷取;同時下方 iframe 會嵌入 mitmweb 即時看 captured flows。按「停止錄製」會自動把 HAR 解析成 Http.* 步驟。
+                            <div class="mt-2 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+                                <i class="fa-solid fa-triangle-exclamation"></i> <b>HTTPS 流量需安裝 mitmproxy 根憑證</b>(否則會 SSL 錯誤);錄製啟動後,連 <code>http://mitm.it</code> 下載並信任 CA。
+                            </div>
+                        </div>
+                        <div class="flex gap-2 flex-wrap">
+                            <button id="recApiDockerStartBtn" onclick="recApiDockerStart()" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded font-medium text-sm flex items-center gap-2"><i class="fa-solid fa-play"></i> 啟動 mitmproxy 並開始錄製</button>
+                            <button id="recApiDockerStopBtn" onclick="recApiDockerStop()" class="hidden px-4 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded font-medium text-sm flex items-center gap-2"><i class="fa-solid fa-stop"></i> 停止錄製(自動上傳 HAR + 解析)</button>
+                            <span id="recApiDockerStatus" class="text-xs text-slate-500 self-center"></span>
+                        </div>
+                        <!-- 啟動後顯示 proxy 設定提示 -->
+                        <div id="recApiProxyInfo" class="hidden text-xs bg-emerald-50 border border-emerald-200 rounded p-3 font-mono">
+                            <div class="text-emerald-700 mb-1 font-sans"><i class="fa-solid fa-circle-check"></i> Proxy 已啟用,把下面的位址設到瀏覽器 / Postman / app:</div>
+                            <div class="flex items-center gap-2">
+                                <code id="recApiProxyHostPort" class="flex-1 px-2 py-1 bg-white rounded border border-emerald-200 text-emerald-800"></code>
+                                <button onclick="_copyText(document.getElementById('recApiProxyHostPort').textContent)" class="px-2 py-1 text-emerald-700 border border-emerald-300 rounded hover:bg-emerald-100 font-sans"><i class="fa-solid fa-copy"></i> 複製</button>
+                            </div>
+                        </div>
+                        <!-- iframe 嵌入 mitmweb -->
+                        <div id="recApiMitmwebWrap" class="rec-vnc-wrap hidden border border-purple-200 rounded-md bg-white overflow-hidden">
+                            <iframe id="recApiMitmwebFrame" src="about:blank" allow="fullscreen"
+                                class="w-full h-full block" title="mitmweb — captured flows"></iframe>
+                        </div>
                     </div>
                 </section>
 
-                <!-- APP 錄製區（貼上 Appium Python） -->
+                <!-- APP 錄製區:本機 Appium Inspector + 貼腳本 / Docker 規劃中 -->
                 <section id="recAppSection" class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm hidden">
-                    <h3 class="font-bold text-slate-700 flex items-center gap-2 mb-3"><i class="fa-solid fa-mobile-screen text-pink-500"></i> 貼上 Appium Python 腳本</h3>
-                    <p class="text-xs text-slate-600 bg-pink-50 border border-pink-200 rounded p-3 mb-3">
-                        <i class="fa-solid fa-bolt text-pink-500"></i>
-                        <b>用法：</b>從 Appium Inspector 錄製後匯出 Python 腳本，或直接貼上手寫的 <code>driver.find_element(...)</code> 操作。
-                        解析時會自動轉換為 <code>Mobile.Click / Input / Tap / Swipe / PressBack</code> 等步驟。
-                    </p>
-                    <textarea id="recAppiumText" rows="10" aria-label="Appium 腳本"
-                        placeholder="driver.find_element(AppiumBy.ID, 'login_btn').click()
+                    <h3 class="font-bold text-slate-700 flex items-center gap-2 mb-3"><i class="fa-solid fa-mobile-screen text-pink-500"></i> APP 錄製</h3>
+                    <!-- 模式切換 -->
+                    <div class="flex gap-2 mb-4 bg-slate-100 p-1 rounded-lg" role="tablist" aria-label="APP 錄製執行模式">
+                        <button type="button" id="recAppModeBtnLocal" role="tab" aria-selected="true" aria-controls="recAppLocal" onclick="recAppSetMode('local')"
+                            class="flex-1 px-3 py-2 rounded-md text-sm font-medium bg-white text-pink-600 shadow-sm flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-laptop"></i> 本機 Appium
+                        </button>
+                        <button type="button" id="recAppModeBtnDocker" role="tab" aria-selected="false" aria-controls="recAppDocker" onclick="recAppSetMode('docker')"
+                            class="flex-1 px-3 py-2 rounded-md text-sm font-medium text-slate-500 hover:text-slate-700 flex items-center justify-center gap-2">
+                            <i class="fa-brands fa-docker"></i> Docker 容器錄製 <span class="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded">Phase 2</span>
+                        </button>
+                    </div>
+
+                    <!-- 本機 Appium 模式 -->
+                    <div id="recAppLocal" class="space-y-3">
+                        <p class="text-xs text-slate-600 bg-pink-50 border border-pink-200 rounded p-3">
+                            <i class="fa-solid fa-bolt text-pink-500"></i>
+                            <b>流程:</b>① 在本機跑下方 Appium server 指令 → ② 開 Appium Inspector(GUI app)連 <code>http://127.0.0.1:4723</code> → ③ 連模擬器/實機開始錄製 → ④ 點 Inspector「Recorder → Show Recording」匯出 Python → ⑤ 貼回下方 textarea 解析。
+                        </p>
+                        <div>
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-xs font-mono text-slate-500"><i class="fa-solid fa-terminal"></i> 啟動 Appium server 一鍵指令</span>
+                                <button type="button" onclick="recCopy('cmdAppium')" class="text-xs text-pink-600 hover:underline"><i class="fa-solid fa-copy"></i> 複製</button>
+                            </div>
+                            <textarea id="cmdAppium" aria-label="Appium server 啟動指令" readonly rows="2" class="w-full text-xs font-mono p-2 bg-slate-50 border border-slate-200 rounded"></textarea>
+                            <p class="text-[10px] text-slate-500 mt-1">Appium Inspector 下載:<a id="cmdAppiumInspectorLink" href="#" target="_blank" class="text-pink-600 underline">github.com/appium/appium-inspector/releases</a>(獨立桌面 app,不需 npm 安裝)</p>
+                        </div>
+                        <div>
+                            <label for="recAppiumText" class="block text-xs font-semibold text-slate-600 mb-1">貼上 Appium Python 腳本</label>
+                            <textarea id="recAppiumText" rows="8" aria-label="Appium 腳本"
+                                placeholder="driver.find_element(AppiumBy.ID, 'login_btn').click()
 driver.find_element(AppiumBy.XPATH, &quot;//input[@id='username']&quot;).send_keys('testuser')
 driver.swipe(100, 800, 100, 200, 500)"
-                        class="w-full text-xs font-mono p-3 border border-slate-300 rounded focus:ring-2 focus:ring-pink-100 focus:border-pink-400 outline-none"></textarea>
-                    <div class="mt-3 flex gap-2">
-                        <button onclick="recParseAppium()" class="px-4 py-2 bg-pink-600 hover:bg-pink-700 text-white rounded text-sm font-medium flex items-center gap-2"><i class="fa-solid fa-wand-magic-sparkles"></i> 解析為 Mobile.* 步驟</button>
-                        <button onclick="document.getElementById('recAppiumText').value=''" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-sm"><i class="fa-solid fa-eraser"></i> 清空</button>
+                                class="w-full text-xs font-mono p-3 border border-slate-300 rounded focus:ring-2 focus:ring-pink-100 focus:border-pink-400 outline-none"></textarea>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="recParseAppium()" class="px-4 py-2 bg-pink-600 hover:bg-pink-700 text-white rounded text-sm font-medium flex items-center gap-2"><i class="fa-solid fa-wand-magic-sparkles"></i> 解析為 Mobile.* 步驟</button>
+                            <button onclick="document.getElementById('recAppiumText').value=''" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-sm"><i class="fa-solid fa-eraser"></i> 清空</button>
+                        </div>
+                    </div>
+
+                    <!-- Docker 模式:Phase 2 placeholder -->
+                    <div id="recAppDocker" class="hidden">
+                        <div class="text-xs text-slate-600 bg-stone-50 border border-stone-200 rounded p-4">
+                            <p class="mb-2"><i class="fa-solid fa-screwdriver-wrench text-stone-500"></i> <b>Docker 容器錄製 — 規劃中(Phase 2)</b></p>
+                            <p class="mb-2">Android Emulator 在 Docker 容器內需要 host 端 KVM 支援。Windows + Docker Desktop 在 WSL2 backend 下通常不啟用 KVM,因此這個模式目前無法跨平台保證能跑。</p>
+                            <p class="mb-2">替代方案:</p>
+                            <ul class="list-disc list-inside space-y-1">
+                                <li>本機 Appium Inspector(穩定;切回上方「本機 Appium」分頁)</li>
+                                <li>遠端真機平台(BrowserStack / Sauce Labs):後續整合</li>
+                                <li>Linux host + KVM:Phase 2 提供 docker compose profile</li>
+                            </ul>
+                        </div>
                     </div>
                 </section>
 
@@ -1231,7 +1313,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                     </div>
                 </section>
 
-                <!-- ⑤ 歷史錄製清單（僅 WEB） -->
+                <!-- ⑤ 歷史錄製清單(僅 WEB;預設顯示,讓使用者一進錄製頁就看到最近紀錄) -->
                 <section id="recHistorySection" class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
                     <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
                         <h3 class="font-bold text-slate-700 flex items-center gap-2"><i class="fa-solid fa-circle-5 text-rose-500"></i> 歷史錄製清單</h3>
@@ -2328,8 +2410,9 @@ driver.swipe(100, 800, 100, 200, 500)"
                 </div>
             </div>
 
-            <!-- 視圖 3: 空白歡迎畫面 (預設) -->
-            <div id="emptyWorkspace" class="flex-1 flex flex-col items-center justify-center text-slate-400">
+            <!-- 視圖 3: 空白歡迎畫面 — 預設 hidden(只有 _hideAllWorkspaces 才會用到;
+                 沒加 hidden 之前 flex-1 跟 #homeWorkspace 並排佔半個視窗,把首頁推到下方造成大空白) -->
+            <div id="emptyWorkspace" class="hidden flex-1 flex flex-col items-center justify-center text-slate-400">
                 <i class="fa-regular fa-folder-open text-6xl mb-4 text-slate-200"></i>
                 <p class="text-lg">請從左側目錄選擇一個測試案例 (.md) 以開始編輯</p>
             </div>
@@ -2775,7 +2858,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                         <div class="flex items-center gap-5 mb-5">
                             <div class="relative shrink-0">
                                 <div id="usAvatarLarge" class="w-20 h-20 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-3xl font-bold shadow-md overflow-hidden">A</div>
-                                <input type="file" id="usAvatarFile" accept="image/png,image/jpeg,image/webp,image/gif" class="hidden" onchange="uploadUserAvatar(this)">
+                                <input type="file" id="usAvatarFile" aria-label="上傳大頭貼" accept="image/png,image/jpeg,image/webp,image/gif" class="hidden" onchange="uploadUserAvatar(this)">
                                 <button type="button" onclick="document.getElementById('usAvatarFile').click()"
                                     class="absolute -bottom-1 -right-1 w-7 h-7 bg-amber-500 hover:bg-amber-600 text-white rounded-full shadow flex items-center justify-center text-xs"
                                     title="更換大頭貼">
@@ -3244,7 +3327,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                         </div>
                         <div id="groupInitialMembersBox">
                             <label class="block text-xs font-semibold text-stone-600 mb-1">起始成員(可多選;建立者自動是 owner)</label>
-                            <select id="groupInitialMembers" multiple size="6" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"></select>
+                            <select id="groupInitialMembers" aria-label="起始成員" multiple size="6" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"></select>
                         </div>
                         <div class="flex justify-end gap-2 pt-2">
                             <button type="button" onclick="closeGroupModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button>
@@ -3311,14 +3394,14 @@ driver.swipe(100, 800, 100, 200, 500)"
                         <div>
                             <label class="block text-xs font-semibold text-stone-600 mb-1">邀請碼</label>
                             <div class="flex items-center gap-2">
-                                <input id="inviteShowToken" type="text" readonly class="flex-1 px-3 py-2 border border-stone-300 rounded-md text-sm font-mono bg-stone-50">
+                                <input id="inviteShowToken" type="text" aria-label="邀請碼" readonly class="flex-1 px-3 py-2 border border-stone-300 rounded-md text-sm font-mono bg-stone-50">
                                 <button onclick="_copyText(document.getElementById('inviteShowToken').value)" class="px-3 py-2 border border-stone-300 rounded-md text-xs hover:bg-amber-50"><i class="fa-solid fa-copy"></i> 複製</button>
                             </div>
                         </div>
                         <div>
                             <label class="block text-xs font-semibold text-stone-600 mb-1">註冊連結(預設帶入邀請碼)</label>
                             <div class="flex items-center gap-2">
-                                <input id="inviteShowLink" type="text" readonly class="flex-1 px-3 py-2 border border-stone-300 rounded-md text-sm font-mono bg-stone-50">
+                                <input id="inviteShowLink" type="text" aria-label="註冊連結" readonly class="flex-1 px-3 py-2 border border-stone-300 rounded-md text-sm font-mono bg-stone-50">
                                 <button onclick="_copyText(document.getElementById('inviteShowLink').value)" class="px-3 py-2 border border-stone-300 rounded-md text-xs hover:bg-amber-50"><i class="fa-solid fa-copy"></i> 複製</button>
                             </div>
                         </div>
@@ -12244,6 +12327,13 @@ driver.swipe(100, 800, 100, 200, 500)"
                 document.getElementById('cmdPs').value = data.commands.powershell_oneliner || '';
                 const bashEl = document.getElementById('cmdBash');
                 if (bashEl) bashEl.value = data.commands.bash_oneliner || '';
+                // APP:Appium server 指令 + Inspector 下載連結
+                const appiumEl = document.getElementById('cmdAppium');
+                if (appiumEl) appiumEl.value = data.commands.appium_server_command || '';
+                const appiumLink = document.getElementById('cmdAppiumInspectorLink');
+                if (appiumLink && data.commands.appium_inspector_url) {
+                    appiumLink.href = data.commands.appium_inspector_url;
+                }
                 document.getElementById('recCmdSection').classList.remove('hidden');
                 document.getElementById('recUploadSection').classList.remove('hidden');
                 document.getElementById('recPreviewSection').classList.add('hidden');
@@ -12270,17 +12360,27 @@ driver.swipe(100, 800, 100, 200, 500)"
             const dockerBox = document.getElementById('recCmdDocker');
             const btnL = document.getElementById('recModeBtnLocal');
             const btnD = document.getElementById('recModeBtnDocker');
+            // Docker 模式由容器內自動上傳,不需要使用者再手動拖檔上傳。
+            // 切到 docker 時隱藏 #recUploadSection;切回 local 時還原。
+            const uploadSection = document.getElementById('recUploadSection');
             if (!localBox || !dockerBox) return;
             if (mode === 'docker') {
                 localBox.classList.add('hidden');
                 dockerBox.classList.remove('hidden');
+                if (uploadSection) uploadSection.classList.add('hidden');
                 btnD.className = 'flex-1 px-3 py-2 rounded-md text-sm font-medium bg-white text-rose-600 shadow-sm flex items-center justify-center gap-2';
                 btnL.className = 'flex-1 px-3 py-2 rounded-md text-sm font-medium text-slate-500 hover:text-slate-700 flex items-center justify-center gap-2';
+                btnD.setAttribute('aria-selected', 'true');
+                btnL.setAttribute('aria-selected', 'false');
             } else {
                 dockerBox.classList.add('hidden');
                 localBox.classList.remove('hidden');
+                // local 模式只在 session 已建立時才顯示上傳區(沿用原本 recCreateSession 的開關邏輯)
+                if (uploadSection && recCurrentSession) uploadSection.classList.remove('hidden');
                 btnL.className = 'flex-1 px-3 py-2 rounded-md text-sm font-medium bg-white text-rose-600 shadow-sm flex items-center justify-center gap-2';
                 btnD.className = 'flex-1 px-3 py-2 rounded-md text-sm font-medium text-slate-500 hover:text-slate-700 flex items-center justify-center gap-2';
+                btnL.setAttribute('aria-selected', 'true');
+                btnD.setAttribute('aria-selected', 'false');
             }
         }
 
@@ -12296,17 +12396,18 @@ driver.swipe(100, 800, 100, 200, 500)"
             btn.disabled = true;
             btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 啟動中…';
             status.textContent = '';
+            // 如果走 425 → build progress 流程,_recRecorderBuildPollAndRetry 會自己接管
+            // 按鈕狀態。flag 讓 finally 知道不要恢復按鈕。
+            let buildPendingHandover = false;
             try {
                 const r = await fetch(`/api/recordings/${encodeURIComponent(recCurrentSession.id)}/docker-start`, {
                     method: 'POST',
                 });
-                // 425 (Too Early) = image 還沒 build,後端已自動觸發 build → 進 build progress 流程
                 if (r.status === 425) {
                     const body = await r.json().catch(() => ({}));
                     const detail = (body && body.detail) || {};
                     showToast(detail.message || 'Recorder image 自動 build 中,完成後會自動開始錄製', 'info');
-                    btn.disabled = false;
-                    btn.innerHTML = orig;
+                    buildPendingHandover = true;
                     _recRecorderBuildPollAndRetry();
                     return;
                 }
@@ -12325,8 +12426,10 @@ driver.swipe(100, 800, 100, 200, 500)"
                 showToast('啟動失敗:' + e.message, 'error');
                 status.innerHTML = `<span class="text-rose-600"><i class="fa-solid fa-circle-xmark"></i> ${_esc(e.message)}</span>`;
             } finally {
-                btn.disabled = false;
-                btn.innerHTML = orig;
+                if (!buildPendingHandover) {
+                    btn.disabled = false;
+                    btn.innerHTML = orig;
+                }
             }
         }
 
@@ -12341,12 +12444,180 @@ driver.swipe(100, 800, 100, 200, 500)"
         }
 
         // 觸發 / 接管 recorder image build,polling 完 ready 自動重試 docker-start
+        // ─── API 模式雙模式切換(本機 cURL / Docker mitmproxy) ───────────
+        let _recApiDockerInfo = null;
+        let _recApiPollTimer = null;
+
+        function recApiSetMode(mode) {
+            const localBox = document.getElementById('recApiLocal');
+            const dockerBox = document.getElementById('recApiDocker');
+            const btnL = document.getElementById('recApiModeBtnLocal');
+            const btnD = document.getElementById('recApiModeBtnDocker');
+            if (mode === 'docker') {
+                localBox.classList.add('hidden');
+                dockerBox.classList.remove('hidden');
+                btnD.className = 'flex-1 px-3 py-2 rounded-md text-sm font-medium bg-white text-purple-600 shadow-sm flex items-center justify-center gap-2';
+                btnL.className = 'flex-1 px-3 py-2 rounded-md text-sm font-medium text-slate-500 hover:text-slate-700 flex items-center justify-center gap-2';
+                btnD.setAttribute('aria-selected', 'true');
+                btnL.setAttribute('aria-selected', 'false');
+            } else {
+                dockerBox.classList.add('hidden');
+                localBox.classList.remove('hidden');
+                btnL.className = 'flex-1 px-3 py-2 rounded-md text-sm font-medium bg-white text-purple-600 shadow-sm flex items-center justify-center gap-2';
+                btnD.className = 'flex-1 px-3 py-2 rounded-md text-sm font-medium text-slate-500 hover:text-slate-700 flex items-center justify-center gap-2';
+                btnL.setAttribute('aria-selected', 'true');
+                btnD.setAttribute('aria-selected', 'false');
+            }
+        }
+
+        async function recApiDockerStart() {
+            if (!recCurrentSession || !recCurrentSession.id) {
+                showToast('請先建立 session', 'error'); return;
+            }
+            const btn = document.getElementById('recApiDockerStartBtn');
+            const status = document.getElementById('recApiDockerStatus');
+            const orig = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 啟動中…';
+            try {
+                const r = await fetch(`/api/recordings/${encodeURIComponent(recCurrentSession.id)}/api-docker-start`, {
+                    method: 'POST',
+                });
+                if (r.status === 425) {
+                    const body = await r.json().catch(()=>({}));
+                    const msg = (body.detail && body.detail.message) || 'recorder-api image 未 build';
+                    showToast(msg, 'error');
+                    return;
+                }
+                if (!r.ok) {
+                    const detail = (await r.json().catch(()=>({}))).detail || ('HTTP '+r.status);
+                    throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
+                }
+                _recApiDockerInfo = await r.json();
+                const host = window.location.hostname || 'localhost';
+                // 顯示 proxy 設定提示
+                document.getElementById('recApiProxyHostPort').textContent = `${host}:${_recApiDockerInfo.proxy_port}`;
+                document.getElementById('recApiProxyInfo').classList.remove('hidden');
+                // iframe 嵌 mitmweb
+                document.getElementById('recApiMitmwebFrame').src = `http://${host}:${_recApiDockerInfo.web_port}/`;
+                document.getElementById('recApiMitmwebWrap').classList.remove('hidden');
+                document.getElementById('recApiDockerIdle').classList.add('hidden');
+                document.getElementById('recApiDockerStopBtn').classList.remove('hidden');
+                btn.classList.add('hidden');
+                status.innerHTML = '<span class="text-emerald-600"><i class="fa-solid fa-circle-check"></i> mitmproxy 已啟動</span>';
+                showToast('mitmproxy 已啟動,請設定 proxy 後開始操作', 'success');
+                _recApiStartPolling();
+            } catch (e) {
+                showToast('啟動失敗:' + e.message, 'error');
+                status.innerHTML = `<span class="text-rose-600"><i class="fa-solid fa-circle-xmark"></i> ${_esc(e.message)}</span>`;
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = orig;
+            }
+        }
+
+        function _recApiStartPolling() {
+            if (_recApiPollTimer) clearInterval(_recApiPollTimer);
+            _recApiPollTimer = setInterval(async () => {
+                if (!recCurrentSession || !recCurrentSession.id) return;
+                try {
+                    const r = await fetch(`/api/recordings/${encodeURIComponent(recCurrentSession.id)}/api-docker-status`);
+                    if (!r.ok) return;
+                    const data = await r.json();
+                    if (data === null || data === undefined) {
+                        clearInterval(_recApiPollTimer); _recApiPollTimer = null;
+                        _recApiDockerResetUI();
+                        document.getElementById('recApiDockerStatus').innerHTML =
+                            '<span class="text-emerald-600"><i class="fa-solid fa-circle-check"></i> mitmproxy 已停止;HAR 已上傳並解析</span>';
+                        showToast('錄製結束,正在解析 HAR…', 'success');
+                        try {
+                            const sr = await fetch(`/api/recordings/${encodeURIComponent(recCurrentSession.id)}`);
+                            if (sr.ok) recCurrentSession = await sr.json();
+                        } catch(_) {}
+                        recRefreshList();
+                        try {
+                            await recConvertAndApply();
+                            document.getElementById('recPreviewSection')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        } catch (e) {
+                            showToast('自動解析失敗:' + (e.message || e), 'error');
+                        }
+                    }
+                } catch(_) {}
+            }, 5000);
+        }
+
+        async function recApiDockerStop() {
+            if (!recCurrentSession || !recCurrentSession.id) return;
+            if (!confirm('確定停止錄製?容器會送 SIGTERM,自動上傳 HAR 並解析成 Http.* 步驟。')) return;
+            try {
+                const r = await fetch(`/api/recordings/${encodeURIComponent(recCurrentSession.id)}/api-docker-stop`, {
+                    method: 'POST',
+                });
+                if (!r.ok && r.status !== 204) throw new Error('HTTP '+r.status);
+                showToast('容器已停止,等待 HAR 上傳…', 'info');
+                // 不立即 reset UI;讓 polling 偵測到結束時自動處理
+            } catch (e) {
+                showToast('停止失敗:' + e.message, 'error');
+            }
+        }
+
+        function _recApiDockerResetUI() {
+            if (_recApiPollTimer) { clearInterval(_recApiPollTimer); _recApiPollTimer = null; }
+            _recApiDockerInfo = null;
+            document.getElementById('recApiMitmwebFrame').src = 'about:blank';
+            document.getElementById('recApiMitmwebWrap').classList.add('hidden');
+            document.getElementById('recApiProxyInfo').classList.add('hidden');
+            document.getElementById('recApiDockerIdle').classList.remove('hidden');
+            document.getElementById('recApiDockerStopBtn').classList.add('hidden');
+            document.getElementById('recApiDockerStartBtn').classList.remove('hidden');
+        }
+
+        // ─── APP 模式雙模式切換(本機 Appium / Docker placeholder) ──────
+        function recAppSetMode(mode) {
+            const localBox = document.getElementById('recAppLocal');
+            const dockerBox = document.getElementById('recAppDocker');
+            const btnL = document.getElementById('recAppModeBtnLocal');
+            const btnD = document.getElementById('recAppModeBtnDocker');
+            if (mode === 'docker') {
+                localBox.classList.add('hidden');
+                dockerBox.classList.remove('hidden');
+                btnD.className = 'flex-1 px-3 py-2 rounded-md text-sm font-medium bg-white text-pink-600 shadow-sm flex items-center justify-center gap-2';
+                btnL.className = 'flex-1 px-3 py-2 rounded-md text-sm font-medium text-slate-500 hover:text-slate-700 flex items-center justify-center gap-2';
+                btnD.setAttribute('aria-selected', 'true');
+                btnL.setAttribute('aria-selected', 'false');
+            } else {
+                dockerBox.classList.add('hidden');
+                localBox.classList.remove('hidden');
+                btnL.className = 'flex-1 px-3 py-2 rounded-md text-sm font-medium bg-white text-pink-600 shadow-sm flex items-center justify-center gap-2';
+                btnD.className = 'flex-1 px-3 py-2 rounded-md text-sm font-medium text-slate-500 hover:text-slate-700 flex items-center justify-center gap-2';
+                btnL.setAttribute('aria-selected', 'true');
+                btnD.setAttribute('aria-selected', 'false');
+            }
+        }
+
         function _recRecorderBuildPollAndRetry() {
             // 顯示 build progress UI
             document.getElementById('recRecorderBuildBox').classList.remove('hidden');
             document.getElementById('recDockerIdle').classList.add('hidden');
+            // 反灰 + 禁用「啟動容器並開始錄製」按鈕,避免使用者重複觸發 build
+            const startBtn = document.getElementById('recDockerStartBtn');
+            if (startBtn) {
+                startBtn.disabled = true;
+                startBtn.dataset.recOrigClass = startBtn.dataset.recOrigClass || startBtn.className;
+                startBtn.className = 'px-4 py-2 bg-slate-300 text-slate-500 rounded font-medium text-sm flex items-center gap-2 cursor-not-allowed';
+                startBtn.innerHTML = '<i class="fa-solid fa-hammer"></i> Image 建構中,請稍候…';
+            }
             const statusBadge = document.getElementById('recRecorderBuildStatus');
             const logBox = document.getElementById('recRecorderBuildLog');
+
+            const restoreStartBtn = () => {
+                if (!startBtn) return;
+                startBtn.disabled = false;
+                if (startBtn.dataset.recOrigClass) {
+                    startBtn.className = startBtn.dataset.recOrigClass;
+                }
+                startBtn.innerHTML = '<i class="fa-solid fa-play"></i> 啟動容器並開始錄製';
+            };
 
             if (_recBuildPollTimer) clearInterval(_recBuildPollTimer);
 
@@ -12375,11 +12646,12 @@ driver.swipe(100, 800, 100, 200, 500)"
                     }
                     if (s.status === 'ready') {
                         clearInterval(_recBuildPollTimer); _recBuildPollTimer = null;
+                        // 不還原按鈕,直接 retry docker-start;recDockerStart 會自己 disable / 改文字
                         showToast('recorder image 已就緒,即將自動啟動容器…', 'success');
-                        // 自動重試 docker-start
                         setTimeout(() => recDockerStart(), 600);
                     } else if (s.status === 'error') {
                         clearInterval(_recBuildPollTimer); _recBuildPollTimer = null;
+                        restoreStartBtn();
                         showToast('Image build 失敗:' + (s.error || '未知錯誤'), 'error');
                     } else if (s.status === 'missing') {
                         // 還沒開始 build → 主動觸發
@@ -12400,19 +12672,27 @@ driver.swipe(100, 800, 100, 200, 500)"
                     if (!r.ok) return;
                     const data = await r.json();
                     if (data === null || data === undefined) {
-                        // 容器已結束(codegen 退出 → 上傳完 → 容器退出)
+                        // 容器已結束(codegen 退出 → 自動 curl 上傳完 → 容器退出)
                         clearInterval(_recDockerPollTimer);
                         _recDockerPollTimer = null;
                         _recDockerResetUI();
                         document.getElementById('recDockerStatus').innerHTML =
-                            '<span class="text-emerald-600"><i class="fa-solid fa-circle-check"></i> 錄製結束;檔案已自動上傳。可至下方「③ 上傳錄製結果」按「解析並套用」</span>';
-                        showToast('錄製結束,檔案已上傳', 'success');
-                        // 從 backend 重抓 session 看是否已 UPLOADED + 自動解析套用 UI
+                            '<span class="text-emerald-600"><i class="fa-solid fa-circle-check"></i> 錄製結束;檔案已自動上傳並解析,請至下方「解析後的 BDD 步驟」選 .md 案例套用</span>';
+                        showToast('錄製結束,正在自動解析…', 'success');
+                        // 從 backend 重抓 session(確認 status=UPLOADED)
                         try {
                             const sr = await fetch(`/api/recordings/${encodeURIComponent(recCurrentSession.id)}`);
                             if (sr.ok) recCurrentSession = await sr.json();
                         } catch(_) {}
                         recRefreshList();
+                        // 自動觸發 convert + 顯示 preview(免使用者再按一次「解析並套用」)
+                        try {
+                            await recConvertAndApply();
+                            // 把 preview section 捲到視野內
+                            document.getElementById('recPreviewSection')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        } catch (e) {
+                            showToast('自動解析失敗:' + (e.message || e), 'error');
+                        }
                     }
                 } catch(_) {}
             }, 5000);
@@ -12649,6 +12929,7 @@ driver.swipe(100, 800, 100, 200, 500)"
             show('recWebSections', platform === 'WEB');
             show('recApiSection', platform === 'API');
             show('recAppSection', platform === 'APP');
+            // history section 只在 WEB 平台顯示;切到 API/APP 隱藏
             show('recHistorySection', platform === 'WEB');
             // 切換時清空上一次的解析結果，避免混淆
             document.getElementById('recPreviewSection').classList.add('hidden');
@@ -17137,7 +17418,7 @@ curl -X POST http://localhost:8000/api/defects \\
         <div class="px-4 py-3 border-b border-stone-200 bg-gradient-to-r from-indigo-50 to-violet-50 flex items-center gap-2 shrink-0">
             <i class="fa-solid fa-robot text-violet-500"></i>
             <span class="font-bold text-stone-800 text-sm">AI 助理</span>
-            <select id="aiChatConvSel" onchange="aiChatSwitchConv(this.value)"
+            <select id="aiChatConvSel" aria-label="AI 對話" onchange="aiChatSwitchConv(this.value)"
                 class="ml-auto flex-1 max-w-[180px] text-xs px-2 py-1 border border-stone-300 rounded bg-white">
                 <option value="">— 載入中 —</option>
             </select>
@@ -17172,7 +17453,7 @@ curl -X POST http://localhost:8000/api/defects \\
                 <textarea id="aiChatInput" rows="2" placeholder="按 Enter 送出 / Shift+Enter 換行"
                     class="flex-1 px-2 py-1.5 border border-stone-300 rounded text-sm resize-none focus:outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-200"
                     onkeydown="aiChatInputKey(event)"></textarea>
-                <button type="button" id="aiChatSendBtn" onclick="aiChatSend()"
+                <button type="button" id="aiChatSendBtn" aria-label="送出訊息" title="送出訊息" onclick="aiChatSend()"
                     class="w-10 h-10 shrink-0 rounded bg-violet-500 hover:bg-violet-600 text-white flex items-center justify-center disabled:opacity-50">
                     <i class="fa-solid fa-paper-plane text-xs"></i>
                 </button>
