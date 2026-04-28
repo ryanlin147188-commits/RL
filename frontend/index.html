@@ -17692,7 +17692,7 @@ gantt
                   <p class="text-xs text-stone-600">需求:<span class="font-mono text-stone-800">${_esc(text.slice(0, 200))}${text.length > 200 ? '…' : ''}</span></p>
                   ${targetUrl ? `<p class="text-xs text-stone-600">起始 URL:<code class="text-fuchsia-700 font-mono">${_esc(targetUrl)}</code></p>` : '<p class="text-xs text-amber-700"><i class="fa-solid fa-triangle-exclamation"></i> 沒在需求中找到 URL,LLM 會自己決定要不要先 navigate</p>'}
                   <p class="text-xs text-stone-500"><i class="fa-solid fa-spinner fa-spin"></i> LLM ↔ MCP 多輪互動中,可能要 30-180 秒(看模型 + 操作步數)</p>
-                  <p class="text-[10px] text-stone-400">⚠ 限 OpenAI / Local provider(需支援 function calling)。Anthropic / Google 還在開發。</p>
+                  <p class="text-[10px] text-stone-400">支援 OpenAI / Claude / Gemini / Local(模型需支援 function calling,例 Ollama 的 qwen2.5)</p>
                 </div>
               </div>`;
             document.body.appendChild(modal);
@@ -18617,7 +18617,7 @@ curl -X POST http://localhost:8000/api/defects \\
                     Provider 設定:<a href="javascript:showSettingsView();aiChatToggle();" class="text-violet-600 hover:underline">設定 → AI Token</a>
                 </p>
                 <!-- Sprint 7 — MCP 自動操作入口 -->
-                <button type="button" onclick="aiChatRunMcpLoop()" class="text-[10px] px-2 py-0.5 rounded bg-fuchsia-500 hover:bg-fuchsia-600 text-white flex items-center gap-1" title="把上方 textarea 的內容當需求,讓 AI 透過 MCP 自動操作瀏覽器產生案例(限 OpenAI / Local + function calling)">
+                <button type="button" onclick="aiChatRunMcpLoop()" class="text-[10px] px-2 py-0.5 rounded bg-fuchsia-500 hover:bg-fuchsia-600 text-white flex items-center gap-1" title="把上方 textarea 的內容當需求,讓 AI 透過 MCP 自動操作瀏覽器產生案例(支援 GPT / Claude / Gemini / Local;模型需有 function calling)">
                     <i class="fa-solid fa-robot"></i> MCP 自動操作
                 </button>
             </div>

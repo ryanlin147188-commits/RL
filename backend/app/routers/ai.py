@@ -781,6 +781,282 @@ async def _run_mcp_loop(
     }
 
 
+# ─── Sprint 8.a — Anthropic Claude tools loop ─────────────────────────
+def _mcp_tools_to_anthropic_schema(mcp_tools: list[dict]) -> list[dict]:
+    """Anthropic Messages API tools 格式:{name, description, input_schema}。"""
+    out = []
+    for t in mcp_tools or []:
+        if not isinstance(t, dict) or not t.get("name"):
+            continue
+        schema = t.get("input_schema") or t.get("inputSchema") or {"type": "object", "properties": {}}
+        out.append({
+            "name": t["name"],
+            "description": (t.get("description") or "")[:1024],
+            "input_schema": schema,
+        })
+    return out
+
+
+async def _run_mcp_loop_anthropic(
+    token, prompt: str, target_url: Optional[str], max_turns: int, mcp_tools: list[dict],
+) -> dict:
+    """Anthropic Claude Messages API 多輪 tool_use 迴圈。"""
+    from app.services.ai_test_gen import _default_base_url, _default_model
+    if not token.api_key:
+        raise RuntimeError("Anthropic 需要 api_key")
+    base_url = (token.base_url or _default_base_url(token.provider)).rstrip("/")
+    model = token.model or _default_model(token.provider)
+    headers = {
+        "Content-Type": "application/json",
+        "x-api-key": token.api_key,
+        "anthropic-version": "2023-06-01",
+    }
+
+    user_intro = f"# 測試需求\n{prompt}"
+    if target_url:
+        user_intro += f"\n\n# 起始 URL\n{target_url}\n\n請用 tools 開頁並探索。"
+
+    messages: list[dict] = [{"role": "user", "content": user_intro}]
+    tools_schema = _mcp_tools_to_anthropic_schema(mcp_tools)
+    tool_calls_log: list[dict] = []
+    final_text: Optional[str] = None
+    finish_reason: Optional[str] = None
+    last_turn = 0
+
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        for turn in range(max_turns):
+            last_turn = turn + 1
+            payload = {
+                "model": model,
+                "max_tokens": 4000,
+                "system": _MCP_LOOP_SYSTEM_PROMPT,
+                "messages": messages,
+                "temperature": 0.2,
+            }
+            if tools_schema:
+                payload["tools"] = tools_schema
+
+            try:
+                r = await client.post(base_url + "/v1/messages", headers=headers, json=payload)
+                r.raise_for_status()
+                resp = r.json()
+            except Exception as e:
+                raise RuntimeError(f"Anthropic 呼叫失敗(turn {turn+1}):{e}")
+
+            stop_reason = resp.get("stop_reason")
+            content_blocks = resp.get("content") or []
+            finish_reason = stop_reason
+
+            # 收集這輪 LLM 的 text / tool_use
+            text_parts = [b.get("text", "") for b in content_blocks if isinstance(b, dict) and b.get("type") == "text"]
+            tool_uses = [b for b in content_blocks if isinstance(b, dict) and b.get("type") == "tool_use"]
+
+            if stop_reason != "tool_use" or not tool_uses:
+                # LLM 結束(end_turn / max_tokens / stop_sequence)
+                final_text = "\n".join(text_parts)
+                break
+
+            # 把這輪 assistant content(整個 array,含 tool_use)加進 history
+            messages.append({"role": "assistant", "content": content_blocks})
+
+            # 對每個 tool_use 呼叫 MCP,組 tool_result blocks
+            tool_results = []
+            for tu in tool_uses:
+                tool_name = tu.get("name") or ""
+                args = tu.get("input") or {}
+                try:
+                    rpc = await _mcp_jsonrpc("tools/call", {"name": tool_name, "arguments": args}, timeout=45)
+                    if "error" in rpc:
+                        result_text = json.dumps({"error": str(rpc["error"])}, ensure_ascii=False)
+                    else:
+                        rr = rpc.get("result") or {}
+                        if isinstance(rr, dict):
+                            text_p = []
+                            for c in (rr.get("content") or []):
+                                if isinstance(c, dict) and c.get("type") == "text":
+                                    text_p.append(c.get("text") or "")
+                            result_text = "\n".join(text_p) if text_p else json.dumps(rr, ensure_ascii=False)[:4000]
+                        else:
+                            result_text = str(rr)[:4000]
+                except Exception as e:
+                    result_text = json.dumps({"error": f"MCP exception: {e}"}, ensure_ascii=False)
+
+                tool_calls_log.append({
+                    "turn": turn + 1, "tool": tool_name, "arguments": args,
+                    "result_preview": result_text[:300],
+                })
+                tool_results.append({
+                    "type": "tool_result",
+                    "tool_use_id": tu.get("id") or "",
+                    "content": result_text,
+                })
+            messages.append({"role": "user", "content": tool_results})
+        else:
+            # 跑滿 max_turns 沒結束 → 強制要 step
+            messages.append({"role": "user", "content": "請立即停止 tool 呼叫,直接輸出 GeneratedStep JSON 陣列(沒圍欄沒解釋)。"})
+            try:
+                r = await client.post(
+                    base_url + "/v1/messages", headers=headers,
+                    json={"model": model, "max_tokens": 4000, "system": _MCP_LOOP_SYSTEM_PROMPT, "messages": messages, "temperature": 0.2},
+                )
+                r.raise_for_status()
+                resp = r.json()
+                final_text = "".join(b.get("text", "") for b in (resp.get("content") or []) if b.get("type") == "text")
+                finish_reason = "stop_forced"
+            except Exception as e:
+                final_text = ""
+                finish_reason = f"error_after_max_turns:{e}"
+
+    steps = _extract_steps_from_text(final_text or "")
+    return {
+        "ok": bool(steps), "turns": last_turn, "finish_reason": finish_reason,
+        "final_text": (final_text or "")[:4000], "steps_json": steps, "tool_calls_log": tool_calls_log,
+    }
+
+
+# ─── Sprint 8.b — Google Gemini function calling loop ─────────────────
+def _mcp_tools_to_google_schema(mcp_tools: list[dict]) -> list[dict]:
+    """Google generateContent tools 格式:[{functionDeclarations: [...]}]。"""
+    fdecls = []
+    for t in mcp_tools or []:
+        if not isinstance(t, dict) or not t.get("name"):
+            continue
+        params = t.get("input_schema") or t.get("inputSchema") or {"type": "object", "properties": {}}
+        fdecls.append({
+            "name": t["name"],
+            "description": (t.get("description") or "")[:1024],
+            "parameters": params,
+        })
+    return [{"functionDeclarations": fdecls}] if fdecls else []
+
+
+async def _run_mcp_loop_google(
+    token, prompt: str, target_url: Optional[str], max_turns: int, mcp_tools: list[dict],
+) -> dict:
+    """Google Gemini generateContent function calling 多輪迴圈。"""
+    from app.services.ai_test_gen import _default_base_url, _default_model
+    if not token.api_key:
+        raise RuntimeError("Google Gemini 需要 api_key")
+    base_url = (token.base_url or _default_base_url(token.provider)).rstrip("/")
+    model = token.model or _default_model(token.provider)
+    headers = {"Content-Type": "application/json"}
+
+    user_intro = f"# 測試需求\n{prompt}"
+    if target_url:
+        user_intro += f"\n\n# 起始 URL\n{target_url}\n\n請用 tools 開頁並探索。"
+
+    contents: list[dict] = [{"role": "user", "parts": [{"text": user_intro}]}]
+    tools_schema = _mcp_tools_to_google_schema(mcp_tools)
+    tool_calls_log: list[dict] = []
+    final_text: Optional[str] = None
+    finish_reason: Optional[str] = None
+    last_turn = 0
+
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        for turn in range(max_turns):
+            last_turn = turn + 1
+            payload = {
+                "system_instruction": {"parts": [{"text": _MCP_LOOP_SYSTEM_PROMPT}]},
+                "contents": contents,
+                "generationConfig": {"temperature": 0.2, "maxOutputTokens": 4000},
+            }
+            if tools_schema:
+                payload["tools"] = tools_schema
+
+            url = base_url + f"/models/{model}:generateContent?key={token.api_key}"
+            try:
+                r = await client.post(url, headers=headers, json=payload)
+                r.raise_for_status()
+                resp = r.json()
+            except Exception as e:
+                raise RuntimeError(f"Google 呼叫失敗(turn {turn+1}):{e}")
+
+            candidates = resp.get("candidates") or []
+            if not candidates:
+                final_text = ""
+                finish_reason = "no_candidates"
+                break
+
+            cand0 = candidates[0]
+            cand_content = cand0.get("content") or {}
+            parts = cand_content.get("parts") or []
+            cand_finish = cand0.get("finishReason")
+            finish_reason = cand_finish
+
+            # 抓 functionCall + text
+            fcalls = [p.get("functionCall") for p in parts if isinstance(p, dict) and p.get("functionCall")]
+            texts = [p.get("text", "") for p in parts if isinstance(p, dict) and p.get("text")]
+
+            if not fcalls:
+                final_text = "\n".join(texts)
+                break
+
+            # 記下 model 這輪的整段 content(放回 contents 維持 history)
+            contents.append({"role": "model", "parts": parts})
+
+            # 對每個 functionCall 呼叫 MCP,組 functionResponse parts
+            response_parts = []
+            for fc in fcalls:
+                tool_name = fc.get("name") or ""
+                args = fc.get("args") or {}
+                try:
+                    rpc = await _mcp_jsonrpc("tools/call", {"name": tool_name, "arguments": args}, timeout=45)
+                    if "error" in rpc:
+                        result_text = json.dumps({"error": str(rpc["error"])}, ensure_ascii=False)
+                    else:
+                        rr = rpc.get("result") or {}
+                        if isinstance(rr, dict):
+                            text_p = []
+                            for c in (rr.get("content") or []):
+                                if isinstance(c, dict) and c.get("type") == "text":
+                                    text_p.append(c.get("text") or "")
+                            result_text = "\n".join(text_p) if text_p else json.dumps(rr, ensure_ascii=False)[:4000]
+                        else:
+                            result_text = str(rr)[:4000]
+                except Exception as e:
+                    result_text = json.dumps({"error": f"MCP exception: {e}"}, ensure_ascii=False)
+
+                tool_calls_log.append({
+                    "turn": turn + 1, "tool": tool_name, "arguments": args,
+                    "result_preview": result_text[:300],
+                })
+                # Gemini functionResponse content 欄位是 dict;包成 {"result": "..."} 即可
+                response_parts.append({
+                    "functionResponse": {
+                        "name": tool_name,
+                        "response": {"result": result_text},
+                    }
+                })
+            contents.append({"role": "user", "parts": response_parts})
+        else:
+            # 跑滿 max_turns 強制要 step
+            contents.append({"role": "user", "parts": [{"text": "請立即停止 functionCall,直接輸出 GeneratedStep JSON 陣列(沒圍欄沒解釋)。"}]})
+            try:
+                r = await client.post(
+                    base_url + f"/models/{model}:generateContent?key={token.api_key}",
+                    headers=headers,
+                    json={
+                        "system_instruction": {"parts": [{"text": _MCP_LOOP_SYSTEM_PROMPT}]},
+                        "contents": contents,
+                        "generationConfig": {"temperature": 0.2, "maxOutputTokens": 4000},
+                    },
+                )
+                r.raise_for_status()
+                resp = r.json()
+                cand0 = (resp.get("candidates") or [{}])[0]
+                final_text = "".join(p.get("text", "") for p in (cand0.get("content") or {}).get("parts") or [] if p.get("text"))
+                finish_reason = "stop_forced"
+            except Exception as e:
+                final_text = ""
+                finish_reason = f"error_after_max_turns:{e}"
+
+    steps = _extract_steps_from_text(final_text or "")
+    return {
+        "ok": bool(steps), "turns": last_turn, "finish_reason": finish_reason,
+        "final_text": (final_text or "")[:4000], "steps_json": steps, "tool_calls_log": tool_calls_log,
+    }
+
+
 @router.post("/ai/mcp/run", response_model=McpRunResponse, tags=["V · AI"])
 @limiter.limit("10/hour")  # MCP 流量 + tokens 都很重,限速嚴一點
 async def mcp_run(
@@ -807,14 +1083,9 @@ async def mcp_run(
     except RuntimeError as e:
         raise HTTPException(400, str(e))
 
-    if token.provider not in (AiProvider.OPENAI, AiProvider.LOCAL):
-        # 非 OpenAI 走非標準 tool format,留下個 sprint
-        raise HTTPException(
-            501,
-            f"目前 MCP loop 只支援 OpenAI / Local;選定的 provider={token.provider.value if hasattr(token.provider, 'value') else token.provider} 還沒適配,請切到 GPT 或本地模型(需支援 function calling,例 Ollama 的 qwen2.5)",
-        )
-
-    # 抓 MCP tools
+    # Sprint 8 — 三 provider 全支援(OpenAI / Anthropic / Google);
+    # Local Ollama 走 OpenAI-compatible(模型本身要支援 function calling,例 qwen2.5 / mistral-nemo)
+    # 抓 MCP tools(共用一次)
     try:
         rpc = await _mcp_jsonrpc("tools/list", {})
     except Exception as e:
@@ -827,7 +1098,13 @@ async def mcp_run(
 
     max_turns = max(1, min(int(payload.max_turns or 10), 30))
     try:
-        result = await _run_mcp_loop(token, payload.prompt, payload.target_url, max_turns, mcp_tools)
+        if token.provider == AiProvider.ANTHROPIC:
+            result = await _run_mcp_loop_anthropic(token, payload.prompt, payload.target_url, max_turns, mcp_tools)
+        elif token.provider == AiProvider.GOOGLE:
+            result = await _run_mcp_loop_google(token, payload.prompt, payload.target_url, max_turns, mcp_tools)
+        else:
+            # OpenAI / Local(OpenAI-compatible)
+            result = await _run_mcp_loop(token, payload.prompt, payload.target_url, max_turns, mcp_tools)
     except RuntimeError as e:
         raise HTTPException(502, str(e))
     except Exception as e:
