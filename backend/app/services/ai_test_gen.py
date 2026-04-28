@@ -24,9 +24,12 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import io
 import json
 import logging
 import re
+import zipfile
 from typing import Any, Optional
 
 import httpx
@@ -417,6 +420,149 @@ def _enhance_user_prompt(script_text: str, current_steps: list[dict]) -> str:
     return "\n".join(parts)
 
 
+def _extract_trace_screenshots(trace_path_or_url: str, max_count: int = 3) -> list[bytes]:
+    """Sprint 5.1 — 從 Playwright trace.zip 抽 N 張 PNG screenshots(first / mid / last)。
+
+    trace_path_or_url 可以是:
+    - SeaweedFS 相對 URL `/pics/recordings/{id}/trace.zip`
+    - 完整 URL(http/https)
+    成功回 list[bytes];失敗或沒 PNG 回 [](不阻塞 vision 呼叫)。
+    """
+    if not trace_path_or_url:
+        return []
+    try:
+        from app.services.storage_service import fetch_bytes
+        # 推 bucket + key
+        url = trace_path_or_url
+        if url.startswith("/pics/"):
+            zip_bytes = fetch_bytes("pic", url[len("/pics/"):])
+        elif url.startswith("/results/"):
+            zip_bytes = fetch_bytes("results", url[len("/results/"):])
+        elif url.startswith(("http://", "https://")):
+            with httpx.Client(timeout=30.0) as c:
+                r = c.get(url)
+                r.raise_for_status()
+                zip_bytes = r.content
+        else:
+            log.warning("trace 路徑無法解析: %s", trace_path_or_url)
+            return []
+    except Exception as e:
+        log.warning("讀 trace.zip 失敗: %s", e)
+        return []
+
+    pngs: list[bytes] = []
+    try:
+        with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
+            # 找出所有 PNG;Playwright trace 格式裡 resources/<sha>.png 是 screenshot
+            png_names = sorted([n for n in zf.namelist() if n.lower().endswith(".png")])
+            if not png_names:
+                return []
+            # 平均取 max_count 張(first / mid / last 或更多)
+            if len(png_names) <= max_count:
+                picked = png_names
+            else:
+                step = len(png_names) // max_count
+                picked = [png_names[i * step] for i in range(max_count)]
+            for name in picked:
+                try:
+                    data = zf.read(name)
+                    if 1024 <= len(data) <= 2_000_000:  # 過小的可能是 placeholder,過大不餵 LLM
+                        pngs.append(data)
+                except Exception:
+                    continue
+    except zipfile.BadZipFile:
+        log.warning("trace.zip 不是合法 zip")
+        return []
+    return pngs
+
+
+async def _call_openai_vision(
+    *, base_url: str, api_key: Optional[str], model: str,
+    system: str, user_text: str, images_b64: list[str],
+) -> str:
+    """OpenAI / Local with vision content blocks。"""
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    content = [{"type": "text", "text": user_text}]
+    for img in images_b64:
+        content.append({
+            "type": "image_url",
+            "image_url": {"url": f"data:image/png;base64,{img}"},
+        })
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": content},
+        ],
+        "temperature": 0.2,
+        "max_tokens": 3000,
+    }
+    url = base_url.rstrip("/") + "/chat/completions"
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        r = await client.post(url, headers=headers, json=payload)
+        r.raise_for_status()
+        return r.json()["choices"][0]["message"]["content"]
+
+
+async def _call_anthropic_vision(
+    *, base_url: str, api_key: str, model: str,
+    system: str, user_text: str, images_b64: list[str],
+) -> str:
+    headers = {
+        "Content-Type": "application/json",
+        "x-api-key": api_key,
+        "anthropic-version": "2023-06-01",
+    }
+    content = []
+    for img in images_b64:
+        content.append({
+            "type": "image",
+            "source": {"type": "base64", "media_type": "image/png", "data": img},
+        })
+    content.append({"type": "text", "text": user_text})
+    payload = {
+        "model": model,
+        "max_tokens": 3000,
+        "system": system,
+        "messages": [{"role": "user", "content": content}],
+        "temperature": 0.2,
+    }
+    url = base_url.rstrip("/") + "/v1/messages"
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        r = await client.post(url, headers=headers, json=payload)
+        r.raise_for_status()
+        data = r.json()
+    parts = data.get("content", [])
+    return "".join(p.get("text", "") for p in parts if p.get("type") == "text")
+
+
+async def _call_google_vision(
+    *, base_url: str, api_key: str, model: str,
+    system: str, user_text: str, images_b64: list[str],
+) -> str:
+    headers = {"Content-Type": "application/json"}
+    parts: list[dict] = [{"text": user_text}]
+    for img in images_b64:
+        parts.append({"inline_data": {"mime_type": "image/png", "data": img}})
+    payload = {
+        "system_instruction": {"parts": [{"text": system}]},
+        "contents": [{"role": "user", "parts": parts}],
+        "generationConfig": {"temperature": 0.2, "maxOutputTokens": 3000},
+    }
+    url = base_url.rstrip("/") + f"/models/{model}:generateContent?key={api_key}"
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        r = await client.post(url, headers=headers, json=payload)
+        r.raise_for_status()
+        data = r.json()
+    candidates = data.get("candidates") or []
+    if not candidates:
+        return ""
+    parts = (candidates[0].get("content") or {}).get("parts") or []
+    return "".join(p.get("text", "") for p in parts)
+
+
 async def enhance_steps_with_ai(
     db: AsyncSession,
     *,
@@ -424,6 +570,8 @@ async def enhance_steps_with_ai(
     current_steps: list[dict],
     provider: Optional[str] = None,
     organization_id: Optional[str] = None,
+    use_vision: bool = False,
+    trace_path: Optional[str] = None,
 ) -> dict[str, Any]:
     """Sprint 3.1 — AI 增強:看 codegen 腳本 + 已解析 step → 推斷意圖加 capture / 多條件 / 動態運算式。
 
@@ -436,24 +584,54 @@ async def enhance_steps_with_ai(
     user = _enhance_user_prompt(script_text or "", current_steps or [])
     base_url = token.base_url or _default_base_url(token.provider)
     model = token.model or _default_model(token.provider)
-    log.info("ai_enhance: provider=%s model=%s steps=%s", token.provider, model, len(current_steps or []))
+
+    # Sprint 5.1 — Vision 模式:從 trace.zip 抽 screenshot 餵 vision LLM
+    images_b64: list[str] = []
+    if use_vision and trace_path:
+        png_bytes_list = _extract_trace_screenshots(trace_path, max_count=3)
+        images_b64 = [base64.b64encode(b).decode("ascii") for b in png_bytes_list]
+        if images_b64:
+            user = (user
+                + f"\n\n# 附上錄製過程的 {len(images_b64)} 張截圖(時序排列)"
+                + "\n請結合截圖內容,推斷使用者的視覺意圖(例如看到錯誤訊息應加 AssertText 抓錯誤)。"
+            )
+    log.info("ai_enhance: provider=%s model=%s steps=%s vision=%s images=%s",
+             token.provider, model, len(current_steps or []), use_vision, len(images_b64))
 
     if token.provider == AiProvider.OPENAI or token.provider == AiProvider.LOCAL:
-        out = await _call_openai_compat(
-            base_url=base_url, api_key=token.api_key, model=model, system=system, user=user,
-        )
+        if images_b64:
+            out = await _call_openai_vision(
+                base_url=base_url, api_key=token.api_key, model=model,
+                system=system, user_text=user, images_b64=images_b64,
+            )
+        else:
+            out = await _call_openai_compat(
+                base_url=base_url, api_key=token.api_key, model=model, system=system, user=user,
+            )
     elif token.provider == AiProvider.ANTHROPIC:
         if not token.api_key:
             raise RuntimeError("Anthropic 需要 api_key")
-        out = await _call_anthropic(
-            base_url=base_url, api_key=token.api_key, model=model, system=system, user=user,
-        )
+        if images_b64:
+            out = await _call_anthropic_vision(
+                base_url=base_url, api_key=token.api_key, model=model,
+                system=system, user_text=user, images_b64=images_b64,
+            )
+        else:
+            out = await _call_anthropic(
+                base_url=base_url, api_key=token.api_key, model=model, system=system, user=user,
+            )
     elif token.provider == AiProvider.GOOGLE:
         if not token.api_key:
             raise RuntimeError("Google Gemini 需要 api_key")
-        out = await _call_google(
-            base_url=base_url, api_key=token.api_key, model=model, system=system, user=user,
-        )
+        if images_b64:
+            out = await _call_google_vision(
+                base_url=base_url, api_key=token.api_key, model=model,
+                system=system, user_text=user, images_b64=images_b64,
+            )
+        else:
+            out = await _call_google(
+                base_url=base_url, api_key=token.api_key, model=model, system=system, user=user,
+            )
     else:
         raise RuntimeError(f"未知 provider: {token.provider}")
 
@@ -487,6 +665,8 @@ async def enhance_steps_with_ai(
         "original_count": len(current_steps or []),
         "enhanced_count": len(enhanced),
         "enhanced_steps": enhanced,
+        "vision_used": bool(images_b64),
+        "screenshot_count": len(images_b64),
     }
     if not enhanced:
         result["error"] = "AI 回應無法解析為 step 陣列;原始 raw 已截短"

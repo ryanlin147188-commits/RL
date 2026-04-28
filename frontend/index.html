@@ -1302,7 +1302,8 @@ driver.swipe(100, 800, 100, 200, 500)"
                     <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
                         <h3 class="font-bold text-slate-700 flex items-center gap-2"><i class="fa-solid fa-circle-4 text-rose-500"></i> 解析後的 BDD 步驟</h3>
                         <div class="flex items-center gap-2 flex-wrap">
-                            <button onclick="recAiEnhance()" class="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded text-xs font-medium flex items-center gap-1" title="AI 增強:看腳本與步驟意圖,自動加 capture / 多條件斷言 / 動態運算式"><i class="fa-solid fa-robot"></i> AI 增強</button>
+                            <button onclick="recAiEnhance(false)" class="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded text-xs font-medium flex items-center gap-1" title="AI 增強(純文字):看腳本與步驟意圖,自動加 capture / 多條件斷言 / 動態運算式"><i class="fa-solid fa-robot"></i> AI 增強</button>
+                            <button onclick="recAiEnhance(true)" class="px-3 py-1.5 bg-fuchsia-600 hover:bg-fuchsia-700 text-white rounded text-xs font-medium flex items-center gap-1" title="AI 增強(Vision):額外從 trace.zip 抽 screenshot 餵 vision LLM,可看畫面細節判斷意圖。限 GPT-4o / Claude 3.5 Sonnet / Gemini Pro"><i class="fa-solid fa-camera-retro"></i> AI + Vision</button>
                             <span class="text-stone-300 text-xs">|</span>
                             <button onclick="recCreateNewCaseFromSteps()" class="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded text-xs font-medium flex items-center gap-1" title="直接把這些步驟建成一個全新測試案例(不用先選目標)"><i class="fa-solid fa-bolt"></i> 直接建為新案例</button>
                             <span class="text-stone-300 text-xs">|</span>
@@ -13359,16 +13360,26 @@ driver.swipe(100, 800, 100, 200, 500)"
             });
         }
 
-        // S3.1/3.2 — AI 增強:把 raw script + 當前 steps 餵 LLM 回增強版,使用者 diff 決定接不接受
-        async function recAiEnhance() {
+        // S3.1/3.2/5.1 — AI 增強(可選 vision):
+        //   - 純文字:餵 raw script + 當前 steps 給 LLM
+        //   - Vision:額外從 session.trace_path 抽 N 張 screenshot 餵 vision LLM
+        async function recAiEnhance(useVision) {
             if (!recCurrentSession || !recCurrentSession.id) { showToast('請先建立 session 並解析', 'error'); return; }
             if (!recLastSteps.length) { showToast('沒有可增強的步驟,請先解析', 'error'); return; }
-            showToast('AI 增強中…約 5-30 秒,請稍候', 'info');
+            if (useVision && !recCurrentSession.trace_path) {
+                if (!confirm('此 session 沒有 trace.zip(可能本機錄製沒帶);要繼續用純文字模式嗎?')) return;
+                useVision = false;
+            }
+            const tag = useVision ? 'AI + Vision' : 'AI';
+            showToast(`${tag} 增強中…約 5-60 秒,請稍候`, 'info');
             try {
                 const r = await fetch(`/api/recordings/${encodeURIComponent(recCurrentSession.id)}/ai-enhance`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ current_steps: recLastSteps.map(s => recMapStep(s, 0)) }),
+                    body: JSON.stringify({
+                        current_steps: recLastSteps.map(s => recMapStep(s, 0)),
+                        use_vision: !!useVision,
+                    }),
                 });
                 if (!r.ok) {
                     const detail = (await r.json().catch(()=>({}))).detail || ('HTTP '+r.status);
@@ -13422,7 +13433,7 @@ driver.swipe(100, 800, 100, 200, 500)"
               <div class="bg-white rounded-xl shadow-2xl w-full max-w-7xl border border-violet-200 max-h-[92vh] flex flex-col">
                 <div class="px-6 py-4 border-b border-stone-200 bg-violet-50/60 flex items-center justify-between">
                   <h3 class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-robot text-violet-500"></i> AI 增強結果 diff
-                    <span class="text-[11px] font-normal text-stone-500">${_esc(data.provider||'?')} / ${_esc(data.model||'?')} · 原始 ${data.original_count} step → 增強 ${data.enhanced_count} step</span>
+                    <span class="text-[11px] font-normal text-stone-500">${_esc(data.provider||'?')} / ${_esc(data.model||'?')} · 原始 ${data.original_count} step → 增強 ${data.enhanced_count} step${data.vision_used ? ` · <i class="fa-solid fa-camera-retro text-fuchsia-500"></i> Vision (${data.screenshot_count} 張 screenshot)` : ''}</span>
                   </h3>
                   <button onclick="document.getElementById('aiEnhanceModal').remove()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
                 </div>

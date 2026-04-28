@@ -40,6 +40,7 @@ _BUCKET_TO_URL_PREFIX: dict[str, str] = {"pic": "/pics", "results": "/results"}
 class _StorageBackend(Protocol):
     async def put_upload(self, file: UploadFile, bucket: BucketName, key: str) -> str: ...
     def put_bytes(self, data: bytes, bucket: BucketName, key: str, content_type: str) -> str: ...
+    def fetch_bytes(self, bucket: BucketName, key: str) -> bytes: ...
 
 
 # ── Local filesystem backend ──────────────────────────────────────────
@@ -68,6 +69,14 @@ class _LocalStorage:
         with open(self._full_path(bucket, key), "wb") as f:
             f.write(data)
         return f"{_BUCKET_TO_URL_PREFIX[bucket]}/{key}"
+
+    def fetch_bytes(self, bucket: BucketName, key: str) -> bytes:
+        """Sprint 5.1 — 讀回 put_bytes / put_upload 寫入的檔(local backend)。"""
+        path = os.path.join(self._root, bucket, key)
+        if not os.path.exists(path):
+            raise HTTPException(404, f"object not found: {bucket}/{key}")
+        with open(path, "rb") as f:
+            return f.read()
 
 
 # ── MinIO (S3-compatible) backend ─────────────────────────────────────
@@ -104,6 +113,14 @@ class _MinioStorage:
         self._client.put_object(Bucket=bucket, Key=key, Body=io.BytesIO(data), ContentType=content_type)
         return f"{_BUCKET_TO_URL_PREFIX[bucket]}/{key}"
 
+    def fetch_bytes(self, bucket: BucketName, key: str) -> bytes:
+        """Sprint 5.1 — 從 SeaweedFS / MinIO 讀回 object。"""
+        try:
+            obj = self._client.get_object(Bucket=bucket, Key=key)
+            return obj["Body"].read()
+        except Exception as e:
+            raise HTTPException(404, f"object not found: {bucket}/{key} ({e})")
+
 
 def _build_backend() -> _StorageBackend:
     backend = (settings.STORAGE_BACKEND or "local").lower()
@@ -135,6 +152,11 @@ async def save_screenshot(file: UploadFile) -> str:
 def save_bytes(data: bytes, key: str, *, bucket: BucketName = "results", content_type: str = "application/octet-stream") -> str:
     """Persist arbitrary bytes (used by Robot listener for screenshots / reports)."""
     return _backend.put_bytes(data, bucket, key, content_type)
+
+
+def fetch_bytes(bucket: BucketName, key: str) -> bytes:
+    """Sprint 5.1 — Read bytes back from storage(local 或 MinIO/SeaweedFS)。"""
+    return _backend.fetch_bytes(bucket, key)
 
 
 async def save_upload(file: UploadFile, *, bucket: BucketName = "pic", key: str | None = None) -> str:

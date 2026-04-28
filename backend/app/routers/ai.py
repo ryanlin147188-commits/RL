@@ -3,8 +3,10 @@
 (同 auth.py：刻意不開啟 `from __future__ import annotations`，避免
 與 slowapi `@limiter.limit` 的型別內省衝突。)
 """
+import json
 from typing import Optional
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -236,6 +238,78 @@ async def mcp_stop(user: User = Depends(get_current_user)):
         except Exception: pass
     except Exception:
         pass
+
+
+class McpToolInfo(BaseModel):
+    name: str
+    description: Optional[str] = None
+    input_schema: Optional[dict] = None
+
+
+class McpToolsResponse(BaseModel):
+    running: bool
+    tool_count: int = 0
+    tools: list[McpToolInfo] = []
+    error: Optional[str] = None
+
+
+@router.get("/ai/mcp/tools", response_model=McpToolsResponse, tags=["V · AI"])
+async def mcp_tools(user: User = Depends(get_current_user)):
+    """Sprint 5.3 — 從正在跑的 MCP server 抓可用 tool 清單。
+
+    Playwright MCP server 在 SSE 模式下接受 JSON-RPC over HTTP POST 到 /mcp endpoint。
+    透過 `tools/list` method 拿可用 tool。前端可用此清單顯示給使用者「LLM 能做哪些事」。
+    """
+    if not _mcp_state.get("container_id") or not _mcp_state.get("container_name"):
+        return McpToolsResponse(running=False, error="MCP server 沒在跑;請先 POST /api/ai/mcp/start")
+
+    # 從 backend 容器內走 internal docker network 連 MCP server(用 container_name 當 hostname)
+    mcp_url = f"http://{_mcp_state['container_name']}:8931/mcp"
+    payload = {
+        "jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {},
+    }
+    headers = {
+        "Content-Type": "application/json",
+        # MCP SSE protocol 接受 JSON 回應或 SSE event-stream
+        "Accept": "application/json, text/event-stream",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.post(mcp_url, json=payload, headers=headers)
+            r.raise_for_status()
+            # MCP server 可能回 JSON-RPC response 或 SSE event 包裹的 JSON
+            text = r.text
+            data: dict
+            if text.startswith("event:") or text.startswith("data:"):
+                # SSE:抓 data: 後的 JSON line
+                for line in text.splitlines():
+                    if line.startswith("data:"):
+                        try:
+                            data = json.loads(line[5:].strip())
+                            break
+                        except json.JSONDecodeError:
+                            continue
+                else:
+                    return McpToolsResponse(running=True, error="無法解析 SSE 回應")
+            else:
+                data = r.json()
+    except httpx.HTTPError as e:
+        return McpToolsResponse(running=True, error=f"MCP server 連線失敗:{e}")
+    except Exception as e:
+        return McpToolsResponse(running=True, error=f"未預期錯誤:{e}")
+
+    if "error" in data:
+        return McpToolsResponse(running=True, error=str(data["error"]))
+    tools_raw = (data.get("result") or {}).get("tools") or []
+    tools = [
+        McpToolInfo(
+            name=str(t.get("name") or ""),
+            description=t.get("description"),
+            input_schema=t.get("inputSchema") or t.get("input_schema"),
+        )
+        for t in tools_raw if isinstance(t, dict)
+    ]
+    return McpToolsResponse(running=True, tool_count=len(tools), tools=tools)
 
 
 @router.get("/ai/mcp/status", response_model=McpStatus, tags=["V · AI"])

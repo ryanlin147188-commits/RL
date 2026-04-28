@@ -872,9 +872,12 @@ def _parse_script(script: str) -> list[GeneratedStep]:
 
 
 class AiEnhanceRequest(BaseModel):
-    """Sprint 3.1 — AI 增強現有解析 step 陣列。"""
+    """Sprint 3.1 / 5.1 — AI 增強現有解析 step 陣列(可選 vision)。"""
     current_steps: list[dict] = []
     provider: Optional[str] = None
+    # Sprint 5.1 — 是否從 trace.zip 抽 screenshot 餵 vision LLM
+    # 限 GPT-4o / Claude 3.5 Sonnet / Gemini Pro 等支援 vision 的模型
+    use_vision: bool = False
 
 
 class AiEnhanceResponse(BaseModel):
@@ -883,6 +886,8 @@ class AiEnhanceResponse(BaseModel):
     original_count: int
     enhanced_count: int
     enhanced_steps: list[dict] = []
+    vision_used: bool = False
+    screenshot_count: int = 0
     raw: Optional[str] = None
     error: Optional[str] = None
 
@@ -912,6 +917,8 @@ async def ai_enhance_recording(
             script_text=session.script_text or "",
             current_steps=payload.current_steps or [],
             provider=payload.provider,
+            use_vision=payload.use_vision,
+            trace_path=session.trace_path,
         )
     except RuntimeError as e:
         raise HTTPException(400, str(e))
