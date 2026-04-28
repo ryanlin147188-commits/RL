@@ -3,12 +3,16 @@
 (同 auth.py：刻意不開啟 `from __future__ import annotations`，避免
 與 slowapi `@limiter.limit` 的型別內省衝突。)
 """
+import asyncio
 import json
+import logging
 from typing import Optional
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
+
+log = logging.getLogger(__name__)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
@@ -152,6 +156,141 @@ def _get_mcp_docker():
         raise HTTPException(500, f"無法連到 docker daemon:{e}")
 
 
+# ─── Sprint 6.1 — MCP image 自動 build(沿用 recorder 425+polling 模式) ───
+_mcp_image_state: dict = {
+    "status": "unknown",  # unknown / missing / building / ready / error
+    "log": [],
+    "started_at": None,
+    "finished_at": None,
+    "error": None,
+}
+_mcp_image_lock = asyncio.Lock()
+
+
+def _mcp_image_exists() -> bool:
+    try:
+        client = _get_mcp_docker()
+    except HTTPException:
+        return False
+    try:
+        client.images.get(_settings.MCP_IMAGE)
+        return True
+    except Exception:
+        return False
+
+
+def _mcp_log_append(line: str, max_lines: int = 200) -> None:
+    state = _mcp_image_state
+    state["log"].append(line)
+    if len(state["log"]) > max_lines:
+        state["log"] = state["log"][-max_lines:]
+
+
+def _build_mcp_image_sync() -> None:
+    """Blocking build for asyncio.to_thread。Build context 用 backend image 內 /app
+    (Dockerfile 已 COPY . /app,所以 Dockerfile.mcp 在 /app/Dockerfile.mcp)。"""
+    import docker  # type: ignore
+    state = _mcp_image_state
+    try:
+        api = docker.APIClient(base_url="unix:///var/run/docker.sock")
+    except Exception as e:
+        state["status"] = "error"
+        state["error"] = f"連不上 docker daemon:{e}"
+        state["finished_at"] = datetime.utcnow()
+        return
+
+    state["status"] = "building"
+    state["log"] = []
+    state["error"] = None
+    state["started_at"] = datetime.utcnow()
+    state["finished_at"] = None
+    _mcp_log_append(f"[backend] 開始 build {_settings.MCP_IMAGE}")
+    _mcp_log_append("[backend] context=/app  dockerfile=Dockerfile.mcp")
+    try:
+        for chunk in api.build(
+            path="/app",
+            dockerfile="Dockerfile.mcp",
+            tag=_settings.MCP_IMAGE,
+            rm=True, forcerm=True, decode=True, pull=False,
+        ):
+            if "stream" in chunk:
+                for ln in chunk["stream"].splitlines():
+                    if ln.strip():
+                        _mcp_log_append(ln.rstrip())
+            elif "status" in chunk:
+                msg = chunk["status"]
+                if "id" in chunk:
+                    msg = f"{chunk['id']}: {msg}"
+                _mcp_log_append(msg)
+            elif "errorDetail" in chunk or "error" in chunk:
+                err = chunk.get("errorDetail", {}).get("message") or chunk.get("error")
+                _mcp_log_append(f"[error] {err}")
+                state["status"] = "error"
+                state["error"] = err
+                state["finished_at"] = datetime.utcnow()
+                return
+        if _mcp_image_exists():
+            state["status"] = "ready"
+            _mcp_log_append(f"[backend] build done, image={_settings.MCP_IMAGE}")
+        else:
+            state["status"] = "error"
+            state["error"] = "build 結束但 image 不存在"
+        state["finished_at"] = datetime.utcnow()
+    except Exception as e:
+        log.exception("mcp image build failed")
+        _mcp_log_append(f"[exception] {type(e).__name__}: {e}")
+        state["status"] = "error"
+        state["error"] = f"{type(e).__name__}: {e}"
+        state["finished_at"] = datetime.utcnow()
+
+
+async def _trigger_mcp_build_if_needed() -> str:
+    async with _mcp_image_lock:
+        state = _mcp_image_state
+        if state["status"] == "building":
+            return "building"
+        if _mcp_image_exists():
+            state["status"] = "ready"
+            return "ready"
+        state["status"] = "building"
+        asyncio.create_task(asyncio.to_thread(_build_mcp_image_sync))
+        return "building"
+
+
+class McpImageStatus(BaseModel):
+    status: str  # missing / building / ready / error / unknown
+    error: Optional[str] = None
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    log_tail: list[str] = []
+
+
+@router.get("/ai/mcp/image-status", response_model=McpImageStatus, tags=["V · AI"])
+async def mcp_image_status():
+    state = _mcp_image_state
+    if state["status"] in ("unknown", "missing") and _mcp_image_exists():
+        state["status"] = "ready"
+    return McpImageStatus(
+        status=state["status"] if state["status"] != "unknown"
+            else ("ready" if _mcp_image_exists() else "missing"),
+        error=state["error"],
+        started_at=state["started_at"],
+        finished_at=state["finished_at"],
+        log_tail=list(state["log"][-80:]),
+    )
+
+
+@router.post("/ai/mcp/image-build", response_model=McpImageStatus, tags=["V · AI"])
+async def trigger_mcp_image_build():
+    new_status = await _trigger_mcp_build_if_needed()
+    state = _mcp_image_state
+    return McpImageStatus(
+        status=new_status, error=state["error"],
+        started_at=state["started_at"], finished_at=state["finished_at"],
+        log_tail=list(state["log"][-80:]),
+    )
+
+
 @router.post("/ai/mcp/start", response_model=McpStatus, tags=["V · AI"])
 async def mcp_start(user: User = Depends(get_current_user)):
     """啟一個 Playwright MCP server 容器(若已有跑著的不重啟,直接回現狀)。"""
@@ -176,17 +315,20 @@ async def mcp_start(user: User = Depends(get_current_user)):
     try:
         client.images.get(_settings.MCP_IMAGE)
     except Exception:
-        raise HTTPException(
-            425,
-            detail={
-                "code": "mcp_image_missing",
-                "message": (
-                    f"找不到 image `{_settings.MCP_IMAGE}`;"
-                    "請跑 `./deploy.sh` 或手動 build:`docker build -f backend/Dockerfile.mcp "
-                    "-t autotest-mcp:latest backend/`"
-                ),
-            },
-        )
+        # Sprint 6.1 — image missing 時觸發背景 build,前端 polling /image-status
+        new_status = await _trigger_mcp_build_if_needed()
+        if new_status != "ready":
+            raise HTTPException(
+                status_code=425,
+                detail={
+                    "code": "mcp_image_building",
+                    "message": (
+                        f"MCP image 還沒 build 完(image={_settings.MCP_IMAGE});"
+                        "後端已自動開始 build,請 polling /api/ai/mcp/image-status 等 ready 後重試"
+                    ),
+                    "status": new_status,
+                },
+            )
 
     name = f"autotest-mcp-{secrets.token_hex(4)}"
     try:
@@ -310,6 +452,73 @@ async def mcp_tools(user: User = Depends(get_current_user)):
         for t in tools_raw if isinstance(t, dict)
     ]
     return McpToolsResponse(running=True, tool_count=len(tools), tools=tools)
+
+
+class McpCallRequest(BaseModel):
+    tool: str
+    arguments: dict = {}
+    timeout: int = 30
+
+
+class McpCallResponse(BaseModel):
+    ok: bool
+    tool: str
+    result: Optional[dict] = None
+    content: Optional[list] = None  # MCP tool/call 標準回的 content array
+    error: Optional[str] = None
+
+
+@router.post("/ai/mcp/call", response_model=McpCallResponse, tags=["V · AI"])
+async def mcp_call(payload: McpCallRequest, user: User = Depends(get_current_user)):
+    """Sprint 6.2 — 對 MCP server 發單次 JSON-RPC `tools/call`,回 result。
+    用來:
+    - 前端「測試 MCP」面板手動驗證 tool 能不能跑
+    - 後續完整 LLM tool calling loop 的內部 RPC building block
+    """
+    if not _mcp_state.get("container_name"):
+        raise HTTPException(409, "MCP server 沒在跑;請先 POST /api/ai/mcp/start")
+
+    mcp_url = f"http://{_mcp_state['container_name']}:8931/mcp"
+    payload_rpc = {
+        "jsonrpc": "2.0", "id": 2,
+        "method": "tools/call",
+        "params": {"name": payload.tool, "arguments": payload.arguments or {}},
+    }
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json, text/event-stream",
+    }
+    timeout = max(5, min(payload.timeout or 30, 120))
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            r = await client.post(mcp_url, json=payload_rpc, headers=headers)
+            r.raise_for_status()
+            text = r.text
+            data: dict
+            if text.startswith("event:") or text.startswith("data:"):
+                data = {}
+                for line in text.splitlines():
+                    if line.startswith("data:"):
+                        try:
+                            data = json.loads(line[5:].strip())
+                            break
+                        except json.JSONDecodeError:
+                            continue
+            else:
+                data = r.json()
+    except httpx.HTTPError as e:
+        return McpCallResponse(ok=False, tool=payload.tool, error=f"MCP server 連線失敗:{e}")
+    except Exception as e:
+        return McpCallResponse(ok=False, tool=payload.tool, error=f"未預期錯誤:{e}")
+
+    if "error" in data:
+        return McpCallResponse(ok=False, tool=payload.tool, error=str(data["error"]))
+    result = data.get("result") or {}
+    return McpCallResponse(
+        ok=True, tool=payload.tool,
+        result=result if isinstance(result, dict) else {"value": result},
+        content=result.get("content") if isinstance(result, dict) else None,
+    )
 
 
 @router.get("/ai/mcp/status", response_model=McpStatus, tags=["V · AI"])

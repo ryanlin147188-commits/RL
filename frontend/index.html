@@ -3231,6 +3231,51 @@ driver.swipe(100, 800, 100, 200, 500)"
                                 </table>
                             </div>
                         </section>
+
+                        <!-- Sprint 6 — MCP 測試面板(實驗性) -->
+                        <section class="bg-white rounded-xl border border-fuchsia-100 shadow-sm p-4">
+                            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                                <h3 class="font-bold text-stone-700 text-base flex items-center gap-2"><i class="fa-solid fa-flask text-fuchsia-500"></i> MCP(Playwright)<span class="text-[10px] px-1.5 py-0.5 rounded bg-fuchsia-100 text-fuchsia-700 font-normal">PoC</span></h3>
+                                <div class="flex items-center gap-2">
+                                    <span id="mcpStatusBadge" class="text-xs px-2 py-0.5 rounded bg-stone-100 text-stone-500">未啟動</span>
+                                    <button onclick="mcpTestStart()" id="mcpStartBtn" class="text-xs px-2.5 py-1.5 bg-fuchsia-500 hover:bg-fuchsia-600 text-white rounded font-semibold"><i class="fa-solid fa-play"></i> 啟動</button>
+                                    <button onclick="mcpTestStop()" id="mcpStopBtn" class="hidden text-xs px-2.5 py-1.5 bg-stone-500 hover:bg-stone-600 text-white rounded font-semibold"><i class="fa-solid fa-stop"></i> 停止</button>
+                                </div>
+                            </div>
+                            <p class="text-xs text-stone-500 mb-3">啟動 Playwright MCP server(容器內 chromium)。可用來驗證 PoC 整合;後續 Sprint 會做完整 LLM tool calling loop。第一次啟動若 image 不存在會自動 build(約 2-5 分鐘)。</p>
+                            <!-- Image build 進度 -->
+                            <div id="mcpImgBuildBox" class="hidden mb-3 border border-amber-200 bg-amber-50/40 rounded p-3">
+                                <div class="flex items-center justify-between mb-1">
+                                    <span class="text-xs font-semibold text-amber-700"><i class="fa-solid fa-hammer fa-spin"></i> 正在 build MCP image</span>
+                                    <span id="mcpImgBuildBadge" class="text-[10px] px-2 py-0.5 rounded bg-amber-200 text-amber-800">準備中…</span>
+                                </div>
+                                <div id="mcpImgBuildLog" class="text-[10px] font-mono text-stone-700 bg-white border border-stone-200 rounded p-2 max-h-40 overflow-y-auto whitespace-pre-wrap">等待 log…</div>
+                            </div>
+                            <!-- Tools list -->
+                            <div id="mcpToolsBox" class="hidden mb-3 border border-fuchsia-200 rounded p-3 bg-fuchsia-50/30">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="text-xs font-semibold text-fuchsia-700"><i class="fa-solid fa-list"></i> 可用 tools</span>
+                                    <button onclick="mcpTestTools()" class="text-[10px] px-2 py-0.5 border border-fuchsia-300 text-fuchsia-700 rounded hover:bg-fuchsia-100"><i class="fa-solid fa-rotate"></i> 重新整理</button>
+                                </div>
+                                <div id="mcpToolsList" class="text-xs space-y-1 max-h-60 overflow-y-auto"></div>
+                            </div>
+                            <!-- Try tool call -->
+                            <div id="mcpTryCallBox" class="hidden border border-stone-200 rounded p-3 bg-stone-50/40">
+                                <div class="text-xs font-semibold text-stone-700 mb-2"><i class="fa-solid fa-vial"></i> 試 call tool</div>
+                                <div class="grid grid-cols-2 gap-2 mb-2">
+                                    <div>
+                                        <label for="mcpTryToolName" class="block text-[10px] text-stone-500 mb-1">Tool 名稱</label>
+                                        <input id="mcpTryToolName" type="text" placeholder="例:browser_navigate" class="w-full px-2 py-1 border border-stone-300 rounded text-xs font-mono">
+                                    </div>
+                                    <div>
+                                        <label for="mcpTryArgs" class="block text-[10px] text-stone-500 mb-1">Arguments(JSON)</label>
+                                        <input id="mcpTryArgs" type="text" placeholder='{"url": "https://example.com"}' class="w-full px-2 py-1 border border-stone-300 rounded text-xs font-mono">
+                                    </div>
+                                </div>
+                                <button onclick="mcpTestCall()" class="text-xs px-3 py-1 bg-fuchsia-600 hover:bg-fuchsia-700 text-white rounded font-medium"><i class="fa-solid fa-paper-plane"></i> Call</button>
+                                <pre id="mcpCallResult" class="hidden mt-2 text-[10px] bg-white border border-stone-200 rounded p-2 max-h-48 overflow-auto"></pre>
+                            </div>
+                        </section>
                     </div>
                 </div>  <!-- /max-w-5xl mx-auto -->
             </div>  <!-- /userSettingsWorkspace -->
@@ -16914,6 +16959,160 @@ gantt
                 showToast('已撤銷', 'success');
                 renderInvitesView();
             } catch (e) { showToast('撤銷失敗:'+e.message, 'error'); }
+        }
+
+        // ─── Sprint 6 — MCP 測試面板 ───────────────────────────────────
+        let _mcpStatusInfo = null;
+        let _mcpImgPollTimer = null;
+
+        async function mcpTestStart() {
+            const btn = document.getElementById('mcpStartBtn');
+            const orig = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 啟動中…';
+            try {
+                const r = await fetch('/api/ai/mcp/start', { method: 'POST' });
+                if (r.status === 425) {
+                    showToast('MCP image 自動 build 中,完成後請再點啟動', 'info');
+                    _mcpStartImageBuildPolling();
+                    return;
+                }
+                if (!r.ok) {
+                    const detail = (await r.json().catch(()=>({}))).detail || ('HTTP '+r.status);
+                    throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
+                }
+                _mcpStatusInfo = await r.json();
+                document.getElementById('mcpStatusBadge').textContent = '已啟動 (port ' + _mcpStatusInfo.sse_port + ')';
+                document.getElementById('mcpStatusBadge').className = 'text-xs px-2 py-0.5 rounded bg-emerald-100 text-emerald-700';
+                document.getElementById('mcpStartBtn').classList.add('hidden');
+                document.getElementById('mcpStopBtn').classList.remove('hidden');
+                document.getElementById('mcpToolsBox').classList.remove('hidden');
+                document.getElementById('mcpTryCallBox').classList.remove('hidden');
+                showToast('MCP server 已啟動', 'success');
+                // 自動拉一次 tools
+                setTimeout(() => mcpTestTools(), 1500);
+            } catch (e) {
+                showToast('MCP 啟動失敗:' + e.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = orig;
+            }
+        }
+
+        function _mcpStartImageBuildPolling() {
+            const box = document.getElementById('mcpImgBuildBox');
+            const badge = document.getElementById('mcpImgBuildBadge');
+            const logBox = document.getElementById('mcpImgBuildLog');
+            box.classList.remove('hidden');
+            if (_mcpImgPollTimer) clearInterval(_mcpImgPollTimer);
+            const tick = async () => {
+                try {
+                    const r = await fetch('/api/ai/mcp/image-status');
+                    if (!r.ok) return;
+                    const s = await r.json();
+                    badge.textContent = ({
+                        'missing': '未建構', 'building': '建構中…', 'ready': '就緒 ✓',
+                        'error': '失敗', 'unknown': '查詢中',
+                    })[s.status] || s.status;
+                    badge.className = 'text-[10px] px-2 py-0.5 rounded ' + (
+                        s.status === 'ready' ? 'bg-emerald-200 text-emerald-800' :
+                        s.status === 'error' ? 'bg-rose-200 text-rose-800' :
+                        s.status === 'building' ? 'bg-amber-200 text-amber-800' :
+                        'bg-stone-200 text-stone-700');
+                    if (Array.isArray(s.log_tail)) {
+                        logBox.textContent = s.log_tail.join('\n');
+                        logBox.scrollTop = logBox.scrollHeight;
+                    }
+                    if (s.status === 'ready') {
+                        clearInterval(_mcpImgPollTimer); _mcpImgPollTimer = null;
+                        showToast('MCP image 已 ready,即將自動啟容器…', 'success');
+                        setTimeout(() => { mcpTestStart(); }, 600);
+                    } else if (s.status === 'error') {
+                        clearInterval(_mcpImgPollTimer); _mcpImgPollTimer = null;
+                        showToast('MCP image build 失敗:' + (s.error || '未知'), 'error');
+                    } else if (s.status === 'missing') {
+                        await fetch('/api/ai/mcp/image-build', { method: 'POST' });
+                    }
+                } catch (_) {}
+            };
+            _mcpImgPollTimer = setInterval(tick, 3000);
+            tick();
+        }
+
+        async function mcpTestStop() {
+            try {
+                const r = await fetch('/api/ai/mcp/stop', { method: 'POST' });
+                if (!r.ok && r.status !== 204) throw new Error('HTTP '+r.status);
+                _mcpStatusInfo = null;
+                document.getElementById('mcpStatusBadge').textContent = '未啟動';
+                document.getElementById('mcpStatusBadge').className = 'text-xs px-2 py-0.5 rounded bg-stone-100 text-stone-500';
+                document.getElementById('mcpStartBtn').classList.remove('hidden');
+                document.getElementById('mcpStopBtn').classList.add('hidden');
+                document.getElementById('mcpToolsBox').classList.add('hidden');
+                document.getElementById('mcpTryCallBox').classList.add('hidden');
+                document.getElementById('mcpImgBuildBox').classList.add('hidden');
+                showToast('MCP 已停止', 'success');
+            } catch (e) {
+                showToast('停止失敗:' + e.message, 'error');
+            }
+        }
+
+        async function mcpTestTools() {
+            const list = document.getElementById('mcpToolsList');
+            list.innerHTML = '<div class="text-stone-400 text-center py-2">載入中…</div>';
+            try {
+                const r = await fetch('/api/ai/mcp/tools');
+                if (!r.ok) throw new Error('HTTP '+r.status);
+                const data = await r.json();
+                if (data.error) {
+                    list.innerHTML = `<div class="text-rose-500 py-2">${_esc(data.error)}</div>`;
+                    return;
+                }
+                if (!data.tools || !data.tools.length) {
+                    list.innerHTML = '<div class="text-stone-400 py-2">沒有可用 tools</div>';
+                    return;
+                }
+                list.innerHTML = `<div class="text-[10px] text-stone-500 mb-1">共 ${data.tool_count} 個 tool</div>` +
+                    data.tools.map(t => `
+                        <div class="border border-stone-200 rounded px-2 py-1 bg-white hover:bg-fuchsia-50 cursor-pointer" onclick="document.getElementById('mcpTryToolName').value='${_esc(t.name)}'">
+                            <div class="font-mono text-[11px] text-fuchsia-700">${_esc(t.name)}</div>
+                            ${t.description ? `<div class="text-[10px] text-stone-500 mt-0.5">${_esc(t.description.slice(0, 200))}${t.description.length > 200 ? '…' : ''}</div>` : ''}
+                        </div>`).join('');
+            } catch (e) {
+                list.innerHTML = `<div class="text-rose-500 py-2">載入失敗:${_esc(e.message)}</div>`;
+            }
+        }
+
+        async function mcpTestCall() {
+            const name = document.getElementById('mcpTryToolName').value.trim();
+            const argsRaw = document.getElementById('mcpTryArgs').value.trim();
+            const out = document.getElementById('mcpCallResult');
+            if (!name) { showToast('請輸入 tool 名稱(可從上方點選)', 'error'); return; }
+            let args = {};
+            if (argsRaw) {
+                try { args = JSON.parse(argsRaw); }
+                catch (e) { showToast('arguments 必須是合法 JSON', 'error'); return; }
+            }
+            out.classList.remove('hidden');
+            out.textContent = '呼叫中…';
+            try {
+                const r = await fetch('/api/ai/mcp/call', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tool: name, arguments: args, timeout: 30 }),
+                });
+                if (!r.ok) {
+                    const detail = (await r.json().catch(()=>({}))).detail || ('HTTP '+r.status);
+                    throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
+                }
+                const data = await r.json();
+                out.textContent = JSON.stringify(data, null, 2);
+                if (!data.ok) showToast('Tool 回錯誤:' + (data.error || '未知'), 'error');
+                else showToast('Tool call 成功', 'success');
+            } catch (e) {
+                out.textContent = 'ERROR: ' + e.message;
+                showToast('Call 失敗:' + e.message, 'error');
+            }
         }
 
         async function renderAiTokensList() {
