@@ -1302,6 +1302,8 @@ driver.swipe(100, 800, 100, 200, 500)"
                     <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
                         <h3 class="font-bold text-slate-700 flex items-center gap-2"><i class="fa-solid fa-circle-4 text-rose-500"></i> 解析後的 BDD 步驟</h3>
                         <div class="flex items-center gap-2 flex-wrap">
+                            <button onclick="recAiEnhance()" class="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded text-xs font-medium flex items-center gap-1" title="AI 增強:看腳本與步驟意圖,自動加 capture / 多條件斷言 / 動態運算式"><i class="fa-solid fa-robot"></i> AI 增強</button>
+                            <span class="text-stone-300 text-xs">|</span>
                             <button onclick="recCreateNewCaseFromSteps()" class="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded text-xs font-medium flex items-center gap-1" title="直接把這些步驟建成一個全新測試案例(不用先選目標)"><i class="fa-solid fa-bolt"></i> 直接建為新案例</button>
                             <span class="text-stone-300 text-xs">|</span>
                             <label class="text-xs text-slate-500">或套用至:</label>
@@ -13327,6 +13329,116 @@ driver.swipe(100, 800, 100, 200, 500)"
                 if (id === prev || (!prev && id === currentTestCase)) opt.selected = true;
                 sel.appendChild(opt);
             });
+        }
+
+        // S3.1/3.2 — AI 增強:把 raw script + 當前 steps 餵 LLM 回增強版,使用者 diff 決定接不接受
+        async function recAiEnhance() {
+            if (!recCurrentSession || !recCurrentSession.id) { showToast('請先建立 session 並解析', 'error'); return; }
+            if (!recLastSteps.length) { showToast('沒有可增強的步驟,請先解析', 'error'); return; }
+            showToast('AI 增強中…約 5-30 秒,請稍候', 'info');
+            try {
+                const r = await fetch(`/api/recordings/${encodeURIComponent(recCurrentSession.id)}/ai-enhance`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ current_steps: recLastSteps.map(s => recMapStep(s, 0)) }),
+                });
+                if (!r.ok) {
+                    const detail = (await r.json().catch(()=>({}))).detail || ('HTTP '+r.status);
+                    throw new Error(detail);
+                }
+                const data = await r.json();
+                if (!data.enhanced_steps || !data.enhanced_steps.length) {
+                    showToast('AI 沒給有效增強:' + (data.error || '請查 token / provider'), 'error');
+                    return;
+                }
+                _showAiEnhanceDiffModal(data);
+            } catch (e) {
+                showToast('AI 增強失敗:' + e.message, 'error');
+            }
+        }
+
+        function _showAiEnhanceDiffModal(data) {
+            // diff modal:左原始 / 右增強版,使用者選「全部接受 / 全部拒絕」
+            let modal = document.getElementById('aiEnhanceModal');
+            if (modal) modal.remove();
+            modal = document.createElement('div');
+            modal.id = 'aiEnhanceModal';
+            modal.className = 'fixed inset-0 z-[160] bg-black/40 flex items-center justify-center p-4';
+
+            const original = recLastSteps.map(s => recMapStep(s, 0));
+            const enhanced = data.enhanced_steps;
+
+            const renderStep = (s, i) => `
+              <tr class="border-b border-stone-100 hover:bg-violet-50/30">
+                <td class="p-1.5 text-[10px] text-stone-400 align-top">${i + 1}</td>
+                <td class="p-1.5 text-[10px] align-top"><span class="px-1 py-0.5 rounded bg-stone-100 text-stone-600">${_esc(s.keyword || '')}</span></td>
+                <td class="p-1.5 text-[10px] align-top font-mono text-violet-700">${_esc(s.action || '')}</td>
+                <td class="p-1.5 text-[10px] align-top font-mono text-stone-700 break-all max-w-[150px]">${_esc(s.locator || '')}</td>
+                <td class="p-1.5 text-[10px] align-top">${_esc(s.input || '')}</td>
+                <td class="p-1.5 text-[10px] align-top">${_esc(s.condition || '')}</td>
+                <td class="p-1.5 text-[10px] align-top text-emerald-700">${_esc(s.expected || '')}</td>
+              </tr>`;
+
+            const tableHead = `
+              <tr class="bg-stone-100 text-stone-600 text-[10px] uppercase">
+                <th class="p-1.5 w-6">#</th>
+                <th class="p-1.5">關鍵字</th>
+                <th class="p-1.5">Action</th>
+                <th class="p-1.5">Locator</th>
+                <th class="p-1.5">Input</th>
+                <th class="p-1.5">條件</th>
+                <th class="p-1.5">預期</th>
+              </tr>`;
+
+            modal.innerHTML = `
+              <div class="bg-white rounded-xl shadow-2xl w-full max-w-7xl border border-violet-200 max-h-[92vh] flex flex-col">
+                <div class="px-6 py-4 border-b border-stone-200 bg-violet-50/60 flex items-center justify-between">
+                  <h3 class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-robot text-violet-500"></i> AI 增強結果 diff
+                    <span class="text-[11px] font-normal text-stone-500">${_esc(data.provider||'?')} / ${_esc(data.model||'?')} · 原始 ${data.original_count} step → 增強 ${data.enhanced_count} step</span>
+                  </h3>
+                  <button onclick="document.getElementById('aiEnhanceModal').remove()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="p-4 grid grid-cols-2 gap-4 overflow-hidden flex-1 min-h-0">
+                  <div class="border border-stone-200 rounded-md flex flex-col min-h-0">
+                    <div class="px-3 py-2 bg-stone-50 border-b border-stone-200 text-xs font-semibold text-stone-700"><i class="fa-solid fa-circle-info text-stone-400"></i> 原始 ${original.length} 個 step</div>
+                    <div class="overflow-auto flex-1"><table class="w-full text-xs"><thead>${tableHead}</thead><tbody>${original.map(renderStep).join('')}</tbody></table></div>
+                  </div>
+                  <div class="border border-violet-200 rounded-md flex flex-col min-h-0">
+                    <div class="px-3 py-2 bg-violet-50 border-b border-violet-200 text-xs font-semibold text-violet-700"><i class="fa-solid fa-wand-magic-sparkles"></i> AI 增強版 ${enhanced.length} 個 step</div>
+                    <div class="overflow-auto flex-1"><table class="w-full text-xs"><thead>${tableHead}</thead><tbody>${enhanced.map(renderStep).join('')}</tbody></table></div>
+                  </div>
+                </div>
+                <div class="px-6 py-4 border-t border-stone-200 flex items-center justify-between bg-stone-50/40">
+                  <p class="text-[11px] text-stone-500"><i class="fa-solid fa-triangle-exclamation text-amber-500"></i> AI 推斷可能不準確;接受後會「替換」preview 的 recLastSteps,但**不直接寫入測試案例**(仍需手動套用)。</p>
+                  <div class="flex gap-2">
+                    <button onclick="document.getElementById('aiEnhanceModal').remove()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">拒絕(保留原始)</button>
+                    <button onclick="_aiEnhanceAccept()" class="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-circle-check"></i> 接受增強版</button>
+                  </div>
+                </div>
+              </div>`;
+            window._aiEnhancePending = enhanced;
+            document.body.appendChild(modal);
+        }
+
+        function _aiEnhanceAccept() {
+            const enhanced = window._aiEnhancePending || [];
+            if (!enhanced.length) { document.getElementById('aiEnhanceModal')?.remove(); return; }
+            // 替換 recLastSteps 並重新 render preview;不直接寫入後端,user 仍需按「套用」/「直接建為新案例」
+            recLastSteps = enhanced.map(s => ({
+                id: 'ai_enh_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+                keyword: s.keyword || 'When',
+                description: s.description || '',
+                action: s.action || '',
+                locator: s.locator || '',
+                input: s.input || '',
+                condition: s.condition || 'Equals',
+                expected: s.expected || '',
+            }));
+            window._aiEnhancePending = null;
+            document.getElementById('aiEnhanceModal')?.remove();
+            recRenderPreview();
+            showToast(`已替換為 AI 增強版 ${enhanced.length} 個 step;檢查無誤後請按「套用」或「直接建為新案例」`, 'success');
+            document.getElementById('recPreviewSection')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
         // S1.2 — 直接把 recLastSteps 建成新測試案例(免先選 target)

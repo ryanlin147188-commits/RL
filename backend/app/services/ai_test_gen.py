@@ -381,6 +381,119 @@ async def generate_testcases_from_text(
     }
 
 
+# Sprint 3.1 — 增強 prompt:看現有 step 列表,補多條件斷言 / capture / 變數
+_ENHANCE_SYSTEM_PROMPT = """你是一位資深 QA 工程師,擅長把粗糙錄製成的測試腳本「增強」成更穩健的測試。
+
+任務:檢視使用者提供的「Playwright codegen 原始腳本」+「已解析的 step 陣列」,輸出增強版 step 陣列。
+
+**增強策略:**
+1. **加 capture step**:遇到登入/認證 token / 動態 ID / 訂單編號 → 加 Capture step 抓進 ${var}
+2. **加多條件斷言**:除了 codegen 預設的 Equals / Contains 外,適當加 IsVisible / IsChecked / Regex 比對
+3. **動態運算式**:若預期值需要計算(如 `${count} + 1`),用 `{{= ${var} + 1 }}` 寫
+4. **改善 expected**:codegen 的斷言常常太絕對(例如 to_have_text "Welcome admin"),改成 Contains "Welcome" 更穩
+5. **保留**所有原始 step 的 action / locator(不要亂改),只能在後面**新增** Capture / Assert step
+
+**嚴格要求:回應必須是合法的 JSON 陣列(每個元素是 step),不能有 Markdown 圍欄、註解、解釋文字。**
+
+每個 step 格式同 GeneratedStep:
+{"keyword": "Given|When|Then|And", "description": "...", "action": "...", "locator": "...", "input": "...", "condition": "Equals|Contains|...", "expected": "..."}
+
+允許的 action(部分):Goto / Click / Fill / Press / AssertText / AssertVisible / AssertChecked / Capture / Http.Get / Http.Post / ...
+條件:Equals / Contains / StartsWith / EndsWith / Regex / IsVisible / IsChecked / GreaterThan / LessThan
+"""
+
+
+def _enhance_user_prompt(script_text: str, current_steps: list[dict]) -> str:
+    parts = ["請把下面的測試案例增強(加 Capture / 多條件斷言 / 動態運算式)。"]
+    parts.append("\n# 原始 Playwright codegen 腳本(供參考意圖)")
+    parts.append("```python")
+    parts.append((script_text or "")[:8000])
+    parts.append("```")
+    parts.append("\n# 目前已解析的 step 陣列(增強的基礎)")
+    parts.append("```json")
+    parts.append(json.dumps(current_steps[:80], ensure_ascii=False, indent=2))
+    parts.append("```")
+    parts.append("\n再次提醒:只輸出合法 JSON 陣列(增強後的 step list),沒有圍欄沒有解釋。")
+    return "\n".join(parts)
+
+
+async def enhance_steps_with_ai(
+    db: AsyncSession,
+    *,
+    script_text: str,
+    current_steps: list[dict],
+    provider: Optional[str] = None,
+    organization_id: Optional[str] = None,
+) -> dict[str, Any]:
+    """Sprint 3.1 — AI 增強:看 codegen 腳本 + 已解析 step → 推斷意圖加 capture / 多條件 / 動態運算式。
+
+    回傳 {provider, model, enhanced_steps: list[dict], original_count, enhanced_count, error?}
+    """
+    if not (script_text or "").strip() and not current_steps:
+        raise RuntimeError("沒有腳本或步驟可增強")
+    token = await pick_token(db, preferred_provider=provider, organization_id=organization_id)
+    system = _ENHANCE_SYSTEM_PROMPT
+    user = _enhance_user_prompt(script_text or "", current_steps or [])
+    base_url = token.base_url or _default_base_url(token.provider)
+    model = token.model or _default_model(token.provider)
+    log.info("ai_enhance: provider=%s model=%s steps=%s", token.provider, model, len(current_steps or []))
+
+    if token.provider == AiProvider.OPENAI or token.provider == AiProvider.LOCAL:
+        out = await _call_openai_compat(
+            base_url=base_url, api_key=token.api_key, model=model, system=system, user=user,
+        )
+    elif token.provider == AiProvider.ANTHROPIC:
+        if not token.api_key:
+            raise RuntimeError("Anthropic 需要 api_key")
+        out = await _call_anthropic(
+            base_url=base_url, api_key=token.api_key, model=model, system=system, user=user,
+        )
+    elif token.provider == AiProvider.GOOGLE:
+        if not token.api_key:
+            raise RuntimeError("Google Gemini 需要 api_key")
+        out = await _call_google(
+            base_url=base_url, api_key=token.api_key, model=model, system=system, user=user,
+        )
+    else:
+        raise RuntimeError(f"未知 provider: {token.provider}")
+
+    # 解析回傳:期待是 step 陣列(不是 case 陣列)
+    try:
+        cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", out.strip(),
+                         flags=re.IGNORECASE | re.MULTILINE)
+        m = re.search(r"\[[\s\S]*\]", cleaned)
+        data = json.loads(m.group(0)) if m else []
+    except (ValueError, json.JSONDecodeError, AttributeError):
+        data = []
+
+    enhanced: list[dict] = []
+    if isinstance(data, list):
+        for s in data:
+            if not isinstance(s, dict):
+                continue
+            enhanced.append({
+                "keyword": str(s.get("keyword") or "When").strip()[:10],
+                "description": str(s.get("description") or "").strip()[:300],
+                "action": str(s.get("action") or "").strip()[:40],
+                "locator": str(s.get("locator") or "").strip()[:500],
+                "input": str(s.get("input") or "").strip()[:2000],
+                "condition": str(s.get("condition") or "Equals").strip()[:40],
+                "expected": str(s.get("expected") or "").strip()[:500],
+            })
+
+    result: dict[str, Any] = {
+        "provider": token.provider.value if hasattr(token.provider, "value") else str(token.provider),
+        "model": model,
+        "original_count": len(current_steps or []),
+        "enhanced_count": len(enhanced),
+        "enhanced_steps": enhanced,
+    }
+    if not enhanced:
+        result["error"] = "AI 回應無法解析為 step 陣列;原始 raw 已截短"
+        result["raw"] = out[:2000]
+    return result
+
+
 def _default_base_url(provider: AiProvider) -> str:
     return {
         AiProvider.OPENAI: "https://api.openai.com/v1",
