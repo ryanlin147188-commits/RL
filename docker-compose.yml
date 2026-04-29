@@ -120,10 +120,10 @@ services:
       # 應用層 secret(必填):JWT 簽章 + Fernet 對稱加密金鑰
       AUTOTEST_JWT_SECRET: ${AUTOTEST_JWT_SECRET:?AUTOTEST_JWT_SECRET is required - run ./deploy.sh first to generate one}
       AUTOTEST_FERNET_KEY: ${AUTOTEST_FERNET_KEY:?AUTOTEST_FERNET_KEY is required - run ./deploy.sh first to generate one}
-      # RFC-8 observability:預設指向 obs profile 的 tempo;沒啟 obs profile
-      # 時 backend 連不到 tempo,observability.py 會 log warning 後忽略,不擋啟動。
+      # RFC-8 observability:預設指向 obs profile 的 jaeger;沒啟 obs profile
+      # 時 backend 連不到 jaeger,observability.py 會 log warning 後忽略,不擋啟動。
       # 完全停用 tracing → 在 .env 或 compose override 設成空字串。
-      OTLP_ENDPOINT: ${OTLP_ENDPOINT:-tempo:4317}
+      OTLP_ENDPOINT: ${OTLP_ENDPOINT:-jaeger:4317}
       SENTRY_DSN: ${SENTRY_DSN:-}
       AUTOTEST_ENV: ${AUTOTEST_ENV:-dev}
       # ── Docker 模式錄製(Phase 1) ──
@@ -240,9 +240,12 @@ services:
       # 讀取 host 上 docker daemon 寫的容器 log（json-file driver）
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
 
-  # ── RFC-8 觀察性堆疊（profile=obs：預設不啟動,docker compose --profile obs up）──
-  # Prometheus 抓取 /metrics、Grafana 提供 dashboard、Tempo 接 OTLP traces。
-  # 不放主路徑是為了:① 默認部署不額外吃資源 ② 讓客戶按需開啟。
+  # ── RFC-8 觀察性堆疊(profile=obs:預設不啟動,docker compose --profile obs up)──
+  # Prometheus 抓取 /metrics(內建 /graph UI 看 metrics)、Jaeger 接 OTLP trace
+  # 並提供 trace UI。
+  # 全 Apache-2.0 — 刻意不用 Grafana(AGPL-3.0)/ Tempo(AGPL-3.0)避免商用授權風險;
+  # 換成「Prometheus 內建 UI 看 metrics」+「Jaeger UI 看 trace」+「VictoriaLogs vmui 看 log」。
+  # 三套各自有 UI,沒有統一 dashboard 但完全 OSS 可商用。
   prometheus:
     image: prom/prometheus:v2.55.1
     container_name: autotest-prometheus
@@ -256,45 +259,26 @@ services:
       - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     ports:
-      - "9090:9090"
+      - "9090:9090"   # 內建 /graph UI,PromQL query 介面
 
-  grafana:
-    image: grafana/grafana:11.3.0
-    container_name: autotest-grafana
+  jaeger:
+    image: jaegertracing/all-in-one:1.62.0
+    container_name: autotest-jaeger
     restart: unless-stopped
     profiles: ["obs"]
     environment:
-      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:-admin}"
-      GF_AUTH_ANONYMOUS_ENABLED: "false"
-      GF_INSTALL_PLUGINS: ""
-    volumes:
-      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
-      - grafana_data:/var/lib/grafana
+      COLLECTOR_OTLP_ENABLED: "true"     # 開 OTLP gRPC + HTTP receivers
+      SPAN_STORAGE_TYPE: memory
     ports:
-      - "3000:3000"
-    depends_on:
-      - prometheus
-
-  tempo:
-    image: grafana/tempo:2.6.1
-    container_name: autotest-tempo
-    restart: unless-stopped
-    profiles: ["obs"]
-    command: ["-config.file=/etc/tempo.yaml"]
-    volumes:
-      - ./deploy/tempo/tempo.yaml:/etc/tempo.yaml:ro
-      - tempo_data:/var/tempo
-    ports:
-      - "4317:4317"   # OTLP gRPC -- backends export here via OTLP_ENDPOINT
-      - "3200:3200"   # Tempo HTTP API for Grafana datasource
+      - "16686:16686"   # Jaeger UI -- trace 搜尋 / span 樹
+      - "4317:4317"     # OTLP gRPC -- backend 透過 OTLP_ENDPOINT=jaeger:4317 推送
+      - "4318:4318"     # OTLP HTTP -- 給 sidecar / collector 備用
 
 volumes:
   postgres_data:
   seaweedfs_data:
   victoria_logs_data:
   prometheus_data:
-  grafana_data:
-  tempo_data:
 
 # SeaweedFS S3 IAM 設定:從 .env 注入,docker compose 會在啟動時做變數替換。
 # 修改後須 docker compose down -v 並 up 才能重新生效(SeaweedFS 啟動時讀一次)。

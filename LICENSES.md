@@ -4,30 +4,39 @@
 > 本文件為 AutoTest v1.0 所有第三方相依元件的授權整理，協助評估商業使用合規性。
 > ⚠️ **這份文件是技術層面的整理，不是法律意見。實際商業部署前，建議由貴公司法務或熟悉開源授權的顧問進行最終 review。**
 
-> 🟢 **本版本（PostgreSQL / Valkey / SeaweedFS stack）已將具有 Copyleft 風險的元件全部替換**：
+> 🟢 **本版本（PostgreSQL / Valkey / SeaweedFS / Jaeger stack）已將具有 Copyleft 風險的元件全部替換**：
 > - MySQL（GPLv2）→ **PostgreSQL**（PostgreSQL License，類 MIT）
 > - Redis 7.4+（SSPLv1）→ **Valkey**（BSD-3-Clause，由 Linux Foundation 領導的 Redis fork）
 > - MinIO（AGPLv3）→ **SeaweedFS**（Apache 2.0）
+> - Grafana 9+（AGPLv3）→ **棄用,改用 Prometheus 內建 /graph UI**(Apache 2.0)
+> - Tempo 2.x（AGPLv3）→ **Jaeger all-in-one**(Apache 2.0)
 
 ---
 
-## ✅ 結論摘要
+## ✅ 結論摘要(v1.1)
 
-**所有 50+ 元件都是開源、可在 SaaS 情境商業使用**，無 AGPL / SSPL / GPL 風險。
-**只剩 1 個元件需要做 attribution**：
+**所有 60+ 元件都是開源、可在 SaaS 情境商業使用**,**無任何 AGPL / SSPL / GPL 風險**。
 
-| 元件 | 重點 |
+| 元件 | 處理 |
 |---|---|
-| **Font Awesome 6 Free** | 圖示 CC BY 4.0 — Footer 須加 attribution（一行字即可） |
+| Font Awesome 6 Free | 圖示 CC BY 4.0 — **v1.1 已在首頁 footer 加 attribution** ✅ |
+| Grafana 11 / Tempo 2.x(原本 obs profile) | **v1.1 棄用**;改用 Prometheus 內建 UI + Jaeger UI(都是 Apache 2.0) |
 
-**Docker Desktop vs Docker Engine** 仍是 SaaS 部署的注意事項：生產環境用 Docker Engine（Apache 2.0、免費），開發機才有 Docker Desktop 訂閱問題。
+**Docker Desktop vs Docker Engine** 仍是 SaaS 部署的注意事項:生產環境用 Docker Engine(Apache 2.0、免費),開發機才有 Docker Desktop 訂閱問題。
 
 ---
 
 ## 📋 完整相依清單
 
-### 2.1 Backend Python 相依
-來源：[`backend/requirements.txt`](backend/requirements.txt)
+### 2.1 Backend / Celery Python 相依
+
+> 從 v1.1 起 requirements 切成 3 份避免 protobuf 衝突:
+> * `backend/requirements.txt` — base(雙方共用)
+> * `backend/requirements-backend.txt` — backend image 額外裝(OpenTelemetry tracing)
+> * `backend/requirements-celery.txt` — celery image 額外裝(Robot Framework + Playwright)
+> * `backend/requirements-dev.txt` — 測試/開發用,**僅 CI 與本機**,**不會進 production image**
+
+#### Base(雙方共用)— `backend/requirements.txt`
 
 | 套件 | 版本 | 授權 | SaaS 商用 |
 |---|---|---|---|
@@ -35,21 +44,55 @@
 | uvicorn[standard] | 0.30.6 | BSD-3-Clause | ✅ |
 | sqlalchemy[asyncio] | 2.0.35 | MIT | ✅ |
 | asyncpg | 0.30.0 | Apache 2.0 | ✅ |
-| psycopg[binary] | 3.2.3 | LGPL-3.0+（**僅 client lib，不感染應用**） | ✅ |
+| psycopg[binary] | 3.2.3 | LGPL-3.0+(**僅 client lib,不感染應用**) | ✅ |
 | pydantic | 2.9.2 | MIT | ✅ |
 | pydantic-settings | 2.5.2 | MIT | ✅ |
 | python-dotenv | 1.0.1 | BSD-3-Clause | ✅ |
+| **alembic** | **1.13.3** | **MIT** | ✅ |
+| **prometheus-fastapi-instrumentator** | **7.0.0** | **ISC**(等同 MIT) | ✅ |
+| **sentry-sdk[fastapi,celery,sqlalchemy]** | **2.16.0** | **BSD-2-Clause** | ✅ |
 | python-multipart | 0.0.12 | Apache 2.0 | ✅ |
 | aiofiles | 24.1.0 | Apache 2.0 | ✅ |
 | boto3 | 1.35.36 | Apache 2.0 | ✅ |
 | celery[redis] | 5.4.0 | BSD-3-Clause | ✅ |
 | redis (Python client) | 5.1.1 | MIT | ✅ |
 | docker (Python SDK) | 7.1.0 | Apache 2.0 | ✅ |
+| PyJWT | 2.9.0 | MIT | ✅ |
+| passlib | 1.7.4 | BSD-3-Clause | ✅ |
+| bcrypt | 3.2.2 | Apache 2.0 | ✅ |
+| cryptography | 43.0.1 | Apache 2.0 OR BSD-3(雙) | ✅ |
+| httpx | 0.27.2 | BSD-3-Clause | ✅ |
+| slowapi | 0.1.9 | MIT | ✅ |
+
+#### Backend image 額外 — `backend/requirements-backend.txt`(RFC-8 tracing)
+
+| 套件 | 版本 | 授權 | SaaS 商用 |
+|---|---|---|---|
+| opentelemetry-api | 1.27.0 | Apache 2.0 | ✅ |
+| opentelemetry-sdk | 1.27.0 | Apache 2.0 | ✅ |
+| opentelemetry-instrumentation-fastapi | 0.48b0 | Apache 2.0 | ✅ |
+| opentelemetry-instrumentation-sqlalchemy | 0.48b0 | Apache 2.0 | ✅ |
+| opentelemetry-exporter-otlp-proto-grpc | 1.27.0 | Apache 2.0 | ✅ |
+
+#### Celery image 額外 — `backend/requirements-celery.txt`
+
+| 套件 | 版本 | 授權 | SaaS 商用 |
+|---|---|---|---|
 | robotframework | 7.1 | Apache 2.0 | ✅ |
 | robotframework-browser | 18.8.1 | Apache 2.0 | ✅ |
 | robotframework-requests | 0.9.7 | Apache 2.0 | ✅ |
 | robotframework-databaselibrary | 2.1.3 | Apache 2.0 | ✅ |
 | robotframework-appiumlibrary | 2.1.0 | Apache 2.0 | ✅ |
+
+#### Dev only — `backend/requirements-dev.txt`(只在 CI/本機,不入 production image)
+
+| 套件 | 版本 | 授權 | SaaS 商用 |
+|---|---|---|---|
+| pytest | 8.3.3 | MIT | ✅ |
+| pytest-asyncio | 0.24.0 | Apache 2.0 | ✅ |
+| pytest-cov | 5.0.0 | MIT | ✅ |
+| testcontainers[postgres,redis] | 4.8.2 | Apache 2.0 | ✅ |
+| ruff | 0.7.1 | MIT | ✅ |
 
 ### 2.2 Robot Framework Runner Image
 來源：[`backend/Dockerfile.runner`](backend/Dockerfile.runner)
@@ -75,31 +118,53 @@
 - `procps-ng` — GPL-2.0+（**僅執行檔，不影響你的程式碼**）
 
 ### 2.3 Frontend CDN Scripts
-來源：[`frontend/index.html`](frontend/index.html#L7-L14)
+來源:[`frontend/index.html`](frontend/index.html)(行 7-17)
 
 | 資源 | 版本 / Tag | 授權 | SaaS 商用 |
 |---|---|---|---|
-| Tailwind CSS（CDN） | latest（未版本化） | MIT | ✅ |
-| Chart.js | latest（未版本化） | MIT | ✅ |
+| Tailwind CSS(CDN) | latest(未版本化) | MIT | ✅ |
+| Chart.js | latest(未版本化) | MIT | ✅ |
 | chartjs-plugin-datalabels | 2.2.0 | MIT | ✅ |
 | html2pdf.js | 0.10.1 | MIT | ✅ |
-| Font Awesome | 6.4.0 Free | CC BY 4.0（icons） + MIT（CSS/JS） | ⚠️ 須 attribution |
+| **marked** | **12.0.2** | **MIT** | ✅ |
+| **mermaid** | **10.9.1** | **MIT** | ✅ |
+| Font Awesome | 6.4.0 Free | CC BY 4.0(icons) + MIT(CSS/JS) | ✅ attribution 已加 |
 
-> 💡 **建議**：CDN 的 `latest` tag 對商用而言不穩定，建議 pin 到具體版本（如 `tailwindcss@3.4.0` / `chart.js@4.4.0`），日後升級可控。
+> 💡 **建議**:CDN 的 `latest` tag 對商用而言不穩定,建議 pin 到具體版本(如 `tailwindcss@3.4.0` / `chart.js@4.4.0`),日後升級可控。
+>
+> Font Awesome attribution 已於 v1.1 加在 home page footer(`frontend/index.html` 末段),符合 CC BY 4.0 條款。
 
 ### 2.4 Infrastructure Docker Images
-來源：[`docker-compose.yml`](docker-compose.yml)
+來源:[`docker-compose.yml`](docker-compose.yml)
+
+#### 預設啟動(無 profile)
 
 | Service | Image / 版本 | 授權 | SaaS 商用 |
 |---|---|---|---|
-| postgres | `postgres:16-alpine` | **PostgreSQL License**（類 MIT） | ✅ |
+| postgres | `postgres:16-alpine` | **PostgreSQL License**(類 MIT) | ✅ |
 | valkey | `valkey/valkey:8-alpine` | **BSD-3-Clause** | ✅ |
 | seaweedfs | `chrislusf/seaweedfs:3.80` | **Apache 2.0** | ✅ |
 | seaweedfs-init | `amazon/aws-cli:2.18.5` | Apache 2.0 | ✅ |
-| frontend | `nginx:1.27-alpine` | BSD-2-Clause（nginx）+ MIT（Alpine 套件群） | ✅ |
+| frontend | `nginx:1.27-alpine` | BSD-2-Clause(nginx)+ MIT(Alpine 套件群) | ✅ |
 | apisix | `apache/apisix:3.11.0-debian` | **Apache 2.0** | ✅ |
 | victoria-logs | `victoriametrics/victoria-logs:v1.50.0` | **Apache 2.0** | ✅ |
 | fluent-bit | `fluent/fluent-bit:3.2` | **Apache 2.0** | ✅ |
+
+#### Obs profile(opt-in,`docker compose --profile obs up`)
+
+| Service | Image / 版本 | 授權 | SaaS 商用 |
+|---|---|---|---|
+| **prometheus** | `prom/prometheus:v2.55.1` | **Apache 2.0** | ✅ |
+| **jaeger** | `jaegertracing/all-in-one:1.62.0` | **Apache 2.0** | ✅ |
+
+> v1.1 已將 **Grafana 11(AGPLv3)** 與 **Tempo 2(AGPLv3)** 自 stack 中移除。
+> 改用 Prometheus 內建 `/graph` UI(port 9090)看 metrics、Jaeger UI(port 16686)
+> 看 trace、VictoriaLogs vmui(port 9428)看 log。三個各有 UI 而非統一 dashboard,
+> 但完全 OSS 可商用。
+>
+> 若仍想用 Grafana / Tempo:本 stack 不擋,docker compose 自行 add service。
+> 但須注意 AGPLv3 §13:對外提供 SaaS 客戶 Grafana UI 或 fork 修改源碼會觸發
+> 源碼公開義務,須先請法務評估。
 
 ### 2.5 Backend / Celery Container Base Images
 
@@ -150,15 +215,17 @@
 </p>
 ```
 
-### 3.2 歷史變更紀錄（已棄用元件）
+### 3.2 歷史變更紀錄(已棄用元件)
 
-下列元件的 Copyleft / 受限授權**曾經**是 SaaS 部署的疑慮，本版本已全部替換：
+下列元件的 Copyleft / 受限授權**曾經**是 SaaS 部署的疑慮,本版本已全部替換:
 
 | 已替換掉 | 替換為 | 受限原因 → 替換後 |
 |---|---|---|
-| MySQL 8.0（GPLv2 + FOSS Exception） | **PostgreSQL 16-alpine** | GPL 在純 SaaS 場景已合規，但 PostgreSQL License 更乾淨、無條件商用 |
-| Redis 7.4+（SSPLv1 / RSALv2） | **Valkey 8-alpine** | SSPL 不可把 Redis 當 managed cache 賣；Valkey 為 BSD-3，無此限制 |
-| MinIO（AGPLv3） | **SeaweedFS 3.80** | AGPL 修改源碼後須公開；SeaweedFS 為 Apache 2.0，完全自由 |
+| MySQL 8.0(GPLv2 + FOSS Exception) | **PostgreSQL 16-alpine** | GPL 在純 SaaS 場景已合規,但 PostgreSQL License 更乾淨、無條件商用 |
+| Redis 7.4+(SSPLv1 / RSALv2) | **Valkey 8-alpine** | SSPL 不可把 Redis 當 managed cache 賣;Valkey 為 BSD-3,無此限制 |
+| MinIO(AGPLv3) | **SeaweedFS 3.80** | AGPL 修改源碼後須公開;SeaweedFS 為 Apache 2.0,完全自由 |
+| **Grafana 11(AGPLv3)** | **Prometheus 內建 /graph UI** | AGPL §13 對 SaaS 暴露 dashboard 須公開源碼;Prometheus 為 Apache 2.0 |
+| **Tempo 2.x(AGPLv3)** | **Jaeger all-in-one 1.62.0** | 同上;Jaeger 是 CNCF 成員、Apache 2.0,且有自帶 UI 不需 Grafana |
 
 > 💡 替換後 backend 程式碼**幾乎沒動**：
 > - PostgreSQL：DB driver 從 aiomysql/pymysql 換成 asyncpg/psycopg；DATABASE_URL scheme 換成 postgresql+asyncpg
@@ -184,28 +251,31 @@
 
 ### SaaS 上線前的合規 Checklist
 
-- [ ] **不修改** MinIO / Redis / MySQL 源碼（只用官方 image）
-- [ ] **不對外暴露** MinIO API / Redis port（防火牆只開 80/443）
-- [ ] Font Awesome **attribution** 加到 footer
-- [ ] Repo 根目錄保留 `LICENSES.md`（本檔）
-- [ ] 在 SaaS 平台的「關於 / 法律聲明」頁列出主要相依（FastAPI / Robot Framework / Playwright / ...）
-- [ ] 雲端正式環境用 Linux server + Docker Engine（非 Docker Desktop）
-- [ ] 大型企業內部開發若用 Docker Desktop 須訂閱；個人 / 小團隊免費
+- [ ] **不修改** SeaweedFS / Valkey / PostgreSQL / Jaeger 源碼(只用官方 image)
+- [ ] **不對外暴露** SeaweedFS API / Valkey port / Jaeger UI(防火牆只開 80/443)
+- [x] Font Awesome **attribution** 加到 footer(v1.1 已實作 — `frontend/index.html` 末段)
+- [ ] Repo 根目錄保留 `LICENSES.md`(本檔)
+- [ ] 在 SaaS 平台的「關於 / 法律聲明」頁列出主要相依(FastAPI / Robot Framework / Playwright / Jaeger / Prometheus / ...)
+- [ ] 雲端正式環境用 Linux server + Docker Engine(非 Docker Desktop)
+- [ ] 大型企業內部開發若用 Docker Desktop 須訂閱;個人 / 小團隊免費
+- [ ] **不採用 Grafana 11+ 或 Tempo 2.x**(AGPLv3 — 已自 stack 移除,要回頭加須法務簽核)
 - [ ] **正式商用前由法務 review** 本文件 + 實際使用情境
 
-### 已採用的「乾淨」資料層 + 平台層（v1.0 預設）
+### 已採用的「乾淨」資料層 + 平台層(v1.1 預設)
 
-整個 stack 已改為 100% Apache 2.0 / BSD-3 / PostgreSQL License / MIT，無任何 Copyleft 風險：
+整個 stack 已改為 100% Apache 2.0 / BSD-3 / PostgreSQL License / MIT,無任何 Copyleft 風險:
 
 | 角色 | 元件 | 授權 |
 |---|---|---|
-| 關聯式資料庫 | **PostgreSQL 16-alpine** | PostgreSQL License（類 MIT） |
+| 關聯式資料庫 | **PostgreSQL 16-alpine** | PostgreSQL License(類 MIT) |
 | 快取 / Celery broker | **Valkey 8-alpine** | BSD-3-Clause |
-| 物件儲存（S3 相容） | **SeaweedFS 3.80** | Apache 2.0 |
+| 物件儲存(S3 相容) | **SeaweedFS 3.80** | Apache 2.0 |
 | HTTP server / 靜態頁 | **nginx 1.27-alpine** | BSD-2-Clause |
 | API 閘道器 | **Apache APISIX 3.11** | Apache 2.0 |
 | 日誌採集 | **Fluent Bit 3.2** | Apache 2.0 |
-| 日誌儲存 + 面板（vmui） | **VictoriaLogs 1.6** | Apache 2.0 |
+| 日誌儲存 + 面板(vmui) | **VictoriaLogs 1.50** | Apache 2.0 |
+| Metrics 抓取 + UI | **Prometheus 2.55**(opt-in obs profile) | Apache 2.0 |
+| Trace 收集 + UI | **Jaeger all-in-one 1.62**(opt-in obs profile) | Apache 2.0 |
 
 ---
 
