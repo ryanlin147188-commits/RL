@@ -16,6 +16,11 @@ from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
+from app.auth.context import (
+    reset_request_context,
+    set_request_context,
+)
+from app.auth.revocation import is_revoked
 from app.auth.security import decode_token
 
 # 不需登入的 path（regex match 整段 path）
@@ -57,6 +62,22 @@ def _extract_token(request: Request) -> str | None:
     return None
 
 
+def _payload_to_context(payload: dict | None):
+    """Push the JWT payload (if any) into the per-request ContextVars used by
+    :mod:`app.auth.tenant` for query scoping and ORM auto-stamping.
+
+    Returns the snapshot so the caller can ``reset_request_context`` after the
+    response is produced — keeping the tenant scope strictly request-bound.
+    """
+    if not payload:
+        return set_request_context(org_id=None, username=None, is_superuser=False)
+    return set_request_context(
+        org_id=payload.get("org_id"),
+        username=payload.get("sub"),
+        is_superuser=bool(payload.get("is_superuser", False)),
+    )
+
+
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         method = request.method.upper()
@@ -69,14 +90,18 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # 非 /api/* 與 whitelist 直接放行（並仍嘗試解 token，方便靜態頁面取使用者資訊）
         if not path.startswith("/api/") or _is_public(path):
             token = _extract_token(request)
+            payload: dict | None = None
             if token:
                 try:
-                    request.state.user_payload = decode_token(token)
+                    payload = decode_token(token)
                 except pyjwt.PyJWTError:
-                    request.state.user_payload = None
-            else:
-                request.state.user_payload = None
-            return await call_next(request)
+                    payload = None
+            request.state.user_payload = payload
+            snap = _payload_to_context(payload)
+            try:
+                return await call_next(request)
+            finally:
+                reset_request_context(snap)
 
         # /api/* — 必須有有效 access token
         token = _extract_token(request)
@@ -97,5 +122,14 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 {"detail": "需要 access token（不是 refresh token）"}, status_code=401
             )
 
+        # Token revocation check — rejects logged-out tokens before the handler
+        # runs. Fail-open if the cache is unreachable (see revocation.is_revoked).
+        if await is_revoked(payload.get("jti")):
+            return JSONResponse({"detail": "Token 已撤銷,請重新登入"}, status_code=401)
+
         request.state.user_payload = payload
-        return await call_next(request)
+        snap = _payload_to_context(payload)
+        try:
+            return await call_next(request)
+        finally:
+            reset_request_context(snap)

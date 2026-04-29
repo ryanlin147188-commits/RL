@@ -12,6 +12,7 @@ Tokens 內容:
 from __future__ import annotations
 
 import os
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -60,6 +61,7 @@ def _now_utc() -> datetime:
 def create_access_token(username: str, extra: Optional[dict] = None) -> str:
     payload = {
         "sub": username,
+        "jti": uuid.uuid4().hex,
         "iat": _now_utc(),
         "exp": _now_utc() + timedelta(minutes=ACCESS_TOKEN_TTL_MINUTES),
         "typ": "access",
@@ -72,6 +74,7 @@ def create_access_token(username: str, extra: Optional[dict] = None) -> str:
 def create_refresh_token(username: str) -> str:
     payload = {
         "sub": username,
+        "jti": uuid.uuid4().hex,
         "iat": _now_utc(),
         "exp": _now_utc() + timedelta(days=REFRESH_TOKEN_TTL_DAYS),
         "typ": "refresh",

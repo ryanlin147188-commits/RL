@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.storage_service import save_bytes
 
 from app.auth.dependencies import get_current_user
+from app.auth.revocation import revoke as revoke_jti
 from app.auth.security import (
     ACCESS_TOKEN_TTL_MINUTES,
     create_access_token,
@@ -214,6 +215,21 @@ async def refresh_token(payload: RefreshRequest, db: AsyncSession = Depends(get_
         refresh_token=create_refresh_token(user.username),
         expires_in=ACCESS_TOKEN_TTL_MINUTES * 60,
     )
+
+
+@router.post("/auth/logout", status_code=204, tags=["U · 認證"])
+async def logout(request: Request, user: User = Depends(get_current_user)):
+    """Revoke the access token used for this request.
+
+    The token is added to the Valkey blocklist with a TTL equal to its
+    remaining lifetime, after which the entry expires automatically. The
+    refresh token is NOT revoked here — to invalidate everything for a user
+    rotate their password (drives a separate cascade) or have an admin
+    deactivate the account.
+    """
+    payload = getattr(request.state, "user_payload", None) or {}
+    await revoke_jti(payload.get("jti"), payload.get("exp"))
+    return None
 
 
 @router.get("/auth/me", response_model=UserResponse, tags=["U · 認證"])
