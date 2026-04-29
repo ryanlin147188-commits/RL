@@ -120,6 +120,12 @@ services:
       # 應用層 secret(必填):JWT 簽章 + Fernet 對稱加密金鑰
       AUTOTEST_JWT_SECRET: ${AUTOTEST_JWT_SECRET:?AUTOTEST_JWT_SECRET is required - run ./deploy.sh first to generate one}
       AUTOTEST_FERNET_KEY: ${AUTOTEST_FERNET_KEY:?AUTOTEST_FERNET_KEY is required - run ./deploy.sh first to generate one}
+      # RFC-8 observability:預設指向 obs profile 的 tempo;沒啟 obs profile
+      # 時 backend 連不到 tempo,observability.py 會 log warning 後忽略,不擋啟動。
+      # 完全停用 tracing → 在 .env 或 compose override 設成空字串。
+      OTLP_ENDPOINT: ${OTLP_ENDPOINT:-tempo:4317}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      AUTOTEST_ENV: ${AUTOTEST_ENV:-dev}
       # ── Docker 模式錄製(Phase 1) ──
       RECORDER_IMAGE: ${RECORDER_IMAGE:-autotest-recorder:1.0.0}
       RECORDER_NETWORK: ${RECORDER_NETWORK:-autotest_default}

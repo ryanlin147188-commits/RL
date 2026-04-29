@@ -1,0 +1,28 @@
+# Backend-only deps: OpenTelemetry tracing.
+#
+# Why split: robotframework-browser pins protobuf==5.28.1 (in
+# requirements-celery.txt). opentelemetry-proto 1.x pins protobuf<5.
+# The celery image cannot host both; the backend image does not need
+# robotframework-browser at all (it never runs tests), so OpenTelemetry
+# lives here in the backend's separate venv.
+#
+# Install order (Backend Dockerfile):
+#   pip install -r requirements.txt -r requirements-backend.txt
+#
+# All OpenTelemetry calls in app/observability.py are wrapped in
+# try/except, so the FastAPI app still boots even if these deps fail
+# to install (it just logs a warning and keeps going).
+
+opentelemetry-api==1.27.0
+opentelemetry-sdk==1.27.0
+opentelemetry-instrumentation-fastapi==0.48b0
+opentelemetry-instrumentation-sqlalchemy==0.48b0
+opentelemetry-exporter-otlp-proto-grpc==1.27.0
+
+# opentelemetry-instrumentation-celery deliberately omitted: it would
+# need to live in the celery image (where the actual Celery worker
+# runs), but that image cannot install opentelemetry-proto due to the
+# protobuf pin clash. Worker-side tracing is therefore disabled until
+# robotframework-browser supports protobuf v6 or OTel ships a v5-compatible
+# proto release. Backend-side traces (FastAPI + async SQLAlchemy) still
+# work and cover the highest-leverage hot paths.

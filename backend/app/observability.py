@@ -70,12 +70,22 @@ def install_tracing(service_name: str = "autotest-backend") -> None:
         from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
         env = _env("AUTOTEST_ENV", "dev")
+        # Plaintext gRPC unless the endpoint is explicitly https. In-cluster
+        # OTLP collectors (Tempo, OTel-Collector) default to plaintext on
+        # 4317; only public/managed endpoints (Honeycomb, Datadog, etc.) use
+        # TLS. Without `insecure=True` the gRPC client tries SNI-handshake
+        # against a plaintext peer and the trace pipe stays silently down.
+        insecure = not endpoint.lower().startswith("https://")
+        # Strip any explicit scheme — OTLPSpanExporter prefers host:port form.
+        bare = endpoint.split("://", 1)[1] if "://" in endpoint else endpoint
         provider = TracerProvider(
             resource=Resource.create({"service.name": service_name, "deployment.environment": env})
         )
-        provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint)))
+        provider.add_span_processor(
+            BatchSpanProcessor(OTLPSpanExporter(endpoint=bare, insecure=insecure))
+        )
         trace.set_tracer_provider(provider)
-        log.info("observability: OTel tracing -> %s", endpoint)
+        log.info("observability: OTel tracing -> %s (insecure=%s)", bare, insecure)
     except Exception as exc:  # noqa: BLE001
         log.warning("observability: OTel init skipped: %s", exc)
 

@@ -12,9 +12,12 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt ./
-# 後端 image 不需要 Playwright（執行交給 celery image）
-RUN pip install --no-cache-dir -r requirements.txt
+# Backend installs the shared base + OpenTelemetry tracing extras.
+# Robotframework-* deps live in requirements-celery.txt and are NOT
+# installed here -- backend never runs tests, and that pin would block
+# OTel via protobuf version conflict (see requirements-backend.txt).
+COPY requirements.txt requirements-backend.txt ./
+RUN pip install --no-cache-dir -r requirements.txt -r requirements-backend.txt
 
 COPY . /app
 

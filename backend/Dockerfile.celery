@@ -27,8 +27,11 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+# Celery installs the shared base + Robot Framework execution stack.
+# OpenTelemetry deliberately NOT installed here: opentelemetry-proto<5
+# clashes with robotframework-browser's protobuf==5.28.1 pin.
+COPY requirements.txt requirements-celery.txt ./
+RUN pip install --no-cache-dir -r requirements.txt -r requirements-celery.txt
 
 # 初始化 robotframework-browser（會 npm install Playwright JS 與 dependencies）
 RUN rfbrowser init --skip-browsers

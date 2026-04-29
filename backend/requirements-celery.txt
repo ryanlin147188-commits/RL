@@ -1,0 +1,20 @@
+# Celery worker-only deps: Robot Framework execution engine.
+#
+# Why split: robotframework-browser 18.8.1 pins protobuf==5.28.1, which
+# clashes with opentelemetry-proto<5 used by the OTel SDK. By isolating
+# the Robot Framework stack here (loaded only by the celery image), the
+# backend image can install OpenTelemetry without conflict.
+#
+# Install order (Dockerfile.celery):
+#   pip install -r requirements.txt -r requirements-celery.txt
+#   rfbrowser init --skip-browsers   # initialises Node side of robotframework-browser
+#
+# When upgrading any robotframework-* package, re-check the protobuf pin
+# in its setup.cfg / pyproject.toml -- a relaxation may unblock putting
+# OpenTelemetry back into the celery image.
+
+robotframework==7.1
+robotframework-browser==18.8.1          # Playwright-based, needs Node + `rfbrowser init`
+robotframework-requests==0.9.7          # HTTP API testing
+robotframework-databaselibrary==2.1.3   # SQL via user-selected driver (psycopg / pymysql / ...)
+robotframework-appiumlibrary==2.1.0     # mobile (needs external Appium server)
