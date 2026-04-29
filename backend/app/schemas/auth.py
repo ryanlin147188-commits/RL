@@ -70,3 +70,31 @@ class RegisterRequest(BaseModel):
     email: Optional[str] = None
     display_name: Optional[str] = None
     invite_token: Optional[str] = None
+
+
+class BootstrapInviteRequest(BaseModel):
+    """Bootstrap 第一張 admin 邀請碼。
+
+    雙重閘門:
+      * AUTOTEST_BOOTSTRAP_TOKEN env 必須設 (operator-controlled secret)
+      * 目標 org 必須沒有任何 active admin (避免覆蓋既有部署)
+
+    任一條件不滿足 → 端點拒絕。設計目的是讓「第一次部署的客戶」可以從
+    UI 走完整個註冊流程,不需要 SSH 進 host 跑 CLI。
+    """
+    bootstrap_token: str
+    organization_slug: str = "default"
+    email: Optional[str] = None
+    ttl_hours: int = 24
+
+
+class BootstrapInviteResponse(BaseModel):
+    invite_token: str
+    organization_id: str
+    organization_slug: str
+    role: str
+    expires_at: datetime
+    note: str = (
+        "Use this token in POST /api/auth/register as `invite_token`. "
+        "Single-use; expires at the time above."
+    )

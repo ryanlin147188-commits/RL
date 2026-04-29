@@ -5,16 +5,17 @@
 （如 `payload: LoginRequest`）會在 FastAPI 註冊路由時拋
 `PydanticUndefinedAnnotation`。
 """
-from datetime import datetime
-from typing import Optional
-
 import io
+import os
 import re
+import secrets
 import uuid
+from datetime import datetime, timedelta
+from typing import Optional
 
 import jwt as pyjwt
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.storage_service import save_bytes
@@ -37,6 +38,8 @@ from app.models.organization import Organization
 from app.models.role import Role
 from app.models.user import User
 from app.schemas.auth import (
+    BootstrapInviteRequest,
+    BootstrapInviteResponse,
     ChangePasswordRequest,
     LoginRequest,
     RefreshRequest,
@@ -190,6 +193,117 @@ async def register(
         access_token=create_access_token(new_user.username, extra=extra),
         refresh_token=create_refresh_token(new_user.username),
         expires_in=ACCESS_TOKEN_TTL_MINUTES * 60,
+    )
+
+
+@router.post(
+    "/auth/bootstrap-invite",
+    response_model=BootstrapInviteResponse,
+    status_code=201,
+    tags=["U · 認證"],
+)
+@limiter.limit("3/hour")
+async def bootstrap_invite(
+    request: Request,
+    payload: BootstrapInviteRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Mint the first Admin invite token for a freshly-deployed organisation.
+
+    The endpoint is **disabled by default**. Operator must:
+
+    1. Set ``AUTOTEST_BOOTSTRAP_TOKEN`` to a strong random value
+       (e.g. ``openssl rand -hex 32``) and restart the backend.
+    2. Hit this endpoint with the matching token in the request body.
+
+    Once any active admin (superuser OR Admin role) exists in the target
+    organisation the endpoint returns 409 — preventing accidental
+    re-bootstrap on a running deploy.
+
+    Use the returned ``invite_token`` in ``POST /api/auth/register`` to
+    create the first Admin user. After that, ``unset
+    AUTOTEST_BOOTSTRAP_TOKEN`` and restart so the door closes behind you.
+    """
+    # ── Gate 1: operator-controlled secret ─────────────────────────────
+    expected = (os.environ.get("AUTOTEST_BOOTSTRAP_TOKEN") or "").strip()
+    if not expected:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "bootstrap-invite is disabled. Operator must set "
+                "AUTOTEST_BOOTSTRAP_TOKEN env var and restart the backend "
+                "to enable. See docs/ops/bootstrap.md."
+            ),
+        )
+    # constant-time compare to avoid timing-based token enumeration
+    if not secrets.compare_digest(payload.bootstrap_token or "", expected):
+        raise HTTPException(status_code=403, detail="bootstrap_token mismatch")
+
+    # ── Resolve target org ─────────────────────────────────────────────
+    org = (
+        await db.execute(
+            select(Organization).where(Organization.slug == payload.organization_slug)
+        )
+    ).scalar_one_or_none()
+    if not org:
+        raise HTTPException(
+            status_code=404,
+            detail=f"organization '{payload.organization_slug}' not found",
+        )
+
+    # ── Gate 2: no admin must exist yet ────────────────────────────────
+    admin_role = (
+        await db.execute(select(Role).where(Role.name == "Admin", Role.is_system.is_(True)))
+    ).scalar_one_or_none()
+    if not admin_role:
+        # Should never happen because lifespan seeds Admin/QA/Viewer, but
+        # fail loud rather than silently mint an invite to nowhere.
+        raise HTTPException(
+            status_code=500,
+            detail="default Admin role not seeded; contact operator",
+        )
+
+    admin_count_q = (
+        select(func.count(User.username))
+        .outerjoin(Role, User.role_id == Role.id)
+        .where(
+            User.organization_id == org.id,
+            User.is_active.is_(True),
+            or_(User.is_superuser.is_(True), Role.name == "Admin"),
+        )
+    )
+    admin_count = (await db.execute(admin_count_q)).scalar_one() or 0
+    if admin_count > 0:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"organization '{org.slug}' already has {admin_count} active "
+                "admin user(s); have one of them mint an invite via the "
+                "regular admin UI instead."
+            ),
+        )
+
+    # ── Mint the invite ────────────────────────────────────────────────
+    ttl = max(1, min(payload.ttl_hours, 24 * 7))  # clamp 1h..7d
+    expires_at = datetime.utcnow() + timedelta(hours=ttl)
+    invite_token = "BOOT-" + secrets.token_urlsafe(24)
+
+    invite = OrgInvite(
+        organization_id=org.id,
+        token=invite_token,
+        email=(payload.email or "").strip().lower() or None,
+        role_id=admin_role.id,
+        expires_at=expires_at,
+    )
+    db.add(invite)
+    await db.flush()
+
+    return BootstrapInviteResponse(
+        invite_token=invite_token,
+        organization_id=org.id,
+        organization_slug=org.slug,
+        role="Admin",
+        expires_at=expires_at,
     )
 
 

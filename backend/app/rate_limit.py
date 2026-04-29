@@ -10,6 +10,7 @@ key 函式：優先用 JWT username（middleware 已塞 request.state.user_paylo
 """
 from __future__ import annotations
 
+import os
 from typing import Optional
 
 from fastapi import Request
@@ -34,4 +35,7 @@ limiter = Limiter(
     key_func=_user_or_ip_key,
     default_limits=["600/minute"],
     headers_enabled=False,
+    # Disable in tests so the same IP can hit a 3/hour endpoint repeatedly
+    # without false 429s. Production / staging keep limits on.
+    enabled=os.environ.get("AUTOTEST_TEST_MODE", "").strip() not in ("1", "true", "True"),
 )
