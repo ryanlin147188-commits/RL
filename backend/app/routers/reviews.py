@@ -94,7 +94,58 @@ async def submit_review(
         submitted_by=user.username,
         organization_id=user.organization_id,
     )
-    return record
+    names = await _resolve_entity_names(db, [record])
+    return _to_response(record, names)
+
+
+async def _resolve_entity_names(
+    db: AsyncSession, records: list[ReviewRecord]
+) -> dict[tuple[str, str], str]:
+    """Batch-resolve human-readable names for every (entity_type, entity_id)
+    in `records`. Returns a flat {(type, id): name} map so the caller can
+    just stitch into the response shape.
+
+    Falls back to no-name (None) when the underlying entity was deleted --
+    audit history must outlive the entity it audits.
+    """
+    from app.models.execution_report import ExecutionReport
+    from app.models.recording import RecordingSession
+    from app.models.test_document import TestDocument
+    from app.models.tree_node import TreeNode
+
+    by_type: dict[ReviewableEntityType, list[str]] = {}
+    for r in records:
+        by_type.setdefault(r.entity_type, []).append(r.entity_id)
+
+    out: dict[tuple[str, str], str] = {}
+
+    async def _fill(model, label_attr, etype: ReviewableEntityType):
+        ids = by_type.get(etype) or []
+        if not ids:
+            return
+        rows = (
+            await db.execute(select(model).where(model.id.in_(ids)))
+        ).scalars().all()
+        for row in rows:
+            label = getattr(row, label_attr, None)
+            if label:
+                out[(etype.value, row.id)] = str(label)
+
+    await _fill(TreeNode, "name", ReviewableEntityType.TESTCASE)
+    await _fill(TestDocument, "title", ReviewableEntityType.DOCUMENT)
+    # RecordingSession does not have a name column; surface the target URL
+    # so the operator at least sees what was being recorded.
+    await _fill(RecordingSession, "target_url", ReviewableEntityType.SCRIPT)
+    # ExecutionReport: surface the celery task_id (the trigger handle the
+    # operator sees in /api/executions/{task_id}/status).
+    await _fill(ExecutionReport, "task_id", ReviewableEntityType.REPORT)
+    return out
+
+
+def _to_response(record: ReviewRecord, names: dict[tuple[str, str], str]) -> ReviewRecordResponse:
+    resp = ReviewRecordResponse.model_validate(record)
+    resp.entity_name = names.get((record.entity_type.value, record.entity_id))
+    return resp
 
 
 @router.get(
@@ -114,7 +165,8 @@ async def list_reviews(
     if entity_type is not None:
         stmt = stmt.where(ReviewRecord.entity_type == entity_type)
     rows = (await db.execute(stmt)).scalars().all()
-    return list(rows)
+    names = await _resolve_entity_names(db, list(rows))
+    return [_to_response(r, names) for r in rows]
 
 
 @router.get(
@@ -136,7 +188,10 @@ async def get_review_by_entity(
         entity_id=entity_id,
         organization_id=None if user.is_superuser else user.organization_id,
     )
-    return record
+    if record is None:
+        return None
+    names = await _resolve_entity_names(db, [record])
+    return _to_response(record, names)
 
 
 @router.get(
@@ -154,7 +209,8 @@ async def get_review(
     ).scalar_one_or_none()
     if record is None:
         raise HTTPException(404, "review record not found")
-    return record
+    names = await _resolve_entity_names(db, [record])
+    return _to_response(record, names)
 
 
 @router.get(
@@ -209,7 +265,9 @@ async def approve_review(
 ):
     await _ensure_admin(user, db)
     record = await _load_for_action(db, record_id, user)
-    return await review_service.approve(db, record=record, reviewer=user.username)
+    record = await review_service.approve(db, record=record, reviewer=user.username)
+    names = await _resolve_entity_names(db, [record])
+    return _to_response(record, names)
 
 
 @router.post(
@@ -225,9 +283,11 @@ async def reject_review(
 ):
     await _ensure_admin(user, db)
     record = await _load_for_action(db, record_id, user)
-    return await review_service.reject(
+    record = await review_service.reject(
         db, record=record, reviewer=user.username, reason=payload.reason
     )
+    names = await _resolve_entity_names(db, [record])
+    return _to_response(record, names)
 
 
 @router.post(
@@ -243,6 +303,8 @@ async def revert_review(
 ):
     await _ensure_admin(user, db)
     record = await _load_for_action(db, record_id, user)
-    return await review_service.revert(
+    record = await review_service.revert(
         db, record=record, actor=user.username, reason=payload.reason
     )
+    names = await _resolve_entity_names(db, [record])
+    return _to_response(record, names)

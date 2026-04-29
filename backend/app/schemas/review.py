@@ -28,6 +28,11 @@ class ReviewRecordResponse(BaseModel):
     id: str
     entity_type: ReviewableEntityType
     entity_id: str
+    # Human-readable name for the entity (testcase name, document title,
+    # recording target_url, report task_id...). Populated by the router on
+    # read so the UI doesn't have to N+1-fetch each entity. Nullable when
+    # the underlying entity has been deleted.
+    entity_name: Optional[str] = None
     status: ReviewStatus
     current_reason: Optional[str]
     submitted_by: Optional[str]
