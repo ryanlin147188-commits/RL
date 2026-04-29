@@ -1,11 +1,19 @@
+import os
+from pathlib import Path
+
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
 
+from app.auth.tenant import install_tenant_autostamp
 from app.config import settings
 from app.models.base import Base
+
+# ORM event hook: auto-fill organization_id on new TenantScoped rows from the
+# request ContextVar. Registered once at module import (idempotent).
+install_tenant_autostamp()
 
 engine = create_async_engine(
     settings.DATABASE_URL,
@@ -13,6 +21,34 @@ engine = create_async_engine(
     pool_pre_ping=True,
     pool_recycle=3600,
 )
+
+
+def _alembic_managed() -> bool:
+    """Whether Alembic is the source of truth for schema (default True).
+
+    Set ALEMBIC_MANAGED=false to fall back to the legacy create_all path —
+    only useful as an escape hatch if Alembic is broken in a deployment.
+    """
+    return os.environ.get("ALEMBIC_MANAGED", "true").strip().lower() not in ("false", "0", "no")
+
+
+def _run_alembic_upgrade_head() -> None:
+    """Run ``alembic upgrade head`` programmatically against SYNC_DATABASE_URL.
+
+    For a fresh DB, baseline revision calls ``Base.metadata.create_all`` and
+    every table is born. For an existing DB previously bootstrapped via the
+    legacy create_all path, baseline ``create_all`` is a no-op (checkfirst=True)
+    and Alembic just stamps the version row — making the upgrade idempotent
+    in both directions.
+    """
+    from alembic import command
+    from alembic.config import Config
+
+    backend_root = Path(__file__).resolve().parent.parent
+    cfg = Config(str(backend_root / "alembic.ini"))
+    cfg.set_main_option("script_location", str(backend_root / "alembic"))
+    cfg.set_main_option("sqlalchemy.url", settings.SYNC_DATABASE_URL)
+    command.upgrade(cfg, "head")
 
 AsyncSessionLocal = async_sessionmaker(
     engine,
@@ -49,9 +85,14 @@ async def init_db() -> None:
 
     from sqlalchemy import text
 
-    # 1) create_all 在自己的 transaction;失敗就讓服務啟動失敗,看到錯誤
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    # 1) Schema:Alembic 為事實來源(baseline 內含 create_all,對既有 DB 為 no-op + stamp)
+    if _alembic_managed():
+        # alembic 走同步 driver,在 thread pool 跑避免阻塞 event loop
+        import asyncio
+        await asyncio.to_thread(_run_alembic_upgrade_head)
+    else:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
 
     # 2) Lightweight migrations:每條 statement 在獨立 transaction 執行,
     #    避免一條失敗讓整批 rollback。PostgreSQL 在 transaction abort 後

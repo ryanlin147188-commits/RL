@@ -1,0 +1,17 @@
+# Backend test dependencies — install on top of requirements.txt
+#   pip install -r requirements.txt -r requirements-dev.txt
+
+pytest==8.3.3
+pytest-asyncio==0.24.0
+pytest-cov==5.0.0
+
+# httpx is already pinned in requirements.txt (0.27.2). ASGITransport ships with
+# the same version; we re-list it here without a pin so dev installs do not
+# resolver-conflict against the runtime pin.
+httpx
+
+# Spin up real Postgres + Valkey per session for integration tests.
+testcontainers[postgres,redis]==4.8.2
+
+# Ruff for static checks (lint rules referenced by RFC-9 land here later).
+ruff==0.7.1

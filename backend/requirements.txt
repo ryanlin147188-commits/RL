@@ -17,6 +17,22 @@ pydantic==2.9.2
 pydantic-settings==2.5.2
 python-dotenv==1.0.1
 
+# Schema migrations
+alembic==1.13.3
+
+# Observability (RFC-8). Prometheus exporter, OpenTelemetry tracing for the
+# FastAPI/SQLAlchemy/Celery hot paths, and Sentry for error tracking. Each
+# block is opt-in: disable via env (PROM_DISABLED, OTLP_ENDPOINT empty,
+# SENTRY_DSN empty) — installing the deps does not turn anything on.
+prometheus-fastapi-instrumentator==7.0.0
+opentelemetry-api==1.27.0
+opentelemetry-sdk==1.27.0
+opentelemetry-instrumentation-fastapi==0.48b0
+opentelemetry-instrumentation-sqlalchemy==0.48b0
+opentelemetry-instrumentation-celery==0.48b0
+opentelemetry-exporter-otlp-proto-grpc==1.27.0
+sentry-sdk[fastapi,celery,sqlalchemy]==2.16.0
+
 # Auth：JWT 簽發/驗證 + bcrypt 密碼雜湊
 # 注意：passlib 1.7.4 對 bcrypt 4.x 有相容性問題（_about_ 屬性消失），
 # 因此將 bcrypt 鎖在 3.x（最後一個相容版本）。

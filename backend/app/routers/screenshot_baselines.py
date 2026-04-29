@@ -23,6 +23,14 @@ from app.services.storage_service import save_bytes
 router = APIRouter()
 
 
+class BaselineResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    step_uuid: str
+    testcase_node_id: Optional[str]
+    baseline_url: str
+    threshold_pct: float
+
+
 async def _check_baseline_scope(
     obj: Optional[StepScreenshotBaseline], user: User, db: AsyncSession
 ) -> None:

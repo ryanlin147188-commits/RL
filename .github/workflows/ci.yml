@@ -63,3 +63,98 @@ jobs:
 
       - name: Run bandit
         run: bandit -r backend/app -ll -ii --exclude backend/app/tests
+
+  sync-async-boundary:
+    name: Sync/async DB-session boundary (RFC-9)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run boundary lint
+        working-directory: backend
+        run: python scripts/lint_sync_async_boundary.py
+
+  alembic-round-trip:
+    name: Alembic upgrade / downgrade round trip
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: admin
+          POSTGRES_PASSWORD: admin123
+          POSTGRES_DB: autotest_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U admin"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DB_HOST: localhost
+      DB_PORT: "5432"
+      DB_USER: admin
+      DB_PASSWORD: admin123
+      DB_NAME: autotest_db
+      AUTOTEST_JWT_SECRET: ci-jwt-secret-not-real-not-real-not-real
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install backend deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Upgrade head
+        working-directory: backend
+        run: alembic upgrade head
+
+      - name: Downgrade base
+        working-directory: backend
+        run: alembic downgrade base
+
+      - name: Upgrade head again
+        working-directory: backend
+        run: alembic upgrade head
+
+  backend-tests:
+    name: Backend pytest (unit + integration)
+    runs-on: ubuntu-latest
+    env:
+      AUTOTEST_JWT_SECRET: ci-jwt-secret-not-real-not-real-not-real
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install backend + dev deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt -r backend/requirements-dev.txt
+
+      - name: Run unit tests
+        working-directory: backend
+        run: pytest tests/unit -v
+
+      - name: Run integration tests (testcontainers Postgres)
+        working-directory: backend
+        run: pytest tests/integration -v --cov=app --cov-report=term-missing
