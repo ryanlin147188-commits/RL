@@ -15,10 +15,10 @@ from datetime import datetime
 from typing import Optional
 
 from celery.utils.log import get_task_logger
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session
 
+from app.auth.context import current_org_id
 from app.config import settings
+from app.db.sync_session import SessionLocal
 from tasks.celery_app import celery_app
 
 logger = get_task_logger(__name__)
@@ -75,12 +75,20 @@ def run_tests(
     # 供 robot_runner 子進程的 listener 讀取，以使用同一條 Redis channel
     os.environ["AUTOTEST_TASK_ID"] = task_id
 
-    engine = create_engine(settings.SYNC_DATABASE_URL, pool_pre_ping=True)
-
     try:
         from app.models.execution_report import ExecutionReport, ReportStatus
         from app.models.execution_step_log import ExecutionStepLog, StepStatus
         from app.models.testcase_content import TestcaseContent
+
+        # Resolve the report's organisation upfront so every DB session this
+        # task opens runs under the right tenant context. The ORM auto-stamp
+        # listener (RFC-4) relies on ``current_org_id`` to fill ``organization_id``
+        # on new rows like ExecutionStepLog inserts later in the loop.
+        with SessionLocal() as db:
+            _report = db.get(ExecutionReport, report_id)
+            _org_id_token = current_org_id.set(
+                _report.organization_id if _report else None
+            )
 
         publish_log("INFO", f"🚀 任務啟動 | Task: {task_id[:8]}…")
         publish_log("INFO", f"📋 共 {len(testcase_ids)} 個測試案例")
@@ -91,7 +99,7 @@ def run_tests(
         except ImportError as e:
             publish_log("ERROR", f"💥 Robot Framework 未安裝：{e}")
             _pub_done(r, channel, "FAILED")
-            with Session(engine) as db:
+            with SessionLocal() as db:
                 report = db.get(ExecutionReport, report_id)
                 if report:
                     report.status = ReportStatus.FAILED
@@ -106,7 +114,7 @@ def run_tests(
             from app.models.project_device import ProjectDevice
             from app.models.project_env_var import ProjectEnvVar
 
-            with Session(engine) as db:
+            with SessionLocal() as db:
                 report = db.get(ExecutionReport, report_id)
                 if report and report.project_id:
                     pid = report.project_id
@@ -145,7 +153,7 @@ def run_tests(
         for idx, tc_id in enumerate(testcase_ids, 1):
             publish_log("INFO", f"▶ [{idx}/{len(testcase_ids)}] 案例 {tc_id[:8]}…")
 
-            with Session(engine) as db:
+            with SessionLocal() as db:
                 content: Optional[TestcaseContent] = db.get(TestcaseContent, tc_id)
 
             if content is None or not content.steps_json:
@@ -179,7 +187,7 @@ def run_tests(
             except Exception as exc:  # noqa: BLE001
                 publish_log("ERROR", f"💥 案例 {idx} 執行器異常: {exc}")
                 failed_cases += 1
-                with Session(engine) as db:
+                with SessionLocal() as db:
                     db.add(
                         ExecutionStepLog(
                             id=str(uuid.uuid4()),
@@ -203,7 +211,7 @@ def run_tests(
                 publish_log("ERROR", f"❌ 案例 {idx} 失敗")
 
             # DDT 多列：用 step_index = round*1000 + step 編碼
-            with Session(engine) as db:
+            with SessionLocal() as db:
                 for round_idx, round_res in enumerate(round_results):
                     # 找出本輪「第一個會被寫入 DB 的 step」(非 SKIPPED) 以掛 case 級欄位
                     first_persisted_step: Optional[int] = next(
@@ -244,7 +252,7 @@ def run_tests(
             ReportStatus.PASSED if failed_cases == 0 else ReportStatus.FAILED
         )
 
-        with Session(engine) as db:
+        with SessionLocal() as db:
             report = db.get(ExecutionReport, report_id)
             if report:
                 report.status = final_status
@@ -265,5 +273,9 @@ def run_tests(
         logger.exception("Task %s failed", task_id)
         raise
     finally:
-        engine.dispose()
+        try:
+            current_org_id.reset(_org_id_token)
+        except (LookupError, NameError):
+            # _org_id_token never bound — task aborted before ContextVar.set
+            pass
         r.close()
