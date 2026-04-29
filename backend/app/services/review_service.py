@@ -18,12 +18,14 @@ State machine (illegal transitions raise 400):
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import event, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
+from app.auth.context import current_org_id, current_username
 from app.models.review import (
     ReviewableEntityType,
     ReviewAction,
@@ -293,3 +295,103 @@ async def ensure_not_approved(
                 "entity_id": entity_id,
             },
         )
+
+
+# ── Auto-create on insert (RFC-Review-1 phase 2) ──────────────────────
+# Hook into SQLAlchemy's flush so that a freshly-created TreeNode (testcase),
+# TestDocument, RecordingSession, or ExecutionReport automatically lands in
+# the "pending" review queue. This means everything new shows up in the
+# Review Center without anyone having to remember to call POST /api/reviews.
+
+def _kwargs_for_review(obj: Any) -> Optional[dict]:
+    """Return ReviewRecord kwargs for `obj` if it should auto-spawn a review,
+    else None. Imports are local so the SQLAlchemy event registration in
+    install_review_autocreate() does not pull all 33 model files at module
+    load time.
+
+    Side effect: if `obj.id` is unset, generate one inline. SQLAlchemy's
+    ``default=lambda: str(uuid.uuid4())`` fires during INSERT compilation,
+    which is *after* before_flush -- so without this assignment we'd build
+    a ReviewRecord with entity_id=None and the FK/NOT NULL would explode.
+    Setting it here means SQLAlchemy uses our value verbatim at INSERT time.
+    """
+    import uuid as _uuid
+
+    from app.models.execution_report import ExecutionReport
+    from app.models.recording import RecordingSession
+    from app.models.test_document import TestDocument
+    from app.models.tree_node import LevelType, TreeNode
+
+    def _ensure_id(o: Any) -> str:
+        if not getattr(o, "id", None):
+            o.id = str(_uuid.uuid4())
+        return o.id
+
+    if isinstance(obj, TreeNode):
+        # Only TESTCASE-level nodes get reviewed; FEATURE/PLATFORM/PAGE/SCENARIO
+        # are organizational containers, not user-authored content.
+        if obj.level_type == LevelType.TESTCASE:
+            return {"entity_type": ReviewableEntityType.TESTCASE, "entity_id": _ensure_id(obj)}
+        return None
+    if isinstance(obj, TestDocument):
+        return {"entity_type": ReviewableEntityType.DOCUMENT, "entity_id": _ensure_id(obj)}
+    if isinstance(obj, RecordingSession):
+        return {"entity_type": ReviewableEntityType.SCRIPT, "entity_id": _ensure_id(obj)}
+    if isinstance(obj, ExecutionReport):
+        return {"entity_type": ReviewableEntityType.REPORT, "entity_id": _ensure_id(obj)}
+    return None
+
+
+def install_review_autocreate() -> None:
+    """Register the before_flush hook that auto-spawns pending review
+    records for newly-created reviewable entities. Idempotent (called
+    once at app boot from app.database).
+
+    Failure handling: any error inside this hook is logged but **never**
+    propagated -- a misconfigured review pipeline must not break the
+    user's actual write. The worst case is a missing review row, which
+    can be reconciled later via POST /api/reviews.
+    """
+    import logging
+    log = logging.getLogger(__name__)
+
+    @event.listens_for(Session, "before_flush")
+    def _autocreate(session: Session, flush_context: Any, instances: Any) -> None:  # noqa: ARG001
+        try:
+            org_id = current_org_id.get()
+            username = current_username.get() or "system"
+            # Without a tenant context we have no idea who owns this row;
+            # falling through means rows still flush without a review record,
+            # which is preferable to crashing the request.
+            if not org_id:
+                return
+
+            already_queued: set[tuple[str, str]] = {
+                (r.entity_type.value if hasattr(r.entity_type, "value") else r.entity_type, r.entity_id)
+                for r in session.new
+                if isinstance(r, ReviewRecord)
+            }
+
+            to_add: list[ReviewRecord] = []
+            for obj in list(session.new):
+                kwargs = _kwargs_for_review(obj)
+                if not kwargs:
+                    continue
+                key = (kwargs["entity_type"].value, kwargs["entity_id"])
+                if key in already_queued:
+                    continue
+                already_queued.add(key)
+                to_add.append(
+                    ReviewRecord(
+                        organization_id=org_id,
+                        submitted_by=username,
+                        submitted_at=datetime.utcnow(),
+                        status=ReviewStatus.PENDING,
+                        **kwargs,
+                    )
+                )
+
+            for rec in to_add:
+                session.add(rec)
+        except Exception:  # noqa: BLE001
+            log.exception("review autocreate hook failed; the user's write proceeds without a review record")

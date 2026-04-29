@@ -15,6 +15,15 @@ from app.models.base import Base
 # request ContextVar. Registered once at module import (idempotent).
 install_tenant_autostamp()
 
+# ORM event hook: every newly-created TreeNode(testcase) / TestDocument /
+# RecordingSession / ExecutionReport auto-spawns a pending ReviewRecord so
+# admins see it in the Review Center without anyone calling the submit API.
+# Imported lazily here to avoid circular imports during model bootstrap.
+def _install_review_autocreate() -> None:
+    from app.services.review_service import install_review_autocreate
+    install_review_autocreate()
+_install_review_autocreate()
+
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=settings.DEBUG,

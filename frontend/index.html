@@ -7300,6 +7300,22 @@ driver.swipe(100, 800, 100, 200, 500)"
         const SCENARIO_ORDER = { '正向': 0, '反向': 1, '邊界': 2 };
         // PLATFORM 子節點固定排序：WEB → API → APP（其他名稱排在最後，依原順序）
         const PLATFORM_ORDER = { 'WEB': 0, 'API': 1, 'APP': 2, 'E2E': 3, 'UI': 4, 'DB': 5 };
+        // Persistent set of expanded tree node ids. Survives every
+        // switchProject() / re-fetch so that adding/editing/deleting a node
+        // doesn't collapse everything in the sidebar (issue #3 from
+        // 2026-04-29 UI feedback).
+        // Stored in localStorage so it also survives page reloads.
+        const _EXPANDED_LS_KEY = 'autotest.tree.expanded';
+        let _expandedNodeIds = (function loadExpanded() {
+            try {
+                const raw = localStorage.getItem(_EXPANDED_LS_KEY);
+                return new Set(raw ? JSON.parse(raw) : []);
+            } catch { return new Set(); }
+        })();
+        function _saveExpanded() {
+            try { localStorage.setItem(_EXPANDED_LS_KEY, JSON.stringify([..._expandedNodeIds])); } catch {}
+        }
+
         function decorateNode(serverNode) {
             const lt = serverNode.level_type;
             let children = (serverNode.children || []).map(decorateNode);
@@ -7323,8 +7339,10 @@ driver.swipe(100, 800, 100, 200, 500)"
                 id: serverNode.id,
                 name: serverNode.name,
                 level_type: lt,
-                // 需求 #4：側邊欄預設全部折疊，使用者點擊 ▸ 才展開下一層
-                expanded: false,
+                // Default collapsed; restore the user's previous expand state
+                // (per-node) from the persistent Set so add/edit/delete
+                // doesn't reset the whole tree.
+                expanded: _expandedNodeIds.has(serverNode.id),
                 isFile: false,
                 children,
             };
@@ -9075,12 +9093,24 @@ driver.swipe(100, 800, 100, 200, 500)"
                 if (n.children && n.children.length) _setExpandedAll(n.children, val);
             }
         }
+        function _collectAllNodeIds(nodes, out) {
+            if (!Array.isArray(nodes)) return;
+            for (const n of nodes) {
+                if (!n.isFile) out.add(n.id);
+                if (n.children && n.children.length) _collectAllNodeIds(n.children, out);
+            }
+        }
         function expandAllTreeNodes() {
             _setExpandedAll(activeTreeData || [], true);
+            // Persist so the next switchProject() re-fetch keeps everything open.
+            _collectAllNodeIds(activeTreeData || [], _expandedNodeIds);
+            _saveExpanded();
             renderAllTree();
         }
         function collapseAllTreeNodes() {
             _setExpandedAll(activeTreeData || [], false);
+            _expandedNodeIds.clear();
+            _saveExpanded();
             renderAllTree();
         }
 
@@ -9149,8 +9179,12 @@ driver.swipe(100, 800, 100, 200, 500)"
                 row.className = `flex items-center gap-2 p-1.5 rounded cursor-pointer group transition text-xs border ${bg}`;
 
                 row.onclick = () => {
-                    if (n.isFile) loadTestCase(n.id);
-                    else { n.expanded = !n.expanded; renderAllTree(); }
+                    if (n.isFile) { loadTestCase(n.id); return; }
+                    n.expanded = !n.expanded;
+                    if (n.expanded) _expandedNodeIds.add(n.id);
+                    else _expandedNodeIds.delete(n.id);
+                    _saveExpanded();
+                    renderAllTree();
                 };
 
                 let html = `<i class="fa-solid fa-grip-vertical text-slate-300 text-[10px] cursor-grab" title="拖曳調整順序"></i>`;
@@ -9371,6 +9405,10 @@ driver.swipe(100, 800, 100, 200, 500)"
                             method: 'POST', headers: {'Content-Type': 'application/json'},
                             body: JSON.stringify({ project_id: currentProjectId, parent_id: targetNodeId, name: name })
                         });
+                        // Auto-expand the parent so the new child is immediately visible
+                        // after the tree re-fetch. Persist before switchProject() rebuilds.
+                        _expandedNodeIds.add(targetNodeId);
+                        _saveExpanded();
                         showToast('節點新增成功', 'success');
                     }
                     closeModals();

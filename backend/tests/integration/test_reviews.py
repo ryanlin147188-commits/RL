@@ -288,6 +288,83 @@ async def test_org_b_cannot_see_org_a_reviews(client, org_a, org_b) -> None:
 
 # ── Permissions: viewer can't approve ─────────────────────────────────
 
+# ── Auto-create on insert ─────────────────────────────────────────────
+
+async def test_creating_testcase_node_autocreates_pending_review(client, org_a) -> None:
+    """A new TreeNode(level_type=TESTCASE) lands a pending ReviewRecord
+    without anyone calling POST /api/reviews."""
+    import uuid as _uuid
+    from sqlalchemy import select
+
+    from app.database import AsyncSessionLocal
+    from app.models import TreeNode
+    from app.models.tree_node import LevelType
+    from app.auth.context import current_org_id, current_username
+
+    org_token = current_org_id.set(org_a.org_id)
+    user_token = current_username.set(org_a.username)
+    try:
+        async with AsyncSessionLocal() as session:
+            node = TreeNode(
+                id=str(_uuid.uuid4()),
+                project_id=org_a.project_id,
+                organization_id=org_a.org_id,
+                name="auto-review-case",
+                level_type=LevelType.TESTCASE,
+                sort_order=1,
+            )
+            session.add(node)
+            await session.commit()
+            node_id = node.id
+    finally:
+        current_username.reset(user_token)
+        current_org_id.reset(org_token)
+
+    # Now the review center should list it (pending tab) without us
+    # calling POST /api/reviews.
+    listing = await client.get("/api/reviews?status=pending", headers=org_a.headers)
+    assert listing.status_code == 200
+    rows = listing.json()
+    assert any(
+        r["entity_type"] == "testcase" and r["entity_id"] == node_id and r["status"] == "pending"
+        for r in rows
+    ), f"expected auto-created review for {node_id}, got {rows}"
+
+
+async def test_creating_non_testcase_node_does_not_autocreate(client, org_a) -> None:
+    """FEATURE/PLATFORM/PAGE/SCENARIO are organizational containers, not
+    reviewable. They must NOT spawn review records."""
+    import uuid as _uuid
+
+    from app.database import AsyncSessionLocal
+    from app.models import TreeNode
+    from app.models.tree_node import LevelType
+    from app.auth.context import current_org_id, current_username
+
+    org_token = current_org_id.set(org_a.org_id)
+    user_token = current_username.set(org_a.username)
+    try:
+        async with AsyncSessionLocal() as session:
+            node = TreeNode(
+                id=str(_uuid.uuid4()),
+                project_id=org_a.project_id,
+                organization_id=org_a.org_id,
+                name="just-a-feature",
+                level_type=LevelType.FEATURE,
+                sort_order=1,
+            )
+            session.add(node)
+            await session.commit()
+            node_id = node.id
+    finally:
+        current_username.reset(user_token)
+        current_org_id.reset(org_token)
+
+    listing = await client.get("/api/reviews", headers=org_a.headers)
+    rows = listing.json()
+    assert not any(r["entity_id"] == node_id for r in rows)
+
+
 async def test_viewer_cannot_approve(client, org_a, viewer_in_a) -> None:
     submit = await client.post(
         "/api/reviews",
