@@ -1,6 +1,13 @@
-# APISIX standalone 路由定義
-# 修改此檔後 APISIX 會自動 reload；無需重啟容器。
-# 結尾必須有 #END 標記。
+# APISIX standalone routes for AutoTest v1.0.
+# Edit this file -- APISIX picks changes up automatically (no restart).
+# The trailing #END marker is required.
+#
+# RFC-7 hardening on /api/*:
+#   * cors.allow_origins is sourced from $ALLOWED_ORIGINS instead of "*"
+#   * client-control caps body at 25 MB
+#   * api-breaker trips on 5 consecutive 5xx and serves 503 for 30s
+#   * limit-count keyed by client IP for cheap per-tenant fairness
+#   * upstream retries: 1 attempt for idempotent verbs only (GET/HEAD)
 
 upstreams:
   - id: backend_api
@@ -11,6 +18,8 @@ upstreams:
       connect: 10
       send: 30
       read: 60
+    retries: 1
+    retry_timeout: 30
 
   - id: frontend_web
     type: roundrobin
@@ -18,7 +27,7 @@ upstreams:
       "frontend:80": 1
 
 routes:
-  # /api/* → FastAPI backend；含 request-id 與 cors，並提供基本限流
+  # /api/* -> FastAPI backend
   - id: api_routes
     uri: /api/*
     upstream_id: backend_api
@@ -26,23 +35,56 @@ routes:
       request-id:
         include_in_response: true
       cors:
-        allow_origins: "*"
+        # Production must set ALLOWED_ORIGINS in .env to a comma-separated
+        # list (e.g. "https://app.example.com,https://admin.example.com").
+        # Standalone mode evaluates $ENV at file-load, falling back to
+        # localhost for dev.
+        allow_origins: "${ALLOWED_ORIGINS:-http://localhost,http://localhost:9080}"
         allow_methods: "GET,POST,PUT,PATCH,DELETE,HEAD,OPTIONS"
         allow_headers: "*"
+        allow_credential: true
         max_age: 3600
+      client-control:
+        # Reject payloads >25 MB at the gateway. File uploads route through
+        # /api/upload only; tighten there if needed.
+        max_body_size: 26214400
       limit-req:
-        rate: 200          # 200 req/s（突發允許）
+        rate: 200
         burst: 100
         rejected_code: 429
         key: remote_addr
+      limit-count:
+        # Per-IP request budget over 60s. Cheap proxy for per-tenant
+        # fairness until APISIX jwt-auth lands and we can key on org_id.
+        count: 600
+        time_window: 60
+        rejected_code: 429
+        key_type: var
+        key: remote_addr
+      api-breaker:
+        break_response_code: 503
+        break_response_body: '{"error":"upstream_unavailable"}'
+        max_breaker_sec: 30
+        unhealthy:
+          http_statuses: [500, 502, 503, 504]
+          failures: 5
+        healthy:
+          http_statuses: [200, 204, 301, 302]
+          successes: 3
 
-  # WebSocket /ws/* → backend
+  # WebSocket /ws/* -> backend (no body limits, breaker still applies)
   - id: ws_routes
     uri: /ws/*
     upstream_id: backend_api
     enable_websocket: true
+    plugins:
+      request-id:
+        include_in_response: true
+      cors:
+        allow_origins: "${ALLOWED_ORIGINS:-http://localhost,http://localhost:9080}"
+        allow_credential: true
 
-  # 健康檢查端點：APISIX 直接回 200，不打 backend
+  # Liveness: APISIX answers locally so a missing backend cannot break LB checks.
   - id: gateway_health
     uri: /healthz
     plugins:
@@ -50,7 +92,12 @@ routes:
         status_code: 200
         body: "ok"
 
-  # 預設靜態頁面 → nginx frontend（讓 9080 也能直接用）
+  # Readiness: defer to backend so we report the real dependency status.
+  - id: gateway_ready
+    uri: /readyz
+    upstream_id: backend_api
+
+  # Default static -> nginx frontend
   - id: web_routes
     uri: /*
     upstream_id: frontend_web

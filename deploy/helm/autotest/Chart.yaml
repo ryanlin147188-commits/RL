@@ -1,0 +1,13 @@
+apiVersion: v2
+name: autotest
+description: AutoTest v1.0 -- Robot Framework based test management platform
+type: application
+version: 0.1.0           # chart version (bump on chart edits)
+appVersion: "1.0.0"      # AutoTest version this chart targets
+home: https://github.com/your-org/autotest
+maintainers:
+  - name: AutoTest Maintainers
+keywords:
+  - testing
+  - robot-framework
+  - quality

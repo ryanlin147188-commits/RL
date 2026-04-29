@@ -23,6 +23,12 @@ from app.models import (  # noqa: F401
 )
 from app.middleware import AuthMiddleware
 from app.audit import AuditMiddleware
+from app.observability import (
+    install_metrics,
+    install_sentry,
+    install_tracing,
+    instrument_app,
+)
 from app.rate_limit import limiter
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -193,12 +199,20 @@ async def lifespan(app: FastAPI):
                 pass
 
 
+# RFC-8: observability bootstrap. Each call no-ops when its env switch is unset
+# (PROM_DISABLED, OTLP_ENDPOINT, SENTRY_DSN) so dev runs stay quiet.
+install_sentry("backend")
+install_tracing()
+
 app = FastAPI(
     title="AutoTest v1.0 API",
     description="企業級自動化測試平台後端 API",
     version="1.0.0",
     lifespan=lifespan,
 )
+
+install_metrics(app)
+instrument_app(app)
 
 # CORS 白名單:讀環境變數 ALLOWED_ORIGINS(逗號分隔),預設 http://localhost。
 # 公開部署時必須設為實際前端 origin,不可使用 "*";allow_credentials=True 配 "*" 也會被瀏覽器拒絕。
@@ -270,3 +284,42 @@ app.include_router(test_versions.router,   prefix="/api", tags=["TV · 測試版
 @app.get("/", tags=["Health"])
 async def root():
     return {"status": "ok", "service": "AutoTest v1.0 API"}
+
+
+# RFC-8: split health probes.
+#   /healthz  — liveness only (process up, no I/O). K8s livenessProbe.
+#   /readyz   — readiness with DB + Valkey check. K8s readinessProbe; an
+#               unready replica is yanked from the LB but not restarted.
+@app.get("/healthz", tags=["Health"], include_in_schema=False)
+async def healthz():
+    return {"status": "ok"}
+
+
+@app.get("/readyz", tags=["Health"], include_in_schema=False)
+async def readyz():
+    from sqlalchemy import text
+    from app.database import engine
+
+    checks: dict[str, str] = {}
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        checks["postgres"] = "ok"
+    except Exception as exc:  # noqa: BLE001
+        checks["postgres"] = f"fail: {exc}"
+
+    try:
+        from redis import asyncio as aioredis
+
+        client = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+        await client.ping()
+        checks["valkey"] = "ok"
+    except Exception as exc:  # noqa: BLE001
+        checks["valkey"] = f"fail: {exc}"
+
+    failed = {k: v for k, v in checks.items() if v != "ok"}
+    if failed:
+        from fastapi.responses import JSONResponse
+
+        return JSONResponse({"status": "not_ready", "checks": checks}, status_code=503)
+    return {"status": "ready", "checks": checks}

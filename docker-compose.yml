@@ -234,10 +234,61 @@ services:
       # 讀取 host 上 docker daemon 寫的容器 log（json-file driver）
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
 
+  # ── RFC-8 觀察性堆疊（profile=obs：預設不啟動,docker compose --profile obs up）──
+  # Prometheus 抓取 /metrics、Grafana 提供 dashboard、Tempo 接 OTLP traces。
+  # 不放主路徑是為了:① 默認部署不額外吃資源 ② 讓客戶按需開啟。
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: autotest-prometheus
+    restart: unless-stopped
+    profiles: ["obs"]
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=15d"
+      - "--web.enable-lifecycle"
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: autotest-grafana
+    restart: unless-stopped
+    profiles: ["obs"]
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:-admin}"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_INSTALL_PLUGINS: ""
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
+  tempo:
+    image: grafana/tempo:2.6.1
+    container_name: autotest-tempo
+    restart: unless-stopped
+    profiles: ["obs"]
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./deploy/tempo/tempo.yaml:/etc/tempo.yaml:ro
+      - tempo_data:/var/tempo
+    ports:
+      - "4317:4317"   # OTLP gRPC -- backends export here via OTLP_ENDPOINT
+      - "3200:3200"   # Tempo HTTP API for Grafana datasource
+
 volumes:
   postgres_data:
   seaweedfs_data:
   victoria_logs_data:
+  prometheus_data:
+  grafana_data:
+  tempo_data:
 
 # SeaweedFS S3 IAM 設定:從 .env 注入,docker compose 會在啟動時做變數替換。
 # 修改後須 docker compose down -v 並 up 才能重新生效(SeaweedFS 啟動時讀一次)。

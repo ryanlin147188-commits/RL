@@ -1,0 +1,106 @@
+# Default values for the AutoTest Helm chart.
+# This file is the public surface for operators -- everything below is
+# tuned by editing this in your release branch or passing -f overrides.
+#
+# Production deploys MUST override:
+#   * postgres.password / postgres.external
+#   * jwt.secret / fernet.key
+#   * ingress.host / ingress.tls
+# A starter override file lives at values-prod.yaml.
+
+global:
+  imageRegistry: ghcr.io/your-org
+  imagePullSecrets: []
+
+image:
+  pullPolicy: IfNotPresent
+  tag: "1.0.0"
+
+backend:
+  replicas: 3
+  resources:
+    requests: { cpu: "500m", memory: "512Mi" }
+    limits:   { cpu: "2",    memory: "2Gi" }
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 50%
+  env:
+    DEBUG: "False"
+    AUTOTEST_ENV: production
+
+celery:
+  replicas: 2
+  resources:
+    requests: { cpu: "500m", memory: "1Gi" }
+    limits:   { cpu: "2",    memory: "4Gi" }
+  # KEDA-driven autoscale on celery queue depth. Disable if KEDA is not
+  # installed; falls back to fixed replicas above.
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 20
+    queueDepthThreshold: 5
+
+frontend:
+  replicas: 2
+  resources:
+    requests: { cpu: "100m", memory: "128Mi" }
+    limits:   { cpu: "500m", memory: "256Mi" }
+
+apisix:
+  replicas: 2
+  resources:
+    requests: { cpu: "200m", memory: "256Mi" }
+    limits:   { cpu: "1",    memory: "512Mi" }
+
+# ── Stateful dependencies -------------------------------------------------
+# Set `external: true` to point at an existing managed instance (RDS,
+# CloudSQL, ElastiCache, etc) -- no in-cluster pod is created.
+
+postgres:
+  external: false
+  host: ""           # required when external=true
+  port: 5432
+  user: admin
+  password: ""       # OVERRIDE -- do not commit a real value
+  database: autotest_db
+  storage: 100Gi
+
+valkey:
+  external: false
+  host: ""
+  port: 6379
+  storage: 20Gi
+
+seaweedfs:
+  external: false
+  storage: 200Gi
+
+# ── Secrets --------------------------------------------------------------
+# When `existingSecret` is set the chart will not create the secret; you
+# must provide one with keys: AUTOTEST_JWT_SECRET, AUTOTEST_FERNET_KEY,
+# DB_PASSWORD, MINIO_ROOT_PASSWORD.
+secrets:
+  existingSecret: ""
+  jwtSecret: ""        # OVERRIDE
+  fernetKey: ""        # OVERRIDE
+  minioRootPassword: "" # OVERRIDE
+
+# ── Ingress --------------------------------------------------------------
+ingress:
+  enabled: true
+  className: nginx
+  host: autotest.example.com
+  tls:
+    enabled: true
+    secretName: autotest-tls
+
+# ── Observability (RFC-8) ------------------------------------------------
+observability:
+  prometheus:
+    enabled: true
+  otlp:
+    enabled: false
+    endpoint: ""           # e.g. tempo.observability:4317
+  sentry:
+    dsn: ""                # blank = Sentry disabled
