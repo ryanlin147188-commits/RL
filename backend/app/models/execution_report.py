@@ -6,6 +6,7 @@ from typing import Optional
 from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.auth.tenant import TenantScoped
 from .base import Base
 
 
@@ -15,7 +16,7 @@ class ReportStatus(str, enum.Enum):
     FAILED = "FAILED"
 
 
-class ExecutionReport(Base):
+class ExecutionReport(TenantScoped, Base):
     __tablename__ = "execution_reports"
 
     id: Mapped[str] = mapped_column(

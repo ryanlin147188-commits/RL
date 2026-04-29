@@ -13,6 +13,7 @@ from typing import Optional
 from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.auth.tenant import TenantScoped
 from .base import Base
 
 
@@ -23,7 +24,7 @@ class RepeatType(str, enum.Enum):
     MONTHLY = "MONTHLY"   # 每月指定某日（repeat_config = "15" 代表每月 15 號）
 
 
-class Schedule(Base):
+class Schedule(TenantScoped, Base):
     __tablename__ = "schedules"
 
     id: Mapped[str] = mapped_column(

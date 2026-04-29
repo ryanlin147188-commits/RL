@@ -14,6 +14,7 @@ from typing import Optional
 from sqlalchemy import DateTime, Enum, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.auth.tenant import TenantScoped
 from .base import Base
 
 
@@ -26,7 +27,7 @@ class DocumentCategory(str, enum.Enum):
     OTHER = "Other"
 
 
-class TestDocument(Base):
+class TestDocument(TenantScoped, Base):
     __tablename__ = "test_documents"
 
     id: Mapped[str] = mapped_column(

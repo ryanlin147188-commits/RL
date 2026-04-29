@@ -11,6 +11,7 @@ from typing import Optional
 from sqlalchemy import Date, DateTime, Enum, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.auth.tenant import TenantScoped
 from .base import Base
 
 
@@ -21,7 +22,7 @@ class MilestoneStatus(str, enum.Enum):
     CANCELLED = "Cancelled"
 
 
-class TestMilestone(Base):
+class TestMilestone(TenantScoped, Base):
     __tablename__ = "test_milestones"
 
     id: Mapped[str] = mapped_column(

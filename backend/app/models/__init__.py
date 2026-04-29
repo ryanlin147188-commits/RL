@@ -25,10 +25,15 @@ from .org_invite import OrgInvite
 from .organization import Organization
 from .role import Role
 from .user import User
+from .project_device import DevicePlatform, ProjectDevice
+from .project_env_var import ProjectEnvVar
+from .schedule import RepeatType, Schedule
+from .step_screenshot_baseline import StepScreenshotBaseline
 from .test_data_set import DataSetCategory, TestDataSet
 from .test_document import DocumentCategory, TestDocument
 from .test_milestone import MilestoneStatus, TestMilestone
 from .test_plan import TestPlan, TestPlanStatus
+from .test_round import TestRound
 from .test_version import TestVersion, VersionPlatform, VersionStatus
 from .testcase_content import TestcaseContent
 from .todo_item import TodoItem, TodoItemType, TodoPriority, TodoStatus
@@ -72,4 +77,10 @@ __all__ = [
     "MockEndpoint", "DbConfig",
     # Groups (團隊群組,可巢狀,可作為 todo assignee)
     "Group", "GroupMembership",
+    # Project-level config + execution artefacts
+    "ProjectDevice", "DevicePlatform",
+    "ProjectEnvVar",
+    "Schedule", "RepeatType",
+    "StepScreenshotBaseline",
+    "TestRound",
 ]

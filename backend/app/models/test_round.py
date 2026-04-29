@@ -15,10 +15,11 @@ from typing import Optional
 from sqlalchemy import DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.auth.tenant import TenantScoped
 from .base import Base
 
 
-class TestRound(Base):
+class TestRound(TenantScoped, Base):
     __tablename__ = "test_rounds"
 
     id: Mapped[str] = mapped_column(

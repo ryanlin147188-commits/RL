@@ -7,10 +7,11 @@ from datetime import datetime
 from sqlalchemy import DateTime, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.auth.tenant import TenantScoped
 from .base import Base
 
 
-class RecordingSession(Base):
+class RecordingSession(TenantScoped, Base):
     """瀏覽器錄製階段。腳本與 trace.zip 由前端使用者本機 codegen 後上傳。"""
 
     __tablename__ = "recording_sessions"

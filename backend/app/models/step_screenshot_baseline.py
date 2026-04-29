@@ -14,10 +14,11 @@ from typing import Optional
 from sqlalchemy import DateTime, Float, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.auth.tenant import TenantScoped
 from .base import Base
 
 
-class StepScreenshotBaseline(Base):
+class StepScreenshotBaseline(TenantScoped, Base):
     __tablename__ = "step_screenshot_baselines"
 
     # step UUID（即 steps_json 內某個 step 的 ``id`` 欄位）

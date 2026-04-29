@@ -10,6 +10,7 @@ from typing import Optional
 from sqlalchemy import DateTime, Enum, ForeignKey, PrimaryKeyConstraint, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.auth.tenant import TenantScoped
 from .base import Base
 
 
@@ -36,7 +37,7 @@ class RequirementStatus(str, enum.Enum):
     DEPRECATED = "Deprecated"
 
 
-class Requirement(Base):
+class Requirement(TenantScoped, Base):
     __tablename__ = "requirements"
 
     id: Mapped[str] = mapped_column(
@@ -67,7 +68,7 @@ class Requirement(Base):
     )
 
 
-class RequirementTestcaseLink(Base):
+class RequirementTestcaseLink(TenantScoped, Base):
     """RTM 多對多關聯：requirement ↔ testcase（tree_nodes.id where level_type='TESTCASE'）"""
     __tablename__ = "requirement_testcase_links"
 

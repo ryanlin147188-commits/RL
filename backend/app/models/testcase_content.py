@@ -3,10 +3,11 @@ from typing import Any
 from sqlalchemy import JSON, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.auth.tenant import TenantScoped
 from .base import Base
 
 
-class TestcaseContent(Base):
+class TestcaseContent(TenantScoped, Base):
     """
     1 對 1 對應 tree_nodes（level_type = TESTCASE）。
     steps_json 格式：[{"id":"...","keyword":"Given","action":"...", ...}, ...]

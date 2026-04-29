@@ -20,6 +20,7 @@ from typing import Any, Optional
 from sqlalchemy import JSON, DateTime, Enum, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.auth.tenant import TenantScoped
 from .base import Base
 
 
@@ -31,7 +32,7 @@ class DataSetCategory(str, enum.Enum):
     OTHER = "Other"
 
 
-class TestDataSet(Base):
+class TestDataSet(TenantScoped, Base):
     __tablename__ = "test_data_sets"
 
     id: Mapped[str] = mapped_column(

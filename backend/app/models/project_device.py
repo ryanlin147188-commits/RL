@@ -15,6 +15,7 @@ from typing import Any, Optional
 from sqlalchemy import JSON, DateTime, Enum, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.auth.tenant import TenantScoped
 from .base import Base
 
 
@@ -23,7 +24,7 @@ class DevicePlatform(str, enum.Enum):
     IOS = "IOS"
 
 
-class ProjectDevice(Base):
+class ProjectDevice(TenantScoped, Base):
     __tablename__ = "project_devices"
     __table_args__ = (
         UniqueConstraint("project_id", "label", name="uq_device_project_label"),

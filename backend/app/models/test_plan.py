@@ -12,6 +12,7 @@ from sqlalchemy import DateTime, Enum, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.auth.tenant import TenantScoped
 from .base import Base
 
 
@@ -23,7 +24,7 @@ class TestPlanStatus(str, enum.Enum):
     CLOSED = "Closed"
 
 
-class TestPlan(Base):
+class TestPlan(TenantScoped, Base):
     __tablename__ = "test_plans"
 
     id: Mapped[str] = mapped_column(

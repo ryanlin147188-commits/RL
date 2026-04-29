@@ -15,6 +15,7 @@ from typing import Optional
 from sqlalchemy import DateTime, Enum, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.auth.tenant import TenantScoped
 from .base import Base
 
 
@@ -26,7 +27,7 @@ class WbsStatus(str, enum.Enum):
     CANCELLED = "Cancelled"
 
 
-class WbsItem(Base):
+class WbsItem(TenantScoped, Base):
     __tablename__ = "wbs_items"
 
     id: Mapped[str] = mapped_column(

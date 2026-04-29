@@ -5,6 +5,7 @@ from typing import Any, Optional
 from sqlalchemy import JSON, Enum, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.auth.tenant import TenantScoped
 from .base import Base
 
 
@@ -14,7 +15,7 @@ class StepStatus(str, enum.Enum):
     FAILED = "FAILED"
 
 
-class ExecutionStepLog(Base):
+class ExecutionStepLog(TenantScoped, Base):
     __tablename__ = "execution_steps_log"
 
     id: Mapped[str] = mapped_column(

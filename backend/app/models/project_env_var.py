@@ -11,10 +11,11 @@ from typing import Optional
 from sqlalchemy import DateTime, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.auth.tenant import TenantScoped
 from .base import Base
 
 
-class ProjectEnvVar(Base):
+class ProjectEnvVar(TenantScoped, Base):
     __tablename__ = "project_env_vars"
     __table_args__ = (
         # 同一專案內變數名稱不可重複
