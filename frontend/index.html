@@ -2530,7 +2530,13 @@ driver.swipe(100, 800, 100, 200, 500)"
                     </h3>
 
                     <!-- 規劃 (Planning) -->
-                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-5">
+                    <h4 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 mt-1 flex items-center gap-2">
+                        <i class="fa-solid fa-pen-ruler text-amber-500"></i>
+                        <span data-i18n="home.section.planning">規劃 · Planning</span>
+                        <span class="text-slate-300 font-normal">·</span>
+                        <span class="text-slate-400 font-medium">7</span>
+                    </h4>
+                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
                         <button onclick="showTestProjectsView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-amber-300 transition group">
                             <div class="w-10 h-10 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-folder-tree"></i></div>
                             <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.testProjects">測試專案</div>
@@ -2569,7 +2575,13 @@ driver.swipe(100, 800, 100, 200, 500)"
                     </div>
 
                     <!-- 設定 (Settings) -->
-                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-5">
+                    <h4 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 mt-1 flex items-center gap-2">
+                        <i class="fa-solid fa-sliders text-emerald-500"></i>
+                        <span data-i18n="home.section.settings">設定 · Settings</span>
+                        <span class="text-slate-300 font-normal">·</span>
+                        <span class="text-slate-400 font-medium">5</span>
+                    </h4>
+                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
                         <button onclick="showDevicesView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-rose-300 transition group">
                             <div class="w-10 h-10 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-mobile-screen"></i></div>
                             <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.devices">設備資訊</div>
@@ -2598,6 +2610,12 @@ driver.swipe(100, 800, 100, 200, 500)"
                     </div>
 
                     <!-- 執行 / 監控 (Execution / Monitor) -->
+                    <h4 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 mt-1 flex items-center gap-2">
+                        <i class="fa-solid fa-play text-violet-500"></i>
+                        <span data-i18n="home.section.execution">執行 · 監控 · Execution</span>
+                        <span class="text-slate-300 font-normal">·</span>
+                        <span class="text-slate-400 font-medium">6</span>
+                    </h4>
                     <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                         <button onclick="showTestMilestonesView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-teal-300 transition group">
                             <div class="w-10 h-10 rounded-lg bg-teal-100 text-teal-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-regular fa-calendar"></i></div>
@@ -7475,6 +7493,9 @@ driver.swipe(100, 800, 100, 200, 500)"
             'home.sys.loading': { 'zh-TW': '載入中…', 'en': 'Loading…' },
             'home.sys.updated': { 'zh-TW': '已更新', 'en': 'Updated' },
             'home.quickNav': { 'zh-TW': '快速導覽', 'en': 'Quick Navigation' },
+            'home.section.planning': { 'zh-TW': '規劃 · Planning', 'en': 'Planning' },
+            'home.section.settings': { 'zh-TW': '設定 · Settings', 'en': 'Settings' },
+            'home.section.execution': { 'zh-TW': '執行 · 監控 · Execution', 'en': 'Execution & Monitoring' },
             'home.recentCases': { 'zh-TW': '最近測試案例', 'en': 'Recent Test Cases' },
             'home.todos': { 'zh-TW': '待辦事項', 'en': 'To-do' },
             'home.calendar': { 'zh-TW': '行事曆', 'en': 'Calendar' },
