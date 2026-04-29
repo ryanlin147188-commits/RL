@@ -843,10 +843,14 @@
                 <button type="button" onclick="reviewCloseReasonModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <form onsubmit="return reviewSubmitReason(event)" class="p-5 space-y-3">
+                <label for="reviewReasonInput" class="sr-only" data-i18n="review.reason.label">審核原因</label>
                 <p id="reviewReasonHint" class="text-xs text-stone-500"></p>
                 <textarea id="reviewReasonInput" rows="4" required minlength="1" maxlength="2000"
-                    class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
-                    placeholder=""></textarea>
+                    aria-describedby="reviewReasonHint"
+                    aria-label="審核原因"
+                    title="輸入審核原因(必填)"
+                    placeholder="請輸入原因..."
+                    class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"></textarea>
                 <div class="flex justify-end gap-2 pt-2">
                     <button type="button" onclick="reviewCloseReasonModal()" class="px-3 py-1.5 text-sm border border-stone-300 rounded-md hover:bg-stone-50">
                         <span data-i18n="common.cancel">取消</span>
@@ -7646,6 +7650,7 @@ driver.swipe(100, 800, 100, 200, 500)"
             'review.col.actions':     { 'zh-TW': '操作',     'en': 'Actions' },
             'review.history.title':   { 'zh-TW': '審核軌跡', 'en': 'Audit Trail' },
             'review.reason.title':    { 'zh-TW': '輸入原因', 'en': 'Reason required' },
+            'review.reason.label':    { 'zh-TW': '審核原因', 'en': 'Review reason' },
             'common.refresh': { 'zh-TW': '重新整理', 'en': 'Refresh' },
             'common.total':   { 'zh-TW': '共',       'en': 'Total' },
             'common.entries': { 'zh-TW': '筆',       'en': '' },
