@@ -5,6 +5,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
+from app.auth.permissions import require_permission
+from app.auth.permissions_catalog import P
 from app.database import get_db
 from app.models.project import Project
 from app.models.tree_node import TreeNode
@@ -23,7 +25,11 @@ def _scope_filter(stmt, user: User):
 
 
 # 1. GET /api/projects
-@router.get("/projects", response_model=list[ProjectResponse])
+@router.get(
+    "/projects",
+    response_model=list[ProjectResponse],
+    dependencies=[Depends(require_permission(P.PROJECT_READ))],
+)
 async def list_projects(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -35,7 +41,12 @@ async def list_projects(
 
 
 # 2. POST /api/projects
-@router.post("/projects", response_model=ProjectResponse, status_code=201)
+@router.post(
+    "/projects",
+    response_model=ProjectResponse,
+    status_code=201,
+    dependencies=[Depends(require_permission(P.PROJECT_WRITE))],
+)
 async def create_project(
     payload: ProjectCreate,
     user: User = Depends(get_current_user),
@@ -67,7 +78,10 @@ def _check_org_or_404(proj: Optional[Project], user: User) -> Project:
 
 
 # 3. GET /api/projects/{projectId}/tree
-@router.get("/projects/{project_id}/tree")
+@router.get(
+    "/projects/{project_id}/tree",
+    dependencies=[Depends(require_permission(P.PROJECT_READ))],
+)
 async def get_project_tree(
     project_id: str,
     user: User = Depends(get_current_user),
@@ -87,7 +101,11 @@ async def get_project_tree(
 
 
 # 4. DELETE /api/projects/{projectId}
-@router.delete("/projects/{project_id}", status_code=204)
+@router.delete(
+    "/projects/{project_id}",
+    status_code=204,
+    dependencies=[Depends(require_permission(P.PROJECT_DELETE))],
+)
 async def delete_project(
     project_id: str,
     user: User = Depends(get_current_user),
@@ -102,7 +120,11 @@ async def delete_project(
 
 
 # 5. PUT /api/projects/{projectId}
-@router.put("/projects/{project_id}", response_model=ProjectResponse)
+@router.put(
+    "/projects/{project_id}",
+    response_model=ProjectResponse,
+    dependencies=[Depends(require_permission(P.PROJECT_WRITE))],
+)
 async def update_project(
     project_id: str,
     payload: ProjectUpdate,
@@ -127,7 +149,11 @@ async def update_project(
 
 
 # 6. GET /api/projects/{projectId} — 單一測試專案詳情
-@router.get("/projects/{project_id}", response_model=ProjectResponse)
+@router.get(
+    "/projects/{project_id}",
+    response_model=ProjectResponse,
+    dependencies=[Depends(require_permission(P.PROJECT_READ))],
+)
 async def get_project(
     project_id: str,
     user: User = Depends(get_current_user),

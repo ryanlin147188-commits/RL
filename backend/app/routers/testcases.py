@@ -3,6 +3,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
+from app.auth.permissions import require_permission
+from app.auth.permissions_catalog import P
 from app.auth.scope import ensure_project_in_scope
 from app.database import get_db
 from app.models.testcase_content import TestcaseContent
@@ -29,7 +31,11 @@ async def _load_testcase_node(node_id: str, user: User, db: AsyncSession) -> Tre
 
 
 # 7. GET /api/v1/testcases/{node_id}
-@router.get("/testcases/{node_id}", response_model=TestcaseContentResponse)
+@router.get(
+    "/testcases/{node_id}",
+    response_model=TestcaseContentResponse,
+    dependencies=[Depends(require_permission(P.TESTCASE_READ))],
+)
 async def get_testcase(
     node_id: str,
     user: User = Depends(get_current_user),
@@ -53,7 +59,11 @@ async def get_testcase(
 
 
 # 8. PUT /api/v1/testcases/{node_id}
-@router.put("/testcases/{node_id}", response_model=TestcaseContentResponse)
+@router.put(
+    "/testcases/{node_id}",
+    response_model=TestcaseContentResponse,
+    dependencies=[Depends(require_permission(P.TESTCASE_WRITE))],
+)
 async def update_testcase(
     node_id: str,
     payload: TestcaseContentUpdate,
@@ -86,7 +96,11 @@ async def update_testcase(
 
 
 # 9. POST /api/v1/testcases/{node_id}/import-json
-@router.post("/testcases/{node_id}/import-json", response_model=TestcaseContentResponse)
+@router.post(
+    "/testcases/{node_id}/import-json",
+    response_model=TestcaseContentResponse,
+    dependencies=[Depends(require_permission(P.TESTCASE_WRITE))],
+)
 async def import_ddt_json(
     node_id: str,
     payload: ImportJsonRequest,

@@ -11,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
 from app.auth.dependencies import get_current_user
+from app.auth.permissions import require_permission
+from app.auth.permissions_catalog import P
 from app.auth.scope import (
     ensure_project_in_scope,
     ensure_project_writable,
@@ -49,7 +51,12 @@ def _resolve_enum(enum_cls, val, default):
         return default
 
 
-@router.get("/defects", response_model=list[DefectResponse], tags=["L · 缺陷管理"])
+@router.get(
+    "/defects",
+    response_model=list[DefectResponse],
+    tags=["L · 缺陷管理"],
+    dependencies=[Depends(require_permission(P.DEFECT_READ))],
+)
 async def list_defects(
     project_id: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
@@ -74,7 +81,13 @@ async def list_defects(
     return list(rows)
 
 
-@router.post("/defects", response_model=DefectResponse, status_code=201, tags=["L · 缺陷管理"])
+@router.post(
+    "/defects",
+    response_model=DefectResponse,
+    status_code=201,
+    tags=["L · 缺陷管理"],
+    dependencies=[Depends(require_permission(P.DEFECT_WRITE))],
+)
 async def create_defect(
     payload: DefectCreate,
     user: User = Depends(get_current_user),
@@ -106,7 +119,12 @@ async def create_defect(
     return defect
 
 
-@router.get("/defects/{defect_id}", response_model=DefectResponse, tags=["L · 缺陷管理"])
+@router.get(
+    "/defects/{defect_id}",
+    response_model=DefectResponse,
+    tags=["L · 缺陷管理"],
+    dependencies=[Depends(require_permission(P.DEFECT_READ))],
+)
 async def get_defect(
     defect_id: str,
     user: User = Depends(get_current_user),
@@ -119,7 +137,12 @@ async def get_defect(
     return d
 
 
-@router.put("/defects/{defect_id}", response_model=DefectResponse, tags=["L · 缺陷管理"])
+@router.put(
+    "/defects/{defect_id}",
+    response_model=DefectResponse,
+    tags=["L · 缺陷管理"],
+    dependencies=[Depends(require_permission(P.DEFECT_WRITE))],
+)
 async def update_defect(
     defect_id: str,
     payload: DefectUpdate,
@@ -151,7 +174,12 @@ async def update_defect(
     return d
 
 
-@router.delete("/defects/{defect_id}", status_code=204, tags=["L · 缺陷管理"])
+@router.delete(
+    "/defects/{defect_id}",
+    status_code=204,
+    tags=["L · 缺陷管理"],
+    dependencies=[Depends(require_permission(P.DEFECT_DELETE))],
+)
 async def delete_defect(
     defect_id: str,
     user: User = Depends(get_current_user),
@@ -165,7 +193,11 @@ async def delete_defect(
     await db.flush()
 
 
-@router.get("/defects/stats/summary", tags=["L · 缺陷管理"])
+@router.get(
+    "/defects/stats/summary",
+    tags=["L · 缺陷管理"],
+    dependencies=[Depends(require_permission(P.DEFECT_READ))],
+)
 async def defects_summary(
     project_id: Optional[str] = Query(None),
     user: User = Depends(get_current_user),
