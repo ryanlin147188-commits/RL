@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.database import init_db
-from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings, schedules, local_runner, test_rounds, project_settings, screenshot_baselines, system, defects, test_milestones, test_plans, requirements, test_data_sets, test_documents, wbs_items, settings as app_settings, todos, todo_links, auth, ai, ai_chat, audit_logs, organizations, oidc, notifications, mock_endpoints, db_configs, groups, test_versions
+from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings, schedules, local_runner, test_rounds, project_settings, screenshot_baselines, system, defects, test_milestones, test_plans, requirements, test_data_sets, test_documents, wbs_items, settings as app_settings, todos, todo_links, auth, ai, ai_chat, audit_logs, organizations, oidc, notifications, mock_endpoints, db_configs, groups, test_versions, reviews
 # 確保新增 model 在 init_db() 前已 import 註冊到 Base.metadata
 from app.models import (  # noqa: F401
     Defect, TestMilestone, TestPlan, Requirement, RequirementTestcaseLink,
@@ -279,6 +279,7 @@ app.include_router(mock_endpoints.router,  prefix="/api", tags=["Z · Mock 端�
 app.include_router(db_configs.router,      prefix="/api", tags=["AA · DB 連線"])
 app.include_router(groups.router,          prefix="/api", tags=["S · 設定"])
 app.include_router(test_versions.router,   prefix="/api", tags=["TV · 測試版號"])
+app.include_router(reviews.router,         prefix="/api", tags=["AB · 審核"])
 
 
 @app.get("/", tags=["Health"])

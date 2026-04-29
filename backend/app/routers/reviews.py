@@ -1,0 +1,248 @@
+"""Generic review/approval workflow REST endpoints (RFC-Review-1).
+
+Endpoints:
+    POST   /api/reviews                         submit an entity for review
+    GET    /api/reviews                         list (filter status / entity_type)
+    GET    /api/reviews/{id}                    one record
+    GET    /api/reviews/{id}/history            its full audit trail
+    GET    /api/reviews/by-entity               look up by (entity_type, entity_id)
+    POST   /api/reviews/{id}/approve            approve a pending review
+    POST   /api/reviews/{id}/reject             reject (requires reason)
+    POST   /api/reviews/{id}/revert             approved -> pending (requires reason)
+
+Tenancy: ReviewRecord is TenantScoped — the auto-stamp ORM hook fills
+``organization_id`` from the caller's JWT. Read endpoints use the same
+filter so users only see their org's reviews.
+
+Permissions: kept light for now -- any authenticated user can list and
+submit; approve/reject/revert require Admin. Hook into RFC-5
+``require_permission(...)`` here when role granularity matures.
+"""
+from __future__ import annotations
+
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.auth.dependencies import get_current_user
+from app.auth.tenant import TenantQuery
+from app.database import get_db
+from app.models.review import (
+    ReviewableEntityType,
+    ReviewHistory,
+    ReviewRecord,
+    ReviewStatus,
+)
+from app.models.user import User
+from app.schemas.review import (
+    RejectReviewRequest,
+    RevertReviewRequest,
+    ReviewHistoryEntry,
+    ReviewRecordResponse,
+    SubmitReviewRequest,
+)
+from app.services import review_service
+
+router = APIRouter()
+
+
+async def _ensure_admin(user: User, db: AsyncSession) -> None:
+    """Approve / reject / revert require Admin role or superuser; plain
+    users can still submit and read."""
+    if user.is_superuser:
+        return
+    if user.role_id is None:
+        raise HTTPException(
+            status_code=403,
+            detail={"error": "permission_denied", "missing_permissions": ["review.manage"]},
+        )
+    from app.models.role import Role
+
+    role = await db.get(Role, user.role_id)
+    if role is None:
+        raise HTTPException(403, "role not found")
+    if role.name == "Admin":
+        return
+    if "review.manage" in (role.permissions_json or []):
+        return
+    raise HTTPException(
+        status_code=403,
+        detail={
+            "error": "permission_denied",
+            "missing_permissions": ["review.manage"],
+        },
+    )
+
+
+@router.post(
+    "/reviews",
+    response_model=ReviewRecordResponse,
+    status_code=201,
+    tags=["AB · 審核"],
+)
+async def submit_review(
+    payload: SubmitReviewRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    record = await review_service.submit(
+        db,
+        entity_type=payload.entity_type,
+        entity_id=payload.entity_id,
+        submitted_by=user.username,
+        organization_id=user.organization_id,
+    )
+    return record
+
+
+@router.get(
+    "/reviews",
+    response_model=List[ReviewRecordResponse],
+    tags=["AB · 審核"],
+)
+async def list_reviews(
+    status: Optional[ReviewStatus] = Query(None),
+    entity_type: Optional[ReviewableEntityType] = Query(None),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    stmt = TenantQuery.for_(ReviewRecord).order_by(ReviewRecord.updated_at.desc())
+    if status is not None:
+        stmt = stmt.where(ReviewRecord.status == status)
+    if entity_type is not None:
+        stmt = stmt.where(ReviewRecord.entity_type == entity_type)
+    rows = (await db.execute(stmt)).scalars().all()
+    return list(rows)
+
+
+@router.get(
+    "/reviews/by-entity",
+    response_model=Optional[ReviewRecordResponse],
+    tags=["AB · 審核"],
+)
+async def get_review_by_entity(
+    entity_type: ReviewableEntityType = Query(...),
+    entity_id: str = Query(..., min_length=1),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Lookup the review state of a specific entity. Returns null if no
+    review has ever been submitted for it."""
+    record = await review_service.get_record(
+        db,
+        entity_type=entity_type,
+        entity_id=entity_id,
+        organization_id=None if user.is_superuser else user.organization_id,
+    )
+    return record
+
+
+@router.get(
+    "/reviews/{record_id}",
+    response_model=ReviewRecordResponse,
+    tags=["AB · 審核"],
+)
+async def get_review(
+    record_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    record = (
+        await db.execute(TenantQuery.for_(ReviewRecord).where(ReviewRecord.id == record_id))
+    ).scalar_one_or_none()
+    if record is None:
+        raise HTTPException(404, "review record not found")
+    return record
+
+
+@router.get(
+    "/reviews/{record_id}/history",
+    response_model=List[ReviewHistoryEntry],
+    tags=["AB · 審核"],
+)
+async def get_review_history(
+    record_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    # Resolve + scope-check the parent record first; history is denormalised
+    # with organization_id but listing untrusted record_ids straight from
+    # the URL would be a foot-gun.
+    record = (
+        await db.execute(TenantQuery.for_(ReviewRecord).where(ReviewRecord.id == record_id))
+    ).scalar_one_or_none()
+    if record is None:
+        raise HTTPException(404, "review record not found")
+
+    rows = (
+        await db.execute(
+            select(ReviewHistory)
+            .where(ReviewHistory.review_record_id == record.id)
+            .order_by(ReviewHistory.acted_at.asc())
+        )
+    ).scalars().all()
+    return list(rows)
+
+
+async def _load_for_action(
+    db: AsyncSession, record_id: str, user: User
+) -> ReviewRecord:
+    record = (
+        await db.execute(TenantQuery.for_(ReviewRecord).where(ReviewRecord.id == record_id))
+    ).scalar_one_or_none()
+    if record is None:
+        raise HTTPException(404, "review record not found")
+    return record
+
+
+@router.post(
+    "/reviews/{record_id}/approve",
+    response_model=ReviewRecordResponse,
+    tags=["AB · 審核"],
+)
+async def approve_review(
+    record_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await _ensure_admin(user, db)
+    record = await _load_for_action(db, record_id, user)
+    return await review_service.approve(db, record=record, reviewer=user.username)
+
+
+@router.post(
+    "/reviews/{record_id}/reject",
+    response_model=ReviewRecordResponse,
+    tags=["AB · 審核"],
+)
+async def reject_review(
+    record_id: str,
+    payload: RejectReviewRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await _ensure_admin(user, db)
+    record = await _load_for_action(db, record_id, user)
+    return await review_service.reject(
+        db, record=record, reviewer=user.username, reason=payload.reason
+    )
+
+
+@router.post(
+    "/reviews/{record_id}/revert",
+    response_model=ReviewRecordResponse,
+    tags=["AB · 審核"],
+)
+async def revert_review(
+    record_id: str,
+    payload: RevertReviewRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await _ensure_admin(user, db)
+    record = await _load_for_action(db, record_id, user)
+    return await review_service.revert(
+        db, record=record, actor=user.username, reason=payload.reason
+    )

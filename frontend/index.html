@@ -361,6 +361,9 @@
             color: rgb(146 64 14);
             font-weight: 600;
         }
+        /* RFC-Review-1: review center tab buttons */
+        .review-tab-btn { color: rgb(120 113 108); }
+        .review-tab-btn.is-active { color: rgb(124 58 237); background-color: white; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); }
         html.dark .nav-drawer-btn { color: rgb(214 211 209); }
         html.dark .nav-drawer-btn:hover { background-color: rgb(68 64 60); color: rgb(254 243 199); }
         html.dark .nav-drawer-btn.is-active { background-color: rgb(120 53 15); color: rgb(254 243 199); }
@@ -775,6 +778,21 @@
                     <button type="button" onclick="closeNavDrawer(); showDefectsView()"        class="nav-drawer-btn"><i class="fa-solid fa-bug text-red-600"></i><span data-i18n="nav.defects">缺陷管理</span></button>
                 </div>
             </section>
+
+            <!-- 審核 -->
+            <section>
+                <div class="text-[10px] font-bold text-violet-700 uppercase tracking-wider mb-2 px-2 flex items-center gap-1.5">
+                    <i class="fa-solid fa-stamp text-[11px]"></i>
+                    <span data-i18n="nav.section.review">審核</span>
+                </div>
+                <div class="space-y-0.5">
+                    <button type="button" onclick="closeNavDrawer(); showReviewView()" class="nav-drawer-btn">
+                        <i class="fa-solid fa-clipboard-check text-violet-600"></i>
+                        <span data-i18n="nav.review">審核中心</span>
+                        <span id="navReviewPendingBadge" class="hidden ml-auto px-1.5 py-0.5 text-[10px] font-mono bg-amber-500 text-white rounded-full"></span>
+                    </button>
+                </div>
+            </section>
         </div>
 
     </aside>
@@ -810,6 +828,48 @@
             <button type="button" onclick="clearAllNotifications()" class="text-stone-400 hover:text-rose-600 transition" data-i18n="notif.clearAll">
                 清空全部
             </button>
+        </div>
+    </div>
+
+    <!-- ─── 審核中心相關 modal / drawer (body 層級) ─── -->
+    <!-- Reject / Revert 原因輸入 modal -->
+    <div id="reviewReasonModal" class="hidden fixed inset-0 z-[300] bg-black/40 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md border border-violet-200">
+            <div class="px-5 py-3 border-b border-stone-200 bg-violet-50/60 flex items-center justify-between">
+                <h3 id="reviewReasonTitle" class="font-bold text-stone-800 text-base flex items-center gap-2">
+                    <i class="fa-solid fa-comment-dots text-violet-500"></i>
+                    <span data-i18n="review.reason.title">輸入原因</span>
+                </h3>
+                <button type="button" onclick="reviewCloseReasonModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form onsubmit="return reviewSubmitReason(event)" class="p-5 space-y-3">
+                <p id="reviewReasonHint" class="text-xs text-stone-500"></p>
+                <textarea id="reviewReasonInput" rows="4" required minlength="1" maxlength="2000"
+                    class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
+                    placeholder=""></textarea>
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" onclick="reviewCloseReasonModal()" class="px-3 py-1.5 text-sm border border-stone-300 rounded-md hover:bg-stone-50">
+                        <span data-i18n="common.cancel">取消</span>
+                    </button>
+                    <button type="submit" id="reviewReasonConfirm" class="px-4 py-1.5 text-sm bg-violet-500 hover:bg-violet-600 text-white rounded-md font-semibold">
+                        <span data-i18n="common.confirm">確認</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 審核歷史紀錄 drawer -->
+    <div id="reviewHistoryDrawer" class="hidden fixed inset-0 z-[290] bg-black/40 flex justify-end">
+        <div class="bg-white w-full max-w-md h-full overflow-y-auto shadow-2xl border-l border-violet-200">
+            <div class="sticky top-0 px-5 py-3 border-b border-stone-200 bg-violet-50/60 flex items-center justify-between">
+                <h3 class="font-bold text-stone-800 text-base flex items-center gap-2">
+                    <i class="fa-solid fa-clock-rotate-left text-violet-500"></i>
+                    <span data-i18n="review.history.title">審核軌跡</span>
+                </h3>
+                <button type="button" onclick="reviewCloseHistoryDrawer()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div id="reviewHistoryBody" class="p-5 text-sm space-y-3"></div>
         </div>
     </div>
 
@@ -3521,6 +3581,61 @@ driver.swipe(100, 800, 100, 200, 500)"
                                 <tr><th class="p-3 text-left w-24">代號</th><th class="p-3 text-left">標題</th><th class="p-3 w-28">嚴重性</th><th class="p-3 w-20">優先</th><th class="p-3 w-32">狀態</th><th class="p-3 w-28">指派</th><th class="p-3 w-32">建立時間</th><th class="p-3 w-32 text-center">操作</th></tr>
                             </thead>
                             <tbody id="defListBody" class="divide-y divide-stone-100"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── 審核中心 (Review Center) -- generic approval workflow for testcases/documents/scripts/reports ── -->
+            <div id="reviewWorkspace" class="flex-1 overflow-y-auto p-6 bg-violet-50/30 hidden">
+                <div class="max-w-7xl mx-auto">
+                    <!-- 工具列 -->
+                    <div class="bg-white rounded-lg border border-violet-100 shadow-sm p-4 mb-4">
+                        <div class="flex flex-wrap items-center gap-3">
+                            <h2 class="font-bold text-stone-800 text-lg flex items-center gap-2">
+                                <i class="fa-solid fa-stamp text-violet-500"></i>
+                                <span data-i18n="review.title">審核中心</span>
+                            </h2>
+                            <div class="flex gap-1 bg-stone-100 rounded-md p-1 ml-4">
+                                <button type="button" id="reviewTabPending" onclick="reviewSetTab('pending')" class="review-tab-btn is-active px-3 py-1.5 text-xs font-semibold rounded transition" data-i18n="review.tab.pending">待審核</button>
+                                <button type="button" id="reviewTabApproved" onclick="reviewSetTab('approved')" class="review-tab-btn px-3 py-1.5 text-xs font-semibold rounded transition" data-i18n="review.tab.approved">已審核</button>
+                                <button type="button" id="reviewTabRejected" onclick="reviewSetTab('rejected')" class="review-tab-btn px-3 py-1.5 text-xs font-semibold rounded transition" data-i18n="review.tab.rejected">已拒絕</button>
+                            </div>
+                            <select id="reviewTypeFilter" onchange="reviewLoad()" aria-label="實體類型過濾"
+                                class="px-3 py-1.5 border border-stone-300 rounded-md text-xs bg-white">
+                                <option value="" data-i18n="review.type.all">全部類型</option>
+                                <option value="testcase" data-i18n="review.type.testcase">測試案例</option>
+                                <option value="document" data-i18n="review.type.document">測試文件</option>
+                                <option value="script" data-i18n="review.type.script">測試腳本</option>
+                                <option value="report" data-i18n="review.type.report">測試報告</option>
+                            </select>
+                            <button type="button" onclick="reviewLoad()" class="px-3 py-1.5 border border-stone-300 rounded-md text-xs hover:bg-violet-50 transition">
+                                <i class="fa-solid fa-rotate"></i> <span data-i18n="common.refresh">重新整理</span>
+                            </button>
+                            <div class="text-xs text-stone-500 ml-auto">
+                                <span data-i18n="common.total">共</span>
+                                <span id="reviewCount" class="font-bold text-stone-700">0</span>
+                                <span data-i18n="common.entries">筆</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 列表 -->
+                    <div class="bg-white rounded-lg border border-violet-100 shadow-sm overflow-hidden">
+                        <table class="w-full text-sm">
+                            <thead class="bg-violet-50/60 border-b border-violet-100 text-stone-600 text-xs uppercase">
+                                <tr>
+                                    <th class="p-3 text-left w-32" data-i18n="review.col.type">類型</th>
+                                    <th class="p-3 text-left" data-i18n="review.col.entity">實體</th>
+                                    <th class="p-3 text-left w-28" data-i18n="review.col.status">狀態</th>
+                                    <th class="p-3 text-left w-32" data-i18n="review.col.submittedBy">送審者</th>
+                                    <th class="p-3 text-left w-40" data-i18n="review.col.submittedAt">送審時間</th>
+                                    <th class="p-3 text-left w-32" data-i18n="review.col.reviewedBy">審核者</th>
+                                    <th class="p-3 text-left w-40" data-i18n="review.col.reviewedAt">審核時間</th>
+                                    <th class="p-3 text-center w-60" data-i18n="review.col.actions">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="reviewListBody" class="divide-y divide-stone-100"></tbody>
                         </table>
                     </div>
                 </div>
@@ -7509,6 +7624,33 @@ driver.swipe(100, 800, 100, 200, 500)"
             'home.section.execution': { 'zh-TW': '執行 · 監控 · Execution', 'en': 'Execution & Monitoring' },
             'footer.poweredBy': { 'zh-TW': '由以下開源專案驅動', 'en': 'Powered by' },
             'footer.iconsBy': { 'zh-TW': '圖示由', 'en': 'Icons by' },
+            // ── 審核中心 (Review Center) — RFC-Review-1
+            'nav.section.review': { 'zh-TW': '審核', 'en': 'Review' },
+            'nav.review': { 'zh-TW': '審核中心', 'en': 'Review Center' },
+            'review.title': { 'zh-TW': '審核中心', 'en': 'Review Center' },
+            'review.tab.pending':  { 'zh-TW': '待審核', 'en': 'Pending' },
+            'review.tab.approved': { 'zh-TW': '已審核', 'en': 'Approved' },
+            'review.tab.rejected': { 'zh-TW': '已拒絕', 'en': 'Rejected' },
+            'review.type.all':      { 'zh-TW': '全部類型', 'en': 'All types' },
+            'review.type.testcase': { 'zh-TW': '測試案例', 'en': 'Test Case' },
+            'review.type.document': { 'zh-TW': '測試文件', 'en': 'Document' },
+            'review.type.script':   { 'zh-TW': '測試腳本', 'en': 'Script' },
+            'review.type.report':   { 'zh-TW': '測試報告', 'en': 'Report' },
+            'review.col.type':        { 'zh-TW': '類型',     'en': 'Type' },
+            'review.col.entity':      { 'zh-TW': '實體',     'en': 'Entity' },
+            'review.col.status':      { 'zh-TW': '狀態',     'en': 'Status' },
+            'review.col.submittedBy': { 'zh-TW': '送審者',   'en': 'Submitted by' },
+            'review.col.submittedAt': { 'zh-TW': '送審時間', 'en': 'Submitted at' },
+            'review.col.reviewedBy':  { 'zh-TW': '審核者',   'en': 'Reviewed by' },
+            'review.col.reviewedAt':  { 'zh-TW': '審核時間', 'en': 'Reviewed at' },
+            'review.col.actions':     { 'zh-TW': '操作',     'en': 'Actions' },
+            'review.history.title':   { 'zh-TW': '審核軌跡', 'en': 'Audit Trail' },
+            'review.reason.title':    { 'zh-TW': '輸入原因', 'en': 'Reason required' },
+            'common.refresh': { 'zh-TW': '重新整理', 'en': 'Refresh' },
+            'common.total':   { 'zh-TW': '共',       'en': 'Total' },
+            'common.entries': { 'zh-TW': '筆',       'en': '' },
+            'common.cancel':  { 'zh-TW': '取消',     'en': 'Cancel' },
+            'common.confirm': { 'zh-TW': '確認',     'en': 'Confirm' },
             'home.recentCases': { 'zh-TW': '最近測試案例', 'en': 'Recent Test Cases' },
             'home.todos': { 'zh-TW': '待辦事項', 'en': 'To-do' },
             'home.calendar': { 'zh-TW': '行事曆', 'en': 'Calendar' },
@@ -10124,7 +10266,254 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('testDocumentsWorkspace')?.classList.add('hidden');
             document.getElementById('wbsWorkspace')?.classList.add('hidden');
             document.getElementById('backlogWorkspace')?.classList.add('hidden');
+            document.getElementById('reviewWorkspace')?.classList.add('hidden');
         }
+
+        // ================== 審核中心 (Review Center) =====================
+        // RFC-Review-1 的前端入口。後端 endpoints 都掛在 /api/reviews 之下
+        // (詳 backend/app/routers/reviews.py)。本區所有狀態都從 server 拿,
+        // 不在前端 cache 細節 -- 切 tab 時直接重 fetch,簡單直接。
+
+        let _reviewActiveTab = 'pending';
+        let _reviewPendingAction = null;   // 'reject' | 'revert' + recordId
+
+        const _REVIEW_TYPE_LABEL = {
+            testcase: { zh: '測試案例', en: 'Test Case', cls: 'bg-blue-100 text-blue-700 border-blue-200' },
+            document: { zh: '測試文件', en: 'Document',  cls: 'bg-pink-100 text-pink-700 border-pink-200' },
+            script:   { zh: '測試腳本', en: 'Script',    cls: 'bg-rose-100 text-rose-700 border-rose-200' },
+            report:   { zh: '測試報告', en: 'Report',    cls: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+        };
+        const _REVIEW_STATUS_LABEL = {
+            pending:  { zh: '待審核', en: 'Pending',  cls: 'bg-amber-100 text-amber-700' },
+            approved: { zh: '已審核', en: 'Approved', cls: 'bg-emerald-100 text-emerald-700' },
+            rejected: { zh: '已拒絕', en: 'Rejected', cls: 'bg-rose-100 text-rose-700' },
+        };
+        const _REVIEW_ACTION_LABEL = {
+            submit:  { zh: '送審',   en: 'Submit',  icon: 'fa-paper-plane', cls: 'text-blue-600' },
+            approve: { zh: '通過',   en: 'Approve', icon: 'fa-circle-check', cls: 'text-emerald-600' },
+            reject:  { zh: '拒絕',   en: 'Reject',  icon: 'fa-circle-xmark', cls: 'text-rose-600' },
+            revert:  { zh: '退回',   en: 'Revert',  icon: 'fa-undo',        cls: 'text-amber-600' },
+        };
+
+        function _reviewLocale() {
+            return (typeof currentLocale !== 'undefined' && currentLocale === 'en') ? 'en' : 'zh';
+        }
+
+        // YYYY-MM-DD HH:MM (per spec requirement #6)
+        function _reviewFmtTs(iso) {
+            if (!iso) return '—';
+            const d = new Date(iso);
+            if (isNaN(d.getTime())) return '—';
+            const pad = n => String(n).padStart(2, '0');
+            return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        }
+
+        function showReviewView() {
+            if (typeof confirmDiscardIfDirty === 'function' && !confirmDiscardIfDirty()) return;
+            _hideAllWorkspaces();
+            _setViewMeta('review.title', 'review.title', '<i class="fa-solid fa-stamp text-violet-500"></i>', 'Review', 'bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded font-medium');
+            document.getElementById('reviewWorkspace').classList.remove('hidden');
+            document.getElementById('mainHeader').classList.remove('hidden');
+            document.getElementById('mainActions')?.classList.add('hidden');
+            reviewSetTab(_reviewActiveTab);
+        }
+
+        function reviewSetTab(tab) {
+            _reviewActiveTab = tab;
+            ['pending', 'approved', 'rejected'].forEach(t => {
+                const el = document.getElementById('reviewTab' + t.charAt(0).toUpperCase() + t.slice(1));
+                if (!el) return;
+                if (t === tab) {
+                    el.classList.add('is-active', 'bg-white', 'shadow-sm', 'text-violet-700');
+                    el.classList.remove('text-stone-500');
+                } else {
+                    el.classList.remove('is-active', 'bg-white', 'shadow-sm', 'text-violet-700');
+                    el.classList.add('text-stone-500');
+                }
+            });
+            reviewLoad();
+        }
+
+        async function reviewLoad() {
+            const tbody = document.getElementById('reviewListBody');
+            const cnt = document.getElementById('reviewCount');
+            if (!tbody) return;
+            tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-stone-400">${_reviewLocale()==='en'?'Loading…':'載入中…'}</td></tr>`;
+            try {
+                const params = new URLSearchParams({status: _reviewActiveTab});
+                const t = document.getElementById('reviewTypeFilter')?.value;
+                if (t) params.set('entity_type', t);
+                const rows = await apiFetch('/api/reviews?' + params);
+                cnt.textContent = rows.length;
+                if (!rows.length) {
+                    const empty = _reviewLocale()==='en' ? 'No reviews in this state.' : '此狀態下沒有審核紀錄';
+                    tbody.innerHTML = `<tr><td colspan="8" class="p-10 text-center text-stone-400 text-sm"><i class="fa-regular fa-folder-open text-2xl mb-2 block opacity-60"></i>${empty}</td></tr>`;
+                } else {
+                    tbody.innerHTML = rows.map(_reviewRowHtml).join('');
+                }
+                _reviewUpdatePendingBadge();
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-rose-500">${e.message || e}</td></tr>`;
+            }
+        }
+
+        function _reviewRowHtml(r) {
+            const lc = _reviewLocale();
+            const tlbl = _REVIEW_TYPE_LABEL[r.entity_type] || { zh: r.entity_type, en: r.entity_type, cls: 'bg-stone-100 text-stone-600 border-stone-200' };
+            const slbl = _REVIEW_STATUS_LABEL[r.status]    || { zh: r.status, en: r.status, cls: 'bg-stone-100 text-stone-600' };
+            const idShort = (r.entity_id || '').slice(0, 8);
+            const reasonHtml = r.current_reason
+                ? `<div class="text-[11px] text-stone-500 mt-1 italic">${_esc(r.current_reason)}</div>` : '';
+            return `<tr class="hover:bg-violet-50/40 align-top">
+                <td class="p-3">
+                    <span class="inline-block px-2 py-0.5 rounded text-[11px] font-semibold border ${tlbl.cls}">${tlbl[lc]}</span>
+                </td>
+                <td class="p-3 font-mono text-xs text-stone-700 break-all">${_esc(r.entity_id)}${reasonHtml}</td>
+                <td class="p-3"><span class="inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${slbl.cls}">${slbl[lc]}</span></td>
+                <td class="p-3 text-stone-700 text-xs">${_esc(r.submitted_by || '—')}</td>
+                <td class="p-3 text-stone-500 text-xs font-mono">${_reviewFmtTs(r.submitted_at)}</td>
+                <td class="p-3 text-stone-700 text-xs">${_esc(r.reviewed_by || '—')}</td>
+                <td class="p-3 text-stone-500 text-xs font-mono">${_reviewFmtTs(r.reviewed_at)}</td>
+                <td class="p-3 text-center whitespace-nowrap">${_reviewActionsHtml(r)}</td>
+            </tr>`;
+        }
+
+        function _reviewActionsHtml(r) {
+            const lc = _reviewLocale();
+            const btns = [];
+            // 共用:歷史
+            btns.push(`<button type="button" onclick="reviewOpenHistory('${r.id}')" title="${lc==='en'?'History':'軌跡'}" class="px-2 py-1 text-xs border border-stone-300 rounded hover:bg-violet-50"><i class="fa-solid fa-clock-rotate-left"></i></button>`);
+
+            if (r.status === 'pending') {
+                btns.push(`<button type="button" onclick="reviewApprove('${r.id}')" class="px-2 py-1 text-xs bg-emerald-500 hover:bg-emerald-600 text-white rounded font-semibold"><i class="fa-solid fa-check"></i> ${lc==='en'?'Approve':'通過'}</button>`);
+                btns.push(`<button type="button" onclick="reviewPromptReject('${r.id}')" class="px-2 py-1 text-xs bg-rose-500 hover:bg-rose-600 text-white rounded font-semibold"><i class="fa-solid fa-xmark"></i> ${lc==='en'?'Reject':'拒絕'}</button>`);
+            } else if (r.status === 'approved') {
+                btns.push(`<button type="button" onclick="reviewPromptRevert('${r.id}')" class="px-2 py-1 text-xs bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold"><i class="fa-solid fa-undo"></i> ${lc==='en'?'Revert':'退回'}</button>`);
+            }
+            // rejected: 沒有 server 端動作(由提交者重新送審即可),只看歷史
+            return `<div class="flex items-center gap-1 justify-center">${btns.join('')}</div>`;
+        }
+
+        async function reviewApprove(recordId) {
+            try {
+                await apiFetch(`/api/reviews/${recordId}/approve`, { method: 'POST' });
+                toast((typeof currentLocale!=='undefined'&&currentLocale==='en') ? 'Review approved' : '已通過');
+                reviewLoad();
+            } catch (e) { toast('Approve failed: ' + e.message, 'error'); }
+        }
+
+        function reviewPromptReject(recordId) {
+            _reviewPendingAction = { kind: 'reject', recordId };
+            const lc = _reviewLocale();
+            document.getElementById('reviewReasonTitle').innerHTML = `<i class="fa-solid fa-circle-xmark text-rose-500"></i> ${lc==='en'?'Reject - reason required':'拒絕 - 必填原因'}`;
+            document.getElementById('reviewReasonHint').textContent = lc==='en'
+                ? 'Explain why this submission is rejected. The reason will be visible to the submitter and recorded in the audit trail.'
+                : '請說明拒絕的原因。送審者會看到此原因,且會永久記錄在審核軌跡中。';
+            document.getElementById('reviewReasonInput').value = '';
+            document.getElementById('reviewReasonInput').placeholder = lc==='en'?'e.g. missing acceptance criteria':'例:缺少驗收標準';
+            document.getElementById('reviewReasonModal').classList.remove('hidden');
+            setTimeout(() => document.getElementById('reviewReasonInput').focus(), 50);
+        }
+
+        function reviewPromptRevert(recordId) {
+            _reviewPendingAction = { kind: 'revert', recordId };
+            const lc = _reviewLocale();
+            document.getElementById('reviewReasonTitle').innerHTML = `<i class="fa-solid fa-undo text-amber-500"></i> ${lc==='en'?'Revert to pending - reason required':'退回待審核 - 必填原因'}`;
+            document.getElementById('reviewReasonHint').textContent = lc==='en'
+                ? 'Reverting unlocks the entity for editing. The reason is saved in the audit trail.'
+                : '退回會解除鎖定,可重新編輯。原因會寫入審核軌跡。';
+            document.getElementById('reviewReasonInput').value = '';
+            document.getElementById('reviewReasonInput').placeholder = lc==='en'?'e.g. need to fix a typo':'例:需要修正錯字';
+            document.getElementById('reviewReasonModal').classList.remove('hidden');
+            setTimeout(() => document.getElementById('reviewReasonInput').focus(), 50);
+        }
+
+        function reviewCloseReasonModal() {
+            document.getElementById('reviewReasonModal').classList.add('hidden');
+            _reviewPendingAction = null;
+        }
+
+        async function reviewSubmitReason(ev) {
+            ev.preventDefault();
+            if (!_reviewPendingAction) return false;
+            const reason = (document.getElementById('reviewReasonInput').value || '').trim();
+            if (!reason) return false;
+            const { kind, recordId } = _reviewPendingAction;
+            try {
+                await apiFetch(`/api/reviews/${recordId}/${kind}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reason }),
+                });
+                const lc = _reviewLocale();
+                toast(kind === 'reject' ? (lc==='en'?'Rejected':'已拒絕') : (lc==='en'?'Reverted to pending':'已退回待審核'));
+                reviewCloseReasonModal();
+                reviewLoad();
+            } catch (e) {
+                toast(`${kind} failed: ${e.message}`, 'error');
+            }
+            return false;
+        }
+
+        async function reviewOpenHistory(recordId) {
+            const drawer = document.getElementById('reviewHistoryDrawer');
+            const body = document.getElementById('reviewHistoryBody');
+            const lc = _reviewLocale();
+            body.innerHTML = `<div class="text-stone-400 text-center py-8">${lc==='en'?'Loading…':'載入中…'}</div>`;
+            drawer.classList.remove('hidden');
+            try {
+                const entries = await apiFetch(`/api/reviews/${recordId}/history`);
+                if (!entries.length) {
+                    body.innerHTML = `<div class="text-stone-400 text-center py-8">${lc==='en'?'No history':'無紀錄'}</div>`;
+                    return;
+                }
+                body.innerHTML = entries.map(e => {
+                    const al = _REVIEW_ACTION_LABEL[e.action] || { zh: e.action, en: e.action, icon: 'fa-circle', cls: 'text-stone-500' };
+                    const reasonHtml = e.reason ? `<div class="text-[12px] text-stone-700 mt-1 bg-stone-50 rounded px-2 py-1 border-l-2 border-violet-300">${_esc(e.reason)}</div>` : '';
+                    const transitHtml = e.previous_status
+                        ? `<span class="text-[10px] text-stone-400 ml-2">${e.previous_status} → ${e.new_status}</span>`
+                        : `<span class="text-[10px] text-stone-400 ml-2">→ ${e.new_status}</span>`;
+                    return `<div class="border-l-2 border-violet-200 pl-3 pb-3">
+                        <div class="flex items-center gap-2 text-sm">
+                            <i class="fa-solid ${al.icon} ${al.cls}"></i>
+                            <span class="font-semibold ${al.cls}">${al[lc]}</span>
+                            ${transitHtml}
+                        </div>
+                        <div class="text-[11px] text-stone-500 mt-0.5">
+                            <i class="fa-regular fa-user mr-1"></i>${_esc(e.actor)}
+                            <i class="fa-regular fa-clock ml-3 mr-1"></i>${_reviewFmtTs(e.acted_at)}
+                        </div>
+                        ${reasonHtml}
+                    </div>`;
+                }).join('');
+            } catch (e) {
+                body.innerHTML = `<div class="text-rose-500 text-center py-8">${e.message || e}</div>`;
+            }
+        }
+
+        function reviewCloseHistoryDrawer() {
+            document.getElementById('reviewHistoryDrawer').classList.add('hidden');
+        }
+
+        async function _reviewUpdatePendingBadge() {
+            // 載一次 pending count 顯示在 nav drawer 右側
+            try {
+                const rows = await apiFetch('/api/reviews?status=pending');
+                const badge = document.getElementById('navReviewPendingBadge');
+                if (!badge) return;
+                if (rows.length > 0) {
+                    badge.textContent = String(rows.length);
+                    badge.classList.remove('hidden');
+                } else {
+                    badge.classList.add('hidden');
+                }
+            } catch (_) { /* silent */ }
+        }
+        // tab 預設樣式 helper(進入頁面時跑)
+        document.addEventListener('DOMContentLoaded', () => {
+            const t = document.getElementById('reviewTabPending');
+            if (t) t.classList.add('is-active', 'bg-white', 'shadow-sm', 'text-violet-700');
+        });
 
         // ──── 視圖標題 i18n helper ────
         // 把 viewFilename / viewTitle / viewTag 三處在切換 view 時統一設好,

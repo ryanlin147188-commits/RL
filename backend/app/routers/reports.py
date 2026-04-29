@@ -10,8 +10,10 @@ from app.auth.scope import ensure_project_in_scope, scope_by_project
 from app.database import get_db
 from app.models.execution_report import ExecutionReport, ReportStatus
 from app.models.execution_step_log import ExecutionStepLog
+from app.models.review import ReviewableEntityType
 from app.models.tree_node import TreeNode
 from app.models.user import User
+from app.services import review_service
 from app.schemas.dashboard import ChartDataPoint, ChartsResponse, MetricsResponse
 from app.schemas.execution_report import (
     PaginatedResponse,
@@ -323,6 +325,12 @@ async def delete_report(
     report = await db.get(ExecutionReport, report_id)
     await ensure_project_in_scope(
         db, report.project_id if report else None, user, not_found_detail="Report not found"
+    )
+    await review_service.ensure_not_approved(
+        db,
+        entity_type=ReviewableEntityType.REPORT,
+        entity_id=report_id,
+        organization_id=None if user.is_superuser else user.organization_id,
     )
     await db.delete(report)
     await db.commit()

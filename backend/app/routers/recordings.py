@@ -47,7 +47,9 @@ from app.auth.scope import (
 from app.config import settings
 from app.database import get_db
 from app.models.recording import RecordingSession
+from app.models.review import ReviewableEntityType
 from app.models.user import User
+from app.services import review_service
 from app.schemas.recording import (
     ConvertResponse,
     GeneratedStep,
@@ -340,6 +342,12 @@ async def delete_recording(
     await ensure_project_in_scope(
         db, session.project_id if session else None, user,
         not_found_detail="Recording session not found",
+    )
+    await review_service.ensure_not_approved(
+        db,
+        entity_type=ReviewableEntityType.SCRIPT,
+        entity_id=session_id,
+        organization_id=None if user.is_superuser else user.organization_id,
     )
     # 刪除目錄
     folder = _session_dir(session_id)

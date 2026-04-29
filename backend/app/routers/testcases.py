@@ -7,6 +7,8 @@ from app.auth.permissions import require_permission
 from app.auth.permissions_catalog import P
 from app.auth.scope import ensure_project_in_scope
 from app.database import get_db
+from app.models.review import ReviewableEntityType
+from app.services import review_service
 from app.models.testcase_content import TestcaseContent
 from app.models.tree_node import LevelType, TreeNode
 from app.models.user import User
@@ -72,6 +74,13 @@ async def update_testcase(
 ):
     """整包覆寫(前端將表格轉成 JSON 送來)。建議搭配版號欄位 (Optimistic Lock) 防止協作衝突。"""
     await _load_testcase_node(node_id, user, db)
+    # RFC-Review-1: approved test cases are locked from edits until reverted.
+    await review_service.ensure_not_approved(
+        db,
+        entity_type=ReviewableEntityType.TESTCASE,
+        entity_id=node_id,
+        organization_id=None if user.is_superuser else user.organization_id,
+    )
 
     result = await db.execute(
         select(TestcaseContent).where(TestcaseContent.node_id == node_id)

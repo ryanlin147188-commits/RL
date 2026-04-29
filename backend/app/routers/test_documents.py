@@ -15,8 +15,10 @@ from app.auth.scope import (
 )
 from app.common import Pagination
 from app.database import get_db
+from app.models.review import ReviewableEntityType
 from app.models.test_document import DocumentCategory, TestDocument
 from app.models.user import User
+from app.services import review_service
 from app.schemas.test_document import (
     TestDocumentCreate,
     TestDocumentResponse,
@@ -127,6 +129,12 @@ async def update_document(
     await ensure_project_in_scope(
         db, doc.project_id if doc else None, user, not_found_detail="Document not found"
     )
+    await review_service.ensure_not_approved(
+        db,
+        entity_type=ReviewableEntityType.DOCUMENT,
+        entity_id=doc_id,
+        organization_id=None if user.is_superuser else user.organization_id,
+    )
     data = payload.model_dump(exclude_unset=True)
     for key, val in data.items():
         if key == "category" and val is not None:
@@ -151,6 +159,12 @@ async def delete_document(
     doc = await db.get(TestDocument, doc_id)
     await ensure_project_in_scope(
         db, doc.project_id if doc else None, user, not_found_detail="Document not found"
+    )
+    await review_service.ensure_not_approved(
+        db,
+        entity_type=ReviewableEntityType.DOCUMENT,
+        entity_id=doc_id,
+        organization_id=None if user.is_superuser else user.organization_id,
     )
     await db.delete(doc)
     await db.flush()

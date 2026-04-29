@@ -62,6 +62,11 @@ class P:
     USER_MANAGE:    Final[str] = "user.manage"
     ROLE_MANAGE:    Final[str] = "role.manage"
 
+    # ── Review / approval workflow ──────────────────────────────────────
+    REVIEW_READ:    Final[str] = "review.read"
+    REVIEW_SUBMIT:  Final[str] = "review.submit"
+    REVIEW_MANAGE:  Final[str] = "review.manage"   # approve / reject / revert
+
 
 ALL_PERMISSIONS: Final[frozenset[str]] = frozenset(
     v for k, v in vars(P).items() if not k.startswith("_") and isinstance(v, str)

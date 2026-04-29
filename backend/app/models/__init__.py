@@ -27,6 +27,13 @@ from .role import Role
 from .user import User
 from .project_device import DevicePlatform, ProjectDevice
 from .project_env_var import ProjectEnvVar
+from .review import (
+    ReviewableEntityType,
+    ReviewAction,
+    ReviewHistory,
+    ReviewRecord,
+    ReviewStatus,
+)
 from .schedule import RepeatType, Schedule
 from .step_screenshot_baseline import StepScreenshotBaseline
 from .test_data_set import DataSetCategory, TestDataSet
@@ -83,4 +90,7 @@ __all__ = [
     "Schedule", "RepeatType",
     "StepScreenshotBaseline",
     "TestRound",
+    # Review / approval workflow
+    "ReviewRecord", "ReviewHistory",
+    "ReviewableEntityType", "ReviewStatus", "ReviewAction",
 ]
