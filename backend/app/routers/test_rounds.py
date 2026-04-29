@@ -19,9 +19,16 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.dependencies import get_current_user
+from app.auth.scope import (
+    ensure_project_in_scope,
+    ensure_project_writable,
+    scope_by_project,
+)
 from app.database import get_db
 from app.models.test_round import TestRound
 from app.models.tree_node import TreeNode
+from app.models.user import User
 from app.schemas.test_round import TestRoundCreate, TestRoundResponse, TestRoundUpdate
 from app.services.execution_service import collect_testcase_ids, create_report
 
@@ -71,6 +78,7 @@ async def _to_response(db: AsyncSession, r: TestRound) -> TestRoundResponse:
 async def list_rounds(
     project_id: Optional[str] = Query(None),
     test_version_id: Optional[str] = Query(None),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     stmt = select(TestRound).order_by(desc(TestRound.created_at))
@@ -78,13 +86,19 @@ async def list_rounds(
         stmt = stmt.where(TestRound.project_id == project_id)
     if test_version_id:
         stmt = stmt.where(TestRound.test_version_id == test_version_id)
+    stmt = scope_by_project(stmt, TestRound, user)
     result = await db.execute(stmt)
     rows = list(result.scalars())
     return [await _to_response(db, r) for r in rows]
 
 
 @router.post("/rounds", response_model=TestRoundResponse, status_code=201, tags=["H · 測試回合"])
-async def create_round(payload: TestRoundCreate, db: AsyncSession = Depends(get_db)):
+async def create_round(
+    payload: TestRoundCreate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await ensure_project_writable(db, payload.project_id, user)
     if not payload.node_ids:
         raise HTTPException(status_code=400, detail="至少要選一個節點")
     # 驗證 project 存在
@@ -102,20 +116,29 @@ async def create_round(payload: TestRoundCreate, db: AsyncSession = Depends(get_
 
 
 @router.get("/rounds/{round_id}", response_model=TestRoundResponse, tags=["H · 測試回合"])
-async def get_round(round_id: str, db: AsyncSession = Depends(get_db)):
+async def get_round(
+    round_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     r = await db.get(TestRound, round_id)
-    if r is None:
-        raise HTTPException(status_code=404, detail="Round not found")
+    await ensure_project_in_scope(
+        db, r.project_id if r else None, user, not_found_detail="Round not found"
+    )
     return await _to_response(db, r)
 
 
 @router.put("/rounds/{round_id}", response_model=TestRoundResponse, tags=["H · 測試回合"])
 async def update_round(
-    round_id: str, payload: TestRoundUpdate, db: AsyncSession = Depends(get_db)
+    round_id: str,
+    payload: TestRoundUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     r = await db.get(TestRound, round_id)
-    if r is None:
-        raise HTTPException(status_code=404, detail="Round not found")
+    await ensure_project_in_scope(
+        db, r.project_id if r else None, user, not_found_detail="Round not found"
+    )
     if payload.name is not None:
         r.name = payload.name
     if payload.node_ids is not None:
@@ -134,10 +157,15 @@ async def update_round(
 
 
 @router.delete("/rounds/{round_id}", status_code=204, tags=["H · 測試回合"])
-async def delete_round(round_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_round(
+    round_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     r = await db.get(TestRound, round_id)
-    if r is None:
-        raise HTTPException(status_code=404, detail="Round not found")
+    await ensure_project_in_scope(
+        db, r.project_id if r else None, user, not_found_detail="Round not found"
+    )
     await db.delete(r)
 
 
@@ -145,6 +173,7 @@ async def delete_round(round_id: str, db: AsyncSession = Depends(get_db)):
 async def execute_round(
     round_id: str,
     execution_mode: Optional[str] = Query(None, pattern="^(docker|local)$"),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """立即執行整個回合：把所有節點底下的 TESTCASE 彙總後，建立一份 ExecutionReport。
@@ -152,8 +181,9 @@ async def execute_round(
     execution_mode 未指定時使用 round.execution_mode。
     """
     r = await db.get(TestRound, round_id)
-    if r is None:
-        raise HTTPException(status_code=404, detail="Round not found")
+    await ensure_project_in_scope(
+        db, r.project_id if r else None, user, not_found_detail="Round not found"
+    )
 
     nids = _parse_node_ids(r.node_ids_json)
     if not nids:

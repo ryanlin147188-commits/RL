@@ -7,8 +7,15 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import asc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.dependencies import get_current_user
+from app.auth.scope import (
+    ensure_project_in_scope,
+    ensure_project_writable,
+    scope_by_project,
+)
 from app.common import Pagination
 from app.database import get_db
+from app.models.user import User
 from app.models.wbs_item import WbsItem, WbsStatus
 from app.schemas.wbs_item import WbsItemCreate, WbsItemResponse, WbsItemUpdate
 
@@ -37,6 +44,7 @@ async def list_wbs(
     project_id: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
     page: Pagination = Depends(Pagination.from_query),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """整批回傳 — 前端依 parent_id 自行組樹。"""
@@ -45,6 +53,7 @@ async def list_wbs(
         stmt = stmt.where(WbsItem.project_id == project_id)
     if status:
         stmt = stmt.where(WbsItem.status == WbsStatus(status))
+    stmt = scope_by_project(stmt, WbsItem, user)
     stmt = page.apply(stmt)
     rows = (await db.execute(stmt)).scalars().all()
     return list(rows)
@@ -53,8 +62,10 @@ async def list_wbs(
 @router.get("/wbs/tree", tags=["R · WBS"])
 async def wbs_tree(
     project_id: str = Query(...),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await ensure_project_in_scope(db, project_id, user, not_found_detail="Project not found")
     """以巢狀 JSON 回傳整棵 WBS 樹（root_items + children 遞迴展開）。"""
     rows = (await db.execute(
         select(WbsItem)
@@ -92,7 +103,12 @@ async def wbs_tree(
 
 
 @router.post("/wbs", response_model=WbsItemResponse, status_code=201, tags=["R · WBS"])
-async def create_wbs(payload: WbsItemCreate, db: AsyncSession = Depends(get_db)):
+async def create_wbs(
+    payload: WbsItemCreate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await ensure_project_writable(db, payload.project_id, user)
     code = payload.code or await _next_code(db, payload.project_id)
     if payload.parent_id:
         parent = await db.get(WbsItem, payload.parent_id)
@@ -119,18 +135,29 @@ async def create_wbs(payload: WbsItemCreate, db: AsyncSession = Depends(get_db))
 
 
 @router.get("/wbs/{item_id}", response_model=WbsItemResponse, tags=["R · WBS"])
-async def get_wbs(item_id: str, db: AsyncSession = Depends(get_db)):
+async def get_wbs(
+    item_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     item = await db.get(WbsItem, item_id)
-    if not item:
-        raise HTTPException(404, "WBS item not found")
+    await ensure_project_in_scope(
+        db, item.project_id if item else None, user, not_found_detail="WBS item not found"
+    )
     return item
 
 
 @router.put("/wbs/{item_id}", response_model=WbsItemResponse, tags=["R · WBS"])
-async def update_wbs(item_id: str, payload: WbsItemUpdate, db: AsyncSession = Depends(get_db)):
+async def update_wbs(
+    item_id: str,
+    payload: WbsItemUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     item = await db.get(WbsItem, item_id)
-    if not item:
-        raise HTTPException(404, "WBS item not found")
+    await ensure_project_in_scope(
+        db, item.project_id if item else None, user, not_found_detail="WBS item not found"
+    )
     data = payload.model_dump(exclude_unset=True)
     if "parent_id" in data and data["parent_id"]:
         if data["parent_id"] == item.id:
@@ -151,10 +178,15 @@ async def update_wbs(item_id: str, payload: WbsItemUpdate, db: AsyncSession = De
 
 
 @router.delete("/wbs/{item_id}", status_code=204, tags=["R · WBS"])
-async def delete_wbs(item_id: str, db: AsyncSession = Depends(get_db)):
-    """刪除 WBS 項目（含其所有子項，由 DB cascade 自動刪除）。"""
+async def delete_wbs(
+    item_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """刪除 WBS 項目(含其所有子項,由 DB cascade 自動刪除)。"""
     item = await db.get(WbsItem, item_id)
-    if not item:
-        raise HTTPException(404, "WBS item not found")
+    await ensure_project_in_scope(
+        db, item.project_id if item else None, user, not_found_detail="WBS item not found"
+    )
     await db.delete(item)
     await db.flush()

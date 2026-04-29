@@ -7,6 +7,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.dependencies import get_current_user
+from app.auth.scope import (
+    ensure_project_in_scope,
+    ensure_project_writable,
+    scope_by_project,
+)
 from app.common import Pagination
 from app.database import get_db
 from app.models.defect import Defect
@@ -22,6 +28,7 @@ from app.models.requirement import (
 from app.models.todo_item import TodoItem
 from app.models.todo_link import TodoLink
 from app.models.tree_node import LevelType, TreeNode
+from app.models.user import User
 from app.schemas.requirement import (
     RequirementCreate,
     RequirementResponse,
@@ -78,18 +85,25 @@ async def _to_response(db: AsyncSession, r: Requirement) -> RequirementResponse:
 async def list_requirements(
     project_id: Optional[str] = Query(None),
     page: Pagination = Depends(Pagination.from_query),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     stmt = select(Requirement).order_by(Requirement.code)
     if project_id:
         stmt = stmt.where(Requirement.project_id == project_id)
+    stmt = scope_by_project(stmt, Requirement, user)
     stmt = page.apply(stmt)
     rows = (await db.execute(stmt)).scalars().all()
     return [await _to_response(db, r) for r in rows]
 
 
 @router.post("/requirements", response_model=RequirementResponse, status_code=201, tags=["O · 需求 / RTM"])
-async def create_requirement(payload: RequirementCreate, db: AsyncSession = Depends(get_db)):
+async def create_requirement(
+    payload: RequirementCreate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await ensure_project_writable(db, payload.project_id, user)
     code = payload.code or await _next_code(db, payload.project_id)
     r = Requirement(
         project_id=payload.project_id,
@@ -109,20 +123,29 @@ async def create_requirement(payload: RequirementCreate, db: AsyncSession = Depe
 
 
 @router.get("/requirements/{req_id}", response_model=RequirementResponse, tags=["O · 需求 / RTM"])
-async def get_requirement(req_id: str, db: AsyncSession = Depends(get_db)):
+async def get_requirement(
+    req_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     r = await db.get(Requirement, req_id)
-    if not r:
-        raise HTTPException(404, "Requirement not found")
+    await ensure_project_in_scope(
+        db, r.project_id if r else None, user, not_found_detail="Requirement not found"
+    )
     return await _to_response(db, r)
 
 
 @router.put("/requirements/{req_id}", response_model=RequirementResponse, tags=["O · 需求 / RTM"])
 async def update_requirement(
-    req_id: str, payload: RequirementUpdate, db: AsyncSession = Depends(get_db)
+    req_id: str,
+    payload: RequirementUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     r = await db.get(Requirement, req_id)
-    if not r:
-        raise HTTPException(404, "Requirement not found")
+    await ensure_project_in_scope(
+        db, r.project_id if r else None, user, not_found_detail="Requirement not found"
+    )
     data = payload.model_dump(exclude_unset=True)
     for key, val in data.items():
         if key == "source" and val is not None:
@@ -139,10 +162,15 @@ async def update_requirement(
 
 
 @router.delete("/requirements/{req_id}", status_code=204, tags=["O · 需求 / RTM"])
-async def delete_requirement(req_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_requirement(
+    req_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     r = await db.get(Requirement, req_id)
-    if not r:
-        raise HTTPException(404, "Requirement not found")
+    await ensure_project_in_scope(
+        db, r.project_id if r else None, user, not_found_detail="Requirement not found"
+    )
     await db.delete(r)
     await db.flush()
 
@@ -151,12 +179,16 @@ async def delete_requirement(req_id: str, db: AsyncSession = Depends(get_db)):
 
 @router.put("/requirements/{req_id}/links", tags=["O · 需求 / RTM"])
 async def replace_requirement_links(
-    req_id: str, payload: RtmLinkUpdate, db: AsyncSession = Depends(get_db)
+    req_id: str,
+    payload: RtmLinkUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """整批替換需求 ↔ 測試案例 的關聯。"""
     r = await db.get(Requirement, req_id)
-    if not r:
-        raise HTTPException(404, "Requirement not found")
+    await ensure_project_in_scope(
+        db, r.project_id if r else None, user, not_found_detail="Requirement not found"
+    )
     # 清空舊關聯
     await db.execute(
         select(RequirementTestcaseLink).where(RequirementTestcaseLink.requirement_id == req_id)
@@ -177,9 +209,11 @@ async def replace_requirement_links(
 @router.get("/rtm/matrix", response_model=RtmMatrixResponse, tags=["O · 需求 / RTM"])
 async def rtm_matrix(
     project_id: str = Query(...),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """RTM 矩陣：requirements × testcases × 最近執行狀態。"""
+    await ensure_project_in_scope(db, project_id, user, not_found_detail="Project not found")
     # 1) 該專案所有需求
     reqs_rows = (await db.execute(
         select(Requirement).where(Requirement.project_id == project_id).order_by(Requirement.code)

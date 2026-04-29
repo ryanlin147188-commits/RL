@@ -133,11 +133,11 @@ GreaterThan, LessThan, IsVisible, IsHidden, IsChecked
   {
     "title": "[正向] 登入成功 - 正確帳密",
     "ac": "Given 使用者已註冊\\nWhen 輸入正確帳號密碼\\nThen 進入首頁",
-    "steps_md": "## 步驟\\n1. 開啟登入頁\\n2. 輸入 admin/admin123\\n3. 點選登入\\n## 預期\\n- 跳轉到首頁",
+    "steps_md": "## 步驟\\n1. 開啟登入頁\\n2. 輸入 <your-username>/<your-password>\\n3. 點選登入\\n## 預期\\n- 跳轉到首頁",
     "steps_json": [
       {"keyword": "Given", "description": "開啟登入頁", "action": "Navigate", "locator": "https://example.com/login", "input": "", "condition": "Equals", "expected": ""},
-      {"keyword": "When", "description": "輸入帳號", "action": "Fill", "locator": "#username", "input": "admin", "condition": "Equals", "expected": ""},
-      {"keyword": "When", "description": "輸入密碼", "action": "Fill", "locator": "#password", "input": "admin123", "condition": "Equals", "expected": ""},
+      {"keyword": "When", "description": "輸入帳號", "action": "Fill", "locator": "#username", "input": "<your-username>", "condition": "Equals", "expected": ""},
+      {"keyword": "When", "description": "輸入密碼", "action": "Fill", "locator": "#password", "input": "<your-password>", "condition": "Equals", "expected": ""},
       {"keyword": "When", "description": "點選登入", "action": "Click", "locator": "button[type=submit]", "input": "", "condition": "Equals", "expected": ""},
       {"keyword": "Then", "description": "首頁標題顯示歡迎", "action": "AssertText", "locator": "h1.title", "input": "", "condition": "Contains", "expected": "歡迎"}
     ]
@@ -145,11 +145,11 @@ GreaterThan, LessThan, IsVisible, IsHidden, IsChecked
   {
     "title": "[反向] 登入失敗 - 密碼錯誤",
     "ac": "Given 使用者輸入正確帳號但錯誤密碼\\nWhen 點選登入\\nThen 顯示錯誤訊息且停留在登入頁",
-    "steps_md": "## 步驟\\n1. 開登入頁 → 填 admin/wrong\\n2. 點登入\\n## 預期\\n- 紅色錯誤訊息出現\\n- URL 仍是 /login",
+    "steps_md": "## 步驟\\n1. 開登入頁 → 填 <your-username>/<wrong-password>\\n2. 點登入\\n## 預期\\n- 紅色錯誤訊息出現\\n- URL 仍是 /login",
     "steps_json": [
       {"keyword": "Given", "description": "開啟登入頁", "action": "Navigate", "locator": "https://example.com/login", "input": "", "condition": "Equals", "expected": ""},
-      {"keyword": "When", "description": "填正確帳號", "action": "Fill", "locator": "#username", "input": "admin", "condition": "Equals", "expected": ""},
-      {"keyword": "When", "description": "填錯誤密碼", "action": "Fill", "locator": "#password", "input": "wrong_pwd", "condition": "Equals", "expected": ""},
+      {"keyword": "When", "description": "填正確帳號", "action": "Fill", "locator": "#username", "input": "<your-username>", "condition": "Equals", "expected": ""},
+      {"keyword": "When", "description": "填錯誤密碼", "action": "Fill", "locator": "#password", "input": "<wrong-password>", "condition": "Equals", "expected": ""},
       {"keyword": "When", "description": "點選登入", "action": "Click", "locator": "button[type=submit]", "input": "", "condition": "Equals", "expected": ""},
       {"keyword": "Then", "description": "錯誤訊息顯示", "action": "AssertText", "locator": ".error-msg", "input": "", "condition": "Contains", "expected": "帳號或密碼錯誤"},
       {"keyword": "Then", "description": "URL 仍在 /login", "action": "AssertURL", "locator": "", "input": "", "condition": "Contains", "expected": "/login"}

@@ -17,9 +17,16 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.dependencies import get_current_user
+from app.auth.scope import (
+    ensure_project_in_scope,
+    ensure_project_writable,
+    scope_by_project,
+)
 from app.database import get_db
 from app.models.schedule import RepeatType, Schedule
 from app.models.tree_node import TreeNode
+from app.models.user import User
 from app.schemas.schedule import ScheduleCreate, ScheduleResponse, ScheduleUpdate
 from app.services.schedule_service import _trigger_schedule, compute_next_run
 
@@ -124,25 +131,33 @@ def _resolve_payload_nodes(payload: ScheduleCreate) -> list[str]:
 @router.get("/schedules", response_model=list[ScheduleResponse], tags=["F · 排程"])
 async def list_schedules(
     project_id: Optional[str] = Query(None),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     stmt = select(Schedule).order_by(desc(Schedule.created_at))
     if project_id:
         stmt = stmt.where(Schedule.project_id == project_id)
+    stmt = scope_by_project(stmt, Schedule, user)
     result = await db.execute(stmt)
     schedules = list(result.scalars())
     return await _attach_node_titles(db, schedules)
 
 
 @router.post("/schedules", response_model=ScheduleResponse, status_code=201, tags=["F · 排程"])
-async def create_schedule(payload: ScheduleCreate, db: AsyncSession = Depends(get_db)):
+async def create_schedule(
+    payload: ScheduleCreate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     nids = _resolve_payload_nodes(payload)
     if not nids:
         raise HTTPException(status_code=400, detail="請至少選擇一個節點")
     primary = nids[0]
     node = await db.get(TreeNode, primary)
-    if node is None:
-        raise HTTPException(status_code=404, detail="Node not found")
+    await ensure_project_in_scope(
+        db, node.project_id if node else None, user, not_found_detail="Node not found"
+    )
+    await ensure_project_writable(db, node.project_id, user)
 
     schedule = Schedule(
         name=payload.name,
@@ -166,10 +181,15 @@ async def create_schedule(payload: ScheduleCreate, db: AsyncSession = Depends(ge
 
 
 @router.get("/schedules/{schedule_id}", response_model=ScheduleResponse, tags=["F · 排程"])
-async def get_schedule(schedule_id: str, db: AsyncSession = Depends(get_db)):
+async def get_schedule(
+    schedule_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     schedule = await db.get(Schedule, schedule_id)
-    if schedule is None:
-        raise HTTPException(status_code=404, detail="Schedule not found")
+    await ensure_project_in_scope(
+        db, schedule.project_id if schedule else None, user, not_found_detail="Schedule not found"
+    )
     nids = _get_node_ids(schedule)
     rows = await db.execute(select(TreeNode).where(TreeNode.id.in_(nids)))
     titles = {n.id: n.name for n in rows.scalars()}
@@ -181,11 +201,15 @@ async def get_schedule(schedule_id: str, db: AsyncSession = Depends(get_db)):
 
 @router.put("/schedules/{schedule_id}", response_model=ScheduleResponse, tags=["F · 排程"])
 async def update_schedule(
-    schedule_id: str, payload: ScheduleUpdate, db: AsyncSession = Depends(get_db)
+    schedule_id: str,
+    payload: ScheduleUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     schedule = await db.get(Schedule, schedule_id)
-    if schedule is None:
-        raise HTTPException(status_code=404, detail="Schedule not found")
+    await ensure_project_in_scope(
+        db, schedule.project_id if schedule else None, user, not_found_detail="Schedule not found"
+    )
 
     if payload.name is not None:
         schedule.name = payload.name
@@ -220,10 +244,15 @@ async def update_schedule(
 
 
 @router.delete("/schedules/{schedule_id}", status_code=204, tags=["F · 排程"])
-async def delete_schedule(schedule_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_schedule(
+    schedule_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     schedule = await db.get(Schedule, schedule_id)
-    if schedule is None:
-        raise HTTPException(status_code=404, detail="Schedule not found")
+    await ensure_project_in_scope(
+        db, schedule.project_id if schedule else None, user, not_found_detail="Schedule not found"
+    )
     await db.delete(schedule)
 
 
@@ -231,6 +260,7 @@ async def delete_schedule(schedule_id: str, db: AsyncSession = Depends(get_db)):
 async def trigger_schedule_now(
     schedule_id: str,
     execution_mode: Optional[str] = Query(None, pattern="^(docker|local)$"),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """立即觸發一次，但不更動 next_run_at（排程仍會照原時間再次觸發）。
@@ -238,8 +268,9 @@ async def trigger_schedule_now(
     execution_mode：若傳入（docker/local）就用傳入值；未傳則使用 schedule 儲存的 execution_mode。
     """
     schedule = await db.get(Schedule, schedule_id)
-    if schedule is None:
-        raise HTTPException(status_code=404, detail="Schedule not found")
+    await ensure_project_in_scope(
+        db, schedule.project_id if schedule else None, user, not_found_detail="Schedule not found"
+    )
 
     mode = (execution_mode or getattr(schedule, "execution_mode", None) or "docker").lower()
     report_id = await _trigger_schedule(db, schedule, execution_mode=mode)

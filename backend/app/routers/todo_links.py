@@ -107,7 +107,9 @@ async def list_todo_links(
     db: AsyncSession = Depends(get_db),
 ):
     todo = await db.get(TodoItem, todo_id)
-    if not todo or (user.organization_id and todo.organization_id and todo.organization_id != user.organization_id):
+    if not todo:
+        raise HTTPException(404, "Todo not found")
+    if not user.is_superuser and todo.organization_id != user.organization_id:
         raise HTTPException(404, "Todo not found")
 
     rows = (
@@ -132,7 +134,9 @@ async def create_todo_link(
     db: AsyncSession = Depends(get_db),
 ):
     todo = await db.get(TodoItem, todo_id)
-    if not todo or (user.organization_id and todo.organization_id and todo.organization_id != user.organization_id):
+    if not todo:
+        raise HTTPException(404, "Todo not found")
+    if not user.is_superuser and todo.organization_id != user.organization_id:
         raise HTTPException(404, "Todo not found")
 
     # 驗證目標
@@ -182,7 +186,7 @@ async def delete_todo_link(
     link = await db.get(TodoLink, link_id)
     if not link or link.todo_id != todo_id:
         raise HTTPException(404, "Link not found")
-    if user.organization_id and link.organization_id and link.organization_id != user.organization_id:
+    if not user.is_superuser and link.organization_id != user.organization_id:
         raise HTTPException(404, "Link not found")
     await db.delete(link)
     await db.flush()
@@ -211,7 +215,7 @@ async def list_todos_by_target(
             TodoLink.target_id == target_id,
         )
     )
-    if user.organization_id:
+    if not user.is_superuser:
         stmt = stmt.where(TodoLink.organization_id == user.organization_id)
     rows = (await db.execute(stmt)).all()
 
@@ -250,7 +254,7 @@ async def batch_links_by_target(
         .join(TodoItem, TodoItem.id == TodoLink.todo_id)
         .where(TodoLink.target_type == target_type)
     )
-    if user.organization_id:
+    if not user.is_superuser:
         stmt = stmt.where(TodoLink.organization_id == user.organization_id)
     if project_id:
         stmt = stmt.where(TodoItem.project_id == project_id)

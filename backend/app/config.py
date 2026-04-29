@@ -32,15 +32,17 @@ class Settings(BaseSettings):
     # 應用程式
     APP_HOST: str = "0.0.0.0"
     APP_PORT: int = 8000
-    DEBUG: bool = True
+    # 預設關閉:DEBUG=True 會在 stack trace 洩漏檔案路徑與 env 內容。
+    # 開發時用 docker-compose.dev.yml overlay 啟用,或在本機 .env 設 DEBUG=True。
+    DEBUG: bool = False
 
     # ─── Docker 模式錄製(Phase 1) ────────────────────────────────────
     # WEB:容器內透過此 image 跑 Xvfb + noVNC + Playwright codegen
-    RECORDER_IMAGE: str = "autotest-recorder:latest"
+    RECORDER_IMAGE: str = "autotest-recorder:1.0.0"
     # API:容器內跑 mitmweb(HTTP proxy + web UI)+ HAR addon
-    RECORDER_API_IMAGE: str = "autotest-recorder-api:latest"
+    RECORDER_API_IMAGE: str = "autotest-recorder-api:1.0.0"
     # MCP:Playwright MCP server,讓 LLM 透過 tool calling 操作 chromium
-    MCP_IMAGE: str = "autotest-mcp:latest"
+    MCP_IMAGE: str = "autotest-mcp:1.0.0"
     # 啟動的容器加入 docker compose 的同一 network(讓 codegen 完成後 curl
     # 上傳能解析到 backend hostname);預設與 docker-compose.yml networks 一致
     RECORDER_NETWORK: str = "autotest_default"

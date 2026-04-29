@@ -25,6 +25,21 @@ from app.schemas.settings import (
 router = APIRouter()
 
 
+def _scope_todo(stmt, user: User):
+    """以 organization_id 過濾 TodoItem;superuser 不限制。"""
+    if user.is_superuser:
+        return stmt
+    return stmt.where(TodoItem.organization_id == user.organization_id)
+
+
+def _check_todo_scope(t: Optional[TodoItem], user: User) -> TodoItem:
+    if t is None:
+        raise HTTPException(404, "Todo not found")
+    if not user.is_superuser and t.organization_id != user.organization_id:
+        raise HTTPException(404, "Todo not found")
+    return t
+
+
 async def _resolve_group_members(db: AsyncSession, group_id: str) -> set[str]:
     """遞迴展開 group_id 下所有(含巢狀子群組)成員的 username 集合。"""
     visited: set[str] = set()
@@ -174,9 +189,11 @@ async def list_todos(
         description="overdue / due_soon (≤3 天) / upcoming / done。覆蓋 status 過濾。",
     ),
     page: Pagination = Depends(Pagination.from_query),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     stmt = select(TodoItem).order_by(asc(TodoItem.due_date), desc(TodoItem.created_at))
+    stmt = _scope_todo(stmt, user)
     if project_id:
         stmt = stmt.where(TodoItem.project_id == project_id)
     if assignee:
@@ -223,10 +240,12 @@ async def list_todos(
 async def todo_summary(
     project_id: Optional[str] = Query(None),
     assignee: Optional[str] = Query(None),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """首頁 KPI 卡片用:各 bucket 的數量。"""
     stmt = select(TodoItem)
+    stmt = _scope_todo(stmt, user)
     if project_id:
         stmt = stmt.where(TodoItem.project_id == project_id)
     if assignee:
@@ -258,6 +277,7 @@ async def todo_tree(
     assignee: Optional[str] = Query(None),
     sprint_label: Optional[str] = Query(None),
     include_done: bool = Query(False, description="是否包含已完成項目"),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """側邊欄 / Backlog view 用:回傳階層化的待辦樹。
@@ -274,6 +294,7 @@ async def todo_tree(
         asc(TodoItem.due_date),
         desc(TodoItem.created_at),
     )
+    stmt = _scope_todo(stmt, user)
     if project_id:
         stmt = stmt.where(TodoItem.project_id == project_id)
     if assignee:
@@ -343,10 +364,13 @@ async def create_todo(
 
 
 @router.get("/todos/{todo_id}", response_model=TodoItemResponse, tags=["T · 待辦"])
-async def get_todo(todo_id: str, db: AsyncSession = Depends(get_db)):
+async def get_todo(
+    todo_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     t = await db.get(TodoItem, todo_id)
-    if not t:
-        raise HTTPException(404, "Todo not found")
+    _check_todo_scope(t, user)
     return _enrich(t)
 
 
@@ -358,8 +382,7 @@ async def update_todo(
     db: AsyncSession = Depends(get_db),
 ):
     t = await db.get(TodoItem, todo_id)
-    if not t:
-        raise HTTPException(404, "Todo not found")
+    _check_todo_scope(t, user)
     data = payload.model_dump(exclude_unset=True)
     # 偵測指派變更:assignee 或 assignee_type 任一變動就重設 audit + 推通知
     prev_assignee = t.assignee
@@ -408,8 +431,7 @@ async def assign_todo(
     """專責指派端點:單一動作改 assignee + 寫 audit + 推通知。
     不傳 assignee 或傳空字串 = 取消指派。"""
     t = await db.get(TodoItem, todo_id)
-    if not t:
-        raise HTTPException(404, "Todo not found")
+    _check_todo_scope(t, user)
     if payload.assignee_type not in ("user", "group"):
         raise HTTPException(400, "assignee_type 必須是 user 或 group")
     new_assignee = (payload.assignee or "").strip() or None
@@ -431,9 +453,12 @@ async def assign_todo(
 
 
 @router.delete("/todos/{todo_id}", status_code=204, tags=["T · 待辦"])
-async def delete_todo(todo_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_todo(
+    todo_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     t = await db.get(TodoItem, todo_id)
-    if not t:
-        raise HTTPException(404, "Todo not found")
+    _check_todo_scope(t, user)
     await db.delete(t)
     await db.flush()

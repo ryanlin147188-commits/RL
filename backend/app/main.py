@@ -131,38 +131,30 @@ async def _seed_default_org_and_backfill() -> None:
         await session.commit()
 
 
-async def _seed_default_admin() -> None:
-    """確保 admin/admin123 預設帳號存在（is_superuser=True）；只在沒任何 user 時建立。"""
+async def _warn_if_no_users() -> None:
+    """若資料庫沒有任何使用者,在啟動 log 印出建立 admin 的指引。
+
+    過去版本會自動建立 admin/admin123,但該預設密碼在 codebase 公開後等同無認證。
+    現改為「啟動時偵測 + 提示使用者執行 CLI」,避免在公開部署環境留下預設帳號。
+    """
+    import logging
     from sqlalchemy import select, func
     from app.database import AsyncSessionLocal
-    from app.auth.security import hash_password
 
     async with AsyncSessionLocal() as session:
         existing_count = (
             await session.execute(select(func.count(User.username)))
         ).scalar_one_or_none() or 0
-        if existing_count > 0:
-            return
-        # 嘗試找 Admin role 來掛上去
-        admin_role = (
-            await session.execute(select(Role).where(Role.name == "Admin"))
-        ).scalar_one_or_none()
-        # 預設組織
-        default_org = (
-            await session.execute(select(Organization).where(Organization.slug == "default"))
-        ).scalar_one_or_none()
-        admin = User(
-            username="admin",
-            display_name="系統管理員",
-            email="admin@example.com",
-            password_hash=hash_password("admin123"),
-            role_id=admin_role.id if admin_role else None,
-            organization_id=default_org.id if default_org else None,
-            is_superuser=True,
-            is_active=True,
-        )
-        session.add(admin)
-        await session.commit()
+    if existing_count > 0:
+        return
+    logger = logging.getLogger(__name__)
+    logger.warning(
+        "No users found in database. Bootstrap an admin with:\n"
+        "    docker compose exec backend python -m app.cli create-admin\n"
+        "Or non-interactively (e.g., from a provisioning script):\n"
+        "    AUTOTEST_ADMIN_USERNAME=alice AUTOTEST_ADMIN_PASSWORD='<at-least-8-chars>' \\\n"
+        "    docker compose exec -T backend python -m app.cli create-admin --non-interactive"
+    )
 
 
 @asynccontextmanager
@@ -181,10 +173,10 @@ async def lifespan(app: FastAPI):
         import logging
         logging.getLogger(__name__).warning("seed default org / backfill failed: %s", e)
     try:
-        await _seed_default_admin()
+        await _warn_if_no_users()
     except Exception as e:
         import logging
-        logging.getLogger(__name__).warning("seed default admin failed: %s", e)
+        logging.getLogger(__name__).warning("user existence check failed: %s", e)
     scheduler_task = asyncio.create_task(scheduler_loop())
     # Sprint 10.1 — MCP idle sweeper
     from app.routers.ai import _mcp_idle_sweeper_loop
@@ -208,9 +200,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# CORS 白名單:讀環境變數 ALLOWED_ORIGINS(逗號分隔),預設 http://localhost。
+# 公開部署時必須設為實際前端 origin,不可使用 "*";allow_credentials=True 配 "*" 也會被瀏覽器拒絕。
+_allowed_origins_raw = os.environ.get("ALLOWED_ORIGINS", "http://localhost").strip()
+_allowed_origins = [o.strip() for o in _allowed_origins_raw.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

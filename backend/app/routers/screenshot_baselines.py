@@ -12,25 +12,45 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.dependencies import get_current_user
+from app.auth.scope import ensure_object_in_scope_via_parent, ensure_project_in_scope
 from app.database import get_db
 from app.models.step_screenshot_baseline import StepScreenshotBaseline
+from app.models.tree_node import TreeNode
+from app.models.user import User
 from app.services.storage_service import save_bytes
 
 router = APIRouter()
 
 
-class BaselineResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    step_uuid: str
-    testcase_node_id: Optional[str]
-    baseline_url: str
-    threshold_pct: float
+async def _check_baseline_scope(
+    obj: Optional[StepScreenshotBaseline], user: User, db: AsyncSession
+) -> None:
+    """Baselines do not store project_id directly. They link to tree_nodes via
+    testcase_node_id; resolve the org through that parent. Rows with no parent
+    link cannot be scope-checked here, so we treat them as visible only to
+    superusers (defensive default — unscoped data should not leak)."""
+    if obj is None or obj.testcase_node_id is None:
+        if not user.is_superuser:
+            raise HTTPException(status_code=404, detail="Baseline not found")
+        return
+    await ensure_object_in_scope_via_parent(
+        db, TreeNode, obj.testcase_node_id, user,
+        not_found_detail="Baseline not found",
+    )
 
 
 @router.get("/steps/{step_uuid}/baseline", response_model=Optional[BaselineResponse])
-async def get_baseline(step_uuid: str, db: AsyncSession = Depends(get_db)):
+async def get_baseline(
+    step_uuid: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     obj = await db.get(StepScreenshotBaseline, step_uuid)
-    return obj  # None → 200 with body null
+    if obj is None:
+        return None  # 200 with body null
+    await _check_baseline_scope(obj, user, db)
+    return obj
 
 
 @router.put("/steps/{step_uuid}/baseline", response_model=BaselineResponse)
@@ -39,9 +59,22 @@ async def upsert_baseline(
     file: UploadFile = File(...),
     threshold_pct: float = Form(1.0),
     testcase_node_id: Optional[str] = Form(None),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """上傳新基準圖（PNG / JPEG / WebP）；既有 baseline 直接覆蓋。"""
+    """上傳新基準圖(PNG / JPEG / WebP);既有 baseline 直接覆蓋。"""
+    # 須提供 testcase_node_id 以驗證 org 範圍(無此欄位則僅限 superuser)。
+    if testcase_node_id:
+        await ensure_object_in_scope_via_parent(
+            db, TreeNode, testcase_node_id, user,
+            not_found_detail="Testcase node not found",
+        )
+    elif not user.is_superuser:
+        raise HTTPException(
+            status_code=400,
+            detail="testcase_node_id is required for baseline upload outside superuser context",
+        )
+
     if (file.content_type or "").lower() not in {"image/png", "image/jpeg", "image/webp"}:
         raise HTTPException(status_code=400, detail=f"不支援的 image content type: {file.content_type}")
 
@@ -83,9 +116,20 @@ class CopyFromUrlRequest(BaseModel):
 async def copy_from(
     step_uuid: str,
     payload: CopyFromUrlRequest,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """從現有 URL 複製成 baseline（透過 backend 從 MinIO 讀後再存到 baseline key）。"""
+    """從現有 URL 複製成 baseline(透過 backend 從 MinIO 讀後再存到 baseline key)。"""
+    if payload.testcase_node_id:
+        await ensure_object_in_scope_via_parent(
+            db, TreeNode, payload.testcase_node_id, user,
+            not_found_detail="Testcase node not found",
+        )
+    elif not user.is_superuser:
+        raise HTTPException(
+            status_code=400,
+            detail="testcase_node_id is required for baseline copy-from outside superuser context",
+        )
     import re
 
     import httpx  # FastAPI 已經依賴 httpx
@@ -139,10 +183,15 @@ async def copy_from(
 
 
 @router.delete("/steps/{step_uuid}/baseline", status_code=204)
-async def delete_baseline(step_uuid: str, db: AsyncSession = Depends(get_db)):
+async def delete_baseline(
+    step_uuid: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     obj = await db.get(StepScreenshotBaseline, step_uuid)
     if obj is None:
         return  # 204 anyway
-    # 不主動刪除 MinIO 上的物件（萬一其他 report 還引用）；只移除 DB 紀錄
+    await _check_baseline_scope(obj, user, db)
+    # 不主動刪除 MinIO 上的物件(萬一其他 report 還引用);只移除 DB 紀錄
     await db.delete(obj)
     await db.flush()

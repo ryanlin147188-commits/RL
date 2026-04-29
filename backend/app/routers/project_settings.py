@@ -12,10 +12,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.dependencies import get_current_user
+from app.auth.scope import ensure_project_in_scope, ensure_project_writable
 from app.database import get_db
 from app.models.project import Project
 from app.models.project_device import ProjectDevice
 from app.models.project_env_var import ProjectEnvVar
+from app.models.user import User
 from app.schemas.project_settings import (
     DeviceItem,
     DevicesListResponse,
@@ -26,20 +29,18 @@ from app.schemas.project_settings import (
 router = APIRouter()
 
 
-async def _ensure_project(db: AsyncSession, project_id: str) -> None:
-    p = await db.get(Project, project_id)
-    if p is None:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-
 # ════════════════════════════════════════════════════════════════
 # 環境變數
 # ════════════════════════════════════════════════════════════════
 
 
 @router.get("/projects/{project_id}/env-vars", response_model=EnvVarsListResponse)
-async def list_env_vars(project_id: str, db: AsyncSession = Depends(get_db)):
-    await _ensure_project(db, project_id)
+async def list_env_vars(
+    project_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await ensure_project_in_scope(db, project_id, user, not_found_detail="Project not found")
     rows = (await db.execute(
         select(ProjectEnvVar)
         .where(ProjectEnvVar.project_id == project_id)
@@ -52,10 +53,11 @@ async def list_env_vars(project_id: str, db: AsyncSession = Depends(get_db)):
 async def replace_env_vars(
     project_id: str,
     items: list[EnvVarItem],
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """整批替換。重複的 name 會在資料庫層被 UNIQUE 擋下；前端應自己先去重。"""
-    await _ensure_project(db, project_id)
+    """整批替換。重複的 name 會在資料庫層被 UNIQUE 擋下;前端應自己先去重。"""
+    await ensure_project_writable(db, project_id, user)
     # 去重檢查（案 case-sensitive）
     seen: set[str] = set()
     for it in items:
@@ -88,8 +90,12 @@ async def replace_env_vars(
 
 
 @router.get("/projects/{project_id}/devices", response_model=DevicesListResponse)
-async def list_devices(project_id: str, db: AsyncSession = Depends(get_db)):
-    await _ensure_project(db, project_id)
+async def list_devices(
+    project_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await ensure_project_in_scope(db, project_id, user, not_found_detail="Project not found")
     rows = (await db.execute(
         select(ProjectDevice)
         .where(ProjectDevice.project_id == project_id)
@@ -102,9 +108,10 @@ async def list_devices(project_id: str, db: AsyncSession = Depends(get_db)):
 async def replace_devices(
     project_id: str,
     items: list[DeviceItem],
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _ensure_project(db, project_id)
+    await ensure_project_writable(db, project_id, user)
     seen: set[str] = set()
     for it in items:
         if it.label in seen:

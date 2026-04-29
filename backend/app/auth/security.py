@@ -1,11 +1,11 @@
 """JWT 簽發 / 驗證 + bcrypt 密碼雜湊。
 
-JWT 用對稱 HS256；簽章用 settings.JWT_SECRET (預設 fallback 到 "change-me-in-prod")。
-正式部署應透過環境變數設定一個夠長的隨機字串。
+JWT 用對稱 HS256;簽章用 AUTOTEST_JWT_SECRET 環境變數,**必填**。
+deploy.sh / deploy.ps1 首次啟動會自動產生隨機值寫入 .env;手動部署時請設足夠長的隨機字串。
 
-Tokens 內容：
+Tokens 內容:
 - sub: username
-- exp: 過期時間（UTC timestamp）
+- exp: 過期時間(UTC timestamp)
 - iat: 簽發時間
 - typ: "access" | "refresh"
 """
@@ -19,8 +19,15 @@ import jwt
 from passlib.context import CryptContext
 
 # ── 設定 ──────────────────────────────────────────────────────────────
-# 從環境變數讀；沒有就用 fallback（dev only）
-JWT_SECRET: str = os.environ.get("AUTOTEST_JWT_SECRET") or "change-me-in-production-please-use-a-long-random-string"
+# 環境變數必填:無 fallback。任何 fallback 字串都會被 codebase 公開,等同無認證。
+_jwt_secret_raw = os.environ.get("AUTOTEST_JWT_SECRET", "").strip()
+if not _jwt_secret_raw:
+    raise RuntimeError(
+        "AUTOTEST_JWT_SECRET environment variable is required. "
+        "Generate a random value (e.g., `openssl rand -hex 32`) and set it in your .env file. "
+        "If you used deploy.sh / deploy.ps1, this should have been generated automatically."
+    )
+JWT_SECRET: str = _jwt_secret_raw
 JWT_ALGORITHM: str = "HS256"
 ACCESS_TOKEN_TTL_MINUTES: int = int(os.environ.get("AUTOTEST_ACCESS_TTL_MIN", "120"))   # 2h
 REFRESH_TOKEN_TTL_DAYS: int = int(os.environ.get("AUTOTEST_REFRESH_TTL_DAYS", "14"))    # 14d

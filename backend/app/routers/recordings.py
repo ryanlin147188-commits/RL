@@ -38,9 +38,16 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.dependencies import get_current_user
+from app.auth.scope import (
+    ensure_project_in_scope,
+    ensure_project_writable,
+    scope_by_project,
+)
 from app.config import settings
 from app.database import get_db
 from app.models.recording import RecordingSession
+from app.models.user import User
 from app.schemas.recording import (
     ConvertResponse,
     GeneratedStep,
@@ -75,6 +82,18 @@ router = APIRouter()
 # ─────────────────────────────────────────────────────────
 # Helpers
 # ─────────────────────────────────────────────────────────
+async def _load_session_or_404(
+    db: AsyncSession, session_id: str, user: User
+) -> RecordingSession:
+    """Fetch a RecordingSession, enforce org scope, and 404 on miss / cross-org."""
+    session = await db.get(RecordingSession, session_id)
+    await ensure_project_in_scope(
+        db, session.project_id if session else None, user,
+        not_found_detail="Recording session not found",
+    )
+    return session
+
+
 def _session_dir(session_id: str) -> str:
     path = os.path.join(settings.PIC_FOLDER, "recordings", session_id)
     os.makedirs(path, exist_ok=True)
@@ -232,8 +251,10 @@ def _build_commands(session_id: str, target_url: str) -> RecorderCommandResponse
 )
 async def create_recording(
     payload: RecordingSessionCreate,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await ensure_project_writable(db, payload.project_id, user)
     sid = str(uuid.uuid4())
     session = RecordingSession(
         id=sid,
@@ -257,12 +278,14 @@ async def create_recording(
 )
 async def list_recordings(
     project_id: Optional[int] = None,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """列出所有錄製 session（最新在前）。可選 project_id 過濾。"""
+    """列出所有錄製 session(最新在前)。可選 project_id 過濾。"""
     stmt = select(RecordingSession).order_by(RecordingSession.created_at.desc())
     if project_id is not None:
         stmt = stmt.where(RecordingSession.project_id == project_id)
+    stmt = scope_by_project(stmt, RecordingSession, user)
     result = await db.execute(stmt)
     return [_to_response(s) for s in result.scalars().all()]
 
@@ -272,10 +295,16 @@ async def list_recordings(
     response_model=RecordingSessionResponse,
     tags=["E · 錄製"],
 )
-async def get_recording(session_id: str, db: AsyncSession = Depends(get_db)):
+async def get_recording(
+    session_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     session = await db.get(RecordingSession, session_id)
-    if not session:
-        raise HTTPException(404, "Recording session not found")
+    await ensure_project_in_scope(
+        db, session.project_id if session else None, user,
+        not_found_detail="Recording session not found",
+    )
     return _to_response(session)
 
 
@@ -284,10 +313,16 @@ async def get_recording(session_id: str, db: AsyncSession = Depends(get_db)):
     response_model=RecorderCommandResponse,
     tags=["E · 錄製"],
 )
-async def get_recording_commands(session_id: str, db: AsyncSession = Depends(get_db)):
+async def get_recording_commands(
+    session_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     session = await db.get(RecordingSession, session_id)
-    if not session:
-        raise HTTPException(404, "Recording session not found")
+    await ensure_project_in_scope(
+        db, session.project_id if session else None, user,
+        not_found_detail="Recording session not found",
+    )
     return _build_commands(session.id, session.target_url)
 
 
@@ -296,10 +331,16 @@ async def get_recording_commands(session_id: str, db: AsyncSession = Depends(get
     status_code=204,
     tags=["E · 錄製"],
 )
-async def delete_recording(session_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_recording(
+    session_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     session = await db.get(RecordingSession, session_id)
-    if not session:
-        raise HTTPException(404, "Recording session not found")
+    await ensure_project_in_scope(
+        db, session.project_id if session else None, user,
+        not_found_detail="Recording session not found",
+    )
     # 刪除目錄
     folder = _session_dir(session_id)
     for fn in os.listdir(folder):
@@ -328,14 +369,15 @@ async def upload_recording(
     script: Optional[UploadFile] = File(default=None),
     trace: Optional[UploadFile] = File(default=None),
     notes: Optional[str] = Form(default=None),  # noqa: ARG001 reserved
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    接收 codegen 產生的檔案。任一檔案缺少均允許（部分上傳）。
-    """
+    """接收 codegen 產生的檔案。任一檔案缺少均允許(部分上傳)。"""
     session = await db.get(RecordingSession, session_id)
-    if not session:
-        raise HTTPException(404, "Recording session not found")
+    await ensure_project_in_scope(
+        db, session.project_id if session else None, user,
+        not_found_detail="Recording session not found",
+    )
 
     if script is not None:
         content = await script.read()
@@ -372,13 +414,17 @@ async def upload_recording(
     "/recordings/{session_id}/trace",
     tags=["E · 錄製"],
 )
-async def download_trace(session_id: str, db: AsyncSession = Depends(get_db)):
+async def download_trace(
+    session_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     """重導向到 trace.zip 的物件儲存 URL。早期版本可能存舊式相對路徑(`recordings/<id>/trace.zip`),
     這裡為相容性處理:含 `/` 但不以 `/` 開頭代表是舊路徑,自動補上 `/pics/`。
     """
     from fastapi.responses import RedirectResponse
-    session = await db.get(RecordingSession, session_id)
-    if not session or not session.trace_path:
+    session = await _load_session_or_404(db, session_id, user)
+    if not session.trace_path:
         raise HTTPException(404, "Trace not found")
     url = session.trace_path
     if not url.startswith(("/", "http://", "https://")):
@@ -900,15 +946,14 @@ class AiEnhanceResponse(BaseModel):
 async def ai_enhance_recording(
     session_id: str,
     payload: AiEnhanceRequest,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Sprint 3.1 — 把錄製腳本 + 已解析 step 餵 LLM,回增強版 step 陣列。
     一律走 preview,不直接改 session;前端呈現 diff 後使用者再決定接受/拒絕。
     """
     from app.services.ai_test_gen import enhance_steps_with_ai
-    session = await db.get(RecordingSession, session_id)
-    if not session:
-        raise HTTPException(404, "Recording session not found")
+    session = await _load_session_or_404(db, session_id, user)
     if not (session.script_text or "").strip() and not payload.current_steps:
         raise HTTPException(409, "session 沒有 script_text 也沒給 current_steps,無法增強")
     try:
@@ -932,10 +977,12 @@ async def ai_enhance_recording(
     response_model=ConvertResponse,
     tags=["E · 錄製"],
 )
-async def convert_recording(session_id: str, db: AsyncSession = Depends(get_db)):
-    session = await db.get(RecordingSession, session_id)
-    if not session:
-        raise HTTPException(404, "Recording session not found")
+async def convert_recording(
+    session_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    session = await _load_session_or_404(db, session_id, user)
     if not session.script_text:
         raise HTTPException(409, "尚未上傳 codegen 腳本或 HAR,無法轉換")
     text = session.script_text.lstrip()
@@ -1157,7 +1204,11 @@ async def trigger_recorder_image_build():
     response_model=DockerRecorderResponse,
     tags=["E · 錄製"],
 )
-async def docker_start(session_id: str, db: AsyncSession = Depends(get_db)):
+async def docker_start(
+    session_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     """啟一個 recorder 容器,回 noVNC iframe 可用的資訊。
 
     流程:
@@ -1166,9 +1217,7 @@ async def docker_start(session_id: str, db: AsyncSession = Depends(get_db)):
       3. 啟新容器,Docker auto-assign host port 給 6080
       4. 反查實際 host port,組 noVNC URL 回前端
     """
-    session = await db.get(RecordingSession, session_id)
-    if not session:
-        raise HTTPException(404, "Recording session not found")
+    session = await _load_session_or_404(db, session_id, user)
     if not session.target_url:
         raise HTTPException(400, "session 沒有 target_url,無法啟動 codegen")
 
@@ -1296,12 +1345,22 @@ async def docker_start(session_id: str, db: AsyncSession = Depends(get_db)):
     status_code=204,
     tags=["E · 錄製"],
 )
-async def docker_stop(session_id: str, db: AsyncSession = Depends(get_db)):
+async def docker_stop(
+    session_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     """停掉 session 對應的 recorder 容器。
 
     使用者按「停止錄製」時呼叫;若容器內 codegen 已先退出(自動上傳完),
     這個端點只是把容器移除。
     """
+    # 先 scope 檢查;不存在或跨 org 的 session 直接 404,避免攻擊者透過 session_id pop in-memory 容器
+    session_pre = await db.get(RecordingSession, session_id)
+    await ensure_project_in_scope(
+        db, session_pre.project_id if session_pre else None, user,
+        not_found_detail="Recording session not found",
+    )
     info = _recorder_containers.pop(session_id, None)
     if not info:
         # 已經沒在跑了,不算錯誤
@@ -1356,11 +1415,13 @@ def _api_key(session_id: str) -> str:
     response_model=ApiRecorderResponse,
     tags=["E · 錄製"],
 )
-async def api_docker_start(session_id: str, db: AsyncSession = Depends(get_db)):
+async def api_docker_start(
+    session_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     """啟一個 mitmproxy 容器,回 mitmweb iframe 與 proxy port 的資訊。"""
-    session = await db.get(RecordingSession, session_id)
-    if not session:
-        raise HTTPException(404, "Recording session not found")
+    session = await _load_session_or_404(db, session_id, user)
 
     docker_client = _get_docker_client()
 

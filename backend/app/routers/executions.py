@@ -6,10 +6,13 @@ from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisco
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.dependencies import get_current_user
+from app.auth.scope import ensure_project_in_scope
 from app.config import settings
 from app.database import get_db
 from app.models.execution_report import ExecutionReport
 from app.models.tree_node import TreeNode
+from app.models.user import User
 from app.schemas.execution_report import (
     ExecutionRunRequest,
     ExecutionRunResponse,
@@ -24,17 +27,20 @@ ws_router = APIRouter()
 # API 9. POST /api/v1/executions
 @rest_router.post("/executions", response_model=ExecutionRunResponse, status_code=201)
 async def run_execution(
-    payload: ExecutionRunRequest, db: AsyncSession = Depends(get_db)
+    payload: ExecutionRunRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """
-    觸發測試執行：
+    觸發測試執行:
     1. 收集目標節點下所有 TESTCASE
     2. 建立 execution_reports 紀錄
-    3. 丟入 Celery 背景佇列（非同步執行）
+    3. 丟入 Celery 背景佇列(非同步執行)
     """
     node = await db.get(TreeNode, payload.node_id)
-    if node is None:
-        raise HTTPException(status_code=404, detail="Node not found")
+    await ensure_project_in_scope(
+        db, node.project_id if node else None, user, not_found_detail="Node not found"
+    )
 
     testcase_ids = await collect_testcase_ids(db, payload.node_id)
     if not testcase_ids:
@@ -91,7 +97,11 @@ async def run_execution(
 
 # API 10. GET /api/v1/executions/{task_id}/status
 @rest_router.get("/executions/{task_id}/status", response_model=ExecutionStatusResponse)
-async def get_execution_status(task_id: str, db: AsyncSession = Depends(get_db)):
+async def get_execution_status(
+    task_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     """
     輪詢執行進度。即時性要求請改用 WS /ws/v1/executions/{task_id}/logs。
     """
@@ -99,8 +109,9 @@ async def get_execution_status(task_id: str, db: AsyncSession = Depends(get_db))
         select(ExecutionReport).where(ExecutionReport.task_id == task_id)
     )
     report = result.scalar_one_or_none()
-    if report is None:
-        raise HTTPException(status_code=404, detail="Task not found")
+    await ensure_project_in_scope(
+        db, report.project_id if report else None, user, not_found_detail="Task not found"
+    )
 
     completed = report.passed_cases + report.failed_cases
     progress = round(completed / report.total_cases, 4) if report.total_cases > 0 else 0.0
@@ -118,7 +129,11 @@ async def get_execution_status(task_id: str, db: AsyncSession = Depends(get_db))
 
 # POST /api/executions/{task_id}/cancel  ── 中斷執行中的任務
 @rest_router.post("/executions/{task_id}/cancel", status_code=200)
-async def cancel_execution(task_id: str, db: AsyncSession = Depends(get_db)):
+async def cancel_execution(
+    task_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     """
     取消執行中的任務：
       1. 呼叫 Celery revoke(terminate=True, signal='SIGTERM')
@@ -130,8 +145,9 @@ async def cancel_execution(task_id: str, db: AsyncSession = Depends(get_db)):
         select(ExecutionReport).where(ExecutionReport.task_id == task_id)
     )
     report = result.scalar_one_or_none()
-    if report is None:
-        raise HTTPException(status_code=404, detail="Task not found")
+    await ensure_project_in_scope(
+        db, report.project_id if report else None, user, not_found_detail="Task not found"
+    )
 
     # 1. 送 Celery revoke
     try:

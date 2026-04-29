@@ -10,9 +10,16 @@ from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
+from app.auth.dependencies import get_current_user
+from app.auth.scope import (
+    ensure_project_in_scope,
+    ensure_project_writable,
+    scope_by_project,
+)
 from app.common import Pagination
 from app.database import get_db
 from app.models.defect import Defect, DefectSeverity, DefectPriority, DefectStatus
+from app.models.user import User
 from app.schemas.defect import (
     AttachmentResponse,
     DefectCreate,
@@ -49,6 +56,7 @@ async def list_defects(
     severity: Optional[str] = Query(None),
     test_version_id: Optional[str] = Query(None),
     page: Pagination = Depends(Pagination.from_query),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     stmt = select(Defect).order_by(desc(Defect.created_at))
@@ -60,13 +68,19 @@ async def list_defects(
         stmt = stmt.where(Defect.severity == DefectSeverity(severity))
     if test_version_id:
         stmt = stmt.where(Defect.test_version_id == test_version_id)
+    stmt = scope_by_project(stmt, Defect, user)
     stmt = page.apply(stmt)
     rows = (await db.execute(stmt)).scalars().all()
     return list(rows)
 
 
 @router.post("/defects", response_model=DefectResponse, status_code=201, tags=["L · 缺陷管理"])
-async def create_defect(payload: DefectCreate, db: AsyncSession = Depends(get_db)):
+async def create_defect(
+    payload: DefectCreate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await ensure_project_writable(db, payload.project_id, user)
     code = payload.code or await _next_code(db, payload.project_id)
     defect = Defect(
         project_id=payload.project_id,
@@ -93,18 +107,29 @@ async def create_defect(payload: DefectCreate, db: AsyncSession = Depends(get_db
 
 
 @router.get("/defects/{defect_id}", response_model=DefectResponse, tags=["L · 缺陷管理"])
-async def get_defect(defect_id: str, db: AsyncSession = Depends(get_db)):
+async def get_defect(
+    defect_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     d = await db.get(Defect, defect_id)
-    if not d:
-        raise HTTPException(404, "Defect not found")
+    await ensure_project_in_scope(
+        db, d.project_id if d else None, user, not_found_detail="Defect not found"
+    )
     return d
 
 
 @router.put("/defects/{defect_id}", response_model=DefectResponse, tags=["L · 缺陷管理"])
-async def update_defect(defect_id: str, payload: DefectUpdate, db: AsyncSession = Depends(get_db)):
+async def update_defect(
+    defect_id: str,
+    payload: DefectUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     d = await db.get(Defect, defect_id)
-    if not d:
-        raise HTTPException(404, "Defect not found")
+    await ensure_project_in_scope(
+        db, d.project_id if d else None, user, not_found_detail="Defect not found"
+    )
     data = payload.model_dump(exclude_unset=True)
     for key, val in data.items():
         if key == "severity" and val is not None:
@@ -127,10 +152,15 @@ async def update_defect(defect_id: str, payload: DefectUpdate, db: AsyncSession 
 
 
 @router.delete("/defects/{defect_id}", status_code=204, tags=["L · 缺陷管理"])
-async def delete_defect(defect_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_defect(
+    defect_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     d = await db.get(Defect, defect_id)
-    if not d:
-        raise HTTPException(404, "Defect not found")
+    await ensure_project_in_scope(
+        db, d.project_id if d else None, user, not_found_detail="Defect not found"
+    )
     await db.delete(d)
     await db.flush()
 
@@ -138,12 +168,14 @@ async def delete_defect(defect_id: str, db: AsyncSession = Depends(get_db)):
 @router.get("/defects/stats/summary", tags=["L · 缺陷管理"])
 async def defects_summary(
     project_id: Optional[str] = Query(None),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """供「測試看板」的 KPI cards 與 Kanban 列數使用。"""
     stmt = select(Defect.status, Defect.severity)
     if project_id:
         stmt = stmt.where(Defect.project_id == project_id)
+    stmt = scope_by_project(stmt, Defect, user)
     rows = (await db.execute(stmt)).all()
     by_status: dict[str, int] = {}
     by_severity: dict[str, int] = {}
@@ -180,12 +212,14 @@ MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024  # 20 MB
 async def upload_defect_attachment(
     defect_id: str,
     file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """為缺陷上傳一個附件（圖片／文件）。檔案會被持久化，URL 寫回 attachments_json 列表。"""
+    """為缺陷上傳一個附件(圖片/文件)。檔案會被持久化,URL 寫回 attachments_json 列表。"""
     d = await db.get(Defect, defect_id)
-    if not d:
-        raise HTTPException(404, "Defect not found")
+    await ensure_project_in_scope(
+        db, d.project_id if d else None, user, not_found_detail="Defect not found"
+    )
 
     if file.content_type not in ALLOWED_ATTACHMENT_MIME:
         raise HTTPException(
@@ -226,12 +260,16 @@ async def upload_defect_attachment(
     tags=["L · 缺陷管理"],
 )
 async def delete_defect_attachment(
-    defect_id: str, index: int, db: AsyncSession = Depends(get_db)
+    defect_id: str,
+    index: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    """從缺陷的 attachments_json 列表中移除第 index 個附件（不刪實際檔案）。"""
+    """從缺陷的 attachments_json 列表中移除第 index 個附件(不刪實際檔案)。"""
     d = await db.get(Defect, defect_id)
-    if not d:
-        raise HTTPException(404, "Defect not found")
+    await ensure_project_in_scope(
+        db, d.project_id if d else None, user, not_found_detail="Defect not found"
+    )
     items = list(d.attachments_json or [])
     if index < 0 or index >= len(items):
         raise HTTPException(404, "Attachment index out of range")

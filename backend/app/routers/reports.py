@@ -5,10 +5,13 @@ from pydantic import BaseModel
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.dependencies import get_current_user
+from app.auth.scope import ensure_project_in_scope, scope_by_project
 from app.database import get_db
 from app.models.execution_report import ExecutionReport, ReportStatus
 from app.models.execution_step_log import ExecutionStepLog
 from app.models.tree_node import TreeNode
+from app.models.user import User
 from app.schemas.dashboard import ChartDataPoint, ChartsResponse, MetricsResponse
 from app.schemas.execution_report import (
     PaginatedResponse,
@@ -25,8 +28,10 @@ router = APIRouter()
 @router.get("/dashboard/metrics", response_model=MetricsResponse)
 async def get_metrics(
     project_id: str = Query(..., description="專案 ID"),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await ensure_project_in_scope(db, project_id, user, not_found_detail="Project not found")
     total = await db.scalar(
         select(func.count()).where(ExecutionReport.project_id == project_id)
     ) or 0
@@ -75,8 +80,10 @@ async def get_metrics(
 @router.get("/dashboard/charts", response_model=ChartsResponse)
 async def get_charts(
     project_id: str = Query(...),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await ensure_project_in_scope(db, project_id, user, not_found_detail="Project not found")
     passed_sum = await db.scalar(
         select(func.sum(ExecutionReport.passed_cases)).where(
             ExecutionReport.project_id == project_id,
@@ -150,11 +157,13 @@ async def get_charts(
 @router.get("/reports", response_model=PaginatedResponse[ReportListItem])
 async def list_reports(
     project_id: str = Query(...),
-    page: int = Query(1, ge=1, description="頁碼（從 1 開始）"),
+    page: int = Query(1, ge=1, description="頁碼(從 1 開始)"),
     limit: int = Query(10, ge=1, le=100, description="每頁筆數"),
     test_version_id: Optional[str] = Query(None, description="只顯示某版號相關的報告"),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await ensure_project_in_scope(db, project_id, user, not_found_detail="Project not found")
     offset = (page - 1) * limit
     base = select(func.count()).where(ExecutionReport.project_id == project_id)
     if test_version_id:
@@ -264,21 +273,31 @@ async def list_reports(
 
 # 14. GET /api/v1/reports/{id}  （摘要，不含步驟）
 @router.get("/reports/{report_id}", response_model=ReportDetailResponse)
-async def get_report(report_id: str, db: AsyncSession = Depends(get_db)):
-    """'取得單次執行摘要（統計數據，不含步驟明細）。步驟明細請呼叫 /reports/{id}/steps。"""
+async def get_report(
+    report_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """取得單次執行摘要(統計數據,不含步驟明細)。步驟明細請呼叫 /reports/{id}/steps。"""
     report = await db.get(ExecutionReport, report_id)
-    if report is None:
-        raise HTTPException(status_code=404, detail="Report not found")
+    await ensure_project_in_scope(
+        db, report.project_id if report else None, user, not_found_detail="Report not found"
+    )
     return report
 
 
-# 15. GET /api/v1/reports/{id}/steps  （步驟明細、截圖 URL、JSON payload）
+# 15. GET /api/v1/reports/{id}/steps  (步驟明細、截圖 URL、JSON payload)
 @router.get("/reports/{report_id}/steps", response_model=ReportStepsResponse)
-async def get_report_steps(report_id: str, db: AsyncSession = Depends(get_db)):
-    """'取得單次執行中所有步驟的明細紀錄（包含截圖 URL 與 JSON payload）。"""
+async def get_report_steps(
+    report_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """取得單次執行中所有步驟的明細紀錄(包含截圖 URL 與 JSON payload)。"""
     report = await db.get(ExecutionReport, report_id)
-    if report is None:
-        raise HTTPException(status_code=404, detail="Report not found")
+    await ensure_project_in_scope(
+        db, report.project_id if report else None, user, not_found_detail="Report not found"
+    )
 
     steps_result = await db.execute(
         select(ExecutionStepLog)
@@ -295,11 +314,16 @@ async def get_report_steps(report_id: str, db: AsyncSession = Depends(get_db)):
 
 # 16. DELETE /api/reports/{id}  刪除單筆執行報告（連同步驟明細）
 @router.delete("/reports/{report_id}", status_code=204)
-async def delete_report(report_id: str, db: AsyncSession = Depends(get_db)):
-    """刪除單筆執行報告。ExecutionStepLog 已設 cascade=delete-orphan，會一起刪除。"""
+async def delete_report(
+    report_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """刪除單筆執行報告。ExecutionStepLog 已設 cascade=delete-orphan,會一起刪除。"""
     report = await db.get(ExecutionReport, report_id)
-    if report is None:
-        raise HTTPException(status_code=404, detail="Report not found")
+    await ensure_project_in_scope(
+        db, report.project_id if report else None, user, not_found_detail="Report not found"
+    )
     await db.delete(report)
     await db.commit()
     return None
@@ -317,14 +341,16 @@ class BatchDeleteResponse(BaseModel):
 
 @router.post("/reports/delete-batch", response_model=BatchDeleteResponse)
 async def delete_reports_batch(
-    payload: BatchDeleteRequest, db: AsyncSession = Depends(get_db)
+    payload: BatchDeleteRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """批次刪除多筆執行報告。回傳實際刪除筆數與不存在的 id 清單。"""
     if not payload.ids:
         return BatchDeleteResponse(deleted=0, not_found=[])
-    result = await db.execute(
-        select(ExecutionReport).where(ExecutionReport.id.in_(payload.ids))
-    )
+    stmt = select(ExecutionReport).where(ExecutionReport.id.in_(payload.ids))
+    stmt = scope_by_project(stmt, ExecutionReport, user)
+    result = await db.execute(stmt)
     reports = result.scalars().all()
     found_ids = {r.id for r in reports}
     not_found = [i for i in payload.ids if i not in found_ids]
