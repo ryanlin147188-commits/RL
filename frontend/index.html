@@ -496,6 +496,13 @@
         html[data-auth="out"] body > main,
         html[data-auth="out"] #appShell,
         html[data-auth="out"] [data-app-shell] { visibility: hidden; }
+        /* Logged-out users shouldn't see the chrome-y app affordances.
+           Hide the AI chat FAB/panel and the global loading bar/spinner
+           on the login screen so the overlay is the only visible UI. */
+        html[data-auth="out"] #aiChatFab,
+        html[data-auth="out"] #aiChatPanel,
+        html[data-auth="out"] #globalLoadingBar,
+        html[data-auth="out"] #globalLoadingSpinner { display: none !important; }
     </style>
     <div id="authOverlay" class="fixed inset-0 z-[200] bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 flex items-center justify-center p-4">
         <div class="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-amber-200/60 overflow-hidden">
@@ -9858,10 +9865,17 @@ driver.swipe(100, 800, 100, 200, 500)"
 
             function _dispatchFromHash() {
                 if (_suppressHashChange) return;
-                // Skip while overlay is up (login screen) — the existing
-                // window.onload flow handles initial dispatch after auth.
-                const overlay = document.getElementById('authOverlay');
-                if (overlay && !overlay.classList.contains('hidden')) return;
+                // Skip while the user is logged out — the auth overlay is
+                // up and the main shell hidden via the data-auth=out CSS
+                // rules, so there's nothing to route into. Once the user
+                // authenticates, window.onload calls us explicitly.
+                // (Earlier this checked `overlay.classList.contains('hidden')`,
+                // but the overlay no longer toggles that class — it's
+                // controlled by `html[data-auth=in|out]` instead, so the
+                // class check returned wrong answers and home stayed blank.)
+                if (document.documentElement.getAttribute('data-auth') === 'out') {
+                    return;
+                }
 
                 const hash = (window.location.hash || '').toLowerCase();
                 const fnName = _hashToFn[hash];
