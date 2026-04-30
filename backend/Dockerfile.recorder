@@ -38,6 +38,16 @@ RUN ln -snf "/usr/share/zoneinfo/$TZ" /etc/localtime && \
         dbus-x11 && \
     rm -rf /var/lib/apt/lists/*
 
+# Install the playwright Python package — the upstream
+# mcr.microsoft.com/playwright/python:v1.50.0-jammy tag ships only the
+# browser binaries under /ms-playwright/ and no longer bundles the Python
+# wrapper, so `python -m playwright codegen` would crash with
+# ModuleNotFoundError. Pin to the same version as PLAYWRIGHT_BROWSERS_PATH
+# (1.50.0) so the wrapper matches the bundled chromium/firefox/webkit.
+# --no-deps because the base already brings the deps; --break-system-packages
+# is harmless on python:3.10 jammy (no PEP 668 marker file there).
+RUN pip install --no-cache-dir --break-system-packages playwright==1.50.0
+
 # noVNC 慣用 vnc.html / vnc_lite.html;有的 distro 沒附 index.html
 # 直接 symlink 讓 / 也能進入 vnc_lite
 RUN ln -sf /usr/share/novnc/vnc.html /usr/share/novnc/index.html

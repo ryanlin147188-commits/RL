@@ -63,10 +63,13 @@ SHORT="${SESSION_ID:0:8}"
 PY="recorded_${SHORT}.py"
 TZ="trace_${SHORT}.zip"
 
-# --save-trace 在 Playwright ≥ 1.35 才有(本 image 的 v1.50 一定支援)
+# `playwright codegen` no longer ships a --save-trace flag (the option
+# was removed in 1.50; only --save-har / --save-storage remain). The
+# script.py is the primary deliverable, trace.zip becomes optional —
+# if the user wants traces they can add a tracing.start() block manually
+# to the recorded script before re-running it.
 python3 -m playwright codegen \
     --target python \
-    --save-trace="$TZ" \
     -o "$PY" \
     "$TARGET_URL" 2>&1 | tee /tmp/codegen.log &
 CODEGEN_PID=$!
