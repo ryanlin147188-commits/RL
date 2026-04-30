@@ -232,13 +232,14 @@ async def lifespan(app: FastAPI):
         logging.getLogger(__name__).exception(
             "seed default org / backfill failed: %s", e,
         )
-    try:
-        # Must run AFTER seed_default_roles so the Admin role exists to
-        # attach. Idempotent: no-op when admin is already correct.
-        await _heal_admin_user()
-    except Exception as e:
-        import logging
-        logging.getLogger(__name__).exception("admin self-heal failed: %s", e)
+    # NOTE: previous versions ran `_heal_admin_user()` here to keep the
+    # built-in `admin` account in working state across restarts. That's
+    # been removed per product decision: ship with NO default admin and
+    # NO default project. Operators bootstrap their first admin via
+    # `docker compose exec backend python -m app.cli create-admin`
+    # (or the /api/auth/bootstrap-invite flow when AUTOTEST_BOOTSTRAP_TOKEN
+    # is set). The function itself is kept below for environments where
+    # ops want to re-enable self-heal — just call it from here.
     try:
         await _warn_if_no_users()
     except Exception as e:
