@@ -228,6 +228,40 @@ async def test_redeem_invite_switches_org_and_returns_new_tokens(client, org_a, 
         assert again.used_by == org_a.username
 
 
+async def test_register_falls_back_to_default_org_when_no_domain_match(client) -> None:
+    """Without invite_token AND with an email whose @domain is unclaimed, the
+    user should land in the 'default' organisation (Viewer role) instead of
+    being rejected — they can then redeem an invite to switch to the right org.
+    """
+    from sqlalchemy import select
+    from app.database import AsyncSessionLocal
+    from app.models import Organization, User
+
+    username = f"fb_{uuid.uuid4().hex[:6]}"
+    email = f"{username}@unregistered-{uuid.uuid4().hex[:6]}.test"
+    resp = await client.post(
+        "/api/auth/register",
+        json={
+            "username": username,
+            "password": "fallback-test-password",
+            "email": email,
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["access_token"]
+
+    # The user's organization_id must point at the default org
+    async with AsyncSessionLocal() as db:
+        default_org = (await db.execute(
+            select(Organization).where(Organization.slug == "default")
+        )).scalar_one()
+        u = (await db.execute(
+            select(User).where(User.username == username)
+        )).scalar_one()
+        assert u.organization_id == default_org.id
+
+
 async def test_redeem_invite_rejects_used_token(client, org_a) -> None:
     """Single-use: the same token can't be redeemed twice."""
     from datetime import datetime, timedelta

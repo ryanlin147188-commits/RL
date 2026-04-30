@@ -146,10 +146,23 @@ async def register(
                     target_org = org
                     break
 
+    # 3) Fall back to the default organisation. New users without a
+    # matching email domain land here as Viewer; they can then go to
+    # Settings → 兌換邀請碼 to switch into the right org once an admin
+    # gives them a code. This keeps registration frictionless while
+    # still letting admins gate org membership via invite codes.
     if not target_org:
+        target_org = (
+            await db.execute(
+                select(Organization).where(Organization.slug == "default")
+            )
+        ).scalar_one_or_none()
+
+    if not target_org:
+        # Default org missing too — only happens on a broken bootstrap.
         raise HTTPException(
-            400,
-            "找不到對應的組織。請聯絡管理員索取邀請碼,或使用組織註冊過的 Email 域名。",
+            500,
+            "系統未初始化預設組織,請聯絡管理員。",
         )
 
     # 預設角色(invite 沒指定就掛系統 Viewer,讓使用者進來只能讀;管理員之後再升)
