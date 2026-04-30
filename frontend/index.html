@@ -3518,7 +3518,9 @@ driver.swipe(100, 800, 100, 200, 500)"
                         <div>
                             <label for="inviteEmail" class="block text-xs font-semibold text-stone-600 mb-1">限定 Email <span class="text-stone-400 font-normal">(留空 = 任何 Email)</span></label>
                             <input type="email" id="inviteEmail" placeholder="alice@acme.com"
+                                onblur="inviteProbeEmailDomain(this.value)" oninput="document.getElementById('inviteEmailHint').textContent=''"
                                 class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm">
+                            <p id="inviteEmailHint" class="text-[11px] mt-1 min-h-[14px]" aria-live="polite"></p>
                         </div>
                         <div class="grid grid-cols-2 gap-3">
                             <div>
@@ -17461,10 +17463,44 @@ gantt
             document.getElementById('inviteEmail').value = '';
             document.getElementById('inviteExpires').value = 7;
             document.getElementById('inviteNote').value = '';
+            const hint = document.getElementById('inviteEmailHint');
+            if (hint) { hint.textContent = ''; hint.className = 'text-[11px] mt-1 min-h-[14px]'; }
             roleSel.value = ''; groupSel.value = '';
             document.getElementById('inviteModal').classList.remove('hidden');
         }
         function closeInviteModal() { document.getElementById('inviteModal').classList.add('hidden'); }
+
+        // Probe whether the entered email's @domain belongs to an org we know.
+        // Warns the admin when the email maps to a *different* org than their own
+        // (= the invite-domain auto-assign would put the user somewhere else).
+        async function inviteProbeEmailDomain(email) {
+            const hint = document.getElementById('inviteEmailHint');
+            if (!hint) return;
+            email = (email || '').trim().toLowerCase();
+            if (!email) { hint.textContent = ''; return; }
+            if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { hint.textContent = ''; return; }
+            try {
+                const r = await fetch('/api/organizations/by-email-domain?email=' + encodeURIComponent(email));
+                if (r.status === 404) {
+                    hint.textContent = 'ℹ 此 email 域名尚未被任何組織登記;邀請碼仍可寄出,但對方註冊時必須輸入這張邀請碼';
+                    hint.className = 'text-[11px] mt-1 min-h-[14px] text-stone-500';
+                    return;
+                }
+                if (!r.ok) { hint.textContent = ''; return; }
+                const data = await r.json();
+                await _loadCurrentOrg(false);
+                const myOrgId = _currentOrgCache && _currentOrgCache.id;
+                if (myOrgId && data.organization_id !== myOrgId) {
+                    hint.textContent = `⚠ 此 email 屬於 ${data.organization_name},與您的組織不同 — 邀請仍會建在您的組織下,但對方在自助註冊時可能被自動歸屬到其他組織`;
+                    hint.className = 'text-[11px] mt-1 min-h-[14px] text-amber-700';
+                } else {
+                    hint.textContent = `✓ 將自動歸屬：${data.organization_name}`;
+                    hint.className = 'text-[11px] mt-1 min-h-[14px] text-emerald-700';
+                }
+            } catch (_) {
+                hint.textContent = '';
+            }
+        }
 
         async function inviteSubmit(ev) {
             ev.preventDefault();

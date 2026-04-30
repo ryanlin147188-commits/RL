@@ -74,6 +74,13 @@ _NOTIFICATION_EVENT_CATALOGUE = [
     {"key": "todo.assigned", "label": "待辦被指派", "group": "待辦"},
     {"key": "plan.approved", "label": "測試計畫被核准", "group": "計畫"},
     {"key": "requirement.changed", "label": "需求異動", "group": "需求"},
+    # Phase 3 — review state-machine notifications fired by review_service
+    {"key": "review.submitted", "label": "送審通知(指派給您)", "group": "審核"},
+    {"key": "review.approved", "label": "您送審的項目已通過", "group": "審核"},
+    {"key": "review.rejected", "label": "您送審的項目被退回", "group": "審核"},
+    {"key": "review.reverted", "label": "已通過/退回的項目被退回待審", "group": "審核"},
+    # Phase 2 — generic assignment endpoint
+    {"key": "assignment.received", "label": "您被指派一筆項目", "group": "指派"},
 ]
 
 
