@@ -1313,6 +1313,29 @@ async def docker_start(
         raise HTTPException(500, "容器啟動但 6080 port 未對外映射,請檢查 docker daemon 設定")
     host_port = int(port_info[0]["HostPort"])
 
+    # Wait for the recorder's nginx to actually bind to :6080 before we
+    # tell the frontend the URL is ready. Without this wait the user
+    # clicks "開啟錄製器(新分頁)" and lands on a 502 — the frontend nginx
+    # tries to proxy to autotest-recorder-XXX:6080 but recorder-side
+    # nginx hasn't started yet (Xvfb/x11vnc/websockify each take a beat,
+    # then nginx). Poll over the docker network until we get any HTTP
+    # response, give up after ~10s and let the frontend retry handle it.
+    import asyncio as _asyncio
+    import urllib.request as _urlreq
+    import urllib.error as _urlerr
+    probe_url = f"http://{container_name}:6080/vnc_lite.html"
+    for _ in range(20):  # 20 × 0.5s = 10s budget
+        try:
+            await _asyncio.to_thread(
+                lambda: _urlreq.urlopen(probe_url, timeout=1).read(1)
+            )
+            break  # got a response — recorder is ready
+        except (_urlerr.URLError, ConnectionError, OSError):
+            await _asyncio.sleep(0.5)
+    # If still not up after 10s we just return anyway; the frontend
+    # caches a "container 已啟動" state and the user can retry the
+    # button. Better to release the request than block forever.
+
     started_at = datetime.utcnow()
     expires_at = started_at + timedelta(minutes=settings.RECORDER_IDLE_TIMEOUT_MIN)
 
