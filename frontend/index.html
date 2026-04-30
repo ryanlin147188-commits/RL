@@ -2885,7 +2885,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                         <button id="setTabEmail"    onclick="settingsSwitchTab('email')"    class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-envelope"></i> <span data-i18n="settings.tab.email">電子郵件</span></button>
                         <button id="setTabAi"       onclick="settingsSwitchTab('ai')"       class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-robot"></i> <span data-i18n="settings.tab.ai">AI Token</span></button>
                         <button id="setTabGroups"   onclick="settingsSwitchTab('groups')"   class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-people-group"></i> <span data-i18n="settings.tab.groups">群組</span></button>
-                        <button id="setTabInvites"  onclick="settingsSwitchTab('invites')"  class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-envelope-open-text"></i> <span data-i18n="settings.tab.invites">邀請</span></button>
+                        <button id="setTabInvites"  onclick="settingsSwitchTab('invites')"  class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-at"></i> <span data-i18n="settings.tab.invites">成員歸屬</span></button>
                     </div>
 
                     <!-- ─── Pane 1: 使用者設定（保留原本內容） ─── -->
@@ -3038,22 +3038,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                         </div>
                     </section>
 
-                    <!-- 兌換邀請碼 — 任何登入使用者都可以用 -->
-                    <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-6">
-                        <h3 class="font-bold text-stone-700 text-base mb-2 flex items-center gap-2">
-                            <i class="fa-solid fa-key text-amber-500"></i> 兌換邀請碼
-                        </h3>
-                        <p class="text-xs text-stone-500 mb-3">若您收到管理員提供的邀請碼,在這裡貼上即可加入指定組織(會自動套用邀請碼設定的角色與群組)。邀請碼為單次使用,兌換後失效。</p>
-                        <form onsubmit="return redeemInviteSubmit(event)" class="flex flex-col sm:flex-row gap-2">
-                            <input type="text" id="redeemInviteToken" autocomplete="off" placeholder="貼上邀請碼"
-                                class="flex-1 px-3 py-2 border border-stone-300 rounded-md text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-400">
-                            <button type="submit" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold shadow-sm transition flex items-center justify-center gap-2 whitespace-nowrap">
-                                <i class="fa-solid fa-arrow-right-to-bracket"></i> 兌換並切換組織
-                            </button>
-                        </form>
-                        <p id="redeemInviteHint" class="text-[11px] mt-2 min-h-[14px]" aria-live="polite"></p>
-                    </section>
-
                     <!-- 登入資訊卡 -->
                     <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-6">
                         <h3 class="font-bold text-stone-700 text-base mb-4 flex items-center gap-2">
@@ -3166,25 +3150,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                                 <button onclick="saveOrgEmailDomains()" class="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded text-xs font-semibold whitespace-nowrap"><i class="fa-solid fa-floppy-disk"></i> 儲存</button>
                             </div>
                             <p id="orgEmailDomainsHint" class="text-[10px] text-stone-400 mt-1">—</p>
-                        </section>
-                        <!-- 邀請碼列表 -->
-                        <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-4">
-                            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
-                                <h3 class="font-bold text-stone-700 text-base flex items-center gap-2"><i class="fa-solid fa-envelope-open-text text-amber-500"></i> 邀請碼</h3>
-                                <div class="flex items-center gap-2">
-                                    <button onclick="renderInvitesView()" class="text-xs px-2.5 py-1.5 border border-stone-300 rounded hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
-                                    <button onclick="openInviteModal()" class="text-xs px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold"><i class="fa-solid fa-plus"></i> 產生邀請碼</button>
-                                </div>
-                            </div>
-                            <p class="text-xs text-stone-500 mb-3">每個邀請碼單次使用;有效期內若還沒被人 redeem,可隨時撤銷。可指定 Email(限該 Email 才能用)、起始角色、起始群組。</p>
-                            <div class="overflow-x-auto border border-stone-100 rounded-md">
-                                <table class="w-full text-sm">
-                                    <thead class="bg-amber-50/60 text-stone-600 text-xs uppercase">
-                                        <tr><th class="p-3 text-left w-32">狀態</th><th class="p-3 text-left">Email / 備註</th><th class="p-3 w-32">角色</th><th class="p-3 w-32">起始群組</th><th class="p-3 w-32">過期</th><th class="p-3 w-32 text-center">操作</th></tr>
-                                    </thead>
-                                    <tbody id="invitesListBody" class="divide-y divide-stone-100"></tbody>
-                                </table>
-                            </div>
                         </section>
                     </div>
 
@@ -3490,91 +3455,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                             <button type="submit" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button>
                         </div>
                     </form>
-                </div>
-            </div>
-
-            <!-- 邀請碼 Modal(產生新邀請) -->
-            <div id="inviteModal" class="hidden fixed inset-0 z-[150] bg-black/40 flex items-center justify-center p-4">
-                <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg border border-amber-200 max-h-[92vh] overflow-y-auto">
-                    <div class="px-6 py-4 border-b border-stone-200 bg-amber-50/60 flex items-center justify-between">
-                        <h3 class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-envelope-open-text text-amber-500"></i> 產生邀請碼</h3>
-                        <button type="button" onclick="closeInviteModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
-                    </div>
-                    <form onsubmit="return inviteSubmit(event)" class="p-6 space-y-3">
-                        <div>
-                            <label for="inviteEmail" class="block text-xs font-semibold text-stone-600 mb-1">限定 Email <span class="text-stone-400 font-normal">(留空 = 任何 Email)</span></label>
-                            <input type="email" id="inviteEmail" placeholder="alice@acme.com"
-                                onblur="inviteProbeEmailDomain(this.value)" oninput="document.getElementById('inviteEmailHint').textContent=''"
-                                class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm">
-                            <p id="inviteEmailHint" class="text-[11px] mt-1 min-h-[14px]" aria-live="polite"></p>
-                        </div>
-                        <div class="grid grid-cols-2 gap-3">
-                            <div>
-                                <label for="inviteRole" class="block text-xs font-semibold text-stone-600 mb-1">起始角色</label>
-                                <select id="inviteRole" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
-                                    <option value="">— 預設(Viewer)—</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label for="inviteGroup" class="block text-xs font-semibold text-stone-600 mb-1">起始群組</label>
-                                <select id="inviteGroup" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
-                                    <option value="">— 不加入群組 —</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div>
-                            <label for="inviteExpires" class="block text-xs font-semibold text-stone-600 mb-1">有效天數</label>
-                            <input type="number" id="inviteExpires" value="7" min="1" max="365"
-                                class="w-32 px-3 py-2 border border-stone-300 rounded-md text-sm">
-                        </div>
-                        <div>
-                            <label for="inviteNote" class="block text-xs font-semibold text-stone-600 mb-1">備註</label>
-                            <input type="text" id="inviteNote" placeholder="例:給 QA 新人 Alice"
-                                class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm">
-                        </div>
-                        <label class="flex items-start gap-2 cursor-pointer text-sm text-stone-700 bg-amber-50/60 border border-amber-200 rounded-md p-3">
-                            <input type="checkbox" id="inviteSendEmail" class="mt-0.5 rounded border-stone-300 text-amber-500 focus:ring-amber-400">
-                            <span><b>同時寄信給對方</b> <span class="text-[10px] text-stone-500">(需有限定 Email,且後台 SMTP 已設定)</span></span>
-                        </label>
-                        <div class="flex justify-end gap-2 pt-2">
-                            <button type="button" onclick="closeInviteModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button>
-                            <button type="submit" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-key"></i> 產生</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-
-            <!-- 邀請碼產生後 — 展示給管理者複製 -->
-            <div id="inviteShowModal" class="hidden fixed inset-0 z-[160] bg-black/40 flex items-center justify-center p-4">
-                <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg border border-emerald-200 overflow-hidden">
-                    <div class="px-6 py-4 border-b border-stone-200 bg-emerald-50/60 flex items-center justify-between">
-                        <h3 class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-circle-check text-emerald-500"></i> 邀請碼已產生</h3>
-                        <button type="button" onclick="closeInviteShowModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
-                    </div>
-                    <div class="p-6 space-y-3">
-                        <p class="text-xs text-stone-600">把下列邀請碼或連結複製給對方,他們在註冊頁的「邀請碼」欄位貼上即可加入本組織。</p>
-                        <div>
-                            <label class="block text-xs font-semibold text-stone-600 mb-1">邀請碼</label>
-                            <div class="flex items-center gap-2">
-                                <input id="inviteShowToken" type="text" aria-label="邀請碼" readonly class="flex-1 px-3 py-2 border border-stone-300 rounded-md text-sm font-mono bg-stone-50">
-                                <button onclick="_copyText(document.getElementById('inviteShowToken').value)" class="px-3 py-2 border border-stone-300 rounded-md text-xs hover:bg-amber-50"><i class="fa-solid fa-copy"></i> 複製</button>
-                            </div>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-semibold text-stone-600 mb-1">註冊連結(預設帶入邀請碼)</label>
-                            <div class="flex items-center gap-2">
-                                <input id="inviteShowLink" type="text" aria-label="註冊連結" readonly class="flex-1 px-3 py-2 border border-stone-300 rounded-md text-sm font-mono bg-stone-50">
-                                <button onclick="_copyText(document.getElementById('inviteShowLink').value)" class="px-3 py-2 border border-stone-300 rounded-md text-xs hover:bg-amber-50"><i class="fa-solid fa-copy"></i> 複製</button>
-                            </div>
-                        </div>
-                        <div class="text-[11px] text-stone-500 bg-amber-50 border border-amber-200 rounded p-2 flex items-start gap-2">
-                            <i class="fa-solid fa-triangle-exclamation text-amber-500 mt-0.5"></i>
-                            <span>邀請碼只能單次使用。請妥善保存(關閉視窗後無法再次取得;但可在邀請列表看到 token)。</span>
-                        </div>
-                        <div class="flex justify-end pt-2">
-                            <button onclick="closeInviteShowModal()" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold">完成</button>
-                        </div>
-                    </div>
                 </div>
             </div>
 
@@ -7665,7 +7545,7 @@ driver.swipe(100, 800, 100, 200, 500)"
             'view.defects.title': { 'zh-TW': '缺陷管理', 'en': 'Defect Management' },
             'settings.tab.perms': { 'zh-TW': '權限管理', 'en': 'Permissions' },
             'settings.tab.groups': { 'zh-TW': '群組', 'en': 'Groups' },
-            'settings.tab.invites': { 'zh-TW': '邀請', 'en': 'Invites' },
+            'settings.tab.invites': { 'zh-TW': '成員歸屬', 'en': 'Membership' },
             'settings.tab.roles': { 'zh-TW': '角色管理', 'en': 'Roles' },
             'settings.tab.notif': { 'zh-TW': '通知設定', 'en': 'Notifications' },
             'settings.tab.email': { 'zh-TW': '電子郵件', 'en': 'Email' },
@@ -10259,59 +10139,6 @@ driver.swipe(100, 800, 100, 200, 500)"
             };
             _saveUserPrefs(prefs);
             showToast('個人偏好已儲存', 'success');
-        }
-
-        // ─── 兌換邀請碼 ────────────────────────────────────────────────────
-        // POST /api/auth/redeem-invite — switch into the invite's org/role/group.
-        // The endpoint returns a fresh token pair (the JWT's org_id claim
-        // changes), so we replace the local tokens and re-init the project tree.
-        async function redeemInviteSubmit(ev) {
-            ev.preventDefault();
-            const tokenInput = document.getElementById('redeemInviteToken');
-            const hint = document.getElementById('redeemInviteHint');
-            const token = (tokenInput.value || '').trim();
-            if (!token) {
-                showToast('請輸入邀請碼', 'error');
-                return false;
-            }
-            try {
-                const r = await fetch('/api/auth/redeem-invite', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ invite_token: token }),
-                });
-                if (!r.ok) {
-                    const detail = (await r.json().catch(() => ({}))).detail || ('HTTP ' + r.status);
-                    throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
-                }
-                const data = await r.json();
-                // Swap in the freshly-issued tokens so the new org_id flows
-                // into every subsequent /api/* request.
-                if (typeof authSetTokens === 'function') {
-                    authSetTokens(data.access_token, data.refresh_token, data.expires_in);
-                }
-                tokenInput.value = '';
-                let msg = `已加入 ${data.organization_name}`;
-                if (data.role_assigned) msg += `,角色:${data.role_assigned}`;
-                if (data.group_assigned) msg += `,群組:${data.group_assigned}`;
-                showToast(msg, 'success');
-                if (hint) {
-                    hint.textContent = '✓ ' + msg;
-                    hint.className = 'text-[11px] mt-2 min-h-[14px] text-emerald-700';
-                }
-                // Refresh the project tree + home view to reflect the new org's data.
-                if (typeof initProjects === 'function') {
-                    try { await initProjects(); } catch (_) {}
-                }
-                try { if (typeof showHomeView === 'function') showHomeView(); } catch (_) {}
-            } catch (e) {
-                if (hint) {
-                    hint.textContent = '✗ ' + (e.message || e);
-                    hint.className = 'text-[11px] mt-2 min-h-[14px] text-rose-600';
-                }
-                showToast('兌換失敗:' + (e.message || e), 'error');
-            }
-            return false;
         }
 
         // ==================== 觸發來源顯示格式化 ====================
@@ -17469,8 +17296,9 @@ gantt
             return _currentOrgCache;
         }
 
+        // 成員歸屬 pane — 只剩 email_domains 編輯區。Invite-code 流程已移除,
+        // 組織歸屬統一透過註冊時的 email @domain 比對。
         async function renderInvitesView() {
-            // 1) Email Domain 編輯區
             const inp = document.getElementById('orgEmailDomains');
             const hint = document.getElementById('orgEmailDomainsHint');
             await _loadCurrentOrg(true);
@@ -17480,46 +17308,6 @@ gantt
             } else {
                 inp.value = '';
                 hint.textContent = '⚠ 無法取得當前組織(可能需要 superuser 權限)';
-            }
-            // 2) 邀請列表
-            const tbody = document.getElementById('invitesListBody');
-            tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-stone-400">載入中…</td></tr>';
-            try {
-                const r = await fetch('/api/invites');
-                if (!r.ok) throw new Error('HTTP '+r.status);
-                _invitesCache = await r.json();
-                if (!_invitesCache.length) {
-                    tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-stone-400">尚無邀請碼</td></tr>';
-                    return;
-                }
-                // 角色 / 群組 名稱對應
-                const roleMap = Object.fromEntries((_rolesCache || []).map(r => [r.id, r.name]));
-                await _loadAssignableGroups();
-                const groupMap = Object.fromEntries((_assignableGroupsCache || []).map(g => [g.id, g.name]));
-                tbody.innerHTML = _invitesCache.map(inv => {
-                    let statusBadge;
-                    if (inv.is_used) statusBadge = '<span class="text-[10px] px-1.5 py-0.5 rounded bg-stone-200 text-stone-600">已使用</span>';
-                    else if (inv.is_expired) statusBadge = '<span class="text-[10px] px-1.5 py-0.5 rounded bg-rose-100 text-rose-700">已過期</span>';
-                    else statusBadge = '<span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">有效</span>';
-                    const usedNote = inv.is_used ? `<div class="text-[10px] text-stone-400">${_esc(inv.used_by||'?')} · ${inv.used_at ? new Date(inv.used_at).toLocaleString('zh-TW') : '—'}</div>` : '';
-                    return `<tr class="hover:bg-amber-50/30">
-                        <td class="p-3 align-top">${statusBadge}${usedNote}</td>
-                        <td class="p-3">
-                            <div class="font-mono text-xs">${_esc(inv.email || '— 任何 Email —')}</div>
-                            ${inv.note ? `<div class="text-[10px] text-stone-500 mt-0.5">${_esc(inv.note)}</div>` : ''}
-                            <div class="text-[10px] font-mono text-stone-400 mt-0.5">${_esc(inv.token.slice(0,16))}…</div>
-                        </td>
-                        <td class="p-3 text-xs">${inv.role_id ? _esc(roleMap[inv.role_id] || '(未知角色)') : '<span class="text-stone-400">預設(Viewer)</span>'}</td>
-                        <td class="p-3 text-xs">${inv.group_id ? _esc(groupMap[inv.group_id] || '(未知群組)') : '<span class="text-stone-400">—</span>'}</td>
-                        <td class="p-3 text-xs">${inv.expires_at ? new Date(inv.expires_at).toLocaleDateString('zh-TW') : '—'}</td>
-                        <td class="p-3 text-center whitespace-nowrap space-x-1">
-                            ${!inv.is_used && !inv.is_expired ? `<button onclick="copyInviteLink('${_esc(inv.token)}')" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded" title="複製連結"><i class="fa-solid fa-link"></i></button>` : ''}
-                            <button onclick="revokeInvite('${_esc(inv.id)}')" class="text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded" title="撤銷"><i class="fa-solid fa-trash"></i></button>
-                        </td>
-                    </tr>`;
-                }).join('');
-            } catch (e) {
-                tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-red-500">載入失敗:${_esc(e.message)}</td></tr>`;
             }
         }
 
@@ -17535,128 +17323,12 @@ gantt
                 });
                 if (!r.ok) {
                     const detail = (await r.json().catch(()=>({}))).detail || ('HTTP '+r.status);
-                    throw new Error(detail);
+                    throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
                 }
                 _currentOrgCache = await r.json();
                 document.getElementById('orgEmailDomains').value = _currentOrgCache.email_domains || '';
                 showToast('已儲存(無效格式 domain 已被剔除)', 'success');
             } catch (e) { showToast('儲存失敗:'+e.message, 'error'); }
-        }
-
-        async function openInviteModal() {
-            // role 下拉
-            const roleSel = document.getElementById('inviteRole');
-            try {
-                if (!_rolesCache || !_rolesCache.length) {
-                    const r = await fetch('/api/settings/roles');
-                    if (r.ok) _rolesCache = await r.json();
-                }
-            } catch (_) {}
-            roleSel.innerHTML = '<option value="">— 預設(Viewer)—</option>' +
-                (_rolesCache || []).map(r => `<option value="${_esc(r.id)}">${_esc(r.name)}</option>`).join('');
-            // group 下拉
-            const groupSel = document.getElementById('inviteGroup');
-            await _loadAssignableGroups(true);
-            groupSel.innerHTML = '<option value="">— 不加入群組 —</option>' +
-                (_assignableGroupsCache || []).map(g => `<option value="${_esc(g.id)}">${_esc(g.name)}</option>`).join('');
-            // reset
-            document.getElementById('inviteEmail').value = '';
-            document.getElementById('inviteExpires').value = 7;
-            document.getElementById('inviteNote').value = '';
-            const sendEmailCb = document.getElementById('inviteSendEmail');
-            if (sendEmailCb) sendEmailCb.checked = false;
-            const hint = document.getElementById('inviteEmailHint');
-            if (hint) { hint.textContent = ''; hint.className = 'text-[11px] mt-1 min-h-[14px]'; }
-            roleSel.value = ''; groupSel.value = '';
-            document.getElementById('inviteModal').classList.remove('hidden');
-        }
-        function closeInviteModal() { document.getElementById('inviteModal').classList.add('hidden'); }
-
-        // Probe whether the entered email's @domain belongs to an org we know.
-        // Warns the admin when the email maps to a *different* org than their own
-        // (= the invite-domain auto-assign would put the user somewhere else).
-        async function inviteProbeEmailDomain(email) {
-            const hint = document.getElementById('inviteEmailHint');
-            if (!hint) return;
-            email = (email || '').trim().toLowerCase();
-            if (!email) { hint.textContent = ''; return; }
-            if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { hint.textContent = ''; return; }
-            try {
-                const r = await fetch('/api/organizations/by-email-domain?email=' + encodeURIComponent(email));
-                if (r.status === 404) {
-                    hint.textContent = 'ℹ 此 email 域名尚未被任何組織登記;邀請碼仍可寄出,但對方註冊時必須輸入這張邀請碼';
-                    hint.className = 'text-[11px] mt-1 min-h-[14px] text-stone-500';
-                    return;
-                }
-                if (!r.ok) { hint.textContent = ''; return; }
-                const data = await r.json();
-                await _loadCurrentOrg(false);
-                const myOrgId = _currentOrgCache && _currentOrgCache.id;
-                if (myOrgId && data.organization_id !== myOrgId) {
-                    hint.textContent = `⚠ 此 email 屬於 ${data.organization_name},與您的組織不同 — 邀請仍會建在您的組織下,但對方在自助註冊時可能被自動歸屬到其他組織`;
-                    hint.className = 'text-[11px] mt-1 min-h-[14px] text-amber-700';
-                } else {
-                    hint.textContent = `✓ 將自動歸屬：${data.organization_name}`;
-                    hint.className = 'text-[11px] mt-1 min-h-[14px] text-emerald-700';
-                }
-            } catch (_) {
-                hint.textContent = '';
-            }
-        }
-
-        async function inviteSubmit(ev) {
-            ev.preventDefault();
-            const sendEmail = !!document.getElementById('inviteSendEmail')?.checked;
-            const payload = {
-                email: document.getElementById('inviteEmail').value.trim() || null,
-                role_id: document.getElementById('inviteRole').value || null,
-                group_id: document.getElementById('inviteGroup').value || null,
-                expires_in_days: parseInt(document.getElementById('inviteExpires').value || '7', 10),
-                note: document.getElementById('inviteNote').value.trim() || null,
-                send_email: sendEmail,
-            };
-            if (sendEmail && !payload.email) {
-                showToast('勾選「同時寄信」必須填限定 Email', 'error');
-                return false;
-            }
-            try {
-                const r = await fetch('/api/invites', {
-                    method: 'POST',
-                    headers: {'Content-Type':'application/json'},
-                    body: JSON.stringify(payload),
-                });
-                if (!r.ok && r.status !== 201) {
-                    const detail = (await r.json().catch(()=>({}))).detail || ('HTTP '+r.status);
-                    throw new Error(detail);
-                }
-                const inv = await r.json();
-                closeInviteModal();
-                _showInviteToken(inv.token);
-                renderInvitesView();
-            } catch (e) { showToast('產生失敗:'+e.message, 'error'); }
-            return false;
-        }
-
-        function _showInviteToken(token) {
-            document.getElementById('inviteShowToken').value = token;
-            const link = `${window.location.origin}/?invite=${encodeURIComponent(token)}#register`;
-            document.getElementById('inviteShowLink').value = link;
-            document.getElementById('inviteShowModal').classList.remove('hidden');
-        }
-        function closeInviteShowModal() { document.getElementById('inviteShowModal').classList.add('hidden'); }
-        function copyInviteLink(token) {
-            const link = `${window.location.origin}/?invite=${encodeURIComponent(token)}#register`;
-            _copyText(link);
-        }
-
-        async function revokeInvite(id) {
-            if (!confirm('確定撤銷此邀請碼?(已使用過的也可刪,只是會失去歷史紀錄)')) return;
-            try {
-                const r = await fetch('/api/invites/'+encodeURIComponent(id), { method: 'DELETE' });
-                if (!r.ok && r.status !== 204) throw new Error('HTTP '+r.status);
-                showToast('已撤銷', 'success');
-                renderInvitesView();
-            } catch (e) { showToast('撤銷失敗:'+e.message, 'error'); }
         }
 
         // ─── Sprint 6 — MCP 測試面板 ───────────────────────────────────
