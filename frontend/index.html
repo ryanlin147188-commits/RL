@@ -1170,7 +1170,7 @@
                         </div>
                         <p id="recDockerHint" class="hidden text-[11px] text-stone-500 bg-amber-50 border border-amber-200 rounded p-2 flex items-start gap-2">
                             <i class="fa-solid fa-circle-info text-amber-500 mt-0.5"></i>
-                            <span>若下方 iframe 顯示空白或「localhost 未傳送任何數據」,點 iframe 右上角的「<b>在新分頁開啟</b>」按鈕,功能完全等同(關閉 Playwright Inspector 視窗後一樣會自動上傳錄製檔)。</span>
+                            <span><b>請用 Chrome 開啟本頁。</b>Edge 在載入 noVNC 時會 <code>ERR_CONNECTION_RESET</code>(websockify 單執行緒 server 對 Edge 的並行請求模式不相容),iframe 與新分頁皆無法載入。若已在 Chrome 仍空白,點 iframe 右上角「<b>在新分頁開啟</b>」(關閉 Playwright Inspector 視窗後一樣會自動上傳)。</span>
                         </p>
                         <!-- iframe 嵌入 noVNC -->
                         <div id="recDockerVncWrap" class="rec-vnc-wrap hidden border border-rose-200 rounded-md bg-black overflow-hidden relative">
