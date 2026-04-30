@@ -348,14 +348,16 @@ def _kwargs_for_review(obj: Any) -> Optional[dict]:
 
 
 def install_review_autocreate() -> None:
-    """Register the before_flush hook that auto-spawns pending review
-    records for newly-created reviewable entities. Idempotent (called
-    once at app boot from app.database).
+    """Register the before_flush hook that:
+      * auto-spawns pending review records for newly-created reviewable entities
+      * cascade-deletes the matching review record when an entity is deleted
 
-    Failure handling: any error inside this hook is logged but **never**
+    Idempotent (called once at app boot from app.database).
+
+    Failure handling: any error inside the hook is logged but **never**
     propagated -- a misconfigured review pipeline must not break the
-    user's actual write. The worst case is a missing review row, which
-    can be reconciled later via POST /api/reviews.
+    user's actual write/delete. The worst case is a missing or stale
+    review row, which is far better than 500-ing a routine CRUD call.
     """
     import logging
     log = logging.getLogger(__name__)
@@ -400,3 +402,36 @@ def install_review_autocreate() -> None:
                 session.add(rec)
         except Exception:  # noqa: BLE001
             log.exception("review autocreate hook failed; the user's write proceeds without a review record")
+
+    @event.listens_for(Session, "before_flush")
+    def _autodelete(session: Session, flush_context: Any, instances: Any) -> None:  # noqa: ARG001
+        """Cascade-delete the ReviewRecord when its underlying entity is
+        deleted. Without this the review center would keep listing rows
+        whose entity no longer exists ("實體已刪除") -- ops feedback says
+        that's noise, not signal.
+
+        The DB's FK ON DELETE CASCADE handles ReviewHistory automatically.
+        """
+        try:
+            to_delete: list[ReviewRecord] = []
+            for obj in list(session.deleted):
+                if isinstance(obj, ReviewRecord):
+                    continue
+                kwargs = _kwargs_for_review(obj)
+                if not kwargs:
+                    continue
+                # Event handler runs in sync greenlet context; use the
+                # synchronous Session API even when the originating engine
+                # is async (the bridge unwraps it for us).
+                rec = session.scalars(
+                    select(ReviewRecord).where(
+                        ReviewRecord.entity_type == kwargs["entity_type"],
+                        ReviewRecord.entity_id == kwargs["entity_id"],
+                    )
+                ).first()
+                if rec is not None:
+                    to_delete.append(rec)
+            for rec in to_delete:
+                session.delete(rec)
+        except Exception:  # noqa: BLE001
+            log.exception("review cascade-delete hook failed; review row may be left dangling")

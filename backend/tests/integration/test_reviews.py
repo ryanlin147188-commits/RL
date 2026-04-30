@@ -384,6 +384,60 @@ async def test_creating_testcase_node_autocreates_pending_review(client, org_a) 
     ), f"expected auto-created review for {node_id}, got {rows}"
 
 
+async def test_deleting_entity_cascade_deletes_review(client, org_a) -> None:
+    """Deleting a TreeNode (testcase) must also drop its ReviewRecord -- the
+    review center should never list a row whose entity is gone."""
+    import uuid as _uuid
+
+    from sqlalchemy import select
+    from app.database import AsyncSessionLocal
+    from app.models import ReviewRecord, TreeNode
+    from app.models.tree_node import LevelType
+    from app.auth.context import current_org_id, current_username
+
+    org_token = current_org_id.set(org_a.org_id)
+    user_token = current_username.set(org_a.username)
+    try:
+        async with AsyncSessionLocal() as session:
+            node = TreeNode(
+                id=str(_uuid.uuid4()),
+                project_id=org_a.project_id,
+                organization_id=org_a.org_id,
+                name="cascade-target",
+                level_type=LevelType.TESTCASE,
+                sort_order=1,
+            )
+            session.add(node)
+            await session.commit()
+            node_id = node.id
+
+        # Sanity: review row was auto-created
+        async with AsyncSessionLocal() as session:
+            rec = (
+                await session.execute(
+                    select(ReviewRecord).where(ReviewRecord.entity_id == node_id)
+                )
+            ).scalar_one_or_none()
+            assert rec is not None, "expected auto-created ReviewRecord"
+
+        # Now delete the TreeNode and verify the ReviewRecord follows.
+        async with AsyncSessionLocal() as session:
+            n = await session.get(TreeNode, node_id)
+            await session.delete(n)
+            await session.commit()
+
+        async with AsyncSessionLocal() as session:
+            rec = (
+                await session.execute(
+                    select(ReviewRecord).where(ReviewRecord.entity_id == node_id)
+                )
+            ).scalar_one_or_none()
+            assert rec is None, "ReviewRecord should have been cascade-deleted"
+    finally:
+        current_username.reset(user_token)
+        current_org_id.reset(org_token)
+
+
 async def test_creating_non_testcase_node_does_not_autocreate(client, org_a) -> None:
     """FEATURE/PLATFORM/PAGE/SCENARIO are organizational containers, not
     reviewable. They must NOT spawn review records."""
