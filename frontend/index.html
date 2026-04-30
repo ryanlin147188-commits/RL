@@ -4770,6 +4770,63 @@ driver.swipe(100, 800, 100, 200, 500)"
         <div class="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/70 text-xs tracking-wide">點背景或按 Esc 關閉</div>
     </div>
 
+    <!-- ═════════════════════════════════════════════════════════════
+         Pre-paint workspace selection.
+         All workspaces above are class="hidden" by default. This inline
+         script reads the URL hash, looks up the matching workspace, and
+         removes its `hidden` class BEFORE the browser's first paint —
+         so reloading on /#backlog shows backlog from frame 0 instead of
+         briefly flashing the empty middle area while window.onload waits
+         on /api/auth/me + initProjects().
+         Skipped on the login screen (data-auth=out) so the auth overlay
+         stays the only visible chrome. The full JS-driven show*View()
+         pipeline still runs later — this just removes the empty-state
+         flash window.
+         ═════════════════════════════════════════════════════════════ -->
+    <script>
+        (function () {
+            try {
+                if (document.documentElement.getAttribute('data-auth') !== 'in') return;
+                var HASH_TO_WORKSPACE = {
+                    '#home':            'homeWorkspace',
+                    '#testcases':       'testcasesWorkspace',
+                    '#defects':         'defectsWorkspace',
+                    '#review':          'reviewWorkspace',
+                    '#requirements':    'requirementsWorkspace',
+                    '#testdocuments':   'testDocumentsWorkspace',
+                    '#wbs':             'wbsWorkspace',
+                    '#backlog':         'backlogWorkspace',
+                    '#testkanban':      'testKanbanWorkspace',
+                    '#testprojects':    'testProjectsWorkspace',
+                    '#testversions':    'testVersionsWorkspace',
+                    '#testdatasets':    'testDataSetsWorkspace',
+                    '#testmilestones':  'testMilestonesWorkspace',
+                    '#testplan':        'testPlansWorkspace',
+                    '#report':          'reportWorkspace',
+                    '#recorder':        'recorderWorkspace',
+                    '#schedule':        'scheduleWorkspace',
+                    '#testround':       'testRoundWorkspace',
+                    '#envvars':         'envVarsWorkspace',
+                    '#devices':         'devicesWorkspace',
+                    '#dbconfig':        'dbConfigWorkspace',
+                    '#mock':            'mockWorkspace',
+                    '#usersettings':    'userSettingsWorkspace',
+                };
+                var hash = (window.location.hash || '#home').toLowerCase();
+                var wsId = HASH_TO_WORKSPACE[hash] || 'homeWorkspace';
+                var el = document.getElementById(wsId);
+                if (el) {
+                    el.classList.remove('hidden');
+                    // Ensure header chrome is visible too — _setView normally
+                    // does this when switching, but on first paint nobody has
+                    // touched it yet.
+                    var hdr = document.getElementById('mainHeader');
+                    if (hdr) hdr.classList.remove('hidden');
+                }
+            } catch (_) {}
+        })();
+    </script>
+
     <script>
         // ==================== 全域狀態變數 ====================
         let currentModalAction = null;
