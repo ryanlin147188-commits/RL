@@ -176,8 +176,14 @@ async def lifespan(app: FastAPI):
     try:
         await _seed_default_org_and_backfill()
     except Exception as e:
+        # Used to swallow as warning. Promoted to logger.exception so the
+        # stack trace lands in container logs — a missing default org
+        # cascades into 500s on /api/auth/register, so silent failures
+        # here are nasty to debug.
         import logging
-        logging.getLogger(__name__).warning("seed default org / backfill failed: %s", e)
+        logging.getLogger(__name__).exception(
+            "seed default org / backfill failed: %s", e,
+        )
     try:
         await _warn_if_no_users()
     except Exception as e:

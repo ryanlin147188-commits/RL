@@ -147,10 +147,10 @@ async def register(
                     break
 
     # 3) Fall back to the default organisation. New users without a
-    # matching email domain land here as Viewer; they can then go to
-    # Settings → 兌換邀請碼 to switch into the right org once an admin
-    # gives them a code. This keeps registration frictionless while
-    # still letting admins gate org membership via invite codes.
+    # matching email domain land here as Viewer; an admin can move them
+    # to the right org via the user-management UI. This keeps the register
+    # endpoint frictionless even on a fresh deploy where no org has
+    # email_domains configured yet.
     if not target_org:
         target_org = (
             await db.execute(
@@ -158,12 +158,23 @@ async def register(
             )
         ).scalar_one_or_none()
 
+    # Lazy-create default org if the lifespan seed silently dropped it
+    # (e.g. early-startup race, half-applied migration, manual TRUNCATE).
+    # We'd rather create-on-demand here than 500 the user's register POST.
     if not target_org:
-        # Default org missing too — only happens on a broken bootstrap.
-        raise HTTPException(
-            500,
-            "系統未初始化預設組織,請聯絡管理員。",
+        import logging
+        logging.getLogger(__name__).warning(
+            "register: 'default' org missing — lazy-creating it for user '%s'",
+            uname,
         )
+        target_org = Organization(
+            slug="default",
+            name="Default Organization",
+            description="自動建立的預設組織;未指定 organization_id 的所有資料會歸屬於此",
+            plan="free",
+        )
+        db.add(target_org)
+        await db.flush()
 
     # 預設角色(invite 沒指定就掛系統 Viewer,讓使用者進來只能讀;管理員之後再升)
     if not target_role_id:
