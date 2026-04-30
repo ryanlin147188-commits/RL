@@ -180,6 +180,80 @@ async def test_email_domain_cross_org_unique_enforced(client, org_a, org_b) -> N
     assert any(c["domain"] == domain for c in conflicts)
 
 
+# ── Redeem invite (post-login org switch) ───────────────────────────────
+
+async def test_redeem_invite_switches_org_and_returns_new_tokens(client, org_a, org_b) -> None:
+    """A user logged into org A can paste an invite for org B and end up in org B
+    after redeem; the response carries fresh tokens with the new org_id claim."""
+    from datetime import datetime, timedelta
+    import secrets
+
+    # Mint an invite for org_b's id, no email lock for simplicity
+    async with AsyncSessionLocal() as db:
+        inv = OrgInvite(
+            token=f"REDEEM-{secrets.token_urlsafe(12)}",
+            organization_id=org_b.org_id,
+            note="cross-org test",
+            expires_at=datetime.utcnow() + timedelta(days=1),
+            created_by="test",
+        )
+        db.add(inv)
+        await db.commit()
+        token = inv.token
+
+    # User in org A redeems
+    resp = await client.post(
+        "/api/auth/redeem-invite",
+        json={"invite_token": token},
+        headers=org_a.headers,
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["organization_slug"]
+    assert body["access_token"]
+    assert body["refresh_token"]
+
+    # Decode the new access_token's org_id claim and confirm it points to org_b
+    from app.auth.security import decode_token
+    claims = decode_token(body["access_token"])
+    assert claims["org_id"] == org_b.org_id
+
+    # Invite is now used
+    async with AsyncSessionLocal() as db:
+        from sqlalchemy import select
+        again = (await db.execute(
+            select(OrgInvite).where(OrgInvite.token == token)
+        )).scalar_one()
+        assert again.used_at is not None
+        assert again.used_by == org_a.username
+
+
+async def test_redeem_invite_rejects_used_token(client, org_a) -> None:
+    """Single-use: the same token can't be redeemed twice."""
+    from datetime import datetime, timedelta
+    import secrets
+
+    async with AsyncSessionLocal() as db:
+        inv = OrgInvite(
+            token=f"REDEEM-{secrets.token_urlsafe(12)}",
+            organization_id=org_a.org_id,
+            used_at=datetime.utcnow(),
+            used_by="someone-else",
+            expires_at=datetime.utcnow() + timedelta(days=1),
+        )
+        db.add(inv)
+        await db.commit()
+        token = inv.token
+
+    resp = await client.post(
+        "/api/auth/redeem-invite",
+        json={"invite_token": token},
+        headers=org_a.headers,
+    )
+    assert resp.status_code == 400
+    assert "已被使用" in resp.json()["detail"]
+
+
 # ── helper ─────────────────────────────────────────────────────────────
 
 async def _get_org_slug(org_id: str) -> str:

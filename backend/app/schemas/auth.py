@@ -88,6 +88,23 @@ class BootstrapInviteRequest(BaseModel):
     ttl_hours: int = 24
 
 
+class RedeemInviteRequest(BaseModel):
+    """Logged-in user pastes an invite code to (re)assign their org/role/group."""
+    invite_token: str
+
+
+class RedeemInviteResponse(BaseModel):
+    """Returned after a successful redeem; the access_token is re-issued so
+    the new organization_id is reflected in the JWT claim immediately."""
+    organization_slug: str
+    organization_name: str
+    role_assigned: Optional[str] = None
+    group_assigned: Optional[str] = None
+    access_token: str
+    refresh_token: str
+    expires_in: int
+
+
 class RequestAccessRequest(BaseModel):
     """Anonymous self-service invite request.
 

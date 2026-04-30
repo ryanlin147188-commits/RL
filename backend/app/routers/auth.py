@@ -42,6 +42,8 @@ from app.schemas.auth import (
     BootstrapInviteResponse,
     ChangePasswordRequest,
     LoginRequest,
+    RedeemInviteRequest,
+    RedeemInviteResponse,
     RefreshRequest,
     RegisterRequest,
     RequestAccessRequest,
@@ -194,6 +196,112 @@ async def register(
     return TokenResponse(
         access_token=create_access_token(new_user.username, extra=extra),
         refresh_token=create_refresh_token(new_user.username),
+        expires_in=ACCESS_TOKEN_TTL_MINUTES * 60,
+    )
+
+
+@router.post(
+    "/auth/redeem-invite",
+    response_model=RedeemInviteResponse,
+    tags=["U · 認證"],
+)
+async def redeem_invite(
+    payload: RedeemInviteRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Already-logged-in user pastes an invite code to switch into the
+    invite's organization (and optionally pick up the invite's role / group).
+
+    Why a separate endpoint and not just register-with-token?
+        Self-service registration was simplified to email-domain only;
+        invite codes are now redeemed *after* login from Settings → 兌換邀請碼.
+        This means a user who got auto-assigned to the wrong org (or whose
+        company hasn't registered an email domain) can still join the right
+        org by pasting the code their admin sent them.
+
+    Validation mirrors the original register flow:
+      * token must exist, not be used, not be expired
+      * if invite has email-lock, it must match the caller's email
+      * caller must have an email on file (otherwise email-locked invites
+        can't be safely matched)
+
+    On success:
+      * caller's user row is updated: organization_id, optionally role_id
+      * if the invite has a group_id, caller is added to GroupMembership
+      * invite is marked used (single-use)
+      * a fresh access/refresh token pair is returned so the new org_id
+        flows into the JWT claim without the client having to re-login.
+    """
+    token = (payload.invite_token or "").strip()
+    if not token:
+        raise HTTPException(400, "請輸入邀請碼")
+
+    invite = (
+        await db.execute(select(OrgInvite).where(OrgInvite.token == token))
+    ).scalar_one_or_none()
+    if not invite:
+        raise HTTPException(400, "邀請碼無效")
+    if invite.used_at is not None:
+        raise HTTPException(400, "邀請碼已被使用")
+    if invite.expires_at and invite.expires_at < datetime.utcnow():
+        raise HTTPException(400, "邀請碼已過期")
+
+    if invite.email:
+        caller_email = (user.email or "").strip().lower()
+        if not caller_email:
+            raise HTTPException(
+                400,
+                "此邀請碼限定特定 Email,請先到「設定 → 個人資料」設定您的 Email 後再兌換",
+            )
+        if invite.email.lower() != caller_email:
+            raise HTTPException(400, "此邀請碼限定特定 Email,與您帳號的 Email 不符")
+
+    target_org = await db.get(Organization, invite.organization_id)
+    if not target_org:
+        raise HTTPException(400, "邀請對應的組織不存在")
+
+    # Apply: org switch + optional role + optional group
+    user.organization_id = target_org.id
+    role_assigned: Optional[str] = None
+    if invite.role_id:
+        role = await db.get(Role, invite.role_id)
+        if role:
+            user.role_id = role.id
+            role_assigned = role.name
+
+    group_assigned: Optional[str] = None
+    if invite.group_id:
+        from app.models.group import Group
+        g = await db.get(Group, invite.group_id)
+        if g and g.organization_id == target_org.id:
+            # Idempotent: don't add a duplicate membership row.
+            existing = (
+                await db.execute(
+                    select(GroupMembership).where(
+                        GroupMembership.group_id == g.id,
+                        GroupMembership.username == user.username,
+                    )
+                )
+            ).scalar_one_or_none()
+            if existing is None:
+                db.add(GroupMembership(
+                    group_id=g.id, username=user.username, role_in_group="member",
+                ))
+            group_assigned = g.name
+
+    invite.used_by = user.username
+    invite.used_at = datetime.utcnow()
+    await db.flush()
+
+    extra = {"org_id": user.organization_id, "is_superuser": user.is_superuser}
+    return RedeemInviteResponse(
+        organization_slug=target_org.slug,
+        organization_name=target_org.name,
+        role_assigned=role_assigned,
+        group_assigned=group_assigned,
+        access_token=create_access_token(user.username, extra=extra),
+        refresh_token=create_refresh_token(user.username),
         expires_in=ACCESS_TOKEN_TTL_MINUTES * 60,
     )
 

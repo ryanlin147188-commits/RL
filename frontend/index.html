@@ -477,11 +477,6 @@
                     class="flex-1 py-3 text-sm font-medium text-stone-500 border-b-2 border-transparent hover:text-amber-600 transition">
                     <i class="fa-solid fa-key mr-1"></i> 忘記密碼
                 </button>
-                <button type="button" id="authTabRequestAccess" onclick="switchAuthTab('requestAccess')"
-                    class="flex-1 py-3 text-sm font-medium text-stone-500 border-b-2 border-transparent hover:text-amber-600 transition"
-                    title="若沒有邀請碼,可由管理員自動寄一份給你">
-                    <i class="fa-solid fa-paper-plane mr-1"></i> 申請帳號
-                </button>
             </div>
 
             <!-- 登入表單 -->
@@ -568,12 +563,10 @@
                         </button>
                     </div>
                 </div>
-                <div>
-                    <label for="regInviteToken" class="block text-xs font-semibold text-stone-600 mb-1.5">邀請碼 <span class="text-stone-400 font-normal">(若沒有,系統會用 Email 後綴自動歸屬)</span></label>
-                    <input type="text" id="regInviteToken" autocomplete="off" placeholder="貼上管理員給你的邀請碼"
-                        class="w-full px-3 py-2.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition font-mono">
-                    <p class="text-[10px] text-stone-500 mt-1">沒有邀請碼且 Email 後綴沒被任何組織註冊 → 註冊會被拒絕</p>
-                </div>
+                <p class="text-[11px] text-stone-500 bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
+                    <i class="fa-solid fa-circle-info text-amber-500 mt-0.5"></i>
+                    <span>系統會以您的 Email 後綴自動歸屬到對應組織。若您有邀請碼,登入後到 <b>設定 → 兌換邀請碼</b> 輸入即可加入指定組織。</span>
+                </p>
                 <button type="submit" class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-lg font-semibold text-sm shadow-md transition flex items-center justify-center gap-2">
                     <i class="fa-solid fa-user-plus"></i> 建立帳號
                 </button>
@@ -629,33 +622,6 @@
                 <button type="submit" class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-lg font-semibold text-sm shadow-md transition flex items-center justify-center gap-2">
                     <i class="fa-solid fa-rotate"></i> 重設密碼
                 </button>
-            </form>
-
-            <!-- 申請帳號表單(自助式;後端依 email @domain 找到對應組織並寄邀請信) -->
-            <form id="authRequestAccessForm" onsubmit="return authHandleRequestAccess(event)" class="px-8 py-6 space-y-4 hidden">
-                <p class="text-xs text-stone-600 bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
-                    <i class="fa-solid fa-circle-info text-amber-500 mt-0.5"></i>
-                    <span>輸入你的 <b>公司 Email</b>,系統會自動依 Email 後綴找到所屬組織,並寄一份邀請信到你的信箱(內含註冊連結)。</span>
-                </p>
-                <div>
-                    <label for="reqAccessEmail" class="block text-xs font-semibold text-stone-600 mb-1.5">Email <span class="text-rose-500">*</span></label>
-                    <div class="relative">
-                        <i class="fa-solid fa-envelope absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm"></i>
-                        <input type="email" id="reqAccessEmail" required autocomplete="email"
-                            onblur="reqAccessProbeOrg(this.value)" oninput="document.getElementById('reqAccessHint').textContent=''"
-                            class="w-full pl-9 pr-3 py-2.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition">
-                    </div>
-                    <p id="reqAccessHint" class="text-[11px] mt-1 min-h-[14px]" aria-live="polite"></p>
-                </div>
-                <div>
-                    <label for="reqAccessName" class="block text-xs font-semibold text-stone-600 mb-1.5">顯示名稱 <span class="text-stone-400 font-normal">(可選)</span></label>
-                    <input type="text" id="reqAccessName"
-                        class="w-full px-3 py-2.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition">
-                </div>
-                <button type="submit" class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-lg font-semibold text-sm shadow-md transition flex items-center justify-center gap-2">
-                    <i class="fa-solid fa-paper-plane"></i> 寄送邀請信
-                </button>
-                <p class="text-[10px] text-stone-500 text-center">送出後系統會把邀請碼寄到你的 Email,點開連結即可完成註冊。</p>
             </form>
         </div>
     </div>
@@ -3070,6 +3036,22 @@ driver.swipe(100, 800, 100, 200, 500)"
                                 </button>
                             </div>
                         </div>
+                    </section>
+
+                    <!-- 兌換邀請碼 — 任何登入使用者都可以用 -->
+                    <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-6">
+                        <h3 class="font-bold text-stone-700 text-base mb-2 flex items-center gap-2">
+                            <i class="fa-solid fa-key text-amber-500"></i> 兌換邀請碼
+                        </h3>
+                        <p class="text-xs text-stone-500 mb-3">若您收到管理員提供的邀請碼,在這裡貼上即可加入指定組織(會自動套用邀請碼設定的角色與群組)。邀請碼為單次使用,兌換後失效。</p>
+                        <form onsubmit="return redeemInviteSubmit(event)" class="flex flex-col sm:flex-row gap-2">
+                            <input type="text" id="redeemInviteToken" autocomplete="off" placeholder="貼上邀請碼"
+                                class="flex-1 px-3 py-2 border border-stone-300 rounded-md text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-400">
+                            <button type="submit" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold shadow-sm transition flex items-center justify-center gap-2 whitespace-nowrap">
+                                <i class="fa-solid fa-arrow-right-to-bracket"></i> 兌換並切換組織
+                            </button>
+                        </form>
+                        <p id="redeemInviteHint" class="text-[11px] mt-2 min-h-[14px]" aria-live="polite"></p>
                     </section>
 
                     <!-- 登入資訊卡 -->
@@ -9878,17 +9860,10 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('authOverlay').classList.remove('hidden');
             // 把 enabled SSO providers 拉下來畫成按鈕（沒有就保持隱藏）
             try { if (typeof loadSsoButtons === 'function') loadSsoButtons(); } catch (_) {}
-            // URL 帶 ?invite=XXX 或 #register → 自動切到註冊頁並帶入邀請碼
+            // URL 帶 #register → 切到註冊分頁(邀請碼改成登入後在「設定 → 兌換邀請碼」輸入)
             try {
-                const params = new URLSearchParams(window.location.search);
-                const invite = params.get('invite');
-                const wantRegister = invite || (window.location.hash || '').toLowerCase() === '#register';
-                if (wantRegister) {
+                if ((window.location.hash || '').toLowerCase() === '#register') {
                     switchAuthTab('register');
-                    if (invite) {
-                        const tk = document.getElementById('regInviteToken');
-                        if (tk) tk.value = invite;
-                    }
                 }
             } catch (_) {}
         }
@@ -9897,7 +9872,7 @@ driver.swipe(100, 800, 100, 200, 500)"
         }
 
         function switchAuthTab(tab) {
-            const tabs = ['login', 'register', 'forgot', 'requestAccess'];
+            const tabs = ['login', 'register', 'forgot'];
             tabs.forEach(t => {
                 const btn = document.getElementById('authTab' + t.charAt(0).toUpperCase() + t.slice(1));
                 const form = document.getElementById('auth' + t.charAt(0).toUpperCase() + t.slice(1) + 'Form');
@@ -9915,88 +9890,8 @@ driver.swipe(100, 800, 100, 200, 500)"
                 if (tab === 'login') subtitle.textContent = '歡迎回來，請登入以繼續';
                 else if (tab === 'register') subtitle.textContent = '建立新帳號，立即開始自動化測試';
                 else if (tab === 'forgot') subtitle.textContent = '沒關係，我們來幫你重設密碼';
-                else if (tab === 'requestAccess') subtitle.textContent = '輸入公司 Email,系統會寄邀請信到你的信箱';
             }
         }
-
-        // ── 申請帳號(Phase 5) ────────────────────────────────────────────
-        // 失焦時呼 /by-email-domain 讓使用者在送出前就知道會加入哪個組織。
-        async function reqAccessProbeOrg(email) {
-            const hint = document.getElementById('reqAccessHint');
-            if (!hint) return;
-            email = (email || '').trim().toLowerCase();
-            if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
-                hint.textContent = '';
-                return;
-            }
-            try {
-                const r = await window.fetch('/api/organizations/by-email-domain?email=' + encodeURIComponent(email));
-                if (r.status === 404) {
-                    hint.textContent = '找不到對應的組織,請聯絡管理員';
-                    hint.className = 'text-[11px] mt-1 min-h-[14px] text-rose-600';
-                    return;
-                }
-                if (!r.ok) { hint.textContent = ''; return; }
-                const data = await r.json();
-                hint.textContent = '✓ 將自動加入：' + (data.organization_name || data.organization_slug);
-                hint.className = 'text-[11px] mt-1 min-h-[14px] text-emerald-700';
-            } catch (_) {
-                hint.textContent = '';
-            }
-        }
-
-        async function authHandleRequestAccess(ev) {
-            ev.preventDefault();
-            const email = (document.getElementById('reqAccessEmail').value || '').trim();
-            const name = (document.getElementById('reqAccessName').value || '').trim();
-            if (!email) { showToast('請輸入 Email', 'error'); return false; }
-            try {
-                const r = await window.fetch('/api/auth/request-access', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ email, display_name: name || null }),
-                });
-                if (!r.ok) {
-                    const body = await r.json().catch(() => ({}));
-                    let msg = '寄送失敗';
-                    if (body && typeof body.detail === 'object' && body.detail.message) {
-                        msg = body.detail.message;
-                    } else if (body && typeof body.detail === 'string') {
-                        msg = body.detail;
-                    }
-                    showToast(msg, 'error');
-                    return false;
-                }
-                const data = await r.json();
-                showToast(`邀請信已寄出至 ${data.masked_email},請至信箱收信(24 小時內有效)`, 'success');
-                // 寄出後切回登入,避免使用者誤以為已自動登入
-                setTimeout(() => switchAuthTab('login'), 1500);
-            } catch (e) {
-                showToast('寄送失敗：' + e.message, 'error');
-            }
-            return false;
-        }
-
-        // 自動消化 ?token=xxx&email=yyy 的 query param,進入註冊頁時帶入
-        (function _consumeRequestAccessLink() {
-            try {
-                const sp = new URLSearchParams(window.location.search);
-                const tok = sp.get('token');
-                const em = sp.get('email');
-                if (!tok && !em) return;
-                document.addEventListener('DOMContentLoaded', () => {
-                    if (tok) {
-                        const tokInput = document.getElementById('regInviteToken');
-                        if (tokInput) tokInput.value = tok;
-                    }
-                    if (em) {
-                        const emInput = document.getElementById('regEmail');
-                        if (emInput) emInput.value = em;
-                    }
-                    if (typeof switchAuthTab === 'function') switchAuthTab('register');
-                });
-            } catch (_) {}
-        })();
 
         async function authHandleLogin(ev) {
             ev.preventDefault();
@@ -10049,7 +9944,6 @@ driver.swipe(100, 800, 100, 200, 500)"
             const email = document.getElementById('regEmail').value.trim();
             const pwd = document.getElementById('regPassword').value;
             const pwd2 = document.getElementById('regPassword2').value;
-            const inviteToken = (document.getElementById('regInviteToken')?.value || '').trim();
             if (!/^[A-Za-z0-9_]{3,32}$/.test(uname)) {
                 showToast('使用者名稱格式不符(3-32 字元,英數底線)', 'error');
                 return false;
@@ -10058,8 +9952,8 @@ driver.swipe(100, 800, 100, 200, 500)"
                 showToast('兩次密碼輸入不一致', 'error');
                 return false;
             }
-            if (!inviteToken && !email) {
-                showToast('請填邀請碼或 Email(由 Email 後綴自動歸屬到對應組織)', 'error');
+            if (!email) {
+                showToast('請填寫 Email(以 Email 後綴自動歸屬到對應組織)', 'error');
                 return false;
             }
             try {
@@ -10069,8 +9963,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                     body: JSON.stringify({
                         username: uname,
                         password: pwd,
-                        email: email || null,
-                        invite_token: inviteToken || null,
+                        email: email,
                     }),
                 });
                 if (!r.ok) {
@@ -10366,6 +10259,59 @@ driver.swipe(100, 800, 100, 200, 500)"
             };
             _saveUserPrefs(prefs);
             showToast('個人偏好已儲存', 'success');
+        }
+
+        // ─── 兌換邀請碼 ────────────────────────────────────────────────────
+        // POST /api/auth/redeem-invite — switch into the invite's org/role/group.
+        // The endpoint returns a fresh token pair (the JWT's org_id claim
+        // changes), so we replace the local tokens and re-init the project tree.
+        async function redeemInviteSubmit(ev) {
+            ev.preventDefault();
+            const tokenInput = document.getElementById('redeemInviteToken');
+            const hint = document.getElementById('redeemInviteHint');
+            const token = (tokenInput.value || '').trim();
+            if (!token) {
+                showToast('請輸入邀請碼', 'error');
+                return false;
+            }
+            try {
+                const r = await fetch('/api/auth/redeem-invite', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ invite_token: token }),
+                });
+                if (!r.ok) {
+                    const detail = (await r.json().catch(() => ({}))).detail || ('HTTP ' + r.status);
+                    throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
+                }
+                const data = await r.json();
+                // Swap in the freshly-issued tokens so the new org_id flows
+                // into every subsequent /api/* request.
+                if (typeof authSetTokens === 'function') {
+                    authSetTokens(data.access_token, data.refresh_token, data.expires_in);
+                }
+                tokenInput.value = '';
+                let msg = `已加入 ${data.organization_name}`;
+                if (data.role_assigned) msg += `,角色:${data.role_assigned}`;
+                if (data.group_assigned) msg += `,群組:${data.group_assigned}`;
+                showToast(msg, 'success');
+                if (hint) {
+                    hint.textContent = '✓ ' + msg;
+                    hint.className = 'text-[11px] mt-2 min-h-[14px] text-emerald-700';
+                }
+                // Refresh the project tree + home view to reflect the new org's data.
+                if (typeof initProjects === 'function') {
+                    try { await initProjects(); } catch (_) {}
+                }
+                try { if (typeof showHomeView === 'function') showHomeView(); } catch (_) {}
+            } catch (e) {
+                if (hint) {
+                    hint.textContent = '✗ ' + (e.message || e);
+                    hint.className = 'text-[11px] mt-2 min-h-[14px] text-rose-600';
+                }
+                showToast('兌換失敗:' + (e.message || e), 'error');
+            }
+            return false;
         }
 
         // ==================== 觸發來源顯示格式化 ====================
