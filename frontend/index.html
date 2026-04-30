@@ -7453,20 +7453,32 @@ driver.swipe(100, 800, 100, 200, 500)"
                 }
                 const keep = currentProjectId && projectsData[currentProjectId] ? currentProjectId : list[0].id;
                 sel.value = keep;
-                await switchProject(keep);
+                // goHome:false — let the caller's hash-router (window.onload
+                // → _dispatchFromHash) decide which view to land on. Without
+                // this flag, switchProject would call showHomeView() and
+                // then the dispatcher would replace it with e.g. backlog,
+                // producing a visible flash.
+                await switchProject(keep, { goHome: false });
             } catch (e) {
                 showToast(`載入專案列表失敗：${e.message}`, 'error');
             }
         }
 
-        async function switchProject(pid) {
+        async function switchProject(pid, opts) {
+            // opts.goHome (default true): whether to land on the home view
+            // after the tree reloads. Pass {goHome:false} from non-user-
+            // initiated paths (initial bootstrap, tree-refresh after CRUD)
+            // so the user's current view is preserved across these calls.
+            // Without this guard, hash-routed reloads briefly flash the
+            // home view before _dispatchFromHash takes them back to e.g.
+            // 待辦清單/缺陷管理.
+            const goHome = !opts || opts.goHome !== false;
             currentProjectId = pid;
             currentTestCase = null;
-            // 載入專案樹；載入完成後預設顯示「首頁」視圖
             if (!pid) {
                 activeTreeData = [];
                 renderAllTree();
-                try { showHomeView(); } catch (_) { /* fallback */ }
+                if (goHome) { try { showHomeView(); } catch (_) {} }
                 return;
             }
             try {
@@ -7479,8 +7491,11 @@ driver.swipe(100, 800, 100, 200, 500)"
                 activeTreeData = [];
                 renderAllTree();
             }
-            // 切換專案時一律帶到首頁（顯示新專案統計 / 近期案例 / 系統狀態）
-            try { showHomeView(); } catch (_) { /* 若 home 元素缺失則安全略過 */ }
+            // 切換專案時帶到首頁(顯示新專案統計);initProjects 與 CRUD-reload
+            // 路徑會傳 goHome:false 略過。
+            if (goHome) {
+                try { showHomeView(); } catch (_) { /* 若 home 元素缺失則安全略過 */ }
+            }
             // 切專案 → 重載側邊欄測試版號清單(每個 project 各自的版號)
             try { tvReloadList(); } catch (_) {}
         }
@@ -9240,7 +9255,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 showToast('順序已更新', 'success');
             } catch (e) {
                 showToast(`寫回順序失敗：${e.message}`, 'error');
-                await switchProject(currentProjectId);
+                await switchProject(currentProjectId, { goHome: false });
             }
         }
 
@@ -9409,7 +9424,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                         showToast('節點新增成功', 'success');
                     }
                     closeModals();
-                    await switchProject(currentProjectId);
+                    await switchProject(currentProjectId, { goHome: false });
                     return;
                 } catch (e) {
                     showToast(`新增失敗：${e.message}`, 'error');
@@ -9430,7 +9445,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                     });
                     showToast('名稱修改成功', 'success');
                     closeModals();
-                    await switchProject(currentProjectId);
+                    await switchProject(currentProjectId, { goHome: false });
                     return;
                 } catch (e) {
                     showToast(`修改失敗：${e.message}`, 'error');
@@ -9462,7 +9477,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 if (currentTestCase === targetNodeId) currentTestCase = null;
                 showToast('節點已刪除', 'success');
                 closeModals();
-                await switchProject(currentProjectId);
+                await switchProject(currentProjectId, { goHome: false });
             } catch (e) {
                 showToast(`刪除失敗：${e.message}`, 'error');
                 closeModals();
@@ -11136,7 +11151,7 @@ driver.swipe(100, 800, 100, 200, 500)"
             }
             tcListState.selected.clear();
             showToast(`已刪除 ${ok} 筆${fail ? `，失敗 ${fail} 筆` : ''}`, fail ? 'error' : 'success');
-            await switchProject(currentProjectId);
+            await switchProject(currentProjectId, { goHome: false });
             showTestCasesView();
         }
 
@@ -11208,7 +11223,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                     window._tcCreateAttachSteps = null;
                     closeTcCreateModal();
                     // 跳到新案例編輯器(reload 後切到該節點)
-                    await switchProject(currentProjectId);
+                    await switchProject(currentProjectId, { goHome: false });
                     if (typeof loadTestCase === 'function') {
                         await loadTestCase(created.id);
                         currentTestCase = created.id;
@@ -11223,7 +11238,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 } else {
                     showToast('測試案例已建立', 'success');
                     closeTcCreateModal();
-                    await switchProject(currentProjectId);
+                    await switchProject(currentProjectId, { goHome: false });
                     showTestCasesView();
                 }
             } catch (e) {
@@ -11256,7 +11271,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                     body: JSON.stringify({ name: newName })
                 });
                 showToast('名稱已更新', 'success');
-                await switchProject(currentProjectId);
+                await switchProject(currentProjectId, { goHome: false });
                 showTestCasesView();
             } catch (e) {
                 showToast(`更新失敗：${e.message}`, 'error');
@@ -11269,7 +11284,7 @@ driver.swipe(100, 800, 100, 200, 500)"
             try {
                 await apiFetch(`/api/nodes/${encodeURIComponent(id)}`, { method: 'DELETE' });
                 showToast('測試案例已刪除', 'success');
-                await switchProject(currentProjectId);
+                await switchProject(currentProjectId, { goHome: false });
                 showTestCasesView();
             } catch (e) {
                 showToast(`刪除失敗：${e.message}`, 'error');
@@ -13805,7 +13820,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                         }),
                     });
                     showToast(`已自動建立新案例「${name}」(${steps.length} 個步驟)`, 'success');
-                    await switchProject(currentProjectId);
+                    await switchProject(currentProjectId, { goHome: false });
                     if (typeof loadTestCase === 'function') {
                         await loadTestCase(created.id);
                         currentTestCase = created.id;
@@ -18713,7 +18728,7 @@ gantt
                 }
             }
             document.getElementById('aiGenResultModal')?.remove();
-            await switchProject(currentProjectId);
+            await switchProject(currentProjectId, { goHome: false });
             showToast(`AI 建案完成:${success} 成功 / ${fail} 失敗`, success > 0 ? 'success' : 'error');
         }
 
@@ -18785,7 +18800,7 @@ gantt
                 }
             }
             document.getElementById('aiGenResultModal')?.remove();
-            await switchProject(currentProjectId);
+            await switchProject(currentProjectId, { goHome: false });
             showToast(
                 `AI 建案 ${buildOk}/${buildOk+buildFail} 成功;送執行 ${runOk}/${runOk+runFail} 成功`,
                 (buildOk > 0 && runOk > 0) ? 'success' : 'error'
