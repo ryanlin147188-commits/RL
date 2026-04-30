@@ -13302,13 +13302,16 @@ driver.swipe(100, 800, 100, 200, 500)"
 
         function _recRenderVncIframe(info) {
             // Recorder is opened only when the user clicks the
-            // "開啟錄製器(新分頁)" button. We don't auto window.open()
-            // because users prefer explicit control over when the new
-            // tab spawns (popup-blocker UX is also more predictable
-            // when the open is gesture-driven). The card just shows
-            // "容器已啟動" status + the link button.
-            const host = window.location.hostname || 'localhost';
-            const url = `http://${host}:${info.host_port}${info.novnc_path}`;
+            // "開啟錄製器(新分頁)" button. The URL is built from
+            // window.location.origin + the backend-supplied novnc_path,
+            // which is now an *same-origin* path like
+            //   /recorder/<short_id>/vnc_lite.html?path=...
+            // routed by the frontend nginx to the recorder container.
+            // We no longer use the recorder's published host port —
+            // browsers were ERR_EMPTY_RESPONSE'ing on the random high
+            // port (HTTPS-First Mode auto-upgrade hitting nginx with
+            // no TLS), and same-origin sidesteps that completely.
+            const url = window.location.origin + info.novnc_path;
             const openLink = document.getElementById('recDockerOpenLink');
             if (openLink) openLink.href = url;
             document.getElementById('recDockerOpenWrap')?.classList.remove('hidden');

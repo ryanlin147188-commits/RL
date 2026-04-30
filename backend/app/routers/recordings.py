@@ -1327,11 +1327,18 @@ async def docker_start(
     session.status = "RECORDING"
     await db.flush()
 
-    # noVNC lite 連線 URL(查詢字串只是路徑,host 由前端用 window.location 填)
-    # autoconnect=1 + reconnect=1 + resize=remote 是體驗最好的組合
+    # Same-origin proxy URL — the frontend nginx routes
+    # /recorder/<short_id>/<rest> to the recorder container by name.
+    # Browser navigates to a URL on the parent's origin (no random
+    # high port), avoiding HTTPS-First Mode upgrade and PNA preflight.
+    # noVNC's `path` parameter is what the noVNC client appends to its
+    # WebSocket origin — set it to the proxied path so the WS hits the
+    # same /recorder/<short_id>/websockify route.
     from urllib.parse import quote
+    short = session_id[:8]
     novnc_path = (
-        f"/vnc_lite.html?path=websockify"
+        f"/recorder/{short}/vnc_lite.html"
+        f"?path=recorder/{short}/websockify"
         f"&autoconnect=1&reconnect=1&resize=remote"
         f"&password={quote(vnc_password)}"
     )
