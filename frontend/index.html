@@ -13305,15 +13305,14 @@ driver.swipe(100, 800, 100, 200, 500)"
 
         function _recRenderVncIframe(info) {
             // 組 noVNC URL.
-            // 使用 127.0.0.1 而非 window.location.hostname:Chrome 的 HTTPS-First
-            // Mode 會把 `http://localhost:<port>` 自動升級成 `https://`,而 recorder
-            // 的 nginx 沒裝 TLS,連線被 nginx 砍掉 → 瀏覽器顯示 ERR_EMPTY_RESPONSE。
-            // IP literal (127.0.0.1) 不在 HTTPS-upgrade 的範圍內,所以走純 HTTP。
-            // 限制:只在使用者透過 localhost 連到這台機器時有效 — 遠端機器另循
-            //      browser → 反向代理 → 容器 的部署模式,iframe URL 由代理層提供。
-            const userHost = window.location.hostname || '';
-            const isLocal = !userHost || userHost === 'localhost' || userHost === '127.0.0.1' || userHost === '[::1]';
-            const host = isLocal ? '127.0.0.1' : userHost;
+            // iframe hostname **必須跟 parent 一致**(都用 localhost 或都用 127.0.0.1)。
+            // 之前嘗試強制用 127.0.0.1 來繞 HTTPS-First-Mode,反而觸發 Chrome 的
+            // Private Network Access (PNA) 判定為「parent on localhost → iframe on
+            // 127.0.0.1」這種跨 host loopback 請求,送出 OPTIONS preflight,
+            // websockify/nginx 不認 → 連線終結 → ERR_EMPTY_RESPONSE。
+            // 直接用 parent 的 hostname 最穩,nginx-fronted recorder 已經處理掉
+            // 並行 module 載入問題,不用換 host 名來繞。
+            const host = window.location.hostname || 'localhost';
             const url = `http://${host}:${info.host_port}${info.novnc_path}`;
             document.getElementById('recDockerVncFrame').src = url;
             // Pop-out fallback link in case the iframe shows blank
