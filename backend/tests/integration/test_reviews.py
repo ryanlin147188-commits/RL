@@ -103,6 +103,59 @@ async def test_resubmit_after_reject(client, org_a) -> None:
     assert re.json()["current_reason"] is None
 
 
+async def test_revert_rejected_back_to_pending(client, org_a) -> None:
+    """A rejected review can be reverted to pending too -- lets the reviewer
+    re-queue it without requiring the original submitter to re-submit."""
+    submit = await client.post(
+        "/api/reviews",
+        json={"entity_type": "document", "entity_id": "d-rej-rev"},
+        headers=org_a.headers,
+    )
+    record_id = submit.json()["id"]
+    await client.post(
+        f"/api/reviews/{record_id}/reject",
+        json={"reason": "first pass: missing AC"},
+        headers=org_a.headers,
+    )
+
+    # Reason still required when reverting from rejected
+    no_reason = await client.post(
+        f"/api/reviews/{record_id}/revert",
+        json={"reason": "   "},
+        headers=org_a.headers,
+    )
+    assert no_reason.status_code in (400, 422)
+
+    revert = await client.post(
+        f"/api/reviews/{record_id}/revert",
+        json={"reason": "submitter says they fixed it; let me re-look"},
+        headers=org_a.headers,
+    )
+    assert revert.status_code == 200
+    body = revert.json()
+    assert body["status"] == "pending"
+    # current_reason now carries the revert reason, not the rejection reason
+    assert "submitter says" in body["current_reason"]
+
+
+async def test_revert_pending_is_400(client, org_a) -> None:
+    """Reverting a pending review is a no-op error — there's nothing to undo."""
+    submit = await client.post(
+        "/api/reviews",
+        json={"entity_type": "document", "entity_id": "d-already-pending"},
+        headers=org_a.headers,
+    )
+    record_id = submit.json()["id"]
+
+    resp = await client.post(
+        f"/api/reviews/{record_id}/revert",
+        json={"reason": "trying anyway"},
+        headers=org_a.headers,
+    )
+    assert resp.status_code == 400
+    assert "already pending" in resp.json()["detail"]
+
+
 async def test_revert_requires_reason_and_unlocks(client, org_a) -> None:
     submit = await client.post(
         "/api/reviews",

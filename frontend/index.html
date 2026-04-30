@@ -3616,6 +3616,11 @@ driver.swipe(100, 800, 100, 200, 500)"
                             <button type="button" onclick="reviewLoad()" class="px-3 py-1.5 border border-stone-300 rounded-md text-xs hover:bg-violet-50 transition">
                                 <i class="fa-solid fa-rotate"></i> <span data-i18n="common.refresh">重新整理</span>
                             </button>
+                            <button type="button" onclick="reviewExportPng()" title="保存當前列表為 PNG"
+                                class="px-3 py-1.5 border border-violet-300 text-violet-700 rounded-md text-xs hover:bg-violet-50 transition">
+                                <i class="fa-solid fa-camera"></i>
+                                <span data-i18n="review.export.png">截圖匯出</span>
+                            </button>
                             <div class="text-xs text-stone-500 ml-auto">
                                 <span data-i18n="common.total">共</span>
                                 <span id="reviewCount" class="font-bold text-stone-700">0</span>
@@ -7669,6 +7674,7 @@ driver.swipe(100, 800, 100, 200, 500)"
             'review.history.title':   { 'zh-TW': '審核軌跡', 'en': 'Audit Trail' },
             'review.reason.title':    { 'zh-TW': '輸入原因', 'en': 'Reason required' },
             'review.reason.label':    { 'zh-TW': '審核原因', 'en': 'Review reason' },
+            'review.export.png':      { 'zh-TW': '截圖匯出', 'en': 'Export PNG' },
             'common.refresh': { 'zh-TW': '重新整理', 'en': 'Refresh' },
             'common.total':   { 'zh-TW': '共',       'en': 'Total' },
             'common.entries': { 'zh-TW': '筆',       'en': '' },
@@ -10440,10 +10446,12 @@ driver.swipe(100, 800, 100, 200, 500)"
             if (r.status === 'pending') {
                 btns.push(`<button type="button" onclick="reviewApprove('${r.id}')" class="px-2 py-1 text-xs bg-emerald-500 hover:bg-emerald-600 text-white rounded font-semibold"><i class="fa-solid fa-check"></i> ${lc==='en'?'Approve':'通過'}</button>`);
                 btns.push(`<button type="button" onclick="reviewPromptReject('${r.id}')" class="px-2 py-1 text-xs bg-rose-500 hover:bg-rose-600 text-white rounded font-semibold"><i class="fa-solid fa-xmark"></i> ${lc==='en'?'Reject':'拒絕'}</button>`);
-            } else if (r.status === 'approved') {
+            } else {
+                // approved OR rejected -> revert back to pending (with reason).
+                // approved revert opens the entity for editing again; rejected
+                // revert lets the reviewer re-queue it for a second pass.
                 btns.push(`<button type="button" onclick="reviewPromptRevert('${r.id}')" class="px-2 py-1 text-xs bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold"><i class="fa-solid fa-undo"></i> ${lc==='en'?'Revert':'退回'}</button>`);
             }
-            // rejected: 沒有 server 端動作(由提交者重新送審即可),只看歷史
             return `<div class="flex items-center gap-1 justify-center">${btns.join('')}</div>`;
         }
 
@@ -10546,6 +10554,46 @@ driver.swipe(100, 800, 100, 200, 500)"
 
         function reviewCloseHistoryDrawer() {
             document.getElementById('reviewHistoryDrawer').classList.add('hidden');
+        }
+
+        // Built-in screenshot via html2canvas (already bundled with html2pdf).
+        // Edge's "Web Capture" tool sometimes blanks the workspace because
+        // it serializes the DOM at a moment when our flex layout is mid-
+        // recompute -- this button bypasses that by rendering directly to
+        // a canvas and downloading a PNG. Reliable across browsers.
+        async function reviewExportPng() {
+            const lc = _reviewLocale();
+            const target = document.getElementById('reviewWorkspace');
+            if (!target) return;
+            // html2canvas is exposed as window.html2canvas via the html2pdf
+            // bundle. If the CDN is offline, fall back to the browser's
+            // native print dialog which the user can save as PDF.
+            if (typeof html2canvas !== 'function') {
+                showToast(lc==='en'?'html2canvas not loaded; falling back to print':'截圖元件未載入,改開列印對話框', 'warn');
+                window.print();
+                return;
+            }
+            showToast(lc==='en'?'Rendering screenshot…':'正在產生截圖…', 'info');
+            try {
+                // backgroundColor null preserves the violet-50/30 tint;
+                // scale 2 = retina-ish output (otherwise table is blurry).
+                const canvas = await html2canvas(target, {
+                    backgroundColor: '#ffffff',
+                    scale: 2,
+                    logging: false,
+                    useCORS: true,
+                });
+                const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 16);
+                const a = document.createElement('a');
+                a.href = canvas.toDataURL('image/png');
+                a.download = `review-center-${_reviewActiveTab}-${ts}.png`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                showToast(lc==='en'?'Screenshot saved':'截圖已下載', 'success');
+            } catch (e) {
+                showToast(`${lc==='en'?'Capture failed':'截圖失敗'}: ${e.message}`, 'error');
+            }
         }
 
         async function _reviewUpdatePendingBadge() {

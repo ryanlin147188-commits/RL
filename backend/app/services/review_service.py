@@ -238,12 +238,17 @@ async def revert(
     actor: str,
     reason: str,
 ) -> ReviewRecord:
-    """Move an approved record back to pending so the underlying entity is
-    editable again. Reason is required so the audit trail explains why."""
-    if record.status != ReviewStatus.APPROVED:
+    """Move an approved or rejected record back to pending so it can flow
+    through the queue again. Reason is required so the audit trail explains
+    why the reviewer reopened the case (a rejected entity might warrant a
+    second look after the submitter pushed a fix; an approved one might need
+    re-review after a regression).
+
+    Pending -> pending is a no-op error (nothing to revert)."""
+    if record.status == ReviewStatus.PENDING:
         raise HTTPException(
             status_code=400,
-            detail=f"can only revert an approved review (current: {record.status.value})",
+            detail="review is already pending; nothing to revert",
         )
     if not reason or not reason.strip():
         raise HTTPException(status_code=400, detail="revert requires a reason")
