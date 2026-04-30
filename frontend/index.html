@@ -439,10 +439,41 @@
     <div id="toastContainer" class="fixed top-5 right-5 z-[999] flex flex-col gap-2 pointer-events-none"></div>
 
     <!-- ============================================================ -->
-    <!-- 認證覆蓋層（登入 / 註冊 / 忘記密碼）                            -->
-    <!-- 未登入時 authOverlay 顯示並蓋滿全屏；登入後 JS 隱藏它。        -->
+    <!-- 認證覆蓋層(登入 / 註冊 / 忘記密碼)                              -->
+    <!-- 預設**顯示**(無 hidden class),避免重新整理時主畫面短暫閃過。   -->
+    <!-- 下面那段 inline pre-paint script 會在 <body> 開始 render 之前   -->
+    <!-- 同步檢查 localStorage 裡有沒有 token — 有就立刻把 overlay 加上 -->
+    <!-- hidden,登入過的使用者也不會看到 overlay flash。                  -->
     <!-- ============================================================ -->
-    <div id="authOverlay" class="fixed inset-0 z-[200] hidden bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 flex items-center justify-center p-4">
+    <script>
+        // 阻塞式 token 檢查 — 在 DOM render 前同步跑。
+        // 有效 token = 已登入 → overlay 直接 hidden,不閃主畫面前的登入框。
+        // 沒有 token = 未登入 → overlay 維持 visible,不閃主畫面。
+        (function () {
+            try {
+                var t = localStorage.getItem('autotest.auth.access_token');
+                var exp = localStorage.getItem('autotest.auth.access_expires_at');
+                var valid = !!t && (!exp || Date.now() < Number(exp));
+                if (valid) {
+                    document.documentElement.setAttribute('data-auth', 'in');
+                } else {
+                    document.documentElement.setAttribute('data-auth', 'out');
+                }
+            } catch (_) {
+                document.documentElement.setAttribute('data-auth', 'out');
+            }
+        })();
+    </script>
+    <style>
+        /* Pair with the pre-paint script: only one of #authOverlay / the
+           main app body content shows during initial paint, never both. */
+        html[data-auth="in"]  #authOverlay { display: none; }
+        html[data-auth="out"] body > header,
+        html[data-auth="out"] body > main,
+        html[data-auth="out"] #appShell,
+        html[data-auth="out"] [data-app-shell] { visibility: hidden; }
+    </style>
+    <div id="authOverlay" class="fixed inset-0 z-[200] bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 flex items-center justify-center p-4">
         <div class="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-amber-200/60 overflow-hidden">
             <!-- Hero Header -->
             <div class="bg-gradient-to-r from-amber-500 to-orange-500 px-8 py-6 text-white">
@@ -519,12 +550,6 @@
                     <div id="ssoButtons" class="space-y-2"></div>
                 </div>
 
-                <div class="text-[11px] text-stone-500 bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
-                    <i class="fa-solid fa-circle-info text-amber-500 mt-0.5"></i>
-                    <div>
-                        <b>首次部署</b>:沒有預設帳號,請使用 <code class="bg-white px-1.5 rounded border border-amber-200">註冊</code> 分頁建立第一個帳號;若要建立管理員,請參考 README 用 CLI 命令 <code class="bg-white px-1.5 rounded border border-amber-200">python -m app.cli create-admin</code> 開設。
-                    </div>
-                </div>
             </form>
 
             <!-- 註冊表單 -->
@@ -9746,6 +9771,11 @@ driver.swipe(100, 800, 100, 200, 500)"
 
         function authShowOverlay() {
             document.getElementById('authOverlay').classList.remove('hidden');
+            // Pair with the pre-paint script's data-auth attribute on <html>:
+            // flipping to "out" hides the main app shell (header/main) via CSS
+            // so the user doesn't see logged-in content briefly when their
+            // session expires mid-session.
+            document.documentElement.setAttribute('data-auth', 'out');
             // 把 enabled SSO providers 拉下來畫成按鈕（沒有就保持隱藏）
             try { if (typeof loadSsoButtons === 'function') loadSsoButtons(); } catch (_) {}
             // URL 帶 #register → 切到註冊分頁(邀請碼改成登入後在「設定 → 兌換邀請碼」輸入)
@@ -9757,6 +9787,9 @@ driver.swipe(100, 800, 100, 200, 500)"
         }
         function authHideOverlay() {
             document.getElementById('authOverlay').classList.add('hidden');
+            // See authShowOverlay — flip to "in" so the main shell becomes
+            // visible right when the overlay closes.
+            document.documentElement.setAttribute('data-auth', 'in');
         }
 
         function switchAuthTab(tab) {
