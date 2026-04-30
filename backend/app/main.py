@@ -99,6 +99,54 @@ async def _seed_default_roles() -> None:
         await session.commit()
 
 
+async def _heal_admin_user() -> None:
+    """Self-heal the built-in `admin` account so every restart guarantees
+    a working RBAC entry point.
+
+    Why this exists:
+        During development we sometimes flip is_superuser=false to test
+        non-admin code paths or the roles table gets wiped. The next
+        login then 403s because admin has no role and no superuser bit.
+        Walking the user through SQL fixes is annoying. Promote idempotently
+        on every startup so the seed is self-correcting.
+
+    Does not create the admin user — `python -m app.cli create-admin` is
+    still the entry point for first install. We only fix existing rows.
+    """
+    from sqlalchemy import select
+    from app.database import AsyncSessionLocal
+
+    async with AsyncSessionLocal() as session:
+        admin = (
+            await session.execute(select(User).where(User.username == "admin"))
+        ).scalar_one_or_none()
+        if not admin:
+            return  # CLI bootstrap will handle creation
+        admin_role = (
+            await session.execute(
+                select(Role).where(Role.name == "Admin", Role.is_system.is_(True))
+            )
+        ).scalar_one_or_none()
+
+        changed = False
+        if not admin.is_superuser:
+            admin.is_superuser = True
+            changed = True
+        if not admin.is_active:
+            admin.is_active = True
+            changed = True
+        if admin_role and admin.role_id != admin_role.id:
+            admin.role_id = admin_role.id
+            changed = True
+        if changed:
+            await session.commit()
+            import logging
+            logging.getLogger(__name__).info(
+                "admin self-heal: superuser=%s active=%s role_id=%s",
+                admin.is_superuser, admin.is_active, admin.role_id,
+            )
+
+
 async def _seed_default_org_and_backfill() -> None:
     """確保 Default Organization 存在；把所有 organization_id IS NULL 的既有資料掛上去。
 
@@ -184,6 +232,13 @@ async def lifespan(app: FastAPI):
         logging.getLogger(__name__).exception(
             "seed default org / backfill failed: %s", e,
         )
+    try:
+        # Must run AFTER seed_default_roles so the Admin role exists to
+        # attach. Idempotent: no-op when admin is already correct.
+        await _heal_admin_user()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).exception("admin self-heal failed: %s", e)
     try:
         await _warn_if_no_users()
     except Exception as e:
