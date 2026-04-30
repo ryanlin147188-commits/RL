@@ -21,7 +21,9 @@ from __future__ import annotations
 
 from typing import Any, Type, TypeVar
 
-from sqlalchemy import ForeignKey, String, Select, event, select
+from datetime import datetime
+
+from sqlalchemy import DateTime, ForeignKey, String, Select, event, select
 from sqlalchemy.orm import Mapped, Session, declared_attr, mapped_column
 
 from app.auth.context import current_is_superuser, current_org_id
@@ -44,6 +46,37 @@ class TenantScoped:
             nullable=True,
             index=True,
         )
+
+
+class Assignable:
+    """Mixin: adds the four assignee columns shared by every reviewable
+    business object (Review / Defect / TreeNode-as-testcase / Requirement /
+    TestDocument). Mirrors the TodoItem pattern (assignee/assignee_type/
+    assigned_by/assigned_at) so the frontend dropdown that already drives
+    todos can be reused verbatim.
+
+    ``assigned_to``       — username (when type='user') or group_id (when type='group')
+    ``assigned_to_type``  — 'user' | 'group'  (NOT NULL default 'user' to keep
+                            inserts simple even when nobody is assigned)
+    ``assigned_by``       — who issued the assignment (username)
+    ``assigned_at``       — when the assignment happened
+    """
+
+    @declared_attr
+    def assigned_to(cls) -> Mapped[str | None]:
+        return mapped_column(String(80), nullable=True, index=True)
+
+    @declared_attr
+    def assigned_to_type(cls) -> Mapped[str]:
+        return mapped_column(String(10), nullable=False, default="user")
+
+    @declared_attr
+    def assigned_by(cls) -> Mapped[str | None]:
+        return mapped_column(String(80), nullable=True)
+
+    @declared_attr
+    def assigned_at(cls) -> Mapped[datetime | None]:
+        return mapped_column(DateTime, nullable=True)
 
 
 M = TypeVar("M")

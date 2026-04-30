@@ -44,6 +44,8 @@ from app.schemas.auth import (
     LoginRequest,
     RefreshRequest,
     RegisterRequest,
+    RequestAccessRequest,
+    RequestAccessResponse,
     TokenResponse,
     UserCreateRequest,
     UserResponse,
@@ -193,6 +195,151 @@ async def register(
         access_token=create_access_token(new_user.username, extra=extra),
         refresh_token=create_refresh_token(new_user.username),
         expires_in=ACCESS_TOKEN_TTL_MINUTES * 60,
+    )
+
+
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _domain_of(email: str) -> Optional[str]:
+    email = (email or "").strip().lower()
+    if "@" not in email:
+        return None
+    return email.rsplit("@", 1)[1].strip() or None
+
+
+def _mask_email(email: str) -> str:
+    if "@" not in email:
+        return "***"
+    local, _, dom = email.partition("@")
+    if len(local) <= 1:
+        return f"*@{dom}"
+    return f"{local[0]}{'*' * (len(local) - 1)}@{dom}"
+
+
+@router.post(
+    "/auth/request-access",
+    response_model=RequestAccessResponse,
+    status_code=202,
+    tags=["U · 認證"],
+)
+@limiter.limit("5/hour")
+async def request_access(
+    request: Request,
+    payload: RequestAccessRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Anonymous self-service invite.
+
+    Flow:
+      1. Caller posts ``email`` (and optional ``display_name``).
+      2. Server resolves the email's @domain → Organization via
+         ``email_domains``. No match → 400 ``unknown_domain``.
+      3. Server mints a single-use OrgInvite (Viewer role, 24h TTL,
+         email-bound) and enqueues an invite email containing the token.
+      4. Server returns 202 with ``{sent, organization_slug, masked_email}``.
+         The token itself is NEVER in the response — only in the email —
+         so a leaked HTTP log doesn't leak invite redemption power.
+
+    Rate limit: 5/hour per IP (slowapi). Single-email cooldown is enforced
+    inline below so the same address can't be re-mailed in under 60s.
+    """
+    email = (payload.email or "").strip().lower()
+    if not _EMAIL_RE.match(email):
+        raise HTTPException(400, "請輸入有效的 email")
+    domain = _domain_of(email)
+    if not domain:
+        raise HTTPException(400, "請輸入有效的 email")
+
+    # 1) Find the org claiming this domain
+    orgs = (await db.execute(select(Organization))).scalars().all()
+    target_org: Optional[Organization] = None
+    for o in orgs:
+        if not o.email_domains:
+            continue
+        domains = {d.strip().lower() for d in o.email_domains.split(",") if d.strip()}
+        if domain in domains:
+            target_org = o
+            break
+    if not target_org:
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "unknown_domain", "message": "此 email 域名尚未登記任何組織,請聯絡管理員"},
+        )
+
+    # 2) Per-email cooldown: don't re-mail the same address within 60 seconds
+    now = datetime.utcnow()
+    recent = (
+        await db.execute(
+            select(OrgInvite)
+            .where(OrgInvite.email == email)
+            .where(OrgInvite.organization_id == target_org.id)
+            .order_by(OrgInvite.created_at.desc())
+        )
+    ).scalars().first()
+    if recent and recent.email_sent_at and (now - recent.email_sent_at).total_seconds() < 60:
+        raise HTTPException(
+            status_code=429,
+            detail="邀請信已在 1 分鐘內寄出,請稍候再試",
+        )
+
+    # 3) Default to Viewer role (admin can promote later)
+    viewer = (
+        await db.execute(
+            select(Role).where(Role.name == "Viewer", Role.is_system.is_(True))
+        )
+    ).scalar_one_or_none()
+
+    # 4) Mint the invite
+    expires_at = now + timedelta(hours=24)
+    invite_token = "REQ-" + secrets.token_urlsafe(24)
+    invite = OrgInvite(
+        organization_id=target_org.id,
+        token=invite_token,
+        email=email,
+        role_id=viewer.id if viewer else None,
+        expires_at=expires_at,
+        note="self-service request-access",
+        email_sent_at=now,
+        email_sent_to=email,
+    )
+    db.add(invite)
+    await db.flush()
+
+    # 5) Enqueue the invite email (non-blocking; failures logged but ignored)
+    try:
+        from app.services.email_service import render_invite_email
+        from tasks.email_tasks import send_email_task
+
+        # Best-effort register URL: the front-end consumes ?token=&email=
+        # Anchor on the request host so dev/prod both work without config.
+        register_url = (
+            f"{request.url.scheme}://{request.url.netloc}/register"
+            f"?token={invite_token}&email={email}"
+        )
+        html_body, text_body = render_invite_email(
+            org_name=target_org.name,
+            register_url=register_url,
+            token=invite_token,
+            expires_at=expires_at,
+        )
+        send_email_task.delay(
+            to=email,
+            subject=f"您獲邀加入 {target_org.name} (AutoTest)",
+            html_body=html_body,
+            text_body=text_body,
+            organization_id=target_org.id,
+        )
+    except Exception:  # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception(
+            "request-access: invite saved but email enqueue failed for %s", email,
+        )
+
+    return RequestAccessResponse(
+        sent=True,
+        organization_slug=target_org.slug,
+        masked_email=_mask_email(email),
     )
 
 

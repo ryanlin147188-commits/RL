@@ -33,6 +33,39 @@ from app.models.review import (
     ReviewRecord,
     ReviewStatus,
 )
+from app.services.notification_dispatch import notify
+
+
+def _entity_label(record: ReviewRecord) -> str:
+    """Short human label used in notification titles/bodies."""
+    return f"{record.entity_type.value} {record.entity_id[:8]}"
+
+
+async def _notify_review_event(
+    db: AsyncSession,
+    *,
+    record: ReviewRecord,
+    event_key: str,
+    recipient: Optional[str],
+    title: str,
+    body: str,
+    level: str = "info",
+) -> None:
+    """Wrap notify() with the review-specific payload. Silently skips if
+    there's no recipient (e.g. submitted but nobody assigned to review)."""
+    if not recipient:
+        return
+    await notify(
+        db=db,
+        event_key=event_key,
+        recipient=recipient,
+        title=title,
+        body=body,
+        level=level,
+        related_entity_type=record.entity_type.value,
+        related_entity_id=record.entity_id,
+        organization_id=record.organization_id,
+    )
 
 
 # ── Internal helpers ────────────────────────────────────────────────────
@@ -138,6 +171,14 @@ async def submit(
             new_status=ReviewStatus.PENDING,
         )
         await db.flush()
+        await _notify_review_event(
+            db,
+            record=record,
+            event_key="review.submitted",
+            recipient=getattr(record, "assigned_to", None),
+            title=f"待您審核：{_entity_label(record)}",
+            body=f"{submitted_by} 提交了一筆 {record.entity_type.value} 等待審核。",
+        )
         return record
 
     if existing.status == ReviewStatus.PENDING:
@@ -167,6 +208,14 @@ async def submit(
         new_status=ReviewStatus.PENDING,
     )
     await db.flush()
+    await _notify_review_event(
+        db,
+        record=existing,
+        event_key="review.submitted",
+        recipient=getattr(existing, "assigned_to", None),
+        title=f"待您審核：{_entity_label(existing)}",
+        body=f"{submitted_by} 重新提交了一筆 {existing.entity_type.value} 等待審核。",
+    )
     return existing
 
 
@@ -196,6 +245,15 @@ async def approve(
         new_status=ReviewStatus.APPROVED,
     )
     await db.flush()
+    await _notify_review_event(
+        db,
+        record=record,
+        event_key="review.approved",
+        recipient=record.submitted_by,
+        title=f"已通過：{_entity_label(record)}",
+        body=f"{reviewer} 已通過您送出的審核。",
+        level="success",
+    )
     return record
 
 
@@ -228,6 +286,15 @@ async def reject(
         new_status=ReviewStatus.REJECTED,
     )
     await db.flush()
+    await _notify_review_event(
+        db,
+        record=record,
+        event_key="review.rejected",
+        recipient=record.submitted_by,
+        title=f"已退回：{_entity_label(record)}",
+        body=f"{reviewer} 退回您送出的審核。原因：{reason.strip()}",
+        level="warning",
+    )
     return record
 
 
@@ -267,6 +334,15 @@ async def revert(
         new_status=ReviewStatus.PENDING,
     )
     await db.flush()
+    await _notify_review_event(
+        db,
+        record=record,
+        event_key="review.reverted",
+        recipient=record.submitted_by,
+        title=f"已退回審核：{_entity_label(record)}",
+        body=f"{actor} 將此審核退回待審核狀態。原因：{reason.strip()}",
+        level="info",
+    )
     return record
 
 

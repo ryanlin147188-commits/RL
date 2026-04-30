@@ -1,12 +1,11 @@
 """Organization REST endpoints — superuser-only(部分端點開放給組織內 admin)。"""
-from __future__ import annotations
 
 import re
 import secrets
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import asc, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,8 +15,43 @@ from app.database import get_db
 from app.models.org_invite import OrgInvite
 from app.models.organization import Organization
 from app.models.user import User
+from app.rate_limit import limiter
 
 router = APIRouter()
+
+
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _domain_of(email: str) -> Optional[str]:
+    email = (email or "").strip().lower()
+    if "@" not in email:
+        return None
+    return email.rsplit("@", 1)[1].strip() or None
+
+
+async def _org_for_domain(db: AsyncSession, domain: str) -> Optional[Organization]:
+    """Return the Organization whose email_domains list contains `domain`, or None."""
+    if not domain:
+        return None
+    rows = (await db.execute(select(Organization))).scalars().all()
+    for o in rows:
+        if not o.email_domains:
+            continue
+        domains = {d.strip().lower() for d in o.email_domains.split(",") if d.strip()}
+        if domain in domains:
+            return o
+    return None
+
+
+def _mask_email(email: str) -> str:
+    """me@example.com -> m**@example.com (don't leak full address back)."""
+    if "@" not in email:
+        return "***"
+    local, _, dom = email.partition("@")
+    if len(local) <= 1:
+        return f"*@{dom}"
+    return f"{local[0]}{'*' * (len(local) - 1)}@{dom}"
 
 
 class OrgCreate(BaseModel):
@@ -284,6 +318,43 @@ async def create_invite(
     await db.flush()
     await db.refresh(inv)
     return _enrich_invite(inv)
+
+
+# ── Self-service flow (Phase 4) — anonymous endpoints ────────────────────
+
+class ByEmailDomainResponse(BaseModel):
+    organization_id: str
+    organization_slug: str
+    organization_name: str
+
+
+@router.get(
+    "/organizations/by-email-domain",
+    response_model=ByEmailDomainResponse,
+    tags=["X · 組織"],
+)
+@limiter.limit("30/minute")
+async def by_email_domain(
+    request: Request,
+    email: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Anonymous lookup: which org owns this email's @domain?
+
+    Used by the front-end self-service form to show a live hint
+    (\"You will be invited into {org}\") before submission. 404 if the
+    domain is not claimed."""
+    domain = _domain_of(email)
+    if not domain:
+        raise HTTPException(400, "invalid email")
+    org = await _org_for_domain(db, domain)
+    if not org:
+        raise HTTPException(404, "domain not registered")
+    return ByEmailDomainResponse(
+        organization_id=org.id,
+        organization_slug=org.slug,
+        organization_name=org.name,
+    )
 
 
 @router.delete("/invites/{invite_id}", status_code=204, tags=["X · 組織"])

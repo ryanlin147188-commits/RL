@@ -88,6 +88,25 @@ class BootstrapInviteRequest(BaseModel):
     ttl_hours: int = 24
 
 
+class RequestAccessRequest(BaseModel):
+    """Anonymous self-service invite request.
+
+    The caller supplies an email; the server looks up an Organization that
+    claims the email's @domain via Organization.email_domains, mints an
+    invite, and emails the token to the requester. The token is NEVER
+    returned in the HTTP response — only via email — so a third party who
+    learns the email cannot pivot to the invite token without also reading
+    the inbox."""
+    email: str
+    display_name: Optional[str] = None
+
+
+class RequestAccessResponse(BaseModel):
+    sent: bool = True
+    organization_slug: str
+    masked_email: str
+
+
 class BootstrapInviteResponse(BaseModel):
     invite_token: str
     organization_id: str

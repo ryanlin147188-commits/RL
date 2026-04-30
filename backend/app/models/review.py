@@ -33,7 +33,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.auth.tenant import TenantScoped
+from app.auth.tenant import Assignable, TenantScoped
 
 from .base import Base
 
@@ -62,7 +62,7 @@ class ReviewAction(str, enum.Enum):
     REVERT = "revert"   # approved -> pending so the entity is editable again
 
 
-class ReviewRecord(TenantScoped, Base):
+class ReviewRecord(Assignable, TenantScoped, Base):
     """The current review state of one entity. One row per (entity_type, entity_id)
     in a given org.
     """

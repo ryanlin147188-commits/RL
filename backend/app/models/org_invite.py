@@ -43,3 +43,6 @@ class OrgInvite(Base):
     used_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_by: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    # Self-service invite email tracking (Phase 4)
+    email_sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    email_sent_to: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)

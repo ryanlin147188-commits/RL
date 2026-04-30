@@ -488,3 +488,61 @@ async def test_viewer_cannot_approve(client, org_a, viewer_in_a) -> None:
         f"/api/reviews/{record_id}/approve", headers=viewer_in_a.headers
     )
     assert blocked.status_code == 403
+
+
+# ── Notification dispatch (Phase 3 wiring) ─────────────────────────────
+
+async def test_approve_notifies_submitter(client, org_a) -> None:
+    """Approving a record fires a `review.approved` Notification to the
+    original submitter so they know their work cleared."""
+    from sqlalchemy import select
+    from app.database import AsyncSessionLocal
+    from app.models import Notification
+
+    submit = await client.post(
+        "/api/reviews",
+        json={"entity_type": "document", "entity_id": "doc-notify-1"},
+        headers=org_a.headers,
+    )
+    record_id = submit.json()["id"]
+    await client.post(
+        f"/api/reviews/{record_id}/approve", headers=org_a.headers
+    )
+
+    async with AsyncSessionLocal() as db:
+        rows = (await db.execute(
+            select(Notification).where(Notification.recipient == org_a.username)
+        )).scalars().all()
+    assert any(
+        r.event_key == "review.approved" and r.related_entity_id == "doc-notify-1"
+        for r in rows
+    ), "expected a review.approved notification for the submitter"
+
+
+async def test_reject_notifies_submitter_with_reason(client, org_a) -> None:
+    from sqlalchemy import select
+    from app.database import AsyncSessionLocal
+    from app.models import Notification
+
+    submit = await client.post(
+        "/api/reviews",
+        json={"entity_type": "document", "entity_id": "doc-notify-2"},
+        headers=org_a.headers,
+    )
+    record_id = submit.json()["id"]
+    await client.post(
+        f"/api/reviews/{record_id}/reject",
+        json={"reason": "缺失欄位"},
+        headers=org_a.headers,
+    )
+
+    async with AsyncSessionLocal() as db:
+        rows = (await db.execute(
+            select(Notification).where(
+                Notification.recipient == org_a.username,
+                Notification.event_key == "review.rejected",
+                Notification.related_entity_id == "doc-notify-2",
+            )
+        )).scalars().all()
+    assert len(rows) == 1
+    assert "缺失欄位" in (rows[0].body or "")

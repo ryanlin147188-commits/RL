@@ -13,5 +13,9 @@ httpx
 # Spin up real Postgres + Valkey per session for integration tests.
 testcontainers[postgres,redis]==4.8.2
 
+# In-process fake SMTP server for testing the email service without
+# needing an external SMTP host.
+aiosmtpd==1.4.6
+
 # Ruff for static checks (lint rules referenced by RFC-9 land here later).
 ruff==0.7.1

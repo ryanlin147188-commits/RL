@@ -18,7 +18,7 @@ from typing import Any, Optional
 from sqlalchemy import JSON, DateTime, Enum, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.auth.tenant import TenantScoped
+from app.auth.tenant import Assignable, TenantScoped
 from .base import Base
 
 
@@ -47,7 +47,7 @@ class DefectStatus(str, enum.Enum):
     WONT_FIX = "WontFix"
 
 
-class Defect(TenantScoped, Base):
+class Defect(Assignable, TenantScoped, Base):
     __tablename__ = "defects"
 
     id: Mapped[str] = mapped_column(

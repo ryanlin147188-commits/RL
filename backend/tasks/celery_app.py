@@ -13,7 +13,7 @@ celery_app = Celery(
     "autotest_worker",
     broker=settings.CELERY_BROKER_URL,
     backend=settings.CELERY_RESULT_BACKEND,
-    include=["tasks.execution_tasks"],
+    include=["tasks.execution_tasks", "tasks.email_tasks"],
 )
 
 celery_app.conf.update(

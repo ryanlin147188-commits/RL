@@ -33,6 +33,9 @@ _PUBLIC_PATTERNS: list[re.Pattern] = [
     re.compile(r"^/api/auth/refresh$"),
     re.compile(r"^/api/auth/register$"),
     re.compile(r"^/api/auth/bootstrap-invite$"),
+    # Self-service invite (Phase 4): anonymous user requests an invite by email
+    re.compile(r"^/api/auth/request-access$"),
+    re.compile(r"^/api/organizations/by-email-domain$"),
     # OIDC SSO：登入流程整段都不需要既有 token
     re.compile(r"^/api/auth/oidc/providers$"),
     re.compile(r"^/api/auth/oidc/login(/|$)"),

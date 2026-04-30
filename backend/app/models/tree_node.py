@@ -5,7 +5,7 @@ from typing import Optional
 from sqlalchemy import Enum, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.auth.tenant import TenantScoped
+from app.auth.tenant import Assignable, TenantScoped
 from .base import Base
 
 
@@ -28,7 +28,7 @@ LEVEL_HIERARCHY: dict[Optional[LevelType], Optional[LevelType]] = {
 }
 
 
-class TreeNode(TenantScoped, Base):
+class TreeNode(Assignable, TenantScoped, Base):
     __tablename__ = "tree_nodes"
 
     id: Mapped[str] = mapped_column(
