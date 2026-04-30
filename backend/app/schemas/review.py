@@ -39,6 +39,13 @@ class ReviewRecordResponse(BaseModel):
     submitted_at: datetime
     reviewed_by: Optional[str]
     reviewed_at: Optional[datetime]
+    # Phase 2 — assignment metadata. Populated when an admin/owner calls
+    # POST /api/assignments; nullable when nobody owns the review yet.
+    # The dispatch pushes review.submitted notifications to assigned_to.
+    assigned_to: Optional[str] = None
+    assigned_to_type: Optional[str] = None
+    assigned_by: Optional[str] = None
+    assigned_at: Optional[datetime] = None
     organization_id: Optional[str]
     created_at: datetime
     updated_at: datetime

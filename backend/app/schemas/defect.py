@@ -15,7 +15,17 @@ class DefectBase(BaseModel):
     priority: str = "P2"
     status: str = "New"
     reporter: Optional[str] = None
+    # Legacy free-text owner column. Kept for compatibility with existing
+    # data; new writes should go through POST /api/assignments which fills
+    # the assigned_to / assigned_to_type / assigned_by / assigned_at block.
     assignee: Optional[str] = None
+    # Phase 2 — generic assignment fields (mirrors TodoItem pattern). Populated
+    # by /api/assignments; nullable when nobody has been assigned via the
+    # generic endpoint.
+    assigned_to: Optional[str] = None
+    assigned_to_type: Optional[str] = None
+    assigned_by: Optional[str] = None
+    assigned_at: Optional[datetime] = None
     linked_testcase_id: Optional[str] = None
     linked_report_id: Optional[str] = None
     test_version_id: Optional[str] = None

@@ -12,6 +12,12 @@ class TestDocumentBase(BaseModel):
     summary: Optional[str] = None
     owner: Optional[str] = None
     tags: Optional[str] = None
+    # Phase 2 — generic assignment fields. Populated by /api/assignments;
+    # nullable when nobody has been assigned via the generic endpoint.
+    assigned_to: Optional[str] = None
+    assigned_to_type: Optional[str] = None
+    assigned_by: Optional[str] = None
+    assigned_at: Optional[datetime] = None
 
 
 class TestDocumentCreate(TestDocumentBase):

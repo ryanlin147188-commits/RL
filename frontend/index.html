@@ -3593,6 +3593,28 @@ driver.swipe(100, 800, 100, 200, 500)"
                  每個 workspace 都是 hidden 預設；由 show*View() 切換顯示。
                  ════════════════════════════════════════════════════════════════ -->
 
+            <!-- 通用指派對話框(Phase 5)— Review/Defect/TestCase/Requirement/Document 共用 -->
+            <div id="assignPickerModal" class="hidden fixed inset-0 z-[170] bg-black/40 flex items-center justify-center p-4">
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-md border border-amber-200 overflow-hidden">
+                    <div class="px-6 py-4 border-b border-stone-200 bg-amber-50/60 flex items-center justify-between">
+                        <h3 class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-user-tag text-amber-500"></i> 指派</h3>
+                        <button type="button" onclick="closeAssignPicker()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <form onsubmit="return assignPickerSubmit(event)" class="p-6 space-y-4">
+                        <p id="assignPickerSubtitle" class="text-xs text-stone-500"></p>
+                        <div>
+                            <label for="assignPickerSelect" class="block text-xs font-semibold text-stone-600 mb-1">指派給</label>
+                            <select id="assignPickerSelect" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"></select>
+                            <p class="text-[10px] text-stone-500 mt-1">選擇使用者或群組;群組會通知所有成員。清空 = 解除指派。</p>
+                        </div>
+                        <div class="flex justify-end gap-2 pt-2">
+                            <button type="button" onclick="closeAssignPicker()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button>
+                            <button type="submit" id="assignPickerSubmitBtn" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
             <!-- ── 缺陷管理 ── -->
             <div id="defectsWorkspace" class="flex-1 overflow-y-auto p-6 bg-amber-50/30 hidden">
                 <div class="max-w-7xl mx-auto">
@@ -10504,6 +10526,10 @@ driver.swipe(100, 800, 100, 200, 500)"
             reviewLoad();
         }
 
+        // Cache so action handlers (assign, revert, ...) can look up the row's
+        // entity_type / entity_id without an extra round trip.
+        let _reviewRowsCache = [];
+
         async function reviewLoad() {
             const tbody = document.getElementById('reviewListBody');
             const cnt = document.getElementById('reviewCount');
@@ -10514,6 +10540,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 const t = document.getElementById('reviewTypeFilter')?.value;
                 if (t) params.set('entity_type', t);
                 const rows = await apiFetch('/api/reviews?' + params);
+                _reviewRowsCache = rows;
                 cnt.textContent = rows.length;
                 if (!rows.length) {
                     const empty = _reviewLocale()==='en' ? 'No reviews in this state.' : '此狀態下沒有審核紀錄';
@@ -10558,6 +10585,14 @@ driver.swipe(100, 800, 100, 200, 500)"
             const btns = [];
             // 共用:歷史軌跡(改用驚嘆號圖示;點擊跳出 popup modal)
             btns.push(`<button type="button" onclick="reviewOpenHistory('${r.id}')" title="${lc==='en'?'History':'審核軌跡'}" class="px-2 py-1 text-xs border border-stone-300 rounded hover:bg-violet-50 text-violet-600"><i class="fa-solid fa-circle-exclamation"></i></button>`);
+            // 指派:即使審核已通過,assignee 仍可改(metadata,不在 lock 範圍)
+            const assignTitle = r.assigned_to
+                ? `${lc==='en'?'Assigned to':'已指派'}: ${(r.assigned_to_type==='group'?'👥 ':'')}${r.assigned_to}`
+                : (lc==='en' ? 'Assign reviewer' : '指派審核者');
+            const assignCls = r.assigned_to
+                ? 'px-2 py-1 text-xs border border-amber-300 bg-amber-50 text-amber-700 rounded hover:bg-amber-100'
+                : 'px-2 py-1 text-xs border border-stone-300 rounded hover:bg-amber-50 text-amber-600';
+            btns.push(`<button type="button" onclick="reviewOpenAssign('${r.id}')" title="${_esc(assignTitle)}" class="${assignCls}"><i class="fa-solid fa-user-tag"></i></button>`);
 
             if (r.status === 'pending') {
                 btns.push(`<button type="button" onclick="reviewApprove('${r.id}')" class="px-2 py-1 text-xs bg-emerald-500 hover:bg-emerald-600 text-white rounded font-semibold"><i class="fa-solid fa-check"></i> ${lc==='en'?'Approve':'通過'}</button>`);
@@ -10569,6 +10604,22 @@ driver.swipe(100, 800, 100, 200, 500)"
                 btns.push(`<button type="button" onclick="reviewPromptRevert('${r.id}')" class="px-2 py-1 text-xs bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold"><i class="fa-solid fa-undo"></i> ${lc==='en'?'Revert':'退回'}</button>`);
             }
             return `<div class="flex items-center gap-1 justify-center">${btns.join('')}</div>`;
+        }
+
+        function reviewOpenAssign(recordId) {
+            const row = (_reviewRowsCache || []).find(r => r.id === recordId);
+            if (!row) {
+                showToast('找不到審核紀錄', 'error');
+                return;
+            }
+            openAssignPicker({
+                entityType: 'review',
+                entityId: row.id,
+                label: row.entity_name || `${row.entity_type} ${row.entity_id.slice(0, 8)}`,
+                currentAssignee: row.assigned_to,
+                currentAssigneeType: row.assigned_to_type,
+                onSaved: reviewLoad,
+            });
         }
 
         async function reviewApprove(recordId) {
@@ -14708,6 +14759,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                     <td class="p-3 text-xs text-stone-500 font-mono">${(r.created_at||'').slice(0,10)}</td>
                     <td class="p-3 text-center whitespace-nowrap space-x-1">
                         <button onclick="openDefectModal('${_esc(r.id)}')" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded"><i class="fa-solid fa-pen"></i></button>
+                        <button onclick="defectOpenAssign('${_esc(r.id)}')" title="指派" class="text-xs px-2 py-1 bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 rounded"><i class="fa-solid fa-user-tag"></i></button>
                         <button onclick="deleteDefect('${_esc(r.id)}','${_esc(r.code)}')" class="text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded"><i class="fa-solid fa-trash"></i></button>
                     </td>
                 </tr>`).join('');
@@ -14876,6 +14928,19 @@ driver.swipe(100, 800, 100, 200, 500)"
                 showToast('已刪除', 'success');
                 renderDefectsList();
             } catch(e) { showToast('刪除失敗：'+e.message, 'error'); }
+        }
+
+        function defectOpenAssign(id) {
+            const r = (_defectsCache || []).find(x => x.id === id);
+            if (!r) { showToast('找不到缺陷', 'error'); return; }
+            openAssignPicker({
+                entityType: 'defect',
+                entityId: r.id,
+                label: `${r.code} ${r.title || ''}`.trim(),
+                currentAssignee: r.assigned_to || r.assignee,
+                currentAssigneeType: r.assigned_to_type || 'user',
+                onSaved: renderDefectsList,
+            });
         }
 
         // ─── 測試時程 ────────────────────────────────────────────────────
@@ -15464,6 +15529,7 @@ gantt
                         <td class="p-3 text-center whitespace-nowrap space-x-1">
                             <button onclick="aiGenerateForRequirement('${_esc(r.id)}')" class="text-xs px-2 py-1 bg-violet-50 text-violet-600 border border-violet-200 hover:bg-violet-100 rounded" title="AI 生測試案例(直接生 steps_json)"><i class="fa-solid fa-bolt"></i> AI</button>
                             <button onclick="openRequirementModal('${_esc(r.id)}')" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded"><i class="fa-solid fa-pen"></i></button>
+                            <button onclick="requirementOpenAssign('${_esc(r.id)}')" title="指派" class="text-xs px-2 py-1 bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 rounded"><i class="fa-solid fa-user-tag"></i></button>
                             <button onclick="deleteRequirement('${_esc(r.id)}','${_esc(r.code)}')" class="text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded"><i class="fa-solid fa-trash"></i></button>
                         </td>
                     </tr>`;
@@ -15571,6 +15637,19 @@ gantt
                 showToast('已刪除', 'success');
                 renderRequirementsList();
             } catch(e) { showToast('刪除失敗：'+e.message, 'error'); }
+        }
+
+        function requirementOpenAssign(id) {
+            const r = (_requirementsCache || []).find(x => x.id === id);
+            if (!r) { showToast('找不到需求', 'error'); return; }
+            openAssignPicker({
+                entityType: 'requirement',
+                entityId: r.id,
+                label: `${r.code} ${r.title || ''}`.trim(),
+                currentAssignee: r.assigned_to || r.owner,
+                currentAssigneeType: r.assigned_to_type || 'user',
+                onSaved: renderRequirementsList,
+            });
         }
         async function renderRtmMatrix() {
             const table = document.getElementById('rtmMatrixTable');
@@ -16352,6 +16431,7 @@ gantt
                     <td class="p-3 text-xs text-stone-500 font-mono">${(r.updated_at||'').slice(0,16).replace('T',' ')}</td>
                     <td class="p-3 text-center whitespace-nowrap space-x-1">
                         <button onclick="openDocumentEditor('${_esc(r.id)}')" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded"><i class="fa-solid fa-pen"></i></button>
+                        <button onclick="documentOpenAssign('${_esc(r.id)}')" title="指派" class="text-xs px-2 py-1 bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 rounded"><i class="fa-solid fa-user-tag"></i></button>
                         <button onclick="deleteDocument('${_esc(r.id)}','${_esc(r.code)}')" class="text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded"><i class="fa-solid fa-trash"></i></button>
                     </td>
                 </tr>`).join('');
@@ -16555,6 +16635,19 @@ gantt
                 showToast('已刪除', 'success');
                 renderDocumentsList();
             } catch(e) { showToast('刪除失敗：'+e.message, 'error'); }
+        }
+
+        function documentOpenAssign(id) {
+            const r = (_documentsCache || []).find(x => x.id === id);
+            if (!r) { showToast('找不到文件', 'error'); return; }
+            openAssignPicker({
+                entityType: 'document',
+                entityId: r.id,
+                label: `${r.code} ${r.title || ''}`.trim(),
+                currentAssignee: r.assigned_to || r.owner,
+                currentAssigneeType: r.assigned_to_type || 'user',
+                onSaved: renderDocumentsList,
+            });
         }
 
         // ─── WBS (Work Breakdown Structure) ──────────────────────────────
@@ -18988,6 +19081,107 @@ gantt
                 _assignableGroupsCache = await r.json();
             } catch (_) { _assignableGroupsCache = []; }
             return _assignableGroupsCache;
+        }
+
+        // ─── Generic assignment picker (Phase 5) ─────────────────────────
+        // Reusable across Review / Defect / TestCase / Requirement / Document.
+        // Driver: openAssignPicker({entityType, entityId, label, currentAssignee,
+        //                          currentAssigneeType, onSaved})
+        // Backend: POST /api/assignments  (or DELETE if value is cleared)
+        let _assignPickerCtx = null;
+
+        async function openAssignPicker({ entityType, entityId, label, currentAssignee, currentAssigneeType, onSaved }) {
+            _assignPickerCtx = { entityType, entityId, onSaved };
+            const sub = document.getElementById('assignPickerSubtitle');
+            if (sub) sub.textContent = `${entityType} · ${label || entityId}`;
+            const sel = document.getElementById('assignPickerSelect');
+            sel.innerHTML = '<option value="">— 載入中… —</option>';
+            await Promise.all([_loadAssignableUsers(), _loadAssignableGroups()]);
+            const users = _assignableUsersCache || [];
+            const groups = _assignableGroupsCache || [];
+            const opts = ['<option value="">— 不指派 / 解除指派 —</option>'];
+            if (users.length) {
+                opts.push('<optgroup label="使用者">');
+                users.forEach(u => {
+                    const lab = u.display_name ? `${_esc(u.display_name)} (${_esc(u.username)})` : _esc(u.username);
+                    opts.push(`<option value="user:${_esc(u.username)}">${lab}</option>`);
+                });
+                opts.push('</optgroup>');
+            }
+            if (groups.length) {
+                opts.push('<optgroup label="群組(會通知所有成員)">');
+                groups.forEach(g => {
+                    opts.push(`<option value="group:${_esc(g.id)}">👥 ${_esc(g.name)} (${g.member_count || 0} 人)</option>`);
+                });
+                opts.push('</optgroup>');
+            }
+            sel.innerHTML = opts.join('');
+            const composite = currentAssignee ? `${currentAssigneeType || 'user'}:${currentAssignee}` : '';
+            const known = new Set();
+            users.forEach(u => known.add('user:' + u.username));
+            groups.forEach(g => known.add('group:' + g.id));
+            if (composite && !known.has(composite)) {
+                const flag = currentAssigneeType === 'group' ? '群組' : '使用者';
+                const fallback = document.createElement('option');
+                fallback.value = composite;
+                fallback.textContent = `⚠ 舊指派(${flag} ${currentAssignee})`;
+                sel.appendChild(fallback);
+            }
+            sel.value = composite;
+            document.getElementById('assignPickerModal').classList.remove('hidden');
+            setTimeout(() => sel.focus(), 50);
+        }
+
+        function closeAssignPicker() {
+            document.getElementById('assignPickerModal').classList.add('hidden');
+            _assignPickerCtx = null;
+        }
+
+        async function assignPickerSubmit(ev) {
+            ev.preventDefault();
+            if (!_assignPickerCtx) return false;
+            const { entityType, entityId, onSaved } = _assignPickerCtx;
+            const raw = document.getElementById('assignPickerSelect').value || '';
+            const btn = document.getElementById('assignPickerSubmitBtn');
+            if (btn) btn.disabled = true;
+            try {
+                if (!raw) {
+                    // Clear assignment
+                    const url = `/api/assignments?entity_type=${encodeURIComponent(entityType)}&entity_id=${encodeURIComponent(entityId)}`;
+                    const r = await fetch(url, { method: 'DELETE' });
+                    if (!r.ok && r.status !== 204) {
+                        const detail = (await r.json().catch(() => ({}))).detail || ('HTTP ' + r.status);
+                        throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
+                    }
+                    showToast('已解除指派', 'success');
+                } else {
+                    const [type, val] = raw.split(':', 2);
+                    const r = await fetch('/api/assignments', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            entity_type: entityType,
+                            entity_id: entityId,
+                            assignee: val,
+                            assignee_type: type,
+                        }),
+                    });
+                    if (!r.ok) {
+                        const detail = (await r.json().catch(() => ({}))).detail || ('HTTP ' + r.status);
+                        throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
+                    }
+                    showToast('已更新指派', 'success');
+                }
+                closeAssignPicker();
+                if (typeof onSaved === 'function') {
+                    try { await onSaved(); } catch (_) {}
+                }
+            } catch (e) {
+                showToast('指派失敗:' + e.message, 'error');
+            } finally {
+                if (btn) btn.disabled = false;
+            }
+            return false;
         }
 
         function _populateTodoAssigneeOptions(currentVal, currentType) {
