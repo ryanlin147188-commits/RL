@@ -1169,12 +1169,12 @@
                             <span id="recDockerStatus" class="text-xs text-slate-500 self-center"></span>
                         </div>
                         <!-- noVNC 一律以「新分頁」方式開啟,避開 iframe 在不同瀏覽器
-                             遇到的 PNA / HTTPS-First / cross-host 等問題;啟動容器後會
-                             自動 window.open(),若被瀏覽器擋掉就用下面這個區塊手動點。 -->
+                             遇到的 PNA / HTTPS-First / cross-host 等問題。
+                             不自動 window.open() — 使用者點下方按鈕才開。 -->
                         <div id="recDockerOpenWrap" class="hidden border border-rose-200 rounded-md bg-rose-50/40 p-4 flex items-center justify-between gap-3">
                             <div class="text-sm text-stone-700">
                                 <div class="font-semibold mb-1"><i class="fa-solid fa-circle-check text-emerald-500 mr-1"></i> 容器已啟動</div>
-                                <div class="text-xs text-stone-500">若新分頁沒自動跳出(被瀏覽器彈窗攔截),點右側按鈕手動開。</div>
+                                <div class="text-xs text-stone-500">點右側按鈕在新分頁開啟錄製器。完成操作後關閉 Playwright Inspector 視窗,腳本會自動上傳。</div>
                             </div>
                             <a id="recDockerOpenLink" href="#" target="_blank" rel="noopener"
                                 class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded font-medium text-sm flex items-center gap-2 whitespace-nowrap">
@@ -13286,7 +13286,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 _recRenderVncIframe(_recDockerInfo);
                 btn.classList.add('hidden');
                 document.getElementById('recDockerStopBtn').classList.remove('hidden');
-                status.innerHTML = `<span class="text-emerald-600"><i class="fa-solid fa-circle-check"></i> 容器已啟動 (port ${_recDockerInfo.host_port})  · 在 iframe 內操作 → 關閉 Inspector 視窗即自動上傳</span>`;
+                status.innerHTML = `<span class="text-emerald-600"><i class="fa-solid fa-circle-check"></i> 容器已啟動 (port ${_recDockerInfo.host_port}) · 點下方按鈕開啟新分頁,關閉 Inspector 視窗即自動上傳</span>`;
                 showToast('容器已啟動,請在下方畫面內錄製', 'success');
                 _recDockerStartPolling();
             } catch (e) {
@@ -13301,16 +13301,12 @@ driver.swipe(100, 800, 100, 200, 500)"
         }
 
         function _recRenderVncIframe(info) {
-            // Recorder is now ALWAYS opened in a new tab — never iframe.
-            // Embedding noVNC inside the parent SPA via iframe hits a long
-            // tail of browser-level edge cases (HTTPS-First Mode, PNA pre-
-            // flight, Edge's parallel-fetch reset, popup blocker collisions
-            // with downstream codegen calls...). A top-level new tab dodges
-            // all of them: the user gets the full noVNC client at exactly
-            // the URL that already works in curl, and on close of the
-            // Playwright Inspector the recorder still POSTs the script
-            // back to /api/recordings/{id}/upload via internal hostname,
-            // so the parent app receives the upload regardless.
+            // Recorder is opened only when the user clicks the
+            // "開啟錄製器(新分頁)" button. We don't auto window.open()
+            // because users prefer explicit control over when the new
+            // tab spawns (popup-blocker UX is also more predictable
+            // when the open is gesture-driven). The card just shows
+            // "容器已啟動" status + the link button.
             const host = window.location.hostname || 'localhost';
             const url = `http://${host}:${info.host_port}${info.novnc_path}`;
             const openLink = document.getElementById('recDockerOpenLink');
@@ -13318,17 +13314,6 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('recDockerOpenWrap')?.classList.remove('hidden');
             document.getElementById('recDockerIdle').classList.add('hidden');
             document.getElementById('recRecorderBuildBox').classList.add('hidden');
-
-            // Auto-open the recorder. Browsers allow window.open() during
-            // the same task that handled the click on `啟動容器並開始錄製`,
-            // so the popup blocker stays out of the way; the manual
-            // `recDockerOpenLink` covers the rare popup-blocked case.
-            try {
-                const w = window.open(url, '_blank', 'noopener');
-                if (!w) {
-                    showToast('瀏覽器擋住了新分頁,請點下方「開啟錄製器」按鈕', 'warning');
-                }
-            } catch (_) { /* fall through to manual link */ }
         }
 
         // 觸發 / 接管 recorder image build,polling 完 ready 自動重試 docker-start
