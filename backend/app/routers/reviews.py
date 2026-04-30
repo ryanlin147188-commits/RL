@@ -166,7 +166,15 @@ async def list_reviews(
         stmt = stmt.where(ReviewRecord.entity_type == entity_type)
     rows = (await db.execute(stmt)).scalars().all()
     names = await _resolve_entity_names(db, list(rows))
-    return [_to_response(r, names) for r in rows]
+    # Drop orphans whose underlying entity has been deleted. Until v1.1
+    # we showed "實體已刪除" placeholders; ops feedback (2026-04-30) said
+    # that's noise. Cascade-delete in tree_service.recursive_delete
+    # prevents NEW orphans; this filter sweeps any historical ones.
+    return [
+        _to_response(r, names)
+        for r in rows
+        if names.get((r.entity_type.value, r.entity_id)) is not None
+    ]
 
 
 @router.get(

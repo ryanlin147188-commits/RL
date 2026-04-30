@@ -64,11 +64,54 @@ async def get_expected_level(
 async def recursive_delete(db: AsyncSession, node_id: str) -> None:
     """
     刪除節點及其所有子孫節點。
-    依靠資料庫 FK ON DELETE CASCADE 處理巢狀刪除，
-    execution_steps_log.testcase_node_id 設為 ON DELETE SET NULL（保留歷史）。
+    依靠資料庫 FK ON DELETE CASCADE 處理巢狀刪除,
+    execution_steps_log.testcase_node_id 設為 ON DELETE SET NULL(保留歷史)。
+
+    Side effect (RFC-Review-1): also strip any ReviewRecord whose entity_id
+    is somewhere in this subtree. The bulk DELETE below bypasses ORM events
+    so the install_review_autocreate cascade hook never fires; we have to
+    clean those rows explicitly here.
     """
+    # 1) Collect every TESTCASE-level descendant id (only those have reviews).
+    #    Walk the FK chain in SQL so we don't have to round-trip per level.
+    from app.models.review import ReviewableEntityType, ReviewRecord
+
+    descendant_ids = await _collect_testcase_descendants(db, node_id)
+
+    if descendant_ids:
+        await db.execute(
+            sql_delete(ReviewRecord).where(
+                ReviewRecord.entity_type == ReviewableEntityType.TESTCASE,
+                ReviewRecord.entity_id.in_(descendant_ids),
+            ).execution_options(synchronize_session=False)
+        )
+
     await db.execute(
         sql_delete(TreeNode)
         .where(TreeNode.id == node_id)
         .execution_options(synchronize_session=False)
     )
+
+
+async def _collect_testcase_descendants(
+    db: AsyncSession, root_id: str
+) -> list[str]:
+    """Return every TESTCASE-level node id under ``root_id`` (inclusive).
+
+    Uses a single recursive CTE so depth is bounded by SQL, not Python."""
+    from sqlalchemy import text
+
+    stmt = text(
+        """
+        WITH RECURSIVE subtree(id, level_type) AS (
+            SELECT id, level_type FROM tree_nodes WHERE id = :root_id
+            UNION ALL
+            SELECT c.id, c.level_type
+              FROM tree_nodes c
+              JOIN subtree s ON c.parent_id = s.id
+        )
+        SELECT id FROM subtree WHERE level_type = 'TESTCASE'
+        """
+    )
+    result = await db.execute(stmt, {"root_id": root_id})
+    return [row[0] for row in result.fetchall()]
