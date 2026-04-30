@@ -59,3 +59,8 @@ dist/
 *.tar
 *.tar.gz
 
+# ── RFC-11 backup snapshots(含 pg_dump、SeaweedFS volume、加密 .env)──
+# 永遠不入 git;放 S3 / 外部備援。
+backups/
+bundle/
+
