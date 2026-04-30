@@ -1168,20 +1168,17 @@
                             <button id="recDockerStopBtn" onclick="recDockerStop()" class="hidden px-4 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded font-medium text-sm flex items-center gap-2"><i class="fa-solid fa-stop"></i> 停止錄製(關閉容器)</button>
                             <span id="recDockerStatus" class="text-xs text-slate-500 self-center"></span>
                         </div>
-                        <p id="recDockerHint" class="hidden text-[11px] text-stone-500 bg-amber-50 border border-amber-200 rounded p-2 flex items-start gap-2">
-                            <i class="fa-solid fa-circle-info text-amber-500 mt-0.5"></i>
-                            <span>若 iframe 無法顯示,點右上角「<b>在新分頁開啟</b>」即可繼續錄製。</span>
-                        </p>
-                        <!-- iframe 嵌入 noVNC -->
-                        <div id="recDockerVncWrap" class="rec-vnc-wrap hidden border border-rose-200 rounded-md bg-black overflow-hidden relative">
-                            <iframe id="recDockerVncFrame" src="about:blank" allow="fullscreen"
-                                class="w-full h-full block" title="noVNC — 在容器內錄製"></iframe>
-                            <!-- Fallback link: 若 iframe 因瀏覽器/網段問題無法載入 noVNC,
-                                 點這個連結直接在新分頁開,操作起來等同於 iframe 內。 -->
-                            <a id="recDockerVncOpenNew" href="#" target="_blank" rel="noopener"
-                                class="hidden absolute top-2 right-2 z-10 text-[11px] px-2 py-1 rounded bg-white/90 hover:bg-white text-stone-700 border border-stone-300 shadow"
-                                title="iframe 顯示空白時改用新分頁開啟">
-                                <i class="fa-solid fa-arrow-up-right-from-square"></i> 在新分頁開啟
+                        <!-- noVNC 一律以「新分頁」方式開啟,避開 iframe 在不同瀏覽器
+                             遇到的 PNA / HTTPS-First / cross-host 等問題;啟動容器後會
+                             自動 window.open(),若被瀏覽器擋掉就用下面這個區塊手動點。 -->
+                        <div id="recDockerOpenWrap" class="hidden border border-rose-200 rounded-md bg-rose-50/40 p-4 flex items-center justify-between gap-3">
+                            <div class="text-sm text-stone-700">
+                                <div class="font-semibold mb-1"><i class="fa-solid fa-circle-check text-emerald-500 mr-1"></i> 容器已啟動</div>
+                                <div class="text-xs text-stone-500">若新分頁沒自動跳出(被瀏覽器彈窗攔截),點右側按鈕手動開。</div>
+                            </div>
+                            <a id="recDockerOpenLink" href="#" target="_blank" rel="noopener"
+                                class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded font-medium text-sm flex items-center gap-2 whitespace-nowrap">
+                                <i class="fa-solid fa-arrow-up-right-from-square"></i> 開啟錄製器(新分頁)
                             </a>
                         </div>
                         <!-- Image build 進度區塊(image missing 時顯示) -->
@@ -13304,30 +13301,34 @@ driver.swipe(100, 800, 100, 200, 500)"
         }
 
         function _recRenderVncIframe(info) {
-            // 組 noVNC URL.
-            // iframe hostname **必須跟 parent 一致**(都用 localhost 或都用 127.0.0.1)。
-            // 之前嘗試強制用 127.0.0.1 來繞 HTTPS-First-Mode,反而觸發 Chrome 的
-            // Private Network Access (PNA) 判定為「parent on localhost → iframe on
-            // 127.0.0.1」這種跨 host loopback 請求,送出 OPTIONS preflight,
-            // websockify/nginx 不認 → 連線終結 → ERR_EMPTY_RESPONSE。
-            // 直接用 parent 的 hostname 最穩,nginx-fronted recorder 已經處理掉
-            // 並行 module 載入問題,不用換 host 名來繞。
+            // Recorder is now ALWAYS opened in a new tab — never iframe.
+            // Embedding noVNC inside the parent SPA via iframe hits a long
+            // tail of browser-level edge cases (HTTPS-First Mode, PNA pre-
+            // flight, Edge's parallel-fetch reset, popup blocker collisions
+            // with downstream codegen calls...). A top-level new tab dodges
+            // all of them: the user gets the full noVNC client at exactly
+            // the URL that already works in curl, and on close of the
+            // Playwright Inspector the recorder still POSTs the script
+            // back to /api/recordings/{id}/upload via internal hostname,
+            // so the parent app receives the upload regardless.
             const host = window.location.hostname || 'localhost';
             const url = `http://${host}:${info.host_port}${info.novnc_path}`;
-            document.getElementById('recDockerVncFrame').src = url;
-            // Pop-out fallback link in case the iframe shows blank
-            // (ERR_EMPTY_RESPONSE / cross-origin / browser quirks). Functionally
-            // identical: the upload still fires when the user closes the
-            // Playwright Inspector window, regardless of iframe vs new tab.
-            const openLink = document.getElementById('recDockerVncOpenNew');
-            if (openLink) {
-                openLink.href = url;
-                openLink.classList.remove('hidden');
-            }
-            document.getElementById('recDockerVncWrap').classList.remove('hidden');
+            const openLink = document.getElementById('recDockerOpenLink');
+            if (openLink) openLink.href = url;
+            document.getElementById('recDockerOpenWrap')?.classList.remove('hidden');
             document.getElementById('recDockerIdle').classList.add('hidden');
             document.getElementById('recRecorderBuildBox').classList.add('hidden');
-            document.getElementById('recDockerHint')?.classList.remove('hidden');
+
+            // Auto-open the recorder. Browsers allow window.open() during
+            // the same task that handled the click on `啟動容器並開始錄製`,
+            // so the popup blocker stays out of the way; the manual
+            // `recDockerOpenLink` covers the rare popup-blocked case.
+            try {
+                const w = window.open(url, '_blank', 'noopener');
+                if (!w) {
+                    showToast('瀏覽器擋住了新分頁,請點下方「開啟錄製器」按鈕', 'warning');
+                }
+            } catch (_) { /* fall through to manual link */ }
         }
 
         // 觸發 / 接管 recorder image build,polling 完 ready 自動重試 docker-start
@@ -13678,11 +13679,9 @@ driver.swipe(100, 800, 100, 200, 500)"
         function _recDockerResetUI() {
             if (_recDockerPollTimer) { clearInterval(_recDockerPollTimer); _recDockerPollTimer = null; }
             _recDockerInfo = null;
-            document.getElementById('recDockerVncFrame').src = 'about:blank';
-            document.getElementById('recDockerVncWrap').classList.add('hidden');
-            const openLink = document.getElementById('recDockerVncOpenNew');
-            if (openLink) { openLink.href = '#'; openLink.classList.add('hidden'); }
-            document.getElementById('recDockerHint')?.classList.add('hidden');
+            document.getElementById('recDockerOpenWrap')?.classList.add('hidden');
+            const openLink = document.getElementById('recDockerOpenLink');
+            if (openLink) openLink.href = '#';
             document.getElementById('recDockerIdle').classList.remove('hidden');
             document.getElementById('recDockerStopBtn').classList.add('hidden');
             document.getElementById('recDockerStartBtn').classList.remove('hidden');
