@@ -1163,15 +1163,26 @@
                                 <i class="fa-solid fa-wand-magic-sparkles"></i> <b>第一次使用</b>會自動 build image(約 5-10 分鐘),完成後會自動接著啟動容器,你不用手動執行 <code>docker build</code>。
                             </div>
                         </div>
-                        <div class="flex gap-2">
+                        <div class="flex gap-2 flex-wrap">
                             <button id="recDockerStartBtn" onclick="recDockerStart()" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded font-medium text-sm flex items-center gap-2"><i class="fa-solid fa-play"></i> 啟動容器並開始錄製</button>
                             <button id="recDockerStopBtn" onclick="recDockerStop()" class="hidden px-4 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded font-medium text-sm flex items-center gap-2"><i class="fa-solid fa-stop"></i> 停止錄製(關閉容器)</button>
                             <span id="recDockerStatus" class="text-xs text-slate-500 self-center"></span>
                         </div>
+                        <p id="recDockerHint" class="hidden text-[11px] text-stone-500 bg-amber-50 border border-amber-200 rounded p-2 flex items-start gap-2">
+                            <i class="fa-solid fa-circle-info text-amber-500 mt-0.5"></i>
+                            <span>若下方 iframe 顯示空白或「localhost 未傳送任何數據」,點 iframe 右上角的「<b>在新分頁開啟</b>」按鈕,功能完全等同(關閉 Playwright Inspector 視窗後一樣會自動上傳錄製檔)。</span>
+                        </p>
                         <!-- iframe 嵌入 noVNC -->
-                        <div id="recDockerVncWrap" class="rec-vnc-wrap hidden border border-rose-200 rounded-md bg-black overflow-hidden">
+                        <div id="recDockerVncWrap" class="rec-vnc-wrap hidden border border-rose-200 rounded-md bg-black overflow-hidden relative">
                             <iframe id="recDockerVncFrame" src="about:blank" allow="fullscreen"
                                 class="w-full h-full block" title="noVNC — 在容器內錄製"></iframe>
+                            <!-- Fallback link: 若 iframe 因瀏覽器/網段問題無法載入 noVNC,
+                                 點這個連結直接在新分頁開,操作起來等同於 iframe 內。 -->
+                            <a id="recDockerVncOpenNew" href="#" target="_blank" rel="noopener"
+                                class="hidden absolute top-2 right-2 z-10 text-[11px] px-2 py-1 rounded bg-white/90 hover:bg-white text-stone-700 border border-stone-300 shadow"
+                                title="iframe 顯示空白時改用新分頁開啟">
+                                <i class="fa-solid fa-arrow-up-right-from-square"></i> 在新分頁開啟
+                            </a>
                         </div>
                         <!-- Image build 進度區塊(image missing 時顯示) -->
                         <div id="recRecorderBuildBox" class="hidden border border-amber-200 bg-amber-50/40 rounded-md p-4">
@@ -13297,9 +13308,19 @@ driver.swipe(100, 800, 100, 200, 500)"
             const host = window.location.hostname || 'localhost';
             const url = `http://${host}:${info.host_port}${info.novnc_path}`;
             document.getElementById('recDockerVncFrame').src = url;
+            // Pop-out fallback link in case the iframe shows blank
+            // (ERR_EMPTY_RESPONSE / cross-origin / browser quirks). Functionally
+            // identical: the upload still fires when the user closes the
+            // Playwright Inspector window, regardless of iframe vs new tab.
+            const openLink = document.getElementById('recDockerVncOpenNew');
+            if (openLink) {
+                openLink.href = url;
+                openLink.classList.remove('hidden');
+            }
             document.getElementById('recDockerVncWrap').classList.remove('hidden');
             document.getElementById('recDockerIdle').classList.add('hidden');
             document.getElementById('recRecorderBuildBox').classList.add('hidden');
+            document.getElementById('recDockerHint')?.classList.remove('hidden');
         }
 
         // 觸發 / 接管 recorder image build,polling 完 ready 自動重試 docker-start
@@ -13652,6 +13673,9 @@ driver.swipe(100, 800, 100, 200, 500)"
             _recDockerInfo = null;
             document.getElementById('recDockerVncFrame').src = 'about:blank';
             document.getElementById('recDockerVncWrap').classList.add('hidden');
+            const openLink = document.getElementById('recDockerVncOpenNew');
+            if (openLink) { openLink.href = '#'; openLink.classList.add('hidden'); }
+            document.getElementById('recDockerHint')?.classList.add('hidden');
             document.getElementById('recDockerIdle').classList.remove('hidden');
             document.getElementById('recDockerStopBtn').classList.add('hidden');
             document.getElementById('recDockerStartBtn').classList.remove('hidden');
