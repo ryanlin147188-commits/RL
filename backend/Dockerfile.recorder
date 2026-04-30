@@ -34,9 +34,20 @@ RUN ln -snf "/usr/share/zoneinfo/$TZ" /etc/localtime && \
     apt-get install -y --no-install-recommends \
         xvfb x11vnc fluxbox \
         novnc websockify \
+        nginx-light \
         curl ca-certificates \
         dbus-x11 && \
     rm -rf /var/lib/apt/lists/*
+
+# nginx in front of websockify. The default Python websockify HTTP server
+# is single-threaded and can't keep up with browsers fetching all of
+# noVNC's ES module imports in parallel — Edge consistently hits
+# ERR_CONNECTION_RESET, Chrome iframes also fail intermittently. nginx
+# serves the static noVNC files and reverse-proxies WebSocket upgrades
+# to websockify, which now only handles the actual VNC traffic on a
+# loopback-only port (6081). Public port 6080 is served by nginx.
+COPY tasks/recorder_nginx.conf /etc/nginx/conf.d/default.conf
+RUN rm -f /etc/nginx/sites-enabled/default
 
 # Install the playwright Python package — the upstream
 # mcr.microsoft.com/playwright/python:v1.50.0-jammy tag ships only the

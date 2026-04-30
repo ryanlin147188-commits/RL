@@ -28,6 +28,8 @@ cleanup() {
     echo "[recorder] cleanup signal received"
     # codegen 退出後本來就 exit;這裡只處理 docker stop(SIGTERM)情況
     [ -n "${CODEGEN_PID:-}" ] && kill -TERM "$CODEGEN_PID" 2>/dev/null || true
+    [ -n "${NGINX_PID:-}" ]   && kill -TERM "$NGINX_PID"   2>/dev/null || true
+    [ -n "${WS_PID:-}" ]      && kill -TERM "$WS_PID"      2>/dev/null || true
 }
 trap cleanup TERM INT
 
@@ -50,12 +52,22 @@ x11vnc -display :99 \
        -o /tmp/x11vnc.log
 sleep 1
 
-# 4) websockify(內含 noVNC)— 對外 6080,瀏覽器 iframe 連這裡
-websockify --web /usr/share/novnc 6080 localhost:5900 >/tmp/websockify.log 2>&1 &
+# 4a) websockify on loopback :6081 — only handles the WebSocket-upgraded
+#     VNC traffic. nginx serves all the noVNC static files (vnc_lite.html,
+#     core/*, app/*) on the public port :6080 and proxies /websockify to
+#     this process. We don't pass --web so websockify won't compete with
+#     nginx for static-file serving.
+websockify 127.0.0.1:6081 localhost:5900 >/tmp/websockify.log 2>&1 &
 WS_PID=$!
 sleep 1
 
-echo "[recorder] noVNC ready on :6080  display=:99  session=$SESSION_ID"
+# 4b) nginx — public-facing on :6080. config in /etc/nginx/conf.d/default.conf
+#     was COPYed in by the Dockerfile (recorder_nginx.conf).
+nginx -g 'daemon off;' >/tmp/nginx.log 2>&1 &
+NGINX_PID=$!
+sleep 1
+
+echo "[recorder] noVNC ready on :6080 (nginx) → :6081 (websockify) → :5900 (x11vnc)  display=:99  session=$SESSION_ID"
 echo "[recorder] target_url=$TARGET_URL"
 
 # 5) Playwright codegen
