@@ -1,6 +1,7 @@
 """Settings 相關 REST endpoints（Role / Notification / Email / AI Token）。"""
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -292,6 +293,78 @@ async def update_email_config(
     await db.flush()
     await db.refresh(cfg)
     return cfg
+
+
+class _EmailTestRequest(BaseModel):
+    """Body for POST /api/settings/email/test."""
+    to: Optional[str] = None  # default = current user's email
+
+
+class _EmailTestResponse(BaseModel):
+    sent: bool
+    to: str
+    detail: Optional[str] = None
+
+
+@router.post(
+    "/settings/email/test",
+    response_model=_EmailTestResponse,
+    tags=["S · 設定"],
+)
+async def send_test_email(
+    payload: _EmailTestRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Send a small test email using the saved EmailConfig.
+
+    Sync send (not via Celery) so the admin gets immediate pass/fail
+    feedback without polling Celery state. Failures return 4xx with the
+    SMTP error in `detail` so the admin can fix host/port/auth quickly.
+    """
+    target = (payload.to or user.email or "").strip()
+    if not target:
+        raise HTTPException(400, "尚未設定 email,請改用 ?to=... 指定收件者")
+
+    from app.services.email_service import (
+        EmailNotConfigured,
+        EmailSendFailed,
+        send_email_sync,
+    )
+
+    subject = f"AutoTest SMTP 測試信 - {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC"
+    body_text = (
+        "這是一封來自 AutoTest 的 SMTP 測試信。\n\n"
+        f"觸發者:{user.username}\n"
+        f"組織:{user.organization_id or '(none)'}\n"
+        "若您收到此信,代表 EmailConfig 設定正確,通知/邀請信會循同樣管道送達。"
+    )
+    body_html = (
+        "<p>這是一封來自 <b>AutoTest</b> 的 SMTP 測試信。</p>"
+        f"<p>觸發者:<code>{user.username}</code><br>"
+        f"組織:<code>{user.organization_id or '(none)'}</code></p>"
+        "<p>若您收到此信,代表 EmailConfig 設定正確,通知/邀請信會循同樣管道送達。</p>"
+    )
+    try:
+        send_email_sync(
+            db=db,
+            to=target,
+            subject=subject,
+            html_body=body_html,
+            text_body=body_text,
+            organization_id=user.organization_id,
+        )
+    except EmailNotConfigured as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"EmailConfig 尚未啟用或不完整:{exc}",
+        )
+    except EmailSendFailed as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"SMTP 發送失敗:{exc}",
+        )
+    return _EmailTestResponse(sent=True, to=target)
 
 
 # ─── AiTokenConfig ────────────────────────────────────────────────────

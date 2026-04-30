@@ -131,6 +131,55 @@ async def test_request_access_60s_cooldown(client, org_a) -> None:
     assert second.status_code == 429
 
 
+# ── Cross-org domain uniqueness (Phase 4D) ──────────────────────────────
+
+async def test_email_domain_cross_org_unique_enforced(client, org_a, org_b) -> None:
+    """Two orgs cannot both claim the same email_domains entry."""
+    from app.auth.security import create_access_token
+    from app.models.user import User
+    domain = f"shared-{uuid.uuid4().hex[:6]}.test"
+
+    # The PUT /organizations endpoint is superuser-only and reads is_superuser
+    # off the DB row (not JWT claim). Promote both org admins so we can drive
+    # the cross-org write paths.
+    async with AsyncSessionLocal() as db:
+        for uname in (org_a.username, org_b.username):
+            u = (
+                await db.execute(select(User).where(User.username == uname))
+            ).scalar_one()
+            u.is_superuser = True
+        await db.commit()
+
+    su_a_token = create_access_token(
+        org_a.username, extra={"org_id": org_a.org_id, "is_superuser": True}
+    )
+    su_b_token = create_access_token(
+        org_b.username, extra={"org_id": org_b.org_id, "is_superuser": True}
+    )
+
+    # Org A claims domain — succeeds
+    r1 = await client.put(
+        f"/api/organizations/{org_a.org_id}",
+        json={"email_domains": domain},
+        headers={"Authorization": f"Bearer {su_a_token}"},
+    )
+    assert r1.status_code == 200, r1.text
+
+    # Org B tries to claim the same domain — 409
+    r2 = await client.put(
+        f"/api/organizations/{org_b.org_id}",
+        json={"email_domains": domain},
+        headers={"Authorization": f"Bearer {su_b_token}"},
+    )
+    assert r2.status_code == 409
+    body = r2.json()
+    assert isinstance(body["detail"], dict)
+    assert body["detail"]["error"] == "domain_conflict"
+    # The conflicts list should mention the actual conflicting org slug
+    conflicts = body["detail"]["conflicts"]
+    assert any(c["domain"] == domain for c in conflicts)
+
+
 # ── helper ─────────────────────────────────────────────────────────────
 
 async def _get_org_slug(org_id: str) -> str:

@@ -86,6 +86,10 @@ class InviteCreate(BaseModel):
     group_id: Optional[str] = None
     note: Optional[str] = None
     expires_in_days: int = 7  # 預設 7 天過期
+    # Phase 4 follow-up — when True, the server enqueues an invite email
+    # to `email` after minting (uses the same template as /request-access).
+    # Requires `email` to be set; ignored otherwise.
+    send_email: bool = False
 
 
 class InviteResponse(BaseModel):
@@ -137,6 +141,46 @@ def _normalize_domains(raw: Optional[str]) -> Optional[str]:
         seen.add(d)
         cleaned.append(d)
     return ",".join(cleaned) if cleaned else None
+
+
+async def _ensure_no_cross_org_dupe(
+    db: AsyncSession, *, normalized: Optional[str], own_org_id: Optional[str],
+) -> None:
+    """Reject the write if any normalized domain is already claimed by a
+    *different* organization. Same-org rewrites pass through.
+
+    Phase 4D: turns the migration's NOTICE into an actual 409 so two orgs
+    can never silently both own ``acme.com``."""
+    if not normalized:
+        return
+    requested = {d.strip().lower() for d in normalized.split(",") if d.strip()}
+    if not requested:
+        return
+    rows = (await db.execute(select(Organization))).scalars().all()
+    conflicts: list[tuple[str, str]] = []  # (domain, conflicting_org_slug)
+    for o in rows:
+        if o.id == own_org_id or not o.email_domains:
+            continue
+        existing = {d.strip().lower() for d in o.email_domains.split(",") if d.strip()}
+        for d in requested & existing:
+            conflicts.append((d, o.slug))
+    if conflicts:
+        # Sort for deterministic error output, dedupe domain spam.
+        seen: set[str] = set()
+        msg_parts: list[str] = []
+        for d, slug in conflicts:
+            if d in seen:
+                continue
+            seen.add(d)
+            msg_parts.append(f"{d} ↔ {slug}")
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "error": "domain_conflict",
+                "message": "下列 domain 已被其他組織登記:" + ", ".join(msg_parts),
+                "conflicts": [{"domain": d, "owner_org_slug": s} for d, s in conflicts],
+            },
+        )
 
 
 def _match_org_by_email(email: str, orgs: list[Organization]) -> Optional[Organization]:
@@ -194,12 +238,14 @@ async def create_org(
     ).scalar_one_or_none()
     if existing:
         raise HTTPException(409, f"slug「{payload.slug}」已存在")
+    normalized = _normalize_domains(payload.email_domains)
+    await _ensure_no_cross_org_dupe(db, normalized=normalized, own_org_id=None)
     org = Organization(
         slug=payload.slug,
         name=payload.name,
         description=payload.description,
         plan=payload.plan or "free",
-        email_domains=_normalize_domains(payload.email_domains),
+        email_domains=normalized,
     )
     db.add(org)
     await db.flush()
@@ -219,10 +265,16 @@ async def update_org(
     if not org:
         raise HTTPException(404, "Organization not found")
     data = payload.model_dump(exclude_unset=True)
+    # Validate any incoming email_domains BEFORE applying any field, so we
+    # don't half-update on a conflict.
+    if "email_domains" in data:
+        normalized = _normalize_domains(data["email_domains"])
+        await _ensure_no_cross_org_dupe(db, normalized=normalized, own_org_id=org.id)
+        org.email_domains = normalized
     for k, v in data.items():
         if k == "email_domains":
-            org.email_domains = _normalize_domains(v)
-        elif v is not None:
+            continue  # handled above
+        if v is not None:
             setattr(org, k, v)
     await db.flush()
     await db.refresh(org)
@@ -304,19 +356,59 @@ async def create_invite(
 
     days = max(1, min(365, int(payload.expires_in_days or 7)))
     token = secrets.token_urlsafe(24)  # 32-char base64-ish,URL safe
+    expires_at = datetime.utcnow() + timedelta(days=days)
+    target_email = (payload.email or "").strip().lower() or None
     inv = OrgInvite(
         token=token,
         organization_id=target_org_id,
-        email=(payload.email or "").strip().lower() or None,
+        email=target_email,
         role_id=payload.role_id,
         group_id=payload.group_id,
         note=payload.note,
-        expires_at=datetime.utcnow() + timedelta(days=days),
+        expires_at=expires_at,
         created_by=user.username,
     )
     db.add(inv)
     await db.flush()
     await db.refresh(inv)
+
+    # Optional: also email the invite token to the recipient. Mirrors the
+    # /request-access flow — same template, same Celery task. Failures
+    # logged but never bubble; the invite row was already saved successfully.
+    if payload.send_email and target_email:
+        try:
+            from app.services.email_service import render_invite_email
+            from tasks.email_tasks import send_email_task
+
+            # Best-effort URL using the request's host header. Behind a proxy
+            # this resolves to the public origin via X-Forwarded-Host (uvicorn
+            # `--proxy-headers`).
+            register_url = (
+                f"https://{org.slug}/register?token={token}&email={target_email}"
+                if False  # placeholder; admin-driven flow doesn't have a Request handle
+                else f"/register?token={token}&email={target_email}"
+            )
+            html_body, text_body = render_invite_email(
+                org_name=org.name,
+                register_url=register_url,
+                token=token,
+                expires_at=expires_at,
+            )
+            send_email_task.delay(
+                to=target_email,
+                subject=f"您獲邀加入 {org.name} (AutoTest)",
+                html_body=html_body,
+                text_body=text_body,
+                organization_id=org.id,
+            )
+            inv.email_sent_at = datetime.utcnow()
+            inv.email_sent_to = target_email
+            await db.flush()
+        except Exception:  # noqa: BLE001
+            import logging
+            logging.getLogger(__name__).exception(
+                "create_invite: token saved but email enqueue failed for %s", target_email,
+            )
     return _enrich_invite(inv)
 
 

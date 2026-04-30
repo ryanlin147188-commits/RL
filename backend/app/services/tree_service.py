@@ -24,6 +24,15 @@ def build_tree(nodes: list[Any], parent_id: Optional[str] = None) -> list[dict]:
                     "level_type": node.level_type,
                     "name": node.name,
                     "sort_order": node.sort_order,
+                    # Phase 2 — generic assignment metadata. Only TESTCASE
+                    # nodes can be assigned (the router rejects others), but
+                    # the columns exist on every row so we serialise them
+                    # uniformly for simpler front-end caching.
+                    "assigned_to": getattr(node, "assigned_to", None),
+                    "assigned_to_type": getattr(node, "assigned_to_type", None),
+                    "assigned_by": getattr(node, "assigned_by", None),
+                    "assigned_at": getattr(node, "assigned_at", None).isoformat()
+                        if getattr(node, "assigned_at", None) else None,
                     "children": build_tree(nodes, node.id),
                 }
             )

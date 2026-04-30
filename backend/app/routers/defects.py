@@ -154,6 +154,8 @@ async def update_defect(
         db, d.project_id if d else None, user, not_found_detail="Defect not found"
     )
     data = payload.model_dump(exclude_unset=True)
+    prev_status = d.status
+    status_changed_to: Optional[DefectStatus] = None
     for key, val in data.items():
         if key == "severity" and val is not None:
             d.severity = _resolve_enum(DefectSeverity, val, d.severity)
@@ -161,6 +163,8 @@ async def update_defect(
             d.priority = _resolve_enum(DefectPriority, val, d.priority)
         elif key == "status" and val is not None:
             new_status = _resolve_enum(DefectStatus, val, d.status)
+            if new_status != prev_status:
+                status_changed_to = new_status
             d.status = new_status
             # 進入 Closed 自動標記 closed_at
             if new_status == DefectStatus.CLOSED and d.closed_at is None:
@@ -171,6 +175,26 @@ async def update_defect(
             setattr(d, key, val)
     await db.flush()
     await db.refresh(d)
+    # Notify the assignee (or legacy `assignee` text) when status moved.
+    # Errors are swallowed by notify(); never block the user's PUT.
+    if status_changed_to is not None:
+        recipient = d.assigned_to or d.assignee
+        if recipient:
+            from app.services.notification_dispatch import notify
+            await notify(
+                db=db,
+                event_key="defect.status_changed",
+                recipient=recipient,
+                title=f"缺陷狀態變更:{d.code}",
+                body=(
+                    f"{user.username} 將缺陷「{d.title}」的狀態從 "
+                    f"{prev_status.value} 改為 {status_changed_to.value}。"
+                ),
+                level="info",
+                related_entity_type="defect",
+                related_entity_id=d.id,
+                organization_id=d.organization_id,
+            )
     return d
 
 

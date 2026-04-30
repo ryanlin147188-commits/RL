@@ -1100,6 +1100,9 @@
                     <button id="saveBtn" onclick="saveDraft()" class="px-4 py-2 border border-slate-300 rounded-md text-slate-600 hover:bg-slate-50 font-medium transition flex items-center gap-2 shadow-sm">
                         <i class="fa-regular fa-floppy-disk"></i> <span id="saveBtnLabel">儲存</span>
                     </button>
+                    <button id="tcAssignBtn" onclick="testcaseOpenAssign()" title="指派此測試案例" class="px-4 py-2 border border-amber-300 text-amber-700 hover:bg-amber-50 rounded-md font-medium transition flex items-center gap-2 shadow-sm">
+                        <i class="fa-solid fa-user-tag"></i> <span id="tcAssignBtnLabel">指派</span>
+                    </button>
                     <button onclick="runTest()" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium shadow-sm transition flex items-center gap-2">
                         <i class="fa-solid fa-play"></i> 執行測試
                     </button>
@@ -3161,10 +3164,11 @@ driver.swipe(100, 800, 100, 200, 500)"
                                     <label class="flex items-center gap-2 cursor-pointer text-sm text-stone-700"><input type="checkbox" id="emCfgEnabled" class="rounded border-stone-300 text-amber-500 focus:ring-amber-400"> 啟用 Email 通知</label>
                                 </div>
                                 <div class="md:col-span-2 flex justify-end gap-2 mt-2">
+                                    <button type="button" onclick="sendEmailTest()" class="px-4 py-2 border border-amber-300 text-amber-700 hover:bg-amber-50 rounded-md text-sm font-semibold"><i class="fa-solid fa-paper-plane"></i> 寄測試信給自己</button>
                                     <button type="submit" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-floppy-disk"></i> 儲存設定</button>
                                 </div>
                             </form>
-                            <p class="text-[10px] text-stone-500 mt-3"><i class="fa-solid fa-circle-info"></i> 密碼以明文儲存於後端 DB（生產環境建議搭配 KMS 加密；目前為簡化實作）</p>
+                            <p class="text-[10px] text-stone-500 mt-3"><i class="fa-solid fa-circle-info"></i> 密碼以明文儲存於後端 DB（生產環境建議搭配 KMS 加密；目前為簡化實作）。「寄測試信」會以目前儲存設定發信到您帳號的 Email,失敗會顯示 SMTP 錯誤訊息。</p>
                         </section>
                     </div>
 
@@ -3546,6 +3550,10 @@ driver.swipe(100, 800, 100, 200, 500)"
                             <input type="text" id="inviteNote" placeholder="例:給 QA 新人 Alice"
                                 class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm">
                         </div>
+                        <label class="flex items-start gap-2 cursor-pointer text-sm text-stone-700 bg-amber-50/60 border border-amber-200 rounded-md p-3">
+                            <input type="checkbox" id="inviteSendEmail" class="mt-0.5 rounded border-stone-300 text-amber-500 focus:ring-amber-400">
+                            <span><b>同時寄信給對方</b> <span class="text-[10px] text-stone-500">(需有限定 Email,且後台 SMTP 已設定)</span></span>
+                        </label>
                         <div class="flex justify-end gap-2 pt-2">
                             <button type="button" onclick="closeInviteModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button>
                             <button type="submit" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-key"></i> 產生</button>
@@ -17127,6 +17135,59 @@ gantt
             return false;
         }
 
+        async function testcaseOpenAssign() {
+            if (!currentTestCase) {
+                showToast('請先開一個測試案例', 'error');
+                return;
+            }
+            const info = (typeof findNodeInfo === 'function')
+                ? findNodeInfo(activeTreeData, currentTestCase)
+                : null;
+            const node = info ? info.node : null;
+            const label = (testCases[currentTestCase] && testCases[currentTestCase].filename)
+                || (node && node.name)
+                || currentTestCase;
+            openAssignPicker({
+                entityType: 'testcase',
+                entityId: currentTestCase,
+                label: label,
+                currentAssignee: node ? node.assigned_to : null,
+                currentAssigneeType: node ? node.assigned_to_type : null,
+                onSaved: async () => {
+                    // Re-fetch tree so the node's assigned_to refreshes; the
+                    // assign button label is keyed off currentTestCase so just
+                    // re-render the tree and the toolbar will pick up new state.
+                    if (typeof initProjects === 'function') {
+                        try { await initProjects(); } catch (_) {}
+                    }
+                },
+            });
+        }
+
+        async function sendEmailTest() {
+            // Send to caller's account email; fall back to a prompt if blank.
+            const sess = (typeof _authReadSession === 'function') ? _authReadSession() : null;
+            let to = (sess && sess.email) ? sess.email : '';
+            if (!to) {
+                to = (prompt('您的帳號未綁定 Email,請輸入要寄送的測試信地址:') || '').trim();
+                if (!to) return;
+            }
+            try {
+                const r = await fetch('/api/settings/email/test', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ to }),
+                });
+                if (!r.ok) {
+                    const detail = (await r.json().catch(() => ({}))).detail || ('HTTP ' + r.status);
+                    throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
+                }
+                showToast(`測試信已寄出至 ${to}`, 'success');
+            } catch (e) {
+                showToast('寄送失敗:' + e.message, 'error');
+            }
+        }
+
         // ─── AI Token ────────────────────────────────────────────────
         let _aiTokensCache = [];
         let _editingAiTokenId = null;
@@ -17556,6 +17617,8 @@ gantt
             document.getElementById('inviteEmail').value = '';
             document.getElementById('inviteExpires').value = 7;
             document.getElementById('inviteNote').value = '';
+            const sendEmailCb = document.getElementById('inviteSendEmail');
+            if (sendEmailCb) sendEmailCb.checked = false;
             const hint = document.getElementById('inviteEmailHint');
             if (hint) { hint.textContent = ''; hint.className = 'text-[11px] mt-1 min-h-[14px]'; }
             roleSel.value = ''; groupSel.value = '';
@@ -17597,13 +17660,19 @@ gantt
 
         async function inviteSubmit(ev) {
             ev.preventDefault();
+            const sendEmail = !!document.getElementById('inviteSendEmail')?.checked;
             const payload = {
                 email: document.getElementById('inviteEmail').value.trim() || null,
                 role_id: document.getElementById('inviteRole').value || null,
                 group_id: document.getElementById('inviteGroup').value || null,
                 expires_in_days: parseInt(document.getElementById('inviteExpires').value || '7', 10),
                 note: document.getElementById('inviteNote').value.trim() || null,
+                send_email: sendEmail,
             };
+            if (sendEmail && !payload.email) {
+                showToast('勾選「同時寄信」必須填限定 Email', 'error');
+                return false;
+            }
             try {
                 const r = await fetch('/api/invites', {
                     method: 'POST',
