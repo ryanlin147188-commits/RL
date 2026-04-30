@@ -56,4 +56,18 @@ When running AutoTest in production, please ensure:
 - Container images are pinned to specific versions / digests rather than `latest`.
 - Backups of the PostgreSQL volume and SeaweedFS volume are scheduled.
 
+### Self-Service Invite Flow
+
+The endpoints `POST /api/auth/request-access` and `GET /api/organizations/by-email-domain` are intentionally **anonymous** (no Authorization header required) so that prospective users can request access without prior credentials. This widens the public attack surface; please:
+
+- Set each `Organization.email_domains` to **only** domains you actually control (e.g. `acme.com`, not `gmail.com`). Any address whose domain matches will be granted a Viewer-role invite for that org.
+- The same domain MUST NOT be claimed by two organisations. Migration `0004_assignment_invite_email` logs a warning if duplicates exist; clean them up before exposing the endpoint publicly.
+- Built-in rate limits are **5/hour per IP** plus a **60-second per-email cooldown**. If your front-end sits behind a CDN or load balancer, configure `X-Forwarded-For` trust correctly so slowapi sees the real client IP — otherwise all callers share one bucket.
+- The invite token is **never** returned in the HTTP response; it is delivered only by email. Make sure SMTP is actually configured (`Settings → Email`) before announcing the flow, otherwise users receive nothing.
+- Self-service invites are bound to the requesting email and expire in 24 hours. Single-use; cannot be redeemed twice.
+
+### Email Notifications
+
+`notify(...)` writes an in-app `Notification` row unconditionally and enqueues an email **only** when the recipient's `NotificationPreference[event_key].email == True`. SMTP credentials are stored encrypted (Fernet) in `EmailConfig`; rotate `AUTOTEST_FERNET_KEY` carefully — losing it makes existing rows unreadable.
+
 Thank you for helping keep AutoTest and its users safe.
