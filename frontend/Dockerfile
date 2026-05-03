@@ -8,7 +8,8 @@ FROM nginx:1.27-alpine
 # 反代設定(把 /api/、/pics/、/results/、/ws/ 反代到 backend / SeaweedFS)
 COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 
-# SPA 主檔
+# SPA 主檔 + incremental modules
 COPY frontend/index.html /usr/share/nginx/html/index.html
+COPY frontend/js /usr/share/nginx/html/js
 
 EXPOSE 80

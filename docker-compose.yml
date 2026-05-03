@@ -5,7 +5,7 @@ services:
     container_name: autotest-postgres
     restart: unless-stopped
     environment:
-      # 預設帳密 admin / admin123（首次啟動建立 user + database）
+      # 預設 DB user 為 admin；DB_PASSWORD 必須由 .env / deploy.sh 提供。
       POSTGRES_USER: ${DB_USER:-admin}
       POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required - run ./deploy.sh first to generate one}
       POSTGRES_DB: ${DB_NAME:-autotest_db}
@@ -14,9 +14,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       # 註：不掛 init_schema.sql；表結構由 backend lifespan 的 init_db() →
-      # SQLAlchemy create_all() 依 app/models 自動建立（型別 / 欄位永遠與程式同步）。
-    ports:
-      - "5432:5432"
+      # Alembic upgrade head 建立/遷移，避免啟動時散落 raw SQL。
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-admin} -d ${DB_NAME:-autotest_db}"]
       interval: 10s
@@ -29,13 +27,29 @@ services:
     image: valkey/valkey:8-alpine
     container_name: autotest-valkey
     restart: unless-stopped
-    ports:
-      - "6379:6379"
     healthcheck:
       test: ["CMD", "valkey-cli", "ping"]
       interval: 10s
       timeout: 3s
       retries: 5
+
+  # ── Docker API proxy：backend/celery 只連受限 TCP proxy，不直接掛 docker.sock ──
+  docker-proxy:
+    image: tecnativa/docker-socket-proxy:0.3.0
+    container_name: autotest-docker-proxy
+    restart: unless-stopped
+    environment:
+      CONTAINERS: 1
+      IMAGES: 1
+      NETWORKS: 1
+      BUILD: 1
+      POST: 1
+      PING: 1
+      INFO: 1
+      VERSION: 1
+      SYSTEM: 1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
 
   # ── SeaweedFS：原 MinIO，改為 SeaweedFS（Apache 2.0）──────────────────────────
   # 使用 all-in-one 模式（master + volume + filer + s3 一起啟動）
@@ -56,9 +70,6 @@ services:
     configs:
       - source: seaweedfs_s3_config
         target: /etc/seaweedfs/s3-config.json
-    ports:
-      - "8333:8333"   # S3 API
-      - "9333:9333"   # Master / dashboard
     healthcheck:
       # SeaweedFS master 9333 binds IPv4-only；用 127.0.0.1 避免 localhost → IPv6 解析失敗
       test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:9333/cluster/status | grep -q IsLeader || exit 1"]
@@ -97,6 +108,8 @@ services:
         condition: service_healthy
       valkey:
         condition: service_healthy
+      docker-proxy:
+        condition: service_started
     environment:
       TZ: Asia/Taipei
       DB_HOST: postgres
@@ -131,10 +144,7 @@ services:
       RECORDER_NETWORK: ${RECORDER_NETWORK:-autotest_default}
       RECORDER_INTERNAL_BASE_URL: http://backend:8000
       RECORDER_IDLE_TIMEOUT_MIN: 30
-    volumes:
-      # 截圖 / 影片 / Trace / 附件全部存 SeaweedFS,backend 不再需要 PIC volume
-      # 掛入 docker socket,讓 /api/system/status 查 Docker 狀態 + recorder 容器啟停
-      - /var/run/docker.sock:/var/run/docker.sock
+      DOCKER_HOST: tcp://docker-proxy:2375
     ports:
       - "8000:8000"
       # 動態錄製容器會 publish 到 host 的 6080-6200 區段 port,不用在 backend 區塊另外 expose
@@ -150,6 +160,8 @@ services:
         condition: service_healthy
       valkey:
         condition: service_healthy
+      docker-proxy:
+        condition: service_started
     environment:
       TZ: Asia/Taipei
       DB_HOST: postgres
@@ -171,10 +183,7 @@ services:
       ROBOT_RUNNER_IMAGE: ${ROBOT_RUNNER_IMAGE:-autotest-robot-runner:1.0.0}
       # 與下方 networks.default.name 保持一致
       ROBOT_RUNNER_NETWORK: ${ROBOT_RUNNER_NETWORK:-autotest_default}
-    volumes:
-      # Celery worker 透過 storage_service 直接寫 SeaweedFS,不需 PIC volume
-      # 把 host 的 docker daemon 開放給 celery worker 用（spawn 子容器時呼叫）
-      - /var/run/docker.sock:/var/run/docker.sock
+      DOCKER_HOST: tcp://docker-proxy:2375
 
   frontend:
     image: nginx:1.27-alpine
@@ -187,6 +196,7 @@ services:
     volumes:
       - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./frontend/index.html:/usr/share/nginx/html/index.html:ro
+      - ./frontend/js:/usr/share/nginx/html/js:ro
 
   # ── Apache APISIX：API 閘道器（Apache 2.0；standalone YAML 模式，不需 etcd）──
   apisix:
@@ -201,7 +211,8 @@ services:
     ports:
       - "9080:9080"   # gateway 對外 port
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:9080/healthz | grep -q ok || exit 1"]
+      # APISIX image does not include wget/curl; use bash's /dev/tcp.
+      test: ["CMD-SHELL", "bash -ec 'exec 3<>/dev/tcp/127.0.0.1/9080; printf \"GET /healthz HTTP/1.1\\r\\nHost: 127.0.0.1\\r\\nConnection: close\\r\\n\\r\\n\" >&3; grep -q ok <&3'"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -218,8 +229,6 @@ services:
       - "-httpListenAddr=:9428"
     volumes:
       - victoria_logs_data:/victoria-logs-data
-    ports:
-      - "9428:9428"   # HTTP API + vmui 面板（http://localhost:9428/select/vmui/）
     healthcheck:
       test: ["CMD", "wget", "-q", "-O-", "http://127.0.0.1:9428/health"]
       interval: 10s

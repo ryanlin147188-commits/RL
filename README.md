@@ -53,7 +53,7 @@ The deploy script will:
 |---|---|
 | Web UI | <http://localhost> |
 | REST API (Swagger) | <http://localhost:8000/docs> |
-| Logs (VictoriaLogs) | <http://localhost:9428> |
+| Logs (VictoriaLogs) | Internal by default; expose with `docker-compose.dev.yml` for local debugging |
 
 **First login**: the platform does not ship a hard-coded admin account. After first boot, run the bootstrap command shown in the console (or `docker compose exec backend python -m app.cli create-admin`) and pick your own username / password.
 

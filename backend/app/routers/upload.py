@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.tenant import TenantQuery
 from app.database import get_db
 from app.models.execution_step_log import ExecutionStepLog
+from app.services.artifact_urls import sign_artifact_url
 from app.services.storage_service import save_screenshot
 
 router = APIRouter()
@@ -19,10 +20,11 @@ async def upload_screenshot(
 ):
     """
     內部 API：自動化腳本（Playwright）截圖後上傳此端點。
-    圖片存入 PIC 資料夾，URL 寫回 execution_steps_log。
+    圖片存入 artifact storage，原始 URL 寫回 execution_steps_log；
+    回應給呼叫端的是短效 signed URL。
     """
     result = await db.execute(
-        select(ExecutionStepLog).where(ExecutionStepLog.id == step_id)
+        TenantQuery.for_(ExecutionStepLog).where(ExecutionStepLog.id == step_id)
     )
     step = result.scalar_one_or_none()
     if step is None:
@@ -36,4 +38,4 @@ async def upload_screenshot(
         step.post_screenshot_url = url
 
     await db.flush()
-    return {"url": url, "step_id": step_id, "type": screenshot_type}
+    return {"url": sign_artifact_url(url), "step_id": step_id, "type": screenshot_type}

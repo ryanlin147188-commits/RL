@@ -2,7 +2,7 @@
 系統狀態 API — 提供首頁儀表板使用。
 
 資料來源：
-1. **docker SDK**（透過掛載 /var/run/docker.sock）：
+1. **docker SDK**（透過 DOCKER_HOST 連到受限 docker-socket-proxy）：
    - Docker daemon 資訊（版本、映像、容器數）
    - 所有 `autotest-*` 容器的 CPU / 記憶體 / 網路 stats（逐容器抓 → 加總 = 平台總用量）
    - Host 資訊（NCPU、MemTotal）
@@ -35,6 +35,10 @@ _PLATFORM_PREFIX = "autotest-"
 # 上次取樣：做差值計算網路速率
 _prev_net: dict[str, Any] | None = None
 
+# 上次 CPU counter：使用 Docker one_shot stats 時不等待第二筆樣本，改由
+# 後端在兩次輪詢之間自行計算 CPU delta，避免首頁卡在 Docker stats。
+_prev_cpu: dict[str, dict[str, int]] = {}
+
 
 def _read_disk() -> dict[str, Any] | None:
     """讀取根檔案系統的磁碟使用狀況（掛 docker data root）。"""
@@ -54,14 +58,29 @@ def _read_disk() -> dict[str, Any] | None:
         return None
 
 
-def _calc_cpu_percent(stats: dict[str, Any]) -> float:
+def _calc_cpu_percent(container_id: str, stats: dict[str, Any]) -> float:
     """把 docker stats 的原始計數換算成 CPU %（單一容器）。"""
+    global _prev_cpu
     try:
         cpu = stats["cpu_stats"]
-        pre = stats["precpu_stats"]
-        cpu_total = cpu["cpu_usage"]["total_usage"] - pre["cpu_usage"]["total_usage"]
-        sys_total = cpu["system_cpu_usage"] - pre["system_cpu_usage"]
+        cpu_usage = int(cpu["cpu_usage"]["total_usage"])
+        sys_usage = int(cpu.get("system_cpu_usage") or 0)
         online = cpu.get("online_cpus") or len(cpu["cpu_usage"].get("percpu_usage") or [1]) or 1
+
+        pre = stats.get("precpu_stats") or {}
+        pre_cpu = ((pre.get("cpu_usage") or {}).get("total_usage")) if pre else None
+        pre_sys = pre.get("system_cpu_usage") if pre else None
+        if not pre_cpu or not pre_sys:
+            prev = _prev_cpu.get(container_id)
+            pre_cpu = prev["cpu"] if prev else None
+            pre_sys = prev["system"] if prev else None
+
+        _prev_cpu[container_id] = {"cpu": cpu_usage, "system": sys_usage}
+        if pre_cpu is None or pre_sys is None:
+            return 0.0
+
+        cpu_total = cpu_usage - int(pre_cpu)
+        sys_total = sys_usage - int(pre_sys)
         if cpu_total > 0 and sys_total > 0:
             return round((cpu_total / sys_total) * online * 100.0, 1)
     except Exception:
@@ -98,10 +117,18 @@ def _collect_platform_stats() -> dict[str, Any]:
         total_tx = 0
         for c in autotest:
             try:
-                s = c.stats(stream=False)
+                # Docker Desktop for Mac can take 1-2s per container when
+                # stats waits for a fresh sample. one_shot returns current
+                # counters immediately; CPU deltas are computed above.
+                s = client.api.stats(c.id, stream=False, one_shot=True)
+            except TypeError:
+                try:
+                    s = c.stats(stream=False)
+                except Exception:
+                    continue
             except Exception:
                 continue
-            cpu = _calc_cpu_percent(s)
+            cpu = _calc_cpu_percent(c.id, s)
             mem_usage = int(s.get("memory_stats", {}).get("usage", 0))
             # 扣掉 cache 讓數字更貼近「實際工作集記憶體」
             mem_cache = int(s.get("memory_stats", {}).get("stats", {}).get("inactive_file", 0))

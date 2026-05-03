@@ -2,7 +2,7 @@
 
 key 是 step UUID（即 ``testcase_contents.steps_json[i].id``）；前端在使用者按
 「設為基準」時呼叫此 API：
-  - PUT （上傳檔案 multipart）：把使用者選的 PNG 存到 MinIO 並寫進 DB
+  - PUT （上傳檔案 multipart）：把使用者選的 PNG 存到 artifact storage 並寫進 DB
   - GET ：回傳當前 baseline URL 與門檻
   - DELETE：移除 baseline，下次執行時 listener 會 auto-save 當下截圖當新 baseline
 """
@@ -13,11 +13,12 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
-from app.auth.scope import ensure_object_in_scope_via_parent, ensure_project_in_scope
+from app.auth.scope import ensure_object_in_scope_via_parent
 from app.database import get_db
 from app.models.step_screenshot_baseline import StepScreenshotBaseline
 from app.models.tree_node import TreeNode
 from app.models.user import User
+from app.services.artifact_urls import sign_artifact_url
 from app.services.storage_service import save_bytes
 
 router = APIRouter()
@@ -29,6 +30,15 @@ class BaselineResponse(BaseModel):
     testcase_node_id: Optional[str]
     baseline_url: str
     threshold_pct: float
+
+
+def _baseline_to_response(obj: StepScreenshotBaseline) -> dict:
+    return {
+        "step_uuid": obj.step_uuid,
+        "testcase_node_id": obj.testcase_node_id,
+        "baseline_url": sign_artifact_url(obj.baseline_url),
+        "threshold_pct": obj.threshold_pct,
+    }
 
 
 async def _check_baseline_scope(
@@ -58,7 +68,7 @@ async def get_baseline(
     if obj is None:
         return None  # 200 with body null
     await _check_baseline_scope(obj, user, db)
-    return obj
+    return _baseline_to_response(obj)
 
 
 @router.put("/steps/{step_uuid}/baseline", response_model=BaselineResponse)
@@ -110,11 +120,11 @@ async def upsert_baseline(
             obj.testcase_node_id = testcase_node_id
     await db.flush()
     await db.refresh(obj)
-    return obj
+    return _baseline_to_response(obj)
 
 
 class CopyFromUrlRequest(BaseModel):
-    """把已經在 MinIO 上的某張截圖（執行報告內的 actual / pre / post）直接設為 baseline。"""
+    """把已經在 artifact storage 的某張截圖直接設為 baseline。"""
     source_url: str
     threshold_pct: float = 1.0
     testcase_node_id: Optional[str] = None
@@ -127,7 +137,7 @@ async def copy_from(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """從現有 URL 複製成 baseline(透過 backend 從 MinIO 讀後再存到 baseline key)。"""
+    """從現有 URL 複製成 baseline(透過 backend 從 object storage 讀後再存到 baseline key)。"""
     if payload.testcase_node_id:
         await ensure_object_in_scope_via_parent(
             db, TreeNode, payload.testcase_node_id, user,
@@ -138,17 +148,16 @@ async def copy_from(
             status_code=400,
             detail="testcase_node_id is required for baseline copy-from outside superuser context",
         )
-    import re
+    from urllib.parse import urlsplit
 
-    import httpx  # FastAPI 已經依賴 httpx
-
-    # 解析 source_url，從 /results/<key> 取出 key 直接從 MinIO 讀（避免穿過 nginx 多繞一圈）
-    m = re.match(r"^https?://[^/]+(/results/.+)$", payload.source_url) or re.match(
-        r"^(/results/.+)$", payload.source_url
-    )
-    if not m:
+    # 解析 source_url，從 /results/<key> 取出 key 直接從 object storage 讀。
+    parsed = urlsplit(payload.source_url)
+    source_path = parsed.path or payload.source_url
+    if not source_path.startswith("/results/"):
         raise HTTPException(status_code=400, detail=f"source_url 必須是 /results/... 形式，收到 {payload.source_url}")
-    key = m.group(1)[len("/results/"):]
+    key = source_path[len("/results/"):]
+    if not key or key.startswith("/") or ".." in key.split("/"):
+        raise HTTPException(status_code=400, detail="source_url path 不合法")
 
     from app.config import settings
     if (settings.STORAGE_BACKEND or "local").lower() != "minio":
@@ -166,7 +175,7 @@ async def copy_from(
         obj_get = s3.get_object(Bucket="results", Key=key)
         data = obj_get["Body"].read()
     except Exception as e:
-        raise HTTPException(status_code=404, detail=f"無法從 MinIO 讀取 source_url: {e}")
+        raise HTTPException(status_code=404, detail=f"無法從 object storage 讀取 source_url: {e}")
 
     new_key = f"baselines/{step_uuid}.png"
     url = save_bytes(data, new_key, bucket="results", content_type="image/png")
@@ -187,7 +196,7 @@ async def copy_from(
             obj.testcase_node_id = payload.testcase_node_id
     await db.flush()
     await db.refresh(obj)
-    return obj
+    return _baseline_to_response(obj)
 
 
 @router.delete("/steps/{step_uuid}/baseline", status_code=204)
@@ -200,6 +209,6 @@ async def delete_baseline(
     if obj is None:
         return  # 204 anyway
     await _check_baseline_scope(obj, user, db)
-    # 不主動刪除 MinIO 上的物件(萬一其他 report 還引用);只移除 DB 紀錄
+    # 不主動刪除 object storage 上的物件(萬一其他 report 還引用);只移除 DB 紀錄
     await db.delete(obj)
     await db.flush()

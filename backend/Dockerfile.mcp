@@ -22,13 +22,14 @@ USER root
 
 ENV DEBIAN_FRONTEND=noninteractive \
     TZ=Asia/Taipei \
-    NODE_ENV=production
+    NODE_ENV=production \
+    PLAYWRIGHT_MCP_VERSION=0.0.69
 
 # 預先把 @playwright/mcp 全域裝起來,啟動更快
-RUN npm install -g @playwright/mcp@latest 2>&1 | tail -5 || true
+RUN npm install -g @playwright/mcp@${PLAYWRIGHT_MCP_VERSION} 2>&1 | tail -5 || true
 
 EXPOSE 8931
 
 # 預設啟 SSE 模式;backend 啟容器時可 override 端口
 # --port 8931:SSE 監聽;--host 0.0.0.0 讓外部連得進
-ENTRYPOINT ["npx", "-y", "@playwright/mcp@latest", "--port", "8931", "--host", "0.0.0.0"]
+ENTRYPOINT ["sh", "-c", "exec npx -y @playwright/mcp@${PLAYWRIGHT_MCP_VERSION} --port 8931 --host 0.0.0.0"]

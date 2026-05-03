@@ -35,11 +35,10 @@ routes:
       request-id:
         include_in_response: true
       cors:
-        # Production must set ALLOWED_ORIGINS in .env to a comma-separated
-        # list (e.g. "https://app.example.com,https://admin.example.com").
-        # Standalone mode evaluates $ENV at file-load, falling back to
-        # localhost for dev.
-        allow_origins: "${ALLOWED_ORIGINS:-http://localhost,http://localhost:9080}"
+        # Keep this as a concrete comma-separated list. APISIX standalone
+        # validates this YAML directly and does not expand shell-style
+        # ${VAR:-default} placeholders.
+        allow_origins: "http://localhost,http://localhost:9080"
         allow_methods: "GET,POST,PUT,PATCH,DELETE,HEAD,OPTIONS"
         allow_headers: "*"
         allow_credential: true
@@ -81,7 +80,7 @@ routes:
       request-id:
         include_in_response: true
       cors:
-        allow_origins: "${ALLOWED_ORIGINS:-http://localhost,http://localhost:9080}"
+        allow_origins: "http://localhost,http://localhost:9080"
         allow_credential: true
 
   # Liveness: APISIX answers locally so a missing backend cannot break LB checks.

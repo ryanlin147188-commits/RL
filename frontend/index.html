@@ -17,8 +17,13 @@
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
     <script>
         if (typeof mermaid !== 'undefined') {
-            mermaid.initialize({ startOnLoad: false, securityLevel: 'loose', theme: 'default' });
+            mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: 'default' });
         }
+    </script>
+    <script type="module">
+        import "/js/core/auth.js";
+        import "/js/core/api.js";
+        import "/js/core/store.js";
     </script>
     <script>
         tailwind.config = {
@@ -509,8 +514,8 @@
             <!-- Hero Header -->
             <div class="bg-gradient-to-r from-amber-500 to-orange-500 px-8 py-6 text-white">
                 <div class="flex items-center gap-3 mb-2">
-                    <div class="bg-white p-1.5 rounded-lg shadow-sm flex items-center justify-center">
-                        <svg viewBox="0 0 64 56" xmlns="http://www.w3.org/2000/svg" class="w-7 h-7" aria-label="RL Logo">
+                    <div class="flex items-center justify-center">
+                        <svg viewBox="0 0 64 56" xmlns="http://www.w3.org/2000/svg" class="w-10 h-10" aria-label="RL Logo">
                             <text x="6"  y="50" font-family="Arial Black,sans-serif" font-size="52" font-weight="900" fill="#22c55e">R</text>
                             <text x="3"  y="47" font-family="Arial Black,sans-serif" font-size="52" font-weight="900" fill="#facc15">R</text>
                             <text x="0"  y="44" font-family="Arial Black,sans-serif" font-size="52" font-weight="900" fill="#ef4444">R</text>
@@ -708,8 +713,8 @@
             <!-- Logo + Brand -->
             <button type="button" id="navHomeBtn" onclick="showHomeView()" title="回首頁" aria-label="回首頁"
                 class="flex items-center gap-2 md:gap-2.5 hover:opacity-80 transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 rounded shrink-0">
-                <div class="bg-white border border-stone-200 p-1 rounded-md shadow-sm flex items-center justify-center">
-                    <svg viewBox="0 0 64 56" xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" aria-label="RL Logo">
+                <div class="flex items-center justify-center">
+                    <svg viewBox="0 0 64 56" xmlns="http://www.w3.org/2000/svg" class="w-9 h-9" aria-label="RL Logo">
                         <text x="6"  y="50" font-family="Arial Black,sans-serif" font-size="52" font-weight="900" fill="#22c55e">R</text>
                         <text x="3"  y="47" font-family="Arial Black,sans-serif" font-size="52" font-weight="900" fill="#facc15">R</text>
                         <text x="0"  y="44" font-family="Arial Black,sans-serif" font-size="52" font-weight="900" fill="#ef4444">R</text>
@@ -2496,7 +2501,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                         <div class="absolute -right-20 top-20 w-64 h-64 bg-white/5 rounded-full"></div>
                         <div class="relative z-10">
                             <div class="flex items-center gap-2 text-xs uppercase tracking-widest opacity-80 mb-2">
-                                <svg viewBox="0 0 64 56" xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 inline-block bg-white/95 rounded p-0.5" aria-label="RL Logo">
+                                <svg viewBox="0 0 64 56" xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 inline-block" aria-label="RL Logo">
                                     <text x="6"  y="50" font-family="Arial Black,sans-serif" font-size="52" font-weight="900" fill="#22c55e">R</text>
                                     <text x="3"  y="47" font-family="Arial Black,sans-serif" font-size="52" font-weight="900" fill="#facc15">R</text>
                                     <text x="0"  y="44" font-family="Arial Black,sans-serif" font-size="52" font-weight="900" fill="#ef4444">R</text>
@@ -2750,7 +2755,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                         <i class="fa-solid fa-play text-violet-500"></i>
                         <span data-i18n="home.section.execution">執行 · 監控 · Execution</span>
                         <span class="text-slate-300 font-normal">·</span>
-                        <span class="text-slate-400 font-medium">6</span>
+                        <span class="text-slate-400 font-medium">7</span>
                     </h4>
                     <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                         <button onclick="showTestMilestonesView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-teal-300 transition group">
@@ -6837,7 +6842,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 actions.appendChild(dlTraceBtn);
 
                 // trace.playwright.dev 是跨網域 viewer，必須給絕對 URL；否則它用自己的 origin 當 base 會 404。
-                // 也順便要求 nginx /results/ 開 CORS（已在 nginx.conf 設好）。
+                // 後端 artifact proxy 會驗證短效 token，並提供 trace viewer 需要的 CORS header。
                 const absTraceUrl = /^https?:/i.test(step.traceUrl) ? step.traceUrl : (window.location.origin + step.traceUrl);
                 const viewerUrl = `https://trace.playwright.dev/?trace=${encodeURIComponent(absTraceUrl)}`;
                 const openExtBtn = document.createElement('a');
@@ -9763,7 +9768,7 @@ driver.swipe(100, 800, 100, 200, 500)"
         };
 
         function authBootstrap() {
-            // 後端版本：不需要再 seed users 到 localStorage（admin/admin123 由後端 seed）
+                // 後端版本：不需要再 seed users 到 localStorage（首位管理員由後端 CLI/bootstrap 建立）
             // 只清掉舊版本可能殘留的 plaintext users（升級時的 cleanup）
             try { localStorage.removeItem(AUTH_KEYS.users); } catch (_) {}
         }
@@ -12137,6 +12142,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 port: row.port || 0,
                 username: row.username || '',
                 password: row.password || '',
+                _hasPassword: !!row.has_password,
                 database: row.database || '',
                 charset: row.extra_options || '',
                 dsn: row.custom_dsn || '',
@@ -12326,7 +12332,9 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('dbCfgHost').value = d.host || '';
             document.getElementById('dbCfgPort').value = d.port || '';
             document.getElementById('dbCfgUser').value = d.username || '';
-            document.getElementById('dbCfgPassword').value = d.password || '';
+            const pwdInput = document.getElementById('dbCfgPassword');
+            pwdInput.value = d.password || '';
+            pwdInput.placeholder = d._hasPassword ? '已儲存密碼；留空表示保留原值' : 'password';
             document.getElementById('dbCfgDatabase').value = d.database || '';
             document.getElementById('dbCfgCharset').value = d.charset || '';
             document.getElementById('dbCfgDsn').value = d.dsn || '';
@@ -12362,12 +12370,13 @@ driver.swipe(100, 800, 100, 200, 500)"
             const robot = `&{DB_${name}}    type=${d.type}    host=${d.host}    port=${d.port}    username=${d.username}    database=${d.database}`;
             const pyDict = JSON.stringify({
                 type: d.type, host: d.host, port: d.port, username: d.username,
-                password: d.password ? '***' : '', database: d.database, charset: d.charset, dsn,
+                password: (d.password || d._hasPassword) ? '***' : '', database: d.database, charset: d.charset, dsn,
             }, null, 2);
             pre.innerHTML = `<span class="text-slate-400"># Robot 注入格式：</span>\n<span class="text-indigo-300">${escapeAttr(robot)}</span>\n\n<span class="text-slate-400"># 連線 DSN：</span>\n<span class="text-emerald-300">${escapeAttr(dsn)}</span>\n\n<span class="text-slate-400"># Python dict：</span>\n<span class="text-blue-300">${escapeAttr(pyDict)}</span>`;
         }
         function _buildDsn(d) {
-            const up = d.username ? `${encodeURIComponent(d.username)}${d.password ? ':' + encodeURIComponent(d.password) : ''}@` : '';
+            const shownPwd = d.password || (d._hasPassword ? '***' : '');
+            const up = d.username ? `${encodeURIComponent(d.username)}${shownPwd ? ':' + encodeURIComponent(shownPwd) : ''}@` : '';
             const hp = d.host ? `${d.host}${d.port ? ':' + d.port : ''}` : '';
             const db = d.database ? '/' + d.database : '';
             const qs = d.charset ? (d.type === 'POSTGRES' ? `?sslmode=${d.charset}` : `?charset=${d.charset}`) : '';
@@ -16583,6 +16592,50 @@ gantt
             });
         }
 
+        function sanitizeRenderedHtml(html) {
+            const tpl = document.createElement('template');
+            tpl.innerHTML = html || '';
+            const allowedTags = new Set([
+                'A','ABBR','B','BLOCKQUOTE','BR','CODE','DEL','DETAILS','DIV','EM','H1','H2','H3','H4','H5','H6',
+                'HR','I','IMG','INPUT','KBD','LI','OL','P','PRE','S','SPAN','STRONG','SUB','SUMMARY','SUP',
+                'TABLE','TBODY','TD','TH','THEAD','TR','UL'
+            ]);
+            const allowedAttrs = new Set([
+                'alt','checked','class','colspan','disabled','height','href','rel','rowspan','src','target','title','type','width'
+            ]);
+            const safeUrl = (v) => {
+                const s = String(v || '').trim();
+                return /^(https?:|mailto:|#|\/(?!\/)|data:image\/(?:png|jpeg|webp);base64,)/i.test(s);
+            };
+            const nodes = Array.from(tpl.content.querySelectorAll('*'));
+            for (const el of nodes) {
+                if (!allowedTags.has(el.tagName)) {
+                    el.replaceWith(...Array.from(el.childNodes));
+                    continue;
+                }
+                for (const attr of Array.from(el.attributes)) {
+                    const name = attr.name.toLowerCase();
+                    const value = attr.value || '';
+                    if (name.startsWith('on') || !allowedAttrs.has(attr.name)) {
+                        el.removeAttribute(attr.name);
+                        continue;
+                    }
+                    if ((name === 'href' || name === 'src') && !safeUrl(value)) {
+                        el.removeAttribute(attr.name);
+                    }
+                }
+                if (el.tagName === 'A') {
+                    el.setAttribute('rel', 'noopener noreferrer');
+                    if (el.getAttribute('target') === '_blank') el.setAttribute('target', '_blank');
+                }
+                if (el.tagName === 'INPUT') {
+                    const type = (el.getAttribute('type') || '').toLowerCase();
+                    if (type !== 'checkbox') el.remove();
+                }
+            }
+            return tpl.innerHTML;
+        }
+
         // 把 markdown → safe HTML，並將 ```mermaid 區塊抽出來改用 mermaid.render() 渲染為 SVG。
         // 此 helper 同時被測試文件與測試計畫的編輯器使用。
         async function renderMarkdownInto(targetEl, mdText) {
@@ -16606,7 +16659,7 @@ gantt
                 const code = mermaidBlocks[i] || '';
                 return `<div class="mermaid">${_esc(code)}</div>`;
             });
-            targetEl.innerHTML = html || '<em class="text-stone-400">（內容空白）</em>';
+            targetEl.innerHTML = sanitizeRenderedHtml(html) || '<em class="text-stone-400">（內容空白）</em>';
             if (typeof mermaid !== 'undefined' && targetEl.querySelector('.mermaid')) {
                 const nodes = targetEl.querySelectorAll('.mermaid');
                 for (const node of nodes) {
@@ -17173,7 +17226,9 @@ gantt
                 document.getElementById('emCfgHost').value = cfg.smtp_host || '';
                 document.getElementById('emCfgPort').value = cfg.smtp_port ?? 587;
                 document.getElementById('emCfgUser').value = cfg.smtp_user || '';
-                document.getElementById('emCfgPwd').value = cfg.smtp_password || '';
+                const pwd = document.getElementById('emCfgPwd');
+                pwd.value = '';
+                pwd.placeholder = cfg.has_smtp_password ? '已儲存密碼；留空表示保留原值' : '';
                 document.getElementById('emCfgFrom').value = cfg.from_address || '';
                 document.getElementById('emCfgFromName').value = cfg.from_name || 'AutoTest';
                 document.getElementById('emCfgTls').checked = !!cfg.use_tls;
@@ -17186,12 +17241,13 @@ gantt
                 smtp_host: document.getElementById('emCfgHost').value.trim() || null,
                 smtp_port: parseInt(document.getElementById('emCfgPort').value, 10) || 587,
                 smtp_user: document.getElementById('emCfgUser').value.trim() || null,
-                smtp_password: document.getElementById('emCfgPwd').value || null,
                 from_address: document.getElementById('emCfgFrom').value.trim() || null,
                 from_name: document.getElementById('emCfgFromName').value.trim() || 'AutoTest',
                 use_tls: document.getElementById('emCfgTls').checked,
                 enabled: document.getElementById('emCfgEnabled').checked,
             };
+            const smtpPassword = document.getElementById('emCfgPwd').value;
+            if (smtpPassword) payload.smtp_password = smtpPassword;
             try {
                 const r = await fetch('/api/settings/email', { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
                 if (!r.ok) throw new Error('HTTP '+r.status);
@@ -17827,7 +17883,11 @@ gantt
                 providerSel.appendChild(opt);
                 providerSel.value = provider;
             }
-            document.getElementById('aiTokKey').value = t?.api_key || '';
+            const keyInput = document.getElementById('aiTokKey');
+            keyInput.value = '';
+            keyInput.placeholder = t?.has_api_key
+                ? '已儲存 API Key；留空表示保留原值'
+                : 'sk-... / sk-ant-... / AIza... (本地可留空)';
             // 模型下拉:有現存值就先 inject 一個 option(避免 select 空白),按 fetch 後重填
             const modelSel = document.getElementById('aiTokModel');
             _aiTokenModelsCache = [];
@@ -17899,13 +17959,14 @@ gantt
             const payload = {
                 name: document.getElementById('aiTokName').value.trim(),
                 provider,
-                api_key: document.getElementById('aiTokKey').value || null,
                 model: document.getElementById('aiTokModel').value.trim() || null,
                 reasoning_effort: document.getElementById('aiTokReasoning').value || null,
                 description: document.getElementById('aiTokDesc').value.trim() || null,
                 enabled: document.getElementById('aiTokEnabled').checked,
                 is_default: document.getElementById('aiTokDefault').checked,
             };
+            const apiKey = document.getElementById('aiTokKey').value;
+            if (apiKey) payload.api_key = apiKey;
             try {
                 const url = _editingAiTokenId ? '/api/settings/ai-tokens/'+_editingAiTokenId : '/api/settings/ai-tokens';
                 const method = _editingAiTokenId ? 'PUT' : 'POST';

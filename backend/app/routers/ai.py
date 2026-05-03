@@ -6,6 +6,7 @@
 import asyncio
 import json
 import logging
+import os
 import re
 from typing import Optional
 
@@ -268,7 +269,9 @@ def _build_mcp_image_sync() -> None:
     import docker  # type: ignore
     state = _mcp_image_state
     try:
-        api = docker.APIClient(base_url="unix:///var/run/docker.sock")
+        api = docker.APIClient(
+            base_url=os.environ.get("DOCKER_HOST", "unix:///var/run/docker.sock")
+        )
     except Exception as e:
         state["status"] = "error"
         state["error"] = f"連不上 docker daemon:{e}"

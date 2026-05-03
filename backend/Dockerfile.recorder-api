@@ -7,7 +7,7 @@
 #
 # Base:mitmproxy 官方 minimal image,內建 mitmproxy / mitmdump / mitmweb。
 
-FROM mitmproxy/mitmproxy:latest
+FROM mitmproxy/mitmproxy:12.2.2
 
 USER root
 

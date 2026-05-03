@@ -40,7 +40,7 @@ _PUBLIC_PATTERNS: list[re.Pattern] = [
     re.compile(r"^/api/auth/oidc/providers$"),
     re.compile(r"^/api/auth/oidc/login(/|$)"),
     re.compile(r"^/api/auth/oidc/callback$"),
-    # 靜態檔（截圖 / 結果）— 仍以反向代理保護，這裡放行讓 nginx 直接服務
+    # Artifact routes perform their own scoped token / access-token validation.
     re.compile(r"^/pics/"),
     re.compile(r"^/results/"),
     # OPTIONS 預檢一律放行（CORS）

@@ -65,7 +65,7 @@ jobs:
         run: bandit -r backend/app -ll -ii --exclude backend/app/tests
 
   sync-async-boundary:
-    name: Sync/async DB-session boundary (RFC-9)
+    name: DB-session boundary lints
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -79,6 +79,10 @@ jobs:
       - name: Run boundary lint
         working-directory: backend
         run: python scripts/lint_sync_async_boundary.py
+
+      - name: Run tenant select lint
+        working-directory: backend
+        run: python scripts/lint_tenant_scoped_selects.py
 
   alembic-round-trip:
     name: Alembic upgrade / downgrade round trip

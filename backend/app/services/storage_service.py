@@ -2,13 +2,13 @@
 
 Two backends are supported, switched via ``STORAGE_BACKEND`` env var:
 
-* ``local`` — write to ``settings.PIC_FOLDER`` and serve via FastAPI/nginx
-  ``/pics/`` mount. Default for dev quick-start.
+* ``local`` — write to ``settings.PIC_FOLDER`` and serve through the
+  authenticated backend artifact routes. Default for dev quick-start.
 * ``minio`` — write to a MinIO bucket via the S3-compatible API (boto3).
-  Files are served back to the user via nginx ``location /pics/`` and
-  ``/results/`` reverse proxies pointing at MinIO. The DB only stores the
-  relative URL (``/pics/<key>`` or ``/results/<key>``) so the platform
-  remains agnostic to the actual host.
+  Files are served back to the user via short-lived signed URLs or an
+  authenticated backend proxy for ``/pics/<key>`` and ``/results/<key>``.
+  The DB only stores the relative URL so the platform remains agnostic to
+  the actual host.
 
 Public surface:
 

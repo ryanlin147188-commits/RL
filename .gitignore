@@ -34,6 +34,7 @@ allure-results/
 
 # ── IDE / OS ──
 .vscode/
+.claude/
 .idea/
 .DS_Store
 Thumbs.db
@@ -63,4 +64,3 @@ dist/
 # 永遠不入 git;放 S3 / 外部備援。
 backups/
 bundle/
-

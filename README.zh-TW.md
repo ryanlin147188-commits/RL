@@ -148,7 +148,7 @@ git clone https://github.com/ryanlin147188-commits/RL_TMP.git && cd RL_TMP
 .\deploy.ps1
 ```
 
-腳本完成後到 <http://localhost> 用 `admin` / `admin123` 登入即可開始建案例。
+腳本完成後到 <http://localhost>。平台不再內建固定 `admin` / `admin123` 帳號；第一次啟動後請依主控台提示執行 `docker compose exec backend python -m app.cli create-admin`，自行建立第一位管理員。
 
 > 📖 **完整教學**(從建專案 → 寫案例 → 用 AI 生案例 → 跑測試 → 看報告)請見 **[操作說明.md](操作說明.md)**
 
@@ -214,11 +214,11 @@ docker compose -f docker-compose.bundle.yml up -d
 |---|---|---|
 | Robot Framework | 7.x | 測試引擎、`.robot` 語法、log.html / report.html、IF/ELSE/END 分支 |
 | Browser Library | 19.x | Playwright 底層,trace + video + auto-wait |
-| RequestsLibrary | latest | HTTP API(GET / POST / PUT / PATCH / DELETE)|
-| DatabaseLibrary | latest | SQL(MySQL / PostgreSQL / MSSQL / Oracle / SQLite / MongoDB / Redis)|
-| AppiumLibrary | latest | iOS / Android 自動化 |
-| Playwright MCP | latest | LLM tool calling 直接操作瀏覽器(Anthropic Model Context Protocol)|
-| mitmproxy | latest | API 錄製 Docker mode,自動轉 Http.* steps |
+| RequestsLibrary | pinned in runner image | HTTP API(GET / POST / PUT / PATCH / DELETE)|
+| DatabaseLibrary | pinned in runner image | SQL(MySQL / PostgreSQL / MSSQL / Oracle / SQLite / MongoDB / Redis)|
+| AppiumLibrary | pinned in runner image | iOS / Android 自動化 |
+| Playwright MCP | 0.0.69 | LLM tool calling 直接操作瀏覽器(Anthropic Model Context Protocol)|
+| mitmproxy | 12.2.2 | API 錄製 Docker mode,自動轉 Http.* steps |
 | Markdown | — | 案例原生格式,`run_tests.py` 可 CLI 直接執行 |
 
 整套 stack 為 **Apache 2.0 / BSD-3 / PostgreSQL License** — 商業 SaaS 部署無授權義務。詳見 [LICENSES.md](LICENSES.md)。

@@ -1,7 +1,7 @@
 """DB Connection Config Pydantic schemas — 取代前端 localStorage 存的 DB 設定。
 
-password 在 DB 以 Fernet 加密儲存(透過 EncryptedString),Response 模型回傳明文
-讓前端 Editor 可以顯示;若部署環境想避免明文外流,可改成只在 detail 端點回。
+password 在 DB 以 Fernet 加密儲存(透過 EncryptedString)。Response 預設不回
+明文，只回 `has_password` 讓前端知道已有值；更新時空 password 表示保留原值。
 """
 from __future__ import annotations
 
@@ -50,3 +50,4 @@ class DbConfigResponse(DbConfigBase):
     organization_id: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+    has_password: bool = False

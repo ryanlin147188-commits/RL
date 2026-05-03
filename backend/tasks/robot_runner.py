@@ -1062,7 +1062,7 @@ def run_testcase(
       1. 在 worker process 內產生 .robot 文字
       2. 把 .robot 上傳到 MinIO (``inputs/<task>/<case>.robot``)
       3. 透過 docker SDK spawn 一個 ``ROBOT_RUNNER_IMAGE`` 容器
-         （預設 ``autotest-robot-runner:latest``，base = ppodgorsek/robot-framework）
+         （預設 ``autotest-robot-runner:1.0.0``，base = ppodgorsek/robot-framework:7.3.1）
       4. 容器 entrypoint = ``robot_container.py``：拉 .robot → 跑 robot
          → listener 即時把截圖／影片／trace 上傳到 MinIO → 寫 step_results.json 到 MinIO
       5. worker 等容器結束、抓回 step_results.json、解析成 CaseResult
@@ -1112,7 +1112,7 @@ def run_testcase(
         return [CaseResult(passed=False, steps=[], duration_ms=0)]
 
     # ── 3) Spawn 容器 ─────────────────────────────────
-    image = os.environ.get("ROBOT_RUNNER_IMAGE", "autotest-robot-runner:latest")
+    image = os.environ.get("ROBOT_RUNNER_IMAGE", "autotest-robot-runner:1.0.0")
     network = os.environ.get("ROBOT_RUNNER_NETWORK", "autotest_default")
     container_env = {
         "JOB_TASK_ID": task_id,

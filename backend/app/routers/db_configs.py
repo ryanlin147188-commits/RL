@@ -12,6 +12,9 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
+from app.auth.permissions import require_permission
+from app.auth.permissions_catalog import P
+from app.auth.scope import ensure_project_writable
 from app.database import get_db
 from app.models.db_config import DbConfig
 from app.models.user import User
@@ -28,7 +31,7 @@ _VALID_TYPES = {"mysql", "postgresql", "mssql", "oracle", "mongodb", "redis", "s
 
 
 def _to_response(d: DbConfig) -> dict:
-    """ORM → dict;將 password_encrypted (透過 EncryptedString 已自動解密) 映射回 password。"""
+    """ORM → dict; never return the decrypted password."""
     return {
         "id": d.id,
         "project_id": d.project_id,
@@ -39,7 +42,8 @@ def _to_response(d: DbConfig) -> dict:
         "port": d.port,
         "database": d.database,
         "username": d.username,
-        "password": d.password_encrypted,  # EncryptedString 讀取時已解密
+        "password": None,
+        "has_password": bool(d.password_encrypted),
         "extra_options": d.extra_options,
         "custom_dsn": d.custom_dsn,
         "description": d.description,
@@ -61,7 +65,12 @@ def _validate(payload_dict: dict) -> None:
             raise HTTPException(400, f"db_type 必須是 {sorted(_VALID_TYPES)} 之一")
 
 
-@router.get("/db-configs", response_model=list[DbConfigResponse], tags=["AA · DB 連線"])
+@router.get(
+    "/db-configs",
+    response_model=list[DbConfigResponse],
+    tags=["AA · DB 連線"],
+    dependencies=[Depends(require_permission(P.SETTINGS_READ))],
+)
 async def list_db_configs(
     project_id: Optional[str] = Query(None),
     user: User = Depends(get_current_user),
@@ -81,6 +90,7 @@ async def list_db_configs(
     response_model=DbConfigResponse,
     status_code=201,
     tags=["AA · DB 連線"],
+    dependencies=[Depends(require_permission(P.SETTINGS_WRITE))],
 )
 async def create_db_config(
     payload: DbConfigCreate,
@@ -88,6 +98,8 @@ async def create_db_config(
     db: AsyncSession = Depends(get_db),
 ):
     _validate(payload.model_dump())
+    if payload.project_id:
+        await ensure_project_writable(db, payload.project_id, user)
     d = DbConfig(
         organization_id=user.organization_id,
         project_id=payload.project_id,
@@ -113,6 +125,7 @@ async def create_db_config(
     "/db-configs/{cfg_id}",
     response_model=DbConfigResponse,
     tags=["AA · DB 連線"],
+    dependencies=[Depends(require_permission(P.SETTINGS_READ))],
 )
 async def get_db_config(
     cfg_id: str,
@@ -129,6 +142,7 @@ async def get_db_config(
     "/db-configs/{cfg_id}",
     response_model=DbConfigResponse,
     tags=["AA · DB 連線"],
+    dependencies=[Depends(require_permission(P.SETTINGS_WRITE))],
 )
 async def update_db_config(
     cfg_id: str,
@@ -143,8 +157,10 @@ async def update_db_config(
     _validate(data)
     if "db_type" in data and data["db_type"]:
         data["db_type"] = data["db_type"].lower()
-    if "password" in data:
+    if "password" in data and data["password"]:
         d.password_encrypted = data.pop("password")
+    elif "password" in data:
+        data.pop("password")
     for key, val in data.items():
         setattr(d, key, val)
     await db.flush()
@@ -156,6 +172,7 @@ async def update_db_config(
     "/db-configs/{cfg_id}",
     status_code=204,
     tags=["AA · DB 連線"],
+    dependencies=[Depends(require_permission(P.SETTINGS_WRITE))],
 )
 async def delete_db_config(
     cfg_id: str,

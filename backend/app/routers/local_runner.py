@@ -26,13 +26,15 @@ from typing import Any, Optional
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import select, update
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.tenant import TenantQuery
 from app.config import settings
 from app.database import get_db
 from app.models.execution_report import ExecutionReport, ReportStatus
 from app.models.testcase_content import TestcaseContent
+from app.services.artifact_urls import sign_artifact_url
 from app.services.execution_service import collect_testcase_ids
 
 
@@ -95,7 +97,7 @@ async def claim_local_job(
     """搶鎖取一筆未被認領的 local 模式報告。無可認領時回 204。"""
     # 只撈 status=RUNNING 且 execution_mode=local 且 claimed_at=NULL
     result = await db.execute(
-        select(ExecutionReport)
+        TenantQuery.for_(ExecutionReport)
         .where(
             ExecutionReport.execution_mode == "local",
             ExecutionReport.status == ReportStatus.RUNNING,
@@ -137,7 +139,7 @@ async def claim_local_job(
     # TestcaseContent 的 primary key 是 node_id（不是 id）
     cases: list[CaseJob] = []
     rows_db = await db.execute(
-        select(TestcaseContent).where(TestcaseContent.node_id.in_(testcase_ids))
+        TenantQuery.for_(TestcaseContent).where(TestcaseContent.node_id.in_(testcase_ids))
     )
     tc_map = {t.node_id: t for t in rows_db.scalars()}
     for tid in testcase_ids:
@@ -184,7 +186,7 @@ async def complete_local_job(
     from app.models.execution_step_log import ExecutionStepLog, StepStatus
 
     result = await db.execute(
-        select(ExecutionReport).where(ExecutionReport.task_id == task_id)
+        TenantQuery.for_(ExecutionReport).where(ExecutionReport.task_id == task_id)
     )
     report = result.scalar_one_or_none()
     if report is None:
@@ -274,7 +276,7 @@ async def upload_screenshot(
     key = f"{report_id}/{safe_name}"
     content_type = file.content_type or "image/png"
     url = save_bytes(content, key, bucket="pic", content_type=content_type)
-    return {"ok": True, "url": url, "size": len(content)}
+    return {"ok": True, "url": sign_artifact_url(url), "size": len(content)}
 
 
 @router.get("/local-runner/agent", response_class=PlainTextResponse, tags=["G · 本機執行"])

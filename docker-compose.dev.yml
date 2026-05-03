@@ -13,7 +13,24 @@
 # only applies when explicitly chained.
 
 services:
+  postgres:
+    ports:
+      - "5432:5432"
+
+  valkey:
+    ports:
+      - "6379:6379"
+
+  seaweedfs:
+    ports:
+      - "8333:8333"
+      - "9333:9333"
+
   backend:
     environment:
       DEBUG: "True"
       ALLOWED_ORIGINS: "http://localhost,http://localhost:80,http://localhost:8000,http://127.0.0.1,http://127.0.0.1:80,http://127.0.0.1:8000"
+
+  victoria-logs:
+    ports:
+      - "9428:9428"

@@ -14,6 +14,7 @@ from app.models.review import ReviewableEntityType
 from app.models.tree_node import TreeNode
 from app.models.user import User
 from app.services import review_service
+from app.services.artifact_urls import sign_artifact_url
 from app.schemas.dashboard import ChartDataPoint, ChartsResponse, MetricsResponse
 from app.schemas.execution_report import (
     PaginatedResponse,
@@ -24,6 +25,24 @@ from app.schemas.execution_report import (
 )
 
 router = APIRouter()
+
+
+_STEP_ARTIFACT_URL_FIELDS = (
+    "pre_screenshot_url",
+    "post_screenshot_url",
+    "trace_url",
+    "video_url",
+    "step_video_url",
+    "screenshot_baseline_url",
+    "screenshot_diff_url",
+)
+
+
+def _step_with_signed_artifacts(step: ExecutionStepLog) -> dict:
+    data = StepLogResponse.model_validate(step).model_dump()
+    for field in _STEP_ARTIFACT_URL_FIELDS:
+        data[field] = sign_artifact_url(data.get(field))
+    return data
 
 
 # 11. GET /api/dashboard/metrics
@@ -310,7 +329,7 @@ async def get_report_steps(
     return ReportStepsResponse(
         report_id=report_id,
         total_steps=len(steps),
-        steps=steps,
+        steps=[_step_with_signed_artifacts(s) for s in steps],
     )
 
 

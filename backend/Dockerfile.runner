@@ -3,7 +3,7 @@
 # Spawn 模式（execution_mode=docker）下，celery worker 會為每個 testcase 啟動
 # 一個此 image 的容器來執行 Robot Framework；測試結束後容器自毀（--rm）。
 #
-# Base：ppodgorsek/robot-framework:latest（Fedora 42，內建 Python 3.13、
+# Base：ppodgorsek/robot-framework:7.3.1（Fedora 42，內建 Python 3.13、
 # Robot Framework 7.3、robotframework-browser 19.x、Playwright + chromium、
 # ffmpeg、Node.js）
 #
@@ -13,7 +13,7 @@
 #   - tasks/ 目錄：robot_listener.py + 容器 entrypoint robot_container.py
 #   - app/ 目錄子集：listener / runtime 會用到的 storage_service、config 等
 
-FROM ppodgorsek/robot-framework:latest
+FROM ppodgorsek/robot-framework:7.3.1
 
 USER root
 

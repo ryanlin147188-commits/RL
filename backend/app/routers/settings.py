@@ -10,8 +10,10 @@ from sqlalchemy import asc, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
+from app.auth.permissions import require_permission
+from app.auth.permissions_catalog import P
 from app.database import get_db
-from app.models.ai_token_config import AiProvider, AiTokenConfig
+from app.models.ai_token_config import AiTokenConfig
 from app.models.email_config import EmailConfig
 from app.models.notification_preference import NotificationPreference
 from app.models.role import Role
@@ -22,7 +24,6 @@ from app.schemas.settings import (
     AiTokenConfigUpdate,
     EmailConfigResponse,
     EmailConfigUpdate,
-    NotificationPreferenceCreate,
     NotificationPreferenceResponse,
     NotificationPreferenceUpdate,
     RoleCreate,
@@ -31,6 +32,40 @@ from app.schemas.settings import (
 )
 
 router = APIRouter()
+
+
+def _email_to_response(cfg: EmailConfig) -> dict:
+    return {
+        "id": cfg.id,
+        "smtp_host": cfg.smtp_host,
+        "smtp_port": cfg.smtp_port,
+        "smtp_user": cfg.smtp_user,
+        "smtp_password": None,
+        "has_smtp_password": bool(cfg.smtp_password),
+        "use_tls": cfg.use_tls,
+        "from_address": cfg.from_address,
+        "from_name": cfg.from_name,
+        "enabled": cfg.enabled,
+        "updated_at": cfg.updated_at,
+    }
+
+
+def _ai_token_to_response(token: AiTokenConfig) -> dict:
+    return {
+        "id": token.id,
+        "name": token.name,
+        "provider": token.provider,
+        "api_key": None,
+        "has_api_key": bool(token.api_key),
+        "base_url": token.base_url,
+        "model": token.model,
+        "reasoning_effort": token.reasoning_effort,
+        "enabled": token.enabled,
+        "is_default": token.is_default,
+        "description": token.description,
+        "created_at": token.created_at,
+        "updated_at": token.updated_at,
+    }
 
 
 # ─── Permission catalogue (固定字串清單；前端依此產生 checkbox) ─────────
@@ -85,13 +120,21 @@ _NOTIFICATION_EVENT_CATALOGUE = [
 ]
 
 
-@router.get("/settings/permissions/catalogue", tags=["S · 設定"])
+@router.get(
+    "/settings/permissions/catalogue",
+    tags=["S · 設定"],
+    dependencies=[Depends(require_permission(P.SETTINGS_READ))],
+)
 async def list_permission_catalogue():
     """前端建構角色 checkbox 用：所有可指派的權限 key 與顯示名稱。"""
     return {"items": _PERMISSION_CATALOGUE}
 
 
-@router.get("/settings/notifications/catalogue", tags=["S · 設定"])
+@router.get(
+    "/settings/notifications/catalogue",
+    tags=["S · 設定"],
+    dependencies=[Depends(require_permission(P.SETTINGS_READ))],
+)
 async def list_notification_catalogue():
     """前端建構通知設定 grid 用：所有可訂閱的事件。"""
     return {"items": _NOTIFICATION_EVENT_CATALOGUE}
@@ -109,7 +152,12 @@ def _role_visibility_filter(stmt, user: User):
     )
 
 
-@router.get("/settings/roles", response_model=list[RoleResponse], tags=["S · 設定"])
+@router.get(
+    "/settings/roles",
+    response_model=list[RoleResponse],
+    tags=["S · 設定"],
+    dependencies=[Depends(require_permission(P.SETTINGS_READ))],
+)
 async def list_roles(
     user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
@@ -120,7 +168,11 @@ async def list_roles(
 
 
 @router.post(
-    "/settings/roles", response_model=RoleResponse, status_code=201, tags=["S · 設定"]
+    "/settings/roles",
+    response_model=RoleResponse,
+    status_code=201,
+    tags=["S · 設定"],
+    dependencies=[Depends(require_permission(P.ROLE_MANAGE))],
 )
 async def create_role(
     payload: RoleCreate,
@@ -152,7 +204,10 @@ async def create_role(
 
 
 @router.put(
-    "/settings/roles/{role_id}", response_model=RoleResponse, tags=["S · 設定"]
+    "/settings/roles/{role_id}",
+    response_model=RoleResponse,
+    tags=["S · 設定"],
+    dependencies=[Depends(require_permission(P.ROLE_MANAGE))],
 )
 async def update_role(
     role_id: str,
@@ -187,7 +242,12 @@ async def update_role(
     return r
 
 
-@router.delete("/settings/roles/{role_id}", status_code=204, tags=["S · 設定"])
+@router.delete(
+    "/settings/roles/{role_id}",
+    status_code=204,
+    tags=["S · 設定"],
+    dependencies=[Depends(require_permission(P.ROLE_MANAGE))],
+)
 async def delete_role(
     role_id: str,
     user: User = Depends(get_current_user),
@@ -210,9 +270,19 @@ async def delete_role(
     "/settings/notifications",
     response_model=list[NotificationPreferenceResponse],
     tags=["S · 設定"],
+    dependencies=[Depends(require_permission(P.SETTINGS_READ))],
 )
-async def list_notification_prefs(db: AsyncSession = Depends(get_db)):
-    rows = (await db.execute(select(NotificationPreference))).scalars().all()
+async def list_notification_prefs(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    stmt = select(NotificationPreference)
+    if not user.is_superuser:
+        stmt = stmt.where(
+            (NotificationPreference.username == user.username)
+            | (NotificationPreference.username.is_(None))
+        )
+    rows = (await db.execute(stmt)).scalars().all()
     return list(rows)
 
 
@@ -221,7 +291,13 @@ async def list_notification_prefs(db: AsyncSession = Depends(get_db)):
     response_model=NotificationPreferenceResponse,
     tags=["S · 設定"],
 )
-async def get_notification_pref(username: str, db: AsyncSession = Depends(get_db)):
+async def get_notification_pref(
+    username: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if not user.is_superuser and username != user.username:
+        raise HTTPException(403, "Cannot read another user's notification preferences")
     pref = (
         await db.execute(select(NotificationPreference).where(NotificationPreference.username == username))
     ).scalar_one_or_none()
@@ -240,8 +316,13 @@ async def get_notification_pref(username: str, db: AsyncSession = Depends(get_db
     tags=["S · 設定"],
 )
 async def update_notification_pref(
-    username: str, payload: NotificationPreferenceUpdate, db: AsyncSession = Depends(get_db)
+    username: str,
+    payload: NotificationPreferenceUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
+    if not user.is_superuser and username != user.username:
+        raise HTTPException(403, "Cannot update another user's notification preferences")
     pref = (
         await db.execute(select(NotificationPreference).where(NotificationPreference.username == username))
     ).scalar_one_or_none()
@@ -272,15 +353,25 @@ async def _get_or_create_email_for_org(db: AsyncSession, org_id: Optional[str]) 
     return cfg
 
 
-@router.get("/settings/email", response_model=EmailConfigResponse, tags=["S · 設定"])
+@router.get(
+    "/settings/email",
+    response_model=EmailConfigResponse,
+    tags=["S · 設定"],
+    dependencies=[Depends(require_permission(P.SETTINGS_READ))],
+)
 async def get_email_config(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    return await _get_or_create_email_for_org(db, user.organization_id)
+    return _email_to_response(await _get_or_create_email_for_org(db, user.organization_id))
 
 
-@router.put("/settings/email", response_model=EmailConfigResponse, tags=["S · 設定"])
+@router.put(
+    "/settings/email",
+    response_model=EmailConfigResponse,
+    tags=["S · 設定"],
+    dependencies=[Depends(require_permission(P.SETTINGS_WRITE))],
+)
 async def update_email_config(
     payload: EmailConfigUpdate,
     user: User = Depends(get_current_user),
@@ -288,11 +379,13 @@ async def update_email_config(
 ):
     cfg = await _get_or_create_email_for_org(db, user.organization_id)
     data = payload.model_dump(exclude_unset=True)
+    if "smtp_password" in data and not data["smtp_password"]:
+        data.pop("smtp_password")
     for k, v in data.items():
         setattr(cfg, k, v)
     await db.flush()
     await db.refresh(cfg)
-    return cfg
+    return _email_to_response(cfg)
 
 
 class _EmailTestRequest(BaseModel):
@@ -310,6 +403,7 @@ class _EmailTestResponse(BaseModel):
     "/settings/email/test",
     response_model=_EmailTestResponse,
     tags=["S · 設定"],
+    dependencies=[Depends(require_permission(P.SETTINGS_WRITE))],
 )
 async def send_test_email(
     payload: _EmailTestRequest,
@@ -384,7 +478,10 @@ def _check_ai_token_or_404(t: Optional[AiTokenConfig], user: User) -> AiTokenCon
 
 
 @router.get(
-    "/settings/ai-tokens", response_model=list[AiTokenConfigResponse], tags=["S · 設定"]
+    "/settings/ai-tokens",
+    response_model=list[AiTokenConfigResponse],
+    tags=["S · 設定"],
+    dependencies=[Depends(require_permission(P.SETTINGS_READ))],
 )
 async def list_ai_tokens(
     provider: Optional[str] = Query(None),
@@ -397,7 +494,7 @@ async def list_ai_tokens(
         # provider 改自由字串(2026-04 重設計);舊 enum 行為不再
         stmt = stmt.where(AiTokenConfig.provider == provider)
     rows = (await db.execute(stmt)).scalars().all()
-    return list(rows)
+    return [_ai_token_to_response(r) for r in rows]
 
 
 @router.post(
@@ -405,6 +502,7 @@ async def list_ai_tokens(
     response_model=AiTokenConfigResponse,
     status_code=201,
     tags=["S · 設定"],
+    dependencies=[Depends(require_permission(P.SETTINGS_WRITE))],
 )
 async def create_ai_token(
     payload: AiTokenConfigCreate,
@@ -442,13 +540,14 @@ async def create_ai_token(
         )
     await db.flush()
     await db.refresh(token)
-    return token
+    return _ai_token_to_response(token)
 
 
 @router.put(
     "/settings/ai-tokens/{token_id}",
     response_model=AiTokenConfigResponse,
     tags=["S · 設定"],
+    dependencies=[Depends(require_permission(P.SETTINGS_WRITE))],
 )
 async def update_ai_token(
     token_id: str,
@@ -458,6 +557,8 @@ async def update_ai_token(
 ):
     t = _check_ai_token_or_404(await db.get(AiTokenConfig, token_id), user)
     data = payload.model_dump(exclude_unset=True)
+    if "api_key" in data and not data["api_key"]:
+        data.pop("api_key")
     if "provider" in data and data["provider"] is not None:
         data["provider"] = (data["provider"] or "").strip() or t.provider
     for k, v in data.items():
@@ -475,7 +576,7 @@ async def update_ai_token(
         )
         await db.flush()
     await db.refresh(t)
-    return t
+    return _ai_token_to_response(t)
 
 
 class FetchModelsRequest(BaseModel):
@@ -505,6 +606,7 @@ def _detect_reasoning_support(model_id: str) -> bool:
 @router.post(
     "/settings/ai-tokens/fetch-models",
     tags=["S · 設定"],
+    dependencies=[Depends(require_permission(P.SETTINGS_WRITE))],
 )
 async def fetch_models(
     payload: FetchModelsRequest,
@@ -573,7 +675,10 @@ async def fetch_models(
 
 
 @router.delete(
-    "/settings/ai-tokens/{token_id}", status_code=204, tags=["S · 設定"]
+    "/settings/ai-tokens/{token_id}",
+    status_code=204,
+    tags=["S · 設定"],
+    dependencies=[Depends(require_permission(P.SETTINGS_WRITE))],
 )
 async def delete_ai_token(
     token_id: str,

@@ -4,11 +4,10 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.database import init_db
-from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings, schedules, local_runner, test_rounds, project_settings, screenshot_baselines, system, defects, test_milestones, test_plans, requirements, test_data_sets, test_documents, wbs_items, settings as app_settings, todos, todo_links, auth, ai, ai_chat, audit_logs, organizations, oidc, notifications, mock_endpoints, db_configs, groups, test_versions, reviews, assignments
+from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings, schedules, local_runner, test_rounds, project_settings, screenshot_baselines, system, defects, test_milestones, test_plans, requirements, test_data_sets, test_documents, wbs_items, settings as app_settings, todos, todo_links, auth, ai, ai_chat, audit_logs, organizations, oidc, notifications, mock_endpoints, db_configs, groups, test_versions, reviews, assignments, artifacts
 # 確保新增 model 在 init_db() 前已 import 註冊到 Base.metadata
 from app.models import (  # noqa: F401
     Defect, TestMilestone, TestPlan, Requirement, RequirementTestcaseLink,
@@ -301,8 +300,9 @@ app.add_middleware(AuditMiddleware)
 # Auth middleware：在 CORS 之後加，確保 OPTIONS 預檢已被 CORS 處理
 app.add_middleware(AuthMiddleware)
 
-# /pics/* 由 nginx 直接反代到 SeaweedFS(pic bucket),backend 不再服務本地檔案。
-# (歷史:STORAGE_BACKEND=local 時使用過 StaticFiles,改全 SeaweedFS 後移除)
+# /pics/* and /results/* keep their public URL shape but are now served by
+# backend so access can be gated by short-lived artifact tokens.
+app.include_router(artifacts.router)
 
 # ── 路由註冊（REST 端點掛 /api，WebSocket 掛 /ws）──
 app.include_router(projects.router,        prefix="/api", tags=["A · 專案與樹"])

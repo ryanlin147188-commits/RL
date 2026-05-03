@@ -12,7 +12,7 @@
 4. 後端解析 .py 內 page.goto / click / fill / press / check 等呼叫，
    POST /convert 回傳 BDD 步驟，前端合併進當前 testcase。
 
-trace.zip 存於 PIC_FOLDER/recordings/{id}/trace.zip，並掛在 /pics 靜態路徑下。
+trace.zip 存於 artifact storage，並透過 /pics 短效 signed URL 回前端。
 """
 from __future__ import annotations
 
@@ -35,7 +35,6 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
@@ -44,12 +43,14 @@ from app.auth.scope import (
     ensure_project_writable,
     scope_by_project,
 )
+from app.auth.tenant import TenantQuery
 from app.config import settings
 from app.database import get_db
 from app.models.recording import RecordingSession
 from app.models.review import ReviewableEntityType
 from app.models.user import User
 from app.services import review_service
+from app.services.artifact_urls import sign_artifact_url
 from app.schemas.recording import (
     ConvertResponse,
     GeneratedStep,
@@ -103,10 +104,7 @@ def _session_dir(session_id: str) -> str:
 
 
 def _to_response(session: RecordingSession) -> RecordingSessionResponse:
-    trace_url: Optional[str] = None
-    if session.trace_path:
-        # /pics 已掛在 main.py：StaticFiles(directory=PIC_FOLDER)
-        trace_url = f"/pics/{session.trace_path}"
+    trace_url = _trace_url(session.trace_path)
     return RecordingSessionResponse(
         id=session.id,
         project_id=session.project_id,
@@ -118,6 +116,15 @@ def _to_response(session: RecordingSession) -> RecordingSessionResponse:
         created_at=session.created_at,
         updated_at=session.updated_at,
     )
+
+
+def _trace_url(trace_path: Optional[str]) -> Optional[str]:
+    if not trace_path:
+        return None
+    url = trace_path
+    if not url.startswith(("/", "http://", "https://")):
+        url = f"/pics/{url}"
+    return sign_artifact_url(url)
 
 
 def _build_commands(session_id: str, target_url: str) -> RecorderCommandResponse:
@@ -284,7 +291,7 @@ async def list_recordings(
     db: AsyncSession = Depends(get_db),
 ):
     """列出所有錄製 session(最新在前)。可選 project_id 過濾。"""
-    stmt = select(RecordingSession).order_by(RecordingSession.created_at.desc())
+    stmt = TenantQuery.for_(RecordingSession).order_by(RecordingSession.created_at.desc())
     if project_id is not None:
         stmt = stmt.where(RecordingSession.project_id == project_id)
     stmt = scope_by_project(stmt, RecordingSession, user)
@@ -437,7 +444,7 @@ async def download_trace(
     url = session.trace_path
     if not url.startswith(("/", "http://", "https://")):
         url = f"/pics/{url}"
-    return RedirectResponse(url=url, status_code=302)
+    return RedirectResponse(url=sign_artifact_url(url) or url, status_code=302)
 
 
 # ─────────────────────────────────────────────────────────
@@ -1038,7 +1045,7 @@ def _get_docker_client():
         raise HTTPException(
             500,
             f"無法連到 docker daemon:{e};"
-            "請確認 backend container 有 mount /var/run/docker.sock",
+            "請確認 DOCKER_HOST 指向 docker-proxy 且該服務可連線",
         )
 
 
@@ -1076,7 +1083,9 @@ def _build_recorder_image_sync() -> None:
     import docker  # type: ignore
     state = _recorder_image_state
     try:
-        api = docker.APIClient(base_url="unix:///var/run/docker.sock")
+        api = docker.APIClient(
+            base_url=os.environ.get("DOCKER_HOST", "unix:///var/run/docker.sock")
+        )
     except Exception as e:
         state["status"] = "error"
         state["error"] = f"連不上 docker daemon:{e}"
@@ -1477,7 +1486,7 @@ async def api_docker_start(
                     f"找不到 image `{settings.RECORDER_API_IMAGE}`;"
                     "請跑 `./deploy.sh` / `deploy.ps1` 重新部署(已自動 build 此 image),"
                     "或手動執行:`docker build -f backend/Dockerfile.recorder-api "
-                    "-t autotest-recorder-api:latest backend/`"
+                    "-t autotest-recorder-api:1.0.0 backend/`"
                 ),
             },
         )

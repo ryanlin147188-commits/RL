@@ -74,6 +74,7 @@ class EmailConfigResponse(EmailConfigBase):
     model_config = ConfigDict(from_attributes=True)
     id: str
     updated_at: datetime
+    has_smtp_password: bool = False
 
 
 # ── AiTokenConfig ─────────────────────────────────────────────────────
@@ -111,6 +112,7 @@ class AiTokenConfigResponse(AiTokenConfigBase):
     id: str
     created_at: datetime
     updated_at: datetime
+    has_api_key: bool = False
 
 
 # ── TodoItem ──────────────────────────────────────────────────────────

@@ -47,9 +47,9 @@ async function loadCases(pid) {
 
 …with no `<script type="module">` rewiring required.
 
-## How to mount the modules
+## How the modules are mounted
 
-`index.html` currently does not load any of these yet. To wire Phase 1:
+`index.html` now loads the Phase 1 core modules near the top of `<body>`:
 
 ```html
 <script type="module">
@@ -60,8 +60,7 @@ async function loadCases(pid) {
 </script>
 ```
 
-That goes near the top of `<body>`, before the rest of the inline scripts.
-After it loads, anywhere in the page can call `AutoTest.api.apiFetch(...)`
+After this loads, anywhere in the page can call `AutoTest.api.apiFetch(...)`
 or `AutoTest.store.set("currentProjectId", id)`.
 
 ## Phase plan (from the RFC)
