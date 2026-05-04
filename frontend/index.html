@@ -5695,21 +5695,49 @@ driver.swipe(100, 800, 100, 200, 500)"
             ],
         };
         // Sprint 2.1 — Capture(自動把元素文字 / 屬性 / JSON path 抓進 ${var} suite variable)
-        // Sprint 4.1 — 條件分支邊界 If / ElseIf / Else / EndIf(用 expected 當條件運算式)
-        // 跨平台通用,自動 push 到所有平台清單尾端
+        // 跨平台通用,自動 push 到所有平台清單尾端。
+        // 注意:If / ElseIf / Else / EndIf 改放在「比對條件」下拉(見 COMPARE_OPTIONS),
+        // 不再放在「動作」清單裡 — 條件分支屬於控制流而非業務動作,語意更清晰。
         ['WEB', 'API', 'APP', 'E2E', 'UI'].forEach(p => {
             const list = ACTION_OPTIONS_BY_PLATFORM[p];
             if (!list) return;
-            ['Capture', 'If', 'ElseIf', 'Else', 'EndIf'].forEach(act => {
+            ['Capture'].forEach(act => {
                 if (!list.includes(act)) list.push(act);
             });
         });
+        // 比對條件下拉:前段是真正的比對運算子,尾段(FLOW_CONTROL_OPTIONS)是條件分支邊界。
+        // step.compare 落在 FLOW_CONTROL_OPTIONS 內時,該 step 整列被當作 IF/ELSEIF/ELSE/ENDIF
+        // 標記輸出 Robot 5.0 IF/END 語法;此時 expected 欄位用來放條件運算式(例 "${count} > 5")。
+        const FLOW_CONTROL_OPTIONS = ['If', 'ElseIf', 'Else', 'EndIf'];
         const COMPARE_OPTIONS = [
             'Equals', 'NotEquals', 'Contains', 'NotContains',
             'StartsWith', 'EndsWith', 'Regex',
             'GreaterThan', 'LessThan',
-            'IsVisible', 'IsHidden', 'IsChecked'
+            'IsVisible', 'IsHidden', 'IsChecked',
+            // ── 控制流 ──(下拉時群組會明顯區隔)
+            ...FLOW_CONTROL_OPTIONS,
         ];
+        // 給 backward-compat 用:舊資料 step.action 是 If/ElseIf/Else/EndIf 時,
+        // 在 load 階段搬到 step.compare,並把 step.action 清空(語意 = 此列為控制流標記)。
+        function _isFlowControlValue(v) {
+            if (!v) return false;
+            const s = String(v).trim().toLowerCase();
+            return s === 'if' || s === 'elseif' || s === 'else' || s === 'endif';
+        }
+        function _normalizeFlowControlSteps(steps) {
+            if (!Array.isArray(steps)) return steps;
+            for (const s of steps) {
+                if (!s || typeof s !== 'object') continue;
+                if (_isFlowControlValue(s.action) && !_isFlowControlValue(s.compare)) {
+                    // 找一個吻合大小寫的標準寫法(視覺一致)
+                    const lower = String(s.action).trim().toLowerCase();
+                    const canon = FLOW_CONTROL_OPTIONS.find(o => o.toLowerCase() === lower) || s.action;
+                    s.compare = canon;
+                    s.action = '';
+                }
+            }
+            return steps;
+        }
 
         // 由樹狀結構找出某 TESTCASE 所屬的 PLATFORM（WEB / API / APP）
         function getTestCasePlatform(tcId) {
@@ -5764,11 +5792,16 @@ driver.swipe(100, 800, 100, 200, 500)"
             // Sprint 4.1 — 計算每個 step 的條件分支縮排深度(視覺輔助)
             // If 開區塊 +1,EndIf 關區塊 -1;Else/ElseIf 在區塊「中間」自身 depth -1
             // depth 用 Tailwind padding-left 顯示("pl-2" / "pl-6" / "pl-12" 等)
+            // 來源欄位:優先 step.compare(新格式);若舊資料尚未遷移退回 step.action。
+            const _flowKey = (s) => {
+                const v = s.compare || s.action || '';
+                return String(v).trim().toLowerCase();
+            };
             const _stepDepths = (() => {
                 const depths = [];
                 let lvl = 0;
                 tc.steps.forEach(s => {
-                    const a = (s.action || '').toLowerCase();
+                    const a = _flowKey(s);
                     if (a === 'endif') lvl = Math.max(0, lvl - 1);
                     if (a === 'else' || a === 'elseif') {
                         depths.push(Math.max(0, lvl - 1));
@@ -5785,8 +5818,8 @@ driver.swipe(100, 800, 100, 200, 500)"
                 const cmpList = mergeOpts(compareOptions, step.compare);
                 const tr = document.createElement('tr');
                 // 條件分支邊界 step 視覺強調(綠色背景);非邊界 step 依 depth 加左 padding
-                const _actLow = (step.action || '').toLowerCase();
-                const _isBoundary = ['if', 'elseif', 'else', 'endif'].includes(_actLow);
+                // boundary 判斷讀 _flowKey(優先 compare,fallback action)
+                const _isBoundary = ['if', 'elseif', 'else', 'endif'].includes(_flowKey(step));
                 const _depth = _stepDepths[idx] || 0;
                 const _bgClass = _isBoundary ? 'bg-emerald-50/40' : 'hover:bg-slate-50';
                 tr.className = `${_bgClass} transition align-top step-row`;
@@ -9392,13 +9425,18 @@ driver.swipe(100, 800, 100, 200, 500)"
                 const tc = await apiFetch(`/api/testcases/${encodeURIComponent(id)}`);
                 const info = findNodeInfo(activeTreeData, id);
                 const filename = info ? info.node.title : id;
+                // Backward-compat:If/ElseIf/Else/EndIf 早期放在 step.action,現已移到
+                // step.compare(見 §0.5 _normalizeFlowControlSteps)。載入時就地搬,但不
+                // markDirty;使用者下一次主動編輯儲存時順帶持久化新格式。
+                const _rawSteps = Array.isArray(tc.steps_json) ? tc.steps_json : [];
+                _normalizeFlowControlSteps(_rawSteps);
                 testCases[id] = {
                     tag: 'Saved', tagColor: 'bg-blue-50 text-blue-700',
                     filename: filename,
                     title: '[ATDD] ' + filename.replace(/\.md$/, ''),
                     ac: tc.ac_text || '',
                     setup: tc.setup_text || '',
-                    steps: Array.isArray(tc.steps_json) ? tc.steps_json : [],
+                    steps: _rawSteps,
                     ddt: (tc.ddt_json && tc.ddt_json.headers && tc.ddt_json.headers.length)
                         ? migrateDdtShape(tc.ddt_json)
                         : { headers: DDT_FIXED_HEADERS.slice(), rows: [['1', '', '', '']] }

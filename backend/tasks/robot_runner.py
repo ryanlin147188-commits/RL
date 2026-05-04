@@ -984,17 +984,22 @@ def _build_robot_file(
             action_lower = (step.get("action") or "").strip().lower()
             # Sprint 4.1 — 條件分支邊界 step:If / ElseIf / Else / EndIf
             # 用 expected 欄位當 condition expression(例 "${count} > 5" 或 "'${status}' == 'success'")
-            # 不截圖、不 translate,直接輸出 Robot 5.0+ 原生 IF/ELSE/END 語法
-            if action_lower in ("if", "elseif", "else", "endif"):
-                if action_lower == "if":
+            # 不截圖、不 translate,直接輸出 Robot 5.0+ 原生 IF/ELSE/END 語法。
+            #
+            # 欄位來源:優先讀 step.compare(新前端把控制流放這欄,語意更清晰);
+            # 若是舊資料尚未遷移,退回 step.action。
+            compare_lower = (step.get("compare") or "").strip().lower()
+            flow_key = compare_lower if compare_lower in ("if", "elseif", "else", "endif") else action_lower
+            if flow_key in ("if", "elseif", "else", "endif"):
+                if flow_key == "if":
                     cond = _substitute(step.get("expected") or step.get("input") or "True", ctx)
                     lines.append(f"    IF    {cond}")
-                elif action_lower == "elseif":
+                elif flow_key == "elseif":
                     cond = _substitute(step.get("expected") or step.get("input") or "True", ctx)
                     lines.append(f"    ELSE IF    {cond}")
-                elif action_lower == "else":
+                elif flow_key == "else":
                     lines.append("    ELSE")
-                elif action_lower == "endif":
+                elif flow_key == "endif":
                     lines.append("    END")
                 continue  # 跳過後續截圖 + _translate_step
             is_browser = (
