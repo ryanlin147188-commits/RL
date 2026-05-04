@@ -117,7 +117,10 @@ A finished trace can be enriched by any vision-capable LLM (GPT-4o / Claude 3.5 
 | **Test-case management** | Project / Feature / Platform / Page / Scenario / TestCase tree, Markdown editing, version history, RTM (requirements traceability), defect tracking, WBS, sprint planning |
 | **Authoring** | Visual recorder (Playwright), API recorder (mitmproxy), AI chat → `steps_json`, manual editor, dynamic expressions, capture steps, IF / ELSE branches |
 | **Execution** | Robot Framework 7.x + Playwright headless, isolated runner containers per execution, real-time WebSocket logs, screenshots / video / trace per step, scheduling (cron), tags, retry on flaky |
-| **Observability** | Live console, Allure-style reports, defect linking, history charts (Chart.js), audit log middleware (SOC 2 baseline), Fluent Bit + VictoriaLogs |
+| **Review / Approval** | Generic approval workflow for testcases / documents / scripts / reports — pending / approved / rejected tabs, audit trail, reason field per decision (`review_records` + `review_history` tables) |
+| **Observability** | Live console, Allure-style reports, defect linking, history charts (Chart.js), audit log middleware (SOC 2 baseline), Fluent Bit + VictoriaLogs (per-container streams), opt-in Prometheus + Jaeger via `--profile obs` |
+| **API gateway** | nginx → APISIX → backend (single internal entry); request-id, CORS, per-IP rate-limit, circuit breaker; backend port never exposed to host |
+| **Storage** | All uploads land in SeaweedFS via S3-compatible API (`STORAGE_BACKEND=s3` enforced at startup; container-local fallback removed) |
 | **Integration** | REST API + Swagger, OIDC SSO, slowapi rate limiting, Fernet field encryption (SMTP / AI keys), webhook on execution events |
 | **Multi-tenant** | Organization model, JWT carries `org_id`, RBAC scaffold (24 permission keys); single-tenant stop-gap guards in v1.0 (see [SECURITY.md](SECURITY.md)) |
 
@@ -129,9 +132,19 @@ See [操作說明.md](操作說明.md) (Chinese) for an end-to-end user guide. E
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    Web UI (Vanilla JS + Tailwind CDN, no build) │
+│            Web UI (Vanilla JS + Tailwind CDN, no build step)    │
+│            Lazy-loads Chart.js / Mermaid / html2pdf on demand   │
 └──────────────────────────────┬──────────────────────────────────┘
-                               │ REST + WebSocket
+                               │ REST + WebSocket (port 80)
+┌──────────────────────────────▼──────────────────────────────────┐
+│   nginx (front door, SPA shell, /recorder/<id>/* WS reverse-    │
+│          proxy to dynamic spawn containers)                     │
+└──────────────────────────────┬──────────────────────────────────┘
+                               │ /api/*  /ws/*  /pics/*  /results/*
+┌──────────────────────────────▼──────────────────────────────────┐
+│   APISIX  (request-id · CORS · rate-limit · api-breaker)        │
+└──────────────────────────────┬──────────────────────────────────┘
+                               │ proxy to backend:8000 (internal)
 ┌──────────────────────────────▼──────────────────────────────────┐
 │         FastAPI (Python 3.11) · OIDC · slowapi · Fernet         │
 └────────┬───────────────┬─────────────────┬──────────────────────┘
@@ -140,15 +153,16 @@ See [操作說明.md](操作說明.md) (Chinese) for an end-to-end user guide. E
 │ PostgreSQL 16│ │  Valkey 8    │ │ Celery worker             │
 │ (data)       │ │ (cache+queue)│ │  → Robot Framework runner │
 └──────────────┘ └──────────────┘ │  → Playwright recorder    │
-                                  │  → Playwright MCP         │
-┌──────────────┐ ┌──────────────┐ │  (each in its own         │
-│ SeaweedFS    │ │ APISIX +     │ │  short-lived container)   │
-│ (S3, media)  │ │ Fluent Bit + │ └───────────────────────────┘
-└──────────────┘ │ VictoriaLogs │
-                 └──────────────┘
+                                  │  → mitmproxy API recorder │
+┌──────────────┐ ┌──────────────┐ │  → Playwright MCP         │
+│ SeaweedFS    │ │ Fluent Bit + │ │  (each in its own         │
+│ (S3, media)  │ │ VictoriaLogs │ │  short-lived container)   │
+└──────────────┘ └──────────────┘ └───────────────────────────┘
 ```
 
-12 services in `docker-compose.yml`. Bundle image distribution available via `docker-compose.bundle.yml` for air-gapped deployments.
+**Always-on**: 12 services in `docker-compose.yml` (postgres / valkey / seaweedfs / docker-proxy / backend / celery / frontend / apisix / fluent-bit / victoria-logs / seaweedfs-init one-shot).
+**Profile-gated**: 2 obs services (Prometheus + Jaeger), 4 spawn-time images (`robot-runner` / `recorder` / `recorder-api` / `mcp` — built once, run per session by backend), 1 bootstrap (one-shot `.env` generator).
+**Bundle**: image distribution via `docker-compose.bundle.yml` for air-gapped deployments.
 
 ---
 
