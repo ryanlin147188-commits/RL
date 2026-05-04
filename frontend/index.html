@@ -9303,11 +9303,25 @@ driver.swipe(100, 800, 100, 200, 500)"
             stopNotifPolling();
             // 立即抓一次,之後每 60 秒輪詢一次未讀數(含 local)
             refreshNotifBadge();
-            _notifPollTimer = setInterval(refreshNotifBadge, 60000);
+            _notifPollTimer = setInterval(() => {
+                // Phase B:長 session 中 access token 會悄悄過期(2h TTL),
+                // 借用每分鐘的 notif poll 順便看一眼,過期前 90 秒就主動 refresh。
+                if (typeof _maybeProactiveRefresh === 'function') {
+                    _maybeProactiveRefresh().catch(() => {});
+                }
+                refreshNotifBadge();
+            }, 60000);
         }
         function stopNotifPolling() {
             if (_notifPollTimer) { clearInterval(_notifPollTimer); _notifPollTimer = null; }
         }
+        // Phase B:tab 從背景切回前景時也檢查一下 token 還有沒有效。
+        // 使用者把分頁掛在那 30 分鐘再回來,token 可能已過期,先 refresh 過來。
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && typeof _maybeProactiveRefresh === 'function') {
+                _maybeProactiveRefresh().catch(() => {});
+            }
+        });
         // 頁面載入後立刻同步一次 badge(local 訊息不需登入也可顯示)
         document.addEventListener('DOMContentLoaded', () => {
             try { refreshNotifBadge(); } catch (_) {}
@@ -10050,7 +10064,12 @@ driver.swipe(100, 800, 100, 200, 500)"
                 authShowOverlay();
                 return;
             }
-            // 已登入：先驗證 token 還有效（會自動 silent refresh）
+            // 已登入。Phase B(proactive refresh):若 access token 在 90 秒內過期,
+            // 在發任何 API 之前先打一次 /api/auth/refresh,讓後續 fetch 都帶新 token,
+            // 不再產生「先 401 → silent refresh → 重試」的 console 雜訊。
+            // _doRefresh 自帶 in-flight 去重,即使 _maybeProactiveRefresh 與 authFetch
+            // 的 reactive refresh 同時觸發也只發一次。
+            await _maybeProactiveRefresh();
             // Perf B3: 同時 kick 出 /api/projects(initProjects 需要的)— 兩個請求
             // 平行飛,而不是 me ok 後再追問 projects。me 失敗時把 projReq 的 unhandled
             // rejection 吃掉以免汙染 console。
@@ -10158,6 +10177,22 @@ driver.swipe(100, 800, 100, 200, 500)"
                 finally { _refreshing = null; }
             })();
             return _refreshing;
+        }
+
+        // Proactive refresh:在 access token 即將過期(預設 < 90 秒)時主動換新,
+        // 讓下一次 fetch 直接帶新 token,免去「先 401 再 refresh 再重試」的痕跡。
+        // 在 (a) window.onload bootstrap、(b) 60-sec notif poll、(c) tab 從背景回前景
+        // 三個時機呼叫;_doRefresh 自帶 in-flight 去重,重複呼叫安全。
+        async function _maybeProactiveRefresh(marginMs = 90 * 1000) {
+            try {
+                if (!authGetAccessToken() || !authGetRefreshToken()) return;
+                const expRaw = localStorage.getItem(AUTH_TOKEN_KEYS.expiresAt);
+                const expAt = expRaw ? Number(expRaw) : 0;
+                // 沒寫過 exp(舊版本登入留下的 token)→ 也順便 refresh 一次
+                if (!expAt || expAt - Date.now() < marginMs) {
+                    await _doRefresh();
+                }
+            } catch (_) { /* 不擋啟動 */ }
         }
         window.fetch = async function authFetch(input, init) {
             init = init || {};
