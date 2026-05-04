@@ -1,7 +1,8 @@
 """JWT 簽發 / 驗證 + bcrypt 密碼雜湊。
 
 JWT 用對稱 HS256;簽章用 AUTOTEST_JWT_SECRET 環境變數,**必填**。
-deploy.sh / deploy.ps1 首次啟動會自動產生隨機值寫入 .env;手動部署時請設足夠長的隨機字串。
+首次部署可用 `docker compose --profile init run --rm bootstrap` 自動產生隨機值
+寫入 .env;手動部署時請設足夠長的隨機字串(建議 `openssl rand -hex 32`)。
 
 Tokens 內容:
 - sub: username
@@ -26,7 +27,8 @@ if not _jwt_secret_raw:
     raise RuntimeError(
         "AUTOTEST_JWT_SECRET environment variable is required. "
         "Generate a random value (e.g., `openssl rand -hex 32`) and set it in your .env file. "
-        "If you used deploy.sh / deploy.ps1, this should have been generated automatically."
+        "Or run `docker compose --profile init run --rm bootstrap` to auto-generate "
+        "a complete .env (creates only if missing)."
     )
 JWT_SECRET: str = _jwt_secret_raw
 JWT_ALGORITHM: str = "HS256"

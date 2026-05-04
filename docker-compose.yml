@@ -5,9 +5,10 @@ services:
     container_name: autotest-postgres
     restart: unless-stopped
     environment:
-      # 預設 DB user 為 admin；DB_PASSWORD 必須由 .env / deploy.sh 提供。
+      # 預設 DB user 為 admin；DB_PASSWORD 必須由 .env 提供
+      # (沒 .env 時:`docker compose --profile init run --rm bootstrap` 自動產一份)。
       POSTGRES_USER: ${DB_USER:-admin}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required - run ./deploy.sh first to generate one}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required - run docker compose --profile init run --rm bootstrap}
       POSTGRES_DB: ${DB_NAME:-autotest_db}
       TZ: Asia/Taipei
       PGTZ: Asia/Taipei
@@ -87,7 +88,7 @@ services:
         condition: service_healthy
     environment:
       AWS_ACCESS_KEY_ID: ${S3_ROOT_USER:-admin}
-      AWS_SECRET_ACCESS_KEY: ${S3_ROOT_PASSWORD:?S3_ROOT_PASSWORD is required - run ./deploy.sh first to generate one}
+      AWS_SECRET_ACCESS_KEY: ${S3_ROOT_PASSWORD:?S3_ROOT_PASSWORD is required - run docker compose --profile init run --rm bootstrap}
       AWS_DEFAULT_REGION: us-east-1
     entrypoint: >
       /bin/sh -c "
@@ -115,7 +116,7 @@ services:
       DB_HOST: postgres
       DB_PORT: 5432
       DB_USER: ${DB_USER:-admin}
-      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required - run ./deploy.sh first to generate one}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required - run docker compose --profile init run --rm bootstrap}
       DB_NAME: ${DB_NAME:-autotest_db}
       REDIS_URL: redis://valkey:6379/0
       # PIC_FOLDER:容器內暫存路徑,給 robot listener / recorder session 寫
@@ -129,15 +130,15 @@ services:
       # SeaweedFS 的 S3-compatible 端點與 IAM credentials
       S3_ENDPOINT: http://seaweedfs:8333
       S3_ACCESS_KEY: ${S3_ROOT_USER:-admin}
-      S3_SECRET_KEY: ${S3_ROOT_PASSWORD:?S3_ROOT_PASSWORD is required - run ./deploy.sh first to generate one}
+      S3_SECRET_KEY: ${S3_ROOT_PASSWORD:?S3_ROOT_PASSWORD is required - run docker compose --profile init run --rm bootstrap}
       APP_HOST: 0.0.0.0
       APP_PORT: 8000
       DEBUG: "False"
       # CORS 白名單(逗號分隔);公開部署請改為實際前端 origin。
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost}
       # 應用層 secret(必填):JWT 簽章 + Fernet 對稱加密金鑰
-      AUTOTEST_JWT_SECRET: ${AUTOTEST_JWT_SECRET:?AUTOTEST_JWT_SECRET is required - run ./deploy.sh first to generate one}
-      AUTOTEST_FERNET_KEY: ${AUTOTEST_FERNET_KEY:?AUTOTEST_FERNET_KEY is required - run ./deploy.sh first to generate one}
+      AUTOTEST_JWT_SECRET: ${AUTOTEST_JWT_SECRET:?AUTOTEST_JWT_SECRET is required - run docker compose --profile init run --rm bootstrap}
+      AUTOTEST_FERNET_KEY: ${AUTOTEST_FERNET_KEY:?AUTOTEST_FERNET_KEY is required - run docker compose --profile init run --rm bootstrap}
       # RFC-8 observability:預設指向 obs profile 的 jaeger;沒啟 obs profile
       # 時 backend 連不到 jaeger,observability.py 會 log warning 後忽略,不擋啟動。
       # 完全停用 tracing → 在 .env 或 compose override 設成空字串。
@@ -172,7 +173,7 @@ services:
       DB_HOST: postgres
       DB_PORT: 5432
       DB_USER: ${DB_USER:-admin}
-      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required - run ./deploy.sh first to generate one}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required - run docker compose --profile init run --rm bootstrap}
       DB_NAME: ${DB_NAME:-autotest_db}
       REDIS_URL: redis://valkey:6379/0
       # PIC_FOLDER:robot listener 寫產物的暫存路徑,跑完上傳到 SeaweedFS 即丟。
@@ -182,11 +183,11 @@ services:
       STORAGE_BACKEND: ${STORAGE_BACKEND:?STORAGE_BACKEND is required and must be 's3' (SeaweedFS via S3-compatible API; set STORAGE_BACKEND=s3 in .env)}
       S3_ENDPOINT: http://seaweedfs:8333
       S3_ACCESS_KEY: ${S3_ROOT_USER:-admin}
-      S3_SECRET_KEY: ${S3_ROOT_PASSWORD:?S3_ROOT_PASSWORD is required - run ./deploy.sh first to generate one}
+      S3_SECRET_KEY: ${S3_ROOT_PASSWORD:?S3_ROOT_PASSWORD is required - run docker compose --profile init run --rm bootstrap}
       PLAYWRIGHT_HEADLESS: ${PLAYWRIGHT_HEADLESS:-1}
       # Celery worker 也會 import app.* 模組,需要相同的 secret(必填)
-      AUTOTEST_JWT_SECRET: ${AUTOTEST_JWT_SECRET:?AUTOTEST_JWT_SECRET is required - run ./deploy.sh first to generate one}
-      AUTOTEST_FERNET_KEY: ${AUTOTEST_FERNET_KEY:?AUTOTEST_FERNET_KEY is required - run ./deploy.sh first to generate one}
+      AUTOTEST_JWT_SECRET: ${AUTOTEST_JWT_SECRET:?AUTOTEST_JWT_SECRET is required - run docker compose --profile init run --rm bootstrap}
+      AUTOTEST_FERNET_KEY: ${AUTOTEST_FERNET_KEY:?AUTOTEST_FERNET_KEY is required - run docker compose --profile init run --rm bootstrap}
       ROBOT_RUNNER_IMAGE: ${ROBOT_RUNNER_IMAGE:-autotest-robot-runner:1.0.0}
       # 與下方 networks.default.name 保持一致
       ROBOT_RUNNER_NETWORK: ${ROBOT_RUNNER_NETWORK:-autotest_default}
@@ -294,6 +295,94 @@ services:
       - "4317:4317"     # OTLP gRPC -- backend 透過 OTLP_ENDPOINT=jaeger:4317 推送
       - "4318:4318"     # OTLP HTTP -- 給 sidecar / collector 備用
 
+  # ── Spawn-time images(profile=spawnable:刻意永不啟動) ─────────────
+  # 這 4 個 image 是 backend 在 runtime 動態 docker run 出來的(per-session
+  # 容器,做測試執行 / 錄製 / MCP 操作),不是常駐 service。但 image 必須
+  # 預先 build 好否則 spawn 時 image not found。把它們列在這裡有兩個好處:
+  #   1. `docker compose --profile spawnable build` 一次 build 完
+  #   2. 集中管理 image tag,跟 backend env 的 RECORDER_IMAGE / MCP_IMAGE 對齊
+  # profile=spawnable 確保它們不會被 `docker compose up` 起來。
+  robot-runner:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.runner
+    image: autotest-robot-runner:1.0.0
+    profiles: ["spawnable"]
+    command: ["true"]   # never started; defensive no-op if profile is misused
+    restart: "no"
+
+  recorder:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.recorder
+    image: autotest-recorder:1.0.0
+    profiles: ["spawnable"]
+    command: ["true"]
+    restart: "no"
+
+  recorder-api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.recorder-api
+    image: autotest-recorder-api:1.0.0
+    profiles: ["spawnable"]
+    command: ["true"]
+    restart: "no"
+
+  mcp:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.mcp
+    image: autotest-mcp:1.0.0
+    profiles: ["spawnable"]
+    command: ["true"]
+    restart: "no"
+
+  # ── Bootstrap secrets(profile=init:首次部署用,跑完即丟) ──────────
+  # 自動產生 .env 隨機 secret。第一次部署用一次,之後 .env 已存在會跳過。
+  # 用法:
+  #   docker compose --profile init run --rm bootstrap
+  # 行為:
+  #   * 若 .env 已存在 → 不覆寫,印 INFO 後 exit 0
+  #   * 若 .env 不存在 → 用 openssl 產隨機 secrets 寫入,印 OK 後 exit 0
+  bootstrap:
+    image: alpine:3.20
+    profiles: ["init"]
+    working_dir: /work
+    volumes:
+      - .:/work
+    entrypoint:
+      - sh
+      - -c
+      - |
+        set -e
+        apk add --no-cache openssl coreutils >/dev/null
+        if [ -f /work/.env ]; then
+          echo "[INFO] .env already exists — skipping (delete it first to regenerate)"
+          exit 0
+        fi
+        DB_PWD=$$(openssl rand -hex 24)
+        S3_PWD=$$(openssl rand -hex 24)
+        JWT=$$(openssl rand -hex 32)
+        # Fernet key = urlsafe-b64(32 raw bytes), 44 chars with `=` padding.
+        FERNET=$$(openssl rand 32 | base64 -w 0 | tr '+/' '-_')
+        cat > /work/.env <<EOF
+        # AutoTest deployment secrets (auto-generated by bootstrap service).
+        # Do not commit. Rotate periodically.
+        DB_USER=admin
+        DB_PASSWORD=$$DB_PWD
+        DB_NAME=autotest_db
+        BASE_URL=http://localhost
+        ALLOWED_ORIGINS=http://localhost
+        STORAGE_BACKEND=s3
+        S3_ROOT_USER=admin
+        S3_ROOT_PASSWORD=$$S3_PWD
+        AUTOTEST_JWT_SECRET=$$JWT
+        AUTOTEST_FERNET_KEY=$$FERNET
+        EOF
+        echo "[OK] .env created with random secrets"
+    restart: "no"
+
 volumes:
   postgres_data:
   seaweedfs_data:
@@ -313,7 +402,7 @@ configs:
             "credentials": [
               {
                 "accessKey": "${S3_ROOT_USER:-admin}",
-                "secretKey": "${S3_ROOT_PASSWORD:?S3_ROOT_PASSWORD is required - run ./deploy.sh first to generate one}"
+                "secretKey": "${S3_ROOT_PASSWORD:?S3_ROOT_PASSWORD is required - run docker compose --profile init run --rm bootstrap}"
               }
             ],
             "actions": ["Admin", "Read", "Write", "List", "Tagging"]

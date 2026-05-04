@@ -1476,17 +1476,15 @@ async def api_docker_start(
     try:
         docker_client.images.get(settings.RECORDER_API_IMAGE)
     except Exception:
-        # 自動觸發 build(共用 image build 機制改寫;這裡先簡化:直接拋 425
-        # 提示 user 跑 ./deploy.sh 或手動 build。後續再做 auto-build for api image)
         raise HTTPException(
             status_code=425,
             detail={
                 "code": "recorder_api_image_missing",
                 "message": (
                     f"找不到 image `{settings.RECORDER_API_IMAGE}`;"
-                    "請跑 `./deploy.sh` / `deploy.ps1` 重新部署(已自動 build 此 image),"
-                    "或手動執行:`docker build -f backend/Dockerfile.recorder-api "
-                    "-t autotest-recorder-api:1.0.0 backend/`"
+                    "請執行 `docker compose --profile spawnable build recorder-api` "
+                    "預先 build,或一次 build 全部 spawn-time image:"
+                    "`docker compose --profile spawnable build`"
                 ),
             },
         )

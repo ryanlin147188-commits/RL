@@ -30,32 +30,46 @@
 
 ## Quick Start (Docker, ~5 minutes)
 
-**Prerequisites**: Docker 24+ and Docker Compose v2.23+. Works on Linux, macOS, and Windows (Docker Desktop).
+**Prerequisites**: Docker 24+ and Docker Compose v2.23+. Works on Linux, macOS, and Windows (Docker Desktop). All commands below work identically on every platform — no platform-specific deploy scripts needed.
 
 ```bash
 git clone https://github.com/ryanlin147188-commits/RL_TMP.git
 cd RL_TMP
-./deploy.sh                 # Linux / macOS
-# .\deploy.ps1              # Windows PowerShell
+
+# 1) Generate .env with random secrets (skip if you already have one).
+docker compose --profile init run --rm bootstrap
+
+# 2) Pre-build the four spawn-time images (Robot runner / web recorder /
+#    API recorder / MCP). These run as per-session containers, not long-
+#    lived services, but the images must exist before the backend can
+#    `docker run` them. First build takes ~5–10 min.
+docker compose --profile spawnable build
+
+# 3) Start the main stack.
+docker compose up -d --build
+
+# 4) Create the first admin user (no default account is shipped).
+docker compose exec backend python -m app.cli create-admin
 ```
-
-The deploy script will:
-
-1. Verify Docker is running.
-2. Generate a `.env` with random secrets if it does not exist.
-3. Build the Robot Framework runner / recorder / MCP images.
-4. Start the full stack via `docker compose up -d`.
-5. Print the URL of the web UI.
 
 **Default URLs after a successful boot**
 
 | Service | URL |
 |---|---|
 | Web UI | <http://localhost> |
-| REST API (Swagger) | <http://localhost:8000/docs> |
-| Logs (VictoriaLogs) | Internal by default; expose with `docker-compose.dev.yml` for local debugging |
+| REST API (Swagger) | exec into backend: `docker compose exec backend curl localhost:8000/docs` (port 8000 is no longer exposed; see [SECURITY.md](SECURITY.md)) |
+| Logs (VictoriaLogs vmui) | Internal by default; chain `docker-compose.dev.yml` to expose port 9428 |
 
-**First login**: the platform does not ship a hard-coded admin account. After first boot, run the bootstrap command shown in the console (or `docker compose exec backend python -m app.cli create-admin`) and pick your own username / password.
+### Daily ops
+
+| Want to… | Command |
+|---|---|
+| See running containers | `docker compose ps` |
+| Tail logs | `docker compose logs -f` |
+| Stop (preserve data) | `docker compose down` |
+| Reset (DESTRUCTIVE — wipes DB + S3) | `docker compose down -v` |
+| Enable observability stack (Prometheus + Jaeger) | add `--profile obs` to up/down |
+| Expose internal ports for local dev | `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d` |
 
 ---
 
@@ -143,7 +157,7 @@ See [操作說明.md](操作說明.md) (Chinese) for an end-to-end user guide. E
 Before exposing RL to the internet:
 
 - Set `ALLOWED_ORIGINS` to your front-end origin (never `*`).
-- Override default secrets — `AUTOTEST_JWT_SECRET`, `AUTOTEST_FERNET_KEY`, `DB_PASSWORD`, `S3_ROOT_PASSWORD`. The deploy script generates random values on first run; rotate them on a schedule.
+- Override default secrets — `AUTOTEST_JWT_SECRET`, `AUTOTEST_FERNET_KEY`, `DB_PASSWORD`, `S3_ROOT_PASSWORD`. The bootstrap profile (`docker compose --profile init run --rm bootstrap`) generates random values on first run; rotate them on a schedule.
 - Run behind HTTPS (e.g., a reverse proxy with Let's Encrypt or your own CA).
 - Pin `RECORDER_IMAGE` and `ROBOT_RUNNER_IMAGE` to specific tags or sha256 digests — never `latest`.
 - Schedule backups of the PostgreSQL and SeaweedFS volumes.

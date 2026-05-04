@@ -139,16 +139,38 @@ RL 鎖定 **15–500 人規模、有自動化測試需求但被工具鏈拖累**
 
 ## 5 分鐘上線
 
-```bash
-# macOS / Ubuntu / Linux
-git clone https://github.com/ryanlin147188-commits/RL_TMP.git && cd RL_TMP
-./deploy.sh                # 自動建 image、啟動全部服務、開瀏覽器
+**前置**:Docker 24+ 與 Docker Compose v2.23+。下列指令在 Linux / macOS / Windows(Docker Desktop)完全相同 — 不需要為平台分別寫部署腳本。
 
-# Windows (PowerShell)
-.\deploy.ps1
+```bash
+git clone https://github.com/ryanlin147188-commits/RL_TMP.git && cd RL_TMP
+
+# 1) 產生帶隨機 secret 的 .env(若已存在 .env 會跳過,不覆寫)
+docker compose --profile init run --rm bootstrap
+
+# 2) 預 build 四個 spawn-time image(Robot runner / 錄製 web / 錄製 api / MCP)
+#    這些是 backend 在 runtime 動態 `docker run` 出來的 per-session 容器,
+#    不是常駐 service,但 image 必須先存在。第一次約 5-10 分鐘。
+docker compose --profile spawnable build
+
+# 3) 啟動主服務
+docker compose up -d --build
+
+# 4) 建立第一位 admin(平台不再內建 admin/admin123 預設帳號)
+docker compose exec backend python -m app.cli create-admin
 ```
 
-腳本完成後到 <http://localhost>。平台不再內建固定 `admin` / `admin123` 帳號；第一次啟動後請依主控台提示執行 `docker compose exec backend python -m app.cli create-admin`，自行建立第一位管理員。
+完成後到 <http://localhost>。
+
+### 日常維運
+
+| 想做… | 指令 |
+|---|---|
+| 看容器狀態 | `docker compose ps` |
+| 看即時 log | `docker compose logs -f` |
+| 停掉(保留資料) | `docker compose down` |
+| 完全重置(**會清光 DB + S3**) | `docker compose down -v` |
+| 啟用觀察性堆疊(Prometheus + Jaeger) | 任何指令加 `--profile obs` |
+| Dev 模式(暴露內部 port 給 host) | `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d` |
 
 > 📖 **完整教學**(從建專案 → 寫案例 → 用 AI 生案例 → 跑測試 → 看報告)請見 **[操作說明.md](操作說明.md)**
 
@@ -227,22 +249,27 @@ docker compose -f docker-compose.bundle.yml up -d
 
 ## ⚙ 部署模式
 
-### 一鍵部署(推薦)
+### 純 Docker Compose(推薦)
+
+四個指令完成首次部署,跨平台行為一致(Linux / macOS / Windows Docker Desktop):
 
 ```bash
-./deploy.sh           # macOS / Ubuntu / Linux
-.\deploy.ps1          # Windows (PowerShell)
+docker compose --profile init run --rm bootstrap     # 1) 產 .env(含隨機 secret)
+docker compose --profile spawnable build             # 2) 預 build 4 個 spawn-time image
+docker compose up -d --build                         # 3) 啟動主服務
+docker compose exec backend python -m app.cli create-admin   # 4) 建首位 admin
 ```
 
-**子命令**:
+**日常維運指令**:
 
-| 用途 | bash | PowerShell |
-|---|---|---|
-| 部署 / 啟動 | `./deploy.sh` | `.\deploy.ps1` |
-| 容器狀態 | `./deploy.sh --status` | `.\deploy.ps1 -Status` |
-| 即時 log | `./deploy.sh --logs` | `.\deploy.ps1 -Logs` |
-| 停止(保留資料)| `./deploy.sh --stop` | `.\deploy.ps1 -Stop` |
-| 重置(**清空所有資料**)| `./deploy.sh --reset` | `.\deploy.ps1 -Reset` |
+| 用途 | 指令 |
+|---|---|
+| 容器狀態 | `docker compose ps` |
+| 即時 log | `docker compose logs -f` |
+| 停止(保留資料)| `docker compose down` |
+| 重置(**清空所有資料**)| `docker compose down -v` |
+| 啟用 obs(Prometheus + Jaeger)| 任何指令加 `--profile obs` |
+| Dev 暴露內部 port | `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d` |
 
 ### 系統需求
 
