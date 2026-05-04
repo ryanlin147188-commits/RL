@@ -133,6 +133,54 @@ async def list_permission_catalogue():
     return {"items": _PERMISSION_CATALOGUE}
 
 
+_PERMISSION_KEYS = {p["key"] for p in _PERMISSION_CATALOGUE}
+
+
+@router.get(
+    "/settings/permissions/{key}/usage",
+    tags=["S · 設定"],
+    dependencies=[Depends(require_permission(P.SETTINGS_READ))],
+)
+async def get_permission_usage(
+    key: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """C1 — 反向查詢:給定一個權限 key,回傳哪些角色含它 + 各自的使用者數。
+    讓 admin 改 catalogue / 刪角色前能看到完整影響面。"""
+    if key not in _PERMISSION_KEYS:
+        raise HTTPException(404, f"未知的權限 key:{key}")
+    role_stmt = _role_visibility_filter(select(Role), user)
+    roles = (await db.execute(role_stmt)).scalars().all()
+    matched = [r for r in roles if isinstance(r.permissions_json, list) and key in r.permissions_json]
+    out_roles: list[dict] = []
+    user_set: set[str] = set()
+    for r in matched:
+        org_users = (await db.execute(
+            select(OrgMembership.username).where(OrgMembership.role_id == r.id)
+        )).scalars().all()
+        proj_users = (await db.execute(
+            select(ProjectMember.username).where(ProjectMember.role_id == r.id)
+        )).scalars().all()
+        users_for_role = set(org_users) | set(proj_users)
+        user_set |= users_for_role
+        out_roles.append({
+            "id": r.id,
+            "name": r.name,
+            "scope": r.scope,
+            "is_system": bool(r.is_system),
+            "users_count": len(users_for_role),
+            "org_members_count": len(set(org_users)),
+            "project_members_count": len(set(proj_users)),
+        })
+    out_roles.sort(key=lambda x: (-x["users_count"], x["name"]))
+    return {
+        "key": key,
+        "roles": out_roles,
+        "total_users": len(user_set),
+    }
+
+
 @router.get(
     "/settings/notifications/catalogue",
     tags=["S · 設定"],

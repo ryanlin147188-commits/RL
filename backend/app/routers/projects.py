@@ -9,6 +9,8 @@ from app.auth.permissions import require_permission
 from app.auth.permissions_catalog import P
 from app.auth.project_membership import ensure_project_member
 from app.database import get_db
+from app.models.group import Group, GroupMembership
+from app.models.org_membership import OrgMembership
 from app.models.project import Project
 from app.models.project_member import ProjectMember
 from app.models.role import Role
@@ -441,6 +443,94 @@ async def bulk_update_project_members(
         updated += 1
     await db.flush()
     return {"updated": updated, "skipped": skipped}
+
+
+# ─── C5:從群組批次加入專案成員 ──────────────────────────────────
+@router.post("/projects/{project_id}/members/from-group", tags=["G · 專案"])
+async def add_project_members_from_group(
+    project_id: str,
+    payload: dict,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """C5 — 把整個群組(含子群組)展開後加為專案成員。
+    body:`{"group_id": "...", "role_id": null, "include_descendants": true}`
+    回傳:`{added: N, skipped: [{username, reason}]}`。
+    跳過原因:已在此專案 / 不在此 org 的 OrgMembership / user 不存在。"""
+    proj = await db.get(Project, project_id)
+    _check_org_or_404(proj, user)
+    if not _can_manage_project_members(user, proj):
+        raise HTTPException(403, "需要組織管理員權限才能管理專案成員")
+    group_id = (payload or {}).get("group_id")
+    role_id = (payload or {}).get("role_id") or None
+    include_desc = bool((payload or {}).get("include_descendants", True))
+    if not group_id:
+        raise HTTPException(400, "缺少 group_id")
+    root = await db.get(Group, group_id)
+    if not root:
+        raise HTTPException(404, "找不到該群組")
+    if root.organization_id and root.organization_id != proj.organization_id:
+        raise HTTPException(400, "群組與專案不在同一個 organization")
+    if role_id:
+        role = await db.get(Role, role_id)
+        if not role:
+            raise HTTPException(400, "無效的 role_id")
+
+    # 1) BFS 展開群組樹
+    group_ids: set[str] = {group_id}
+    if include_desc:
+        frontier = {group_id}
+        while frontier:
+            children = (await db.execute(
+                select(Group.id).where(Group.parent_id.in_(frontier))
+            )).scalars().all()
+            new_ids = set(children) - group_ids
+            if not new_ids:
+                break
+            group_ids |= new_ids
+            frontier = new_ids
+
+    # 2) 抓所有(unique)group member usernames
+    usernames = set((await db.execute(
+        select(GroupMembership.username).where(GroupMembership.group_id.in_(group_ids))
+    )).scalars().all())
+    if not usernames:
+        return {"added": 0, "skipped": [], "expanded_groups": len(group_ids)}
+
+    # 3) 一次撈現有 ProjectMember + OrgMembership(降 N+1)
+    existing_pm = set((await db.execute(
+        select(ProjectMember.username)
+        .where(ProjectMember.project_id == project_id)
+        .where(ProjectMember.username.in_(usernames))
+    )).scalars().all())
+    in_org = set((await db.execute(
+        select(OrgMembership.username)
+        .where(OrgMembership.organization_id == proj.organization_id)
+        .where(OrgMembership.username.in_(usernames))
+        .where(OrgMembership.status == "active")
+    )).scalars().all())
+
+    added = 0
+    skipped: list[dict] = []
+    for u in sorted(usernames):
+        if u in existing_pm:
+            skipped.append({"username": u, "reason": "已是專案成員"}); continue
+        if u not in in_org:
+            skipped.append({"username": u, "reason": "不是此 org 的 active 成員"}); continue
+        db.add(ProjectMember(
+            project_id=project_id,
+            username=u,
+            role_id=role_id,
+            status="active",
+            invited_by=user.username,
+        ))
+        added += 1
+    await db.flush()
+    return {
+        "added": added,
+        "skipped": skipped,
+        "expanded_groups": len(group_ids),
+    }
 
 
 @router.patch("/projects/{project_id}/members/{username}", tags=["G · 專案"])

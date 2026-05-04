@@ -378,39 +378,151 @@ async def create_invite(
     # /request-access flow — same template, same Celery task. Failures
     # logged but never bubble; the invite row was already saved successfully.
     if payload.send_email and target_email:
-        try:
-            from app.services.email_service import render_invite_email
-            from tasks.email_tasks import send_email_task
-
-            # Admin-driven invite flow doesn't have a Request handle here, so
-            # we can't read X-Forwarded-Host to build an absolute URL. Falls
-            # back to a relative path; the email template / receiving inbox
-            # resolves it against the org's mail-side base URL.
-            # TODO: thread Request through this call site so we can use
-            # `https://{request.url.netloc}/...` like /api/auth/register does.
-            register_url = f"/register?token={token}&email={target_email}"
-            html_body, text_body = render_invite_email(
-                org_name=org.name,
-                register_url=register_url,
-                token=token,
-                expires_at=expires_at,
-            )
-            send_email_task.delay(
-                to=target_email,
-                subject=f"您獲邀加入 {org.name} (AutoTest)",
-                html_body=html_body,
-                text_body=text_body,
-                organization_id=org.id,
-            )
-            inv.email_sent_at = datetime.utcnow()
-            inv.email_sent_to = target_email
-            await db.flush()
-        except Exception:  # noqa: BLE001
-            import logging
-            logging.getLogger(__name__).exception(
-                "create_invite: token saved but email enqueue failed for %s", target_email,
-            )
+        await _send_invite_email(inv, org, db)
     return _enrich_invite(inv)
+
+
+async def _send_invite_email(inv: OrgInvite, org: Organization, db: AsyncSession) -> bool:
+    """Enqueue the invite email via Celery. Updates inv.email_sent_at on success.
+    Returns True if enqueued, False on failure (logged). Used by both create &
+    resend so the two share one path."""
+    target_email = inv.email or inv.email_sent_to
+    if not target_email:
+        return False
+    try:
+        from app.services.email_service import render_invite_email
+        from tasks.email_tasks import send_email_task
+        register_url = f"/register?token={inv.token}&email={target_email}"
+        html_body, text_body = render_invite_email(
+            org_name=org.name,
+            register_url=register_url,
+            token=inv.token,
+            expires_at=inv.expires_at,
+        )
+        send_email_task.delay(
+            to=target_email,
+            subject=f"您獲邀加入 {org.name} (AutoTest)",
+            html_body=html_body,
+            text_body=text_body,
+            organization_id=org.id,
+        )
+        inv.email_sent_at = datetime.utcnow()
+        inv.email_sent_to = target_email
+        await db.flush()
+        return True
+    except Exception:  # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception(
+            "send_invite_email: enqueue failed for invite=%s email=%s", inv.id, target_email,
+        )
+        return False
+
+
+# ─── C4: invite lifecycle — resend / extend / bulk ──────────────
+@router.post("/invites/{invite_id}/resend", tags=["X · 組織"])
+async def resend_invite(
+    invite_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """重寄邀請信給原 email。若已被使用 → 409。已過期 → 403(請先 extend)。"""
+    inv = await db.get(OrgInvite, invite_id)
+    if not inv:
+        raise HTTPException(404, "Invite not found")
+    if not user.is_superuser and inv.organization_id != user.organization_id:
+        raise HTTPException(404, "Invite not found")
+    if inv.used_at is not None:
+        raise HTTPException(409, "此邀請已被使用,無需重寄")
+    if inv.expires_at and inv.expires_at < datetime.utcnow():
+        raise HTTPException(403, "邀請已過期,請先延長有效期再重寄")
+    if not (inv.email or inv.email_sent_to):
+        raise HTTPException(400, "此邀請沒有 email,無法寄送(只能給對方手動傳 token)")
+    org = await db.get(Organization, inv.organization_id)
+    if not org:
+        raise HTTPException(404, "Organization not found")
+    ok = await _send_invite_email(inv, org, db)
+    if not ok:
+        raise HTTPException(500, "寄送失敗(已記錄到 server log)")
+    return _enrich_invite(inv)
+
+
+@router.patch("/invites/{invite_id}/extend", tags=["X · 組織"])
+async def extend_invite(
+    invite_id: str,
+    days: int = 7,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """延長邀請有效期。`days` 是「從現在起再加 N 天」(不是從原 expires_at)。"""
+    inv = await db.get(OrgInvite, invite_id)
+    if not inv:
+        raise HTTPException(404, "Invite not found")
+    if not user.is_superuser and inv.organization_id != user.organization_id:
+        raise HTTPException(404, "Invite not found")
+    if inv.used_at is not None:
+        raise HTTPException(409, "此邀請已被使用,無法延長")
+    days_int = max(1, min(365, int(days or 7)))
+    inv.expires_at = datetime.utcnow() + timedelta(days=days_int)
+    await db.flush()
+    return _enrich_invite(inv)
+
+
+@router.post("/invites/bulk", tags=["X · 組織"])
+async def bulk_create_invites(
+    payload: dict,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """一次建立多筆邀請(給 admin 從 csv 貼上 N 個 email 用)。
+    body:`{"emails": [...], "role_id": null, "group_id": null,
+            "expires_in_days": 7, "send_email": true, "organization_id": null}`
+    回傳:`{created: [InviteResponse...], skipped: [{email, reason}]}`,limit 200/call。"""
+    emails_in = (payload or {}).get("emails") or []
+    if not isinstance(emails_in, list) or not emails_in:
+        raise HTTPException(400, "缺少 emails(非空陣列)")
+    if len(emails_in) > 200:
+        raise HTTPException(400, "一次最多 200 筆")
+    target_org_id = (payload or {}).get("organization_id") or user.organization_id
+    if not target_org_id:
+        raise HTTPException(400, "organization_id 必填")
+    if not user.is_superuser and target_org_id != user.organization_id:
+        raise HTTPException(403, "只能為自己所屬的 organization 建立邀請")
+    org = await db.get(Organization, target_org_id)
+    if not org:
+        raise HTTPException(404, "Organization not found")
+    role_id = (payload or {}).get("role_id") or None
+    group_id = (payload or {}).get("group_id") or None
+    days = max(1, min(365, int((payload or {}).get("expires_in_days") or 7)))
+    send_email = bool((payload or {}).get("send_email", True))
+    seen: set[str] = set()
+    created: list[dict] = []
+    skipped: list[dict] = []
+    for raw in emails_in:
+        e = (raw or "").strip().lower()
+        if not e:
+            skipped.append({"email": raw, "reason": "空字串"}); continue
+        if not _EMAIL_RE.match(e):
+            skipped.append({"email": e, "reason": "格式錯誤"}); continue
+        if e in seen:
+            skipped.append({"email": e, "reason": "本次重複"}); continue
+        seen.add(e)
+        token = secrets.token_urlsafe(24)
+        inv = OrgInvite(
+            token=token,
+            organization_id=target_org_id,
+            email=e,
+            role_id=role_id,
+            group_id=group_id,
+            expires_at=datetime.utcnow() + timedelta(days=days),
+            created_by=user.username,
+        )
+        db.add(inv)
+        await db.flush()
+        await db.refresh(inv)
+        if send_email:
+            await _send_invite_email(inv, org, db)
+        created.append(_enrich_invite(inv))
+    return {"created": created, "skipped": skipped}
 
 
 # ── Self-service flow (Phase 4) — anonymous endpoints ────────────────────
@@ -473,6 +585,69 @@ async def revoke_invite(
 
 def _can_manage_org(user: User, org_id: str) -> bool:
     return bool(user.is_superuser) or user.organization_id == org_id
+
+
+# ─── C2: email-domain preview validator ──────────────────────────
+@router.get("/orgs/{org_id}/users-matching-domain", tags=["X · 組織"])
+async def users_matching_domain(
+    org_id: str,
+    domain: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """C2 — 設定 email_domains 前的預覽器:列出所有 email 結尾符合 `domain` 的
+    註冊 user,並標示哪些已經是此 org 的成員 / 哪些是「會被新加進來」。
+
+    回傳:`{domain, matched_users, would_join_count, already_in_count}`
+    - `matched_users[].current_org_id` = 其 default OrgMembership 所在 org;
+      若已在此 org → `already_in_count` 計數,否則 `would_join_count` 計數。
+    """
+    if not _can_manage_org(user, org_id):
+        raise HTTPException(404, "Organization not found")
+    d = (domain or "").strip().lower().lstrip("@")
+    if not d:
+        raise HTTPException(400, "缺少 domain")
+    # email like '%@d'(小寫比對,容忍欄位是空字串的 user)
+    rows = (
+        await db.execute(
+            select(User).where(func.lower(User.email).like(f"%@{d}"))
+        )
+    ).scalars().all()
+    if not rows:
+        return {"domain": d, "matched_users": [], "would_join_count": 0, "already_in_count": 0}
+    # 一次撈 OrgMembership 給這批 user(避免 N+1)
+    usernames = [u.username for u in rows]
+    mem_rows = (
+        await db.execute(
+            select(OrgMembership)
+            .where(OrgMembership.username.in_(usernames))
+        )
+    ).scalars().all()
+    in_this_org = {m.username for m in mem_rows if m.organization_id == org_id}
+    default_org = {m.username: m.organization_id for m in mem_rows if m.is_default}
+    out = []
+    would_join = 0
+    already_in = 0
+    for u in rows:
+        is_in = u.username in in_this_org
+        if is_in:
+            already_in += 1
+        else:
+            would_join += 1
+        out.append({
+            "username": u.username,
+            "display_name": u.display_name,
+            "email": u.email,
+            "current_org_id": default_org.get(u.username),
+            "is_in_this_org": is_in,
+        })
+    out.sort(key=lambda x: (x["is_in_this_org"], x["username"]))
+    return {
+        "domain": d,
+        "matched_users": out,
+        "would_join_count": would_join,
+        "already_in_count": already_in,
+    }
 
 
 _ORG_MEMBER_SORT_COLS = {

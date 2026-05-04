@@ -2965,31 +2965,70 @@ driver.swipe(100, 800, 100, 200, 500)"
                 </div>
             </div>
 
-            <!-- 加成員 modal(供「設定 → 專案成員」分頁使用)-->
+            <!-- 加成員 modal(供「設定 → 專案成員」分頁使用)— Tier C3+C5 多選 / 從群組 -->
             <div id="pmAddModal" class="hidden fixed inset-0 z-[170] bg-black/40 flex items-center justify-center p-4">
-                <div class="bg-white rounded-lg shadow-xl border border-stone-200 w-full max-w-md">
-                    <div class="px-5 py-3 border-b flex justify-between items-center">
+                <div class="bg-white rounded-lg shadow-xl border border-stone-200 w-full max-w-lg max-h-[90vh] flex flex-col">
+                    <div class="px-5 py-3 border-b flex justify-between items-center flex-shrink-0">
                         <div class="font-bold text-stone-800"><i class="fa-solid fa-user-plus text-amber-600"></i> 加成員到此專案</div>
                         <button onclick="pmCloseAddModal()" class="text-stone-400 hover:text-rose-600"><i class="fa-solid fa-xmark"></i></button>
                     </div>
-                    <div class="p-5 space-y-3">
-                        <div>
-                            <label class="text-xs font-semibold text-stone-700">使用者(同組織)</label>
-                            <select id="pmAddUsername" class="w-full mt-1 px-3 py-2 border border-stone-300 rounded-md text-sm">
-                                <option value="">— 載入中… —</option>
-                            </select>
+                    <!-- Tab strip -->
+                    <div class="flex border-b flex-shrink-0 bg-stone-50/50">
+                        <button id="pmAddTabUsers" onclick="pmAddSwitchTab('users')" class="px-4 py-2 text-sm font-medium border-b-2 border-amber-500 text-amber-700">個別選擇</button>
+                        <button id="pmAddTabGroup" onclick="pmAddSwitchTab('group')" class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-stone-500 hover:text-stone-700"><i class="fa-solid fa-people-group"></i> 從群組批次加</button>
+                    </div>
+
+                    <!-- Tab 1: 多選使用者 -->
+                    <div id="pmAddPaneUsers" class="p-4 space-y-3 overflow-y-auto">
+                        <div class="relative">
+                            <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-xs"></i>
+                            <input type="search" id="pmAddSearch" oninput="pmAddOnSearch(this.value)" placeholder="搜尋使用者名稱 / 顯示名稱 / Email…"
+                                class="w-full pl-8 pr-3 py-2 border border-stone-300 rounded-md text-sm">
+                        </div>
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="text-stone-500">選 <span id="pmAddSelectedCount" class="font-bold text-amber-700">0</span> / <span id="pmAddCandidateCount">0</span> 人</span>
+                            <div class="flex gap-2">
+                                <button onclick="pmAddSelectAllVisible()" class="px-2 py-0.5 border border-stone-300 rounded hover:bg-amber-50">全選顯示中</button>
+                                <button onclick="pmAddClearSelection()" class="px-2 py-0.5 border border-stone-300 rounded hover:bg-amber-50">清除</button>
+                            </div>
+                        </div>
+                        <div id="pmAddCandList" class="border border-stone-200 rounded max-h-64 overflow-y-auto divide-y divide-stone-100">
+                            <div class="p-3 text-xs text-stone-400 text-center">載入中…</div>
                         </div>
                         <div>
-                            <label class="text-xs font-semibold text-stone-700">角色</label>
+                            <label class="text-xs font-semibold text-stone-700">套用角色</label>
                             <select id="pmAddRoleId" class="w-full mt-1 px-3 py-2 border border-stone-300 rounded-md text-sm">
                                 <option value="">— 繼承 OrgMembership 角色 —</option>
                             </select>
-                            <div class="text-[11px] text-stone-500 mt-1">建議從 Project-Admin / Project-Tester / Project-Reviewer / Project-Viewer 挑。</div>
                         </div>
                     </div>
-                    <div class="px-5 py-3 border-t flex justify-end gap-2 bg-stone-50">
+
+                    <!-- Tab 2: 從群組批次加(C5) -->
+                    <div id="pmAddPaneGroup" class="hidden p-4 space-y-3 overflow-y-auto">
+                        <div>
+                            <label class="text-xs font-semibold text-stone-700">選擇群組</label>
+                            <select id="pmAddGroupId" class="w-full mt-1 px-3 py-2 border border-stone-300 rounded-md text-sm">
+                                <option value="">— 載入中… —</option>
+                            </select>
+                            <label class="flex items-center gap-2 text-xs text-stone-600 mt-2">
+                                <input type="checkbox" id="pmAddIncludeDesc" checked class="rounded border-stone-300 text-amber-500 focus:ring-amber-400">
+                                包含巢狀子群組成員
+                            </label>
+                        </div>
+                        <div>
+                            <label class="text-xs font-semibold text-stone-700">套用角色</label>
+                            <select id="pmAddGroupRoleId" class="w-full mt-1 px-3 py-2 border border-stone-300 rounded-md text-sm">
+                                <option value="">— 繼承 OrgMembership 角色 —</option>
+                            </select>
+                        </div>
+                        <div class="bg-amber-50/60 border border-amber-200 rounded p-2 text-[11px] text-amber-800">
+                            <i class="fa-solid fa-circle-info"></i> 已是成員或不在此 org 的會自動跳過,執行後會列出明細。
+                        </div>
+                    </div>
+
+                    <div class="px-5 py-3 border-t flex justify-end gap-2 bg-stone-50 flex-shrink-0">
                         <button onclick="pmCloseAddModal()" class="px-3 py-1.5 text-sm border border-stone-300 rounded hover:bg-white">取消</button>
-                        <button onclick="pmSubmitAdd()" class="px-4 py-1.5 text-sm bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold">加入</button>
+                        <button id="pmAddSubmitBtn" onclick="pmSubmitAdd()" class="px-4 py-1.5 text-sm bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold">加入</button>
                     </div>
                 </div>
             </div>
@@ -3389,9 +3428,39 @@ driver.swipe(100, 800, 100, 200, 500)"
                             <div class="flex items-center gap-2">
                                 <input type="text" id="orgEmailDomains" placeholder="acme.com, acme.io, sub.example.org"
                                     class="flex-1 px-3 py-2 border border-stone-300 rounded-md text-sm font-mono">
+                                <button onclick="previewOrgEmailDomains()" class="px-3 py-2 border border-amber-300 text-amber-700 hover:bg-amber-50 rounded text-xs font-semibold whitespace-nowrap" title="顯示哪些已註冊使用者會被這份清單 catch"><i class="fa-solid fa-magnifying-glass"></i> 預覽</button>
                                 <button onclick="saveOrgEmailDomains()" class="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded text-xs font-semibold whitespace-nowrap"><i class="fa-solid fa-floppy-disk"></i> 儲存</button>
                             </div>
                             <p id="orgEmailDomainsHint" class="text-[10px] text-stone-400 mt-1">—</p>
+                        </section>
+
+                        <!-- 邀請碼管理(C4) -->
+                        <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-4">
+                            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                                <h3 class="font-bold text-stone-700 text-base flex items-center gap-2"><i class="fa-solid fa-envelope-open-text text-amber-500"></i> 邀請碼管理</h3>
+                                <div class="flex items-center gap-2">
+                                    <button onclick="invReload()" class="text-xs px-2.5 py-1.5 border border-stone-300 rounded hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
+                                    <button onclick="invOpenSingleModal()" class="text-xs px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold"><i class="fa-solid fa-paper-plane"></i> 寄邀請</button>
+                                    <button onclick="invOpenBulkModal()" class="text-xs px-2.5 py-1.5 border border-amber-300 text-amber-700 hover:bg-amber-50 rounded font-semibold"><i class="fa-solid fa-list"></i> 批次寄邀請</button>
+                                </div>
+                            </div>
+                            <p class="text-xs text-stone-500 mb-3">邀請信會帶 token 連結;對方點開後直接落到本組織的 OrgMembership。Email domain 自動歸屬適合「整個公司一起加入」,邀請適合「逐人邀請、可選角色 / 群組」。</p>
+                            <div class="overflow-hidden border border-stone-100 rounded-md">
+                                <table class="w-full text-sm">
+                                    <thead class="bg-amber-50/60 text-stone-600 text-xs uppercase">
+                                        <tr>
+                                            <th class="p-3 text-left">Email</th>
+                                            <th class="p-3 text-left w-32">狀態</th>
+                                            <th class="p-3 text-left w-40">過期時間</th>
+                                            <th class="p-3 text-left w-32">建立者</th>
+                                            <th class="p-3 text-center w-44">操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="invTableBody" class="divide-y divide-stone-100">
+                                        <tr><td colspan="5" class="p-4 text-center text-stone-400">載入中…</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </section>
                     </div>
 
@@ -13538,65 +13607,191 @@ driver.swipe(100, 800, 100, 200, 500)"
             }
         }
 
+        // Tier C3+C5:多選 modal 狀態 + tab
+        let _pmAddCandidates = [];   // [{username, display_name, email}]
+        let _pmAddSelected = new Set();
+        let _pmAddSearchQ = '';
+        let _pmAddTab = 'users';     // 'users' | 'group'
+        const _pmAddOnSearchDebounced = _debounce((v) => {
+            _pmAddSearchQ = v || '';
+            _renderPmAddCandList();
+        }, 150);
+        function pmAddOnSearch(v) { _pmAddOnSearchDebounced(v); }
+        function pmAddSwitchTab(name) {
+            _pmAddTab = name;
+            const tabs = ['users', 'group'];
+            tabs.forEach(t => {
+                const tab = document.getElementById('pmAddTab' + t.charAt(0).toUpperCase() + t.slice(1));
+                const pane = document.getElementById('pmAddPane' + t.charAt(0).toUpperCase() + t.slice(1));
+                if (!tab || !pane) return;
+                if (t === name) {
+                    tab.classList.add('border-amber-500', 'text-amber-700');
+                    tab.classList.remove('border-transparent', 'text-stone-500', 'hover:text-stone-700');
+                    pane.classList.remove('hidden');
+                } else {
+                    tab.classList.remove('border-amber-500', 'text-amber-700');
+                    tab.classList.add('border-transparent', 'text-stone-500', 'hover:text-stone-700');
+                    pane.classList.add('hidden');
+                }
+            });
+            const btn = document.getElementById('pmAddSubmitBtn');
+            if (btn) btn.textContent = name === 'group' ? '從群組加入' : '加入';
+        }
         async function pmOpenAddModal() {
-            if (!currentProjectId) {
-                showToast('請先選擇專案', 'error');
-                return;
-            }
-            // 載入候選使用者(取 org 全 user,排除已是成員的)
-            const userSel = document.getElementById('pmAddUsername');
-            const roleSel = document.getElementById('pmAddRoleId');
-            userSel.innerHTML = '<option value="">— 載入中… —</option>';
+            if (!currentProjectId) { showToast('請先選擇專案', 'error'); return; }
+            _pmAddSelected.clear();
+            _pmAddSearchQ = '';
+            const inp = document.getElementById('pmAddSearch'); if (inp) inp.value = '';
+            pmAddSwitchTab('users');
+            // 載入候選 user + 角色 + 群組(parallel)
+            const candList = document.getElementById('pmAddCandList');
+            candList.innerHTML = '<div class="p-3 text-xs text-stone-400 text-center"><i class="fa-solid fa-spinner fa-spin"></i> 載入中…</div>';
             try {
-                const [usersR, membersR] = await Promise.all([
+                if (!_pmAllRoles.length) await pmLoadRoles();
+                const [usersR, membersR, groupsR] = await Promise.all([
                     fetch('/api/auth/users/assignable'),
                     fetch(`/api/projects/${encodeURIComponent(currentProjectId)}/members`),
+                    fetch('/api/settings/groups'),
                 ]);
                 const users = usersR.ok ? await usersR.json() : [];
                 const members = membersR.ok ? await membersR.json() : [];
+                const groups = groupsR.ok ? await groupsR.json() : [];
                 const memberSet = new Set(members.map(m => m.username));
-                const candidates = (users || []).filter(u => !memberSet.has(u.username));
-                userSel.innerHTML = candidates.length
-                    ? '<option value="">— 選擇使用者 —</option>' + candidates.map(u =>
-                        `<option value="${_esc(u.username)}">${_esc(u.display_name || u.username)} · ${_esc(u.email || '無 email')}</option>`
-                    ).join('')
-                    : '<option value="">(全部使用者已是成員)</option>';
-                if (!_pmAllRoles.length) await pmLoadRoles();
-                roleSel.innerHTML = '<option value="">— 繼承 Org 角色 —</option>'
+                _pmAddCandidates = (users || []).filter(u => !memberSet.has(u.username));
+                _renderPmAddCandList();
+                // 角色下拉(兩個 tab 共用同份 options)
+                const roleOpts = '<option value="">— 繼承 OrgMembership 角色 —</option>'
                     + _pmAllRoles.map(r => {
                         const tag = r.scope === 'project' ? ' (專案)' : ' (組織)';
                         return `<option value="${_esc(r.id)}">${_esc(r.name)}${tag}</option>`;
                     }).join('');
+                document.getElementById('pmAddRoleId').innerHTML = roleOpts;
+                document.getElementById('pmAddGroupRoleId').innerHTML = roleOpts;
+                // 群組下拉(only same-org or org-less)
+                const groupSel = document.getElementById('pmAddGroupId');
+                if (!groups.length) {
+                    groupSel.innerHTML = '<option value="">(尚無群組,請先到「群組」分頁建)</option>';
+                } else {
+                    groupSel.innerHTML = '<option value="">— 選擇群組 —</option>' + groups.map(g => {
+                        const cnt = g.member_count != null ? ` (${g.member_count} 人)` : '';
+                        return `<option value="${_esc(g.id)}">${_esc(g.name)}${cnt}</option>`;
+                    }).join('');
+                }
             } catch (e) {
-                userSel.innerHTML = '<option value="">載入失敗</option>';
+                candList.innerHTML = `<div class="p-3 text-xs text-rose-600 text-center">載入失敗:${_esc(e.message || String(e))}</div>`;
             }
             document.getElementById('pmAddModal').classList.remove('hidden');
         }
-
+        function _renderPmAddCandList() {
+            const box = document.getElementById('pmAddCandList');
+            const cntEl = document.getElementById('pmAddCandidateCount');
+            const selEl = document.getElementById('pmAddSelectedCount');
+            const q = (_pmAddSearchQ || '').toLowerCase().trim();
+            const filtered = q
+                ? _pmAddCandidates.filter(u =>
+                    (u.username || '').toLowerCase().includes(q) ||
+                    (u.display_name || '').toLowerCase().includes(q) ||
+                    (u.email || '').toLowerCase().includes(q))
+                : _pmAddCandidates;
+            if (cntEl) cntEl.textContent = String(filtered.length);
+            if (selEl) selEl.textContent = String(_pmAddSelected.size);
+            if (!filtered.length) {
+                box.innerHTML = '<div class="p-3 text-xs text-stone-400 text-center">'
+                    + (q ? '沒有符合條件的候選使用者' : '(全部 org user 已是此專案成員)')
+                    + '</div>';
+                return;
+            }
+            box.innerHTML = filtered.map(u => {
+                const isSel = _pmAddSelected.has(u.username);
+                return `<label class="flex items-center gap-2 px-3 py-2 hover:bg-amber-50/50 cursor-pointer text-sm">
+                    <input type="checkbox" data-username="${_esc(u.username)}" ${isSel ? 'checked' : ''} onchange="pmAddToggleUser('${_esc(u.username)}', this.checked)" class="rounded border-stone-300 text-amber-500 focus:ring-amber-400">
+                    <div class="flex-1 min-w-0">
+                        <div class="font-semibold text-stone-800 truncate">${_esc(u.display_name || u.username)}</div>
+                        <div class="text-[11px] text-stone-500 font-mono truncate">@${_esc(u.username)} · ${_esc(u.email || '無 email')}</div>
+                    </div>
+                </label>`;
+            }).join('');
+        }
+        function pmAddToggleUser(username, checked) {
+            if (checked) _pmAddSelected.add(username); else _pmAddSelected.delete(username);
+            const selEl = document.getElementById('pmAddSelectedCount');
+            if (selEl) selEl.textContent = String(_pmAddSelected.size);
+        }
+        function pmAddSelectAllVisible() {
+            const cbs = document.querySelectorAll('#pmAddCandList input[type="checkbox"]');
+            cbs.forEach(cb => {
+                cb.checked = true;
+                _pmAddSelected.add(cb.dataset.username);
+            });
+            const selEl = document.getElementById('pmAddSelectedCount');
+            if (selEl) selEl.textContent = String(_pmAddSelected.size);
+        }
+        function pmAddClearSelection() {
+            _pmAddSelected.clear();
+            const cbs = document.querySelectorAll('#pmAddCandList input[type="checkbox"]');
+            cbs.forEach(cb => { cb.checked = false; });
+            const selEl = document.getElementById('pmAddSelectedCount');
+            if (selEl) selEl.textContent = '0';
+        }
         function pmCloseAddModal() {
             document.getElementById('pmAddModal').classList.add('hidden');
         }
-
         async function pmSubmitAdd() {
-            const username = document.getElementById('pmAddUsername').value;
+            if (_pmAddTab === 'group') {
+                await _pmSubmitAddFromGroup();
+            } else {
+                await _pmSubmitAddUsers();
+            }
+        }
+        async function _pmSubmitAddUsers() {
+            const usernames = Array.from(_pmAddSelected);
+            if (!usernames.length) { showToast('請先勾選至少一人', 'error'); return; }
             const roleId = document.getElementById('pmAddRoleId').value;
-            if (!username) { showToast('請選擇使用者', 'error'); return; }
+            // 一個一個 POST(後端目前 add_project_member 是 single),但 UI 視為 batch
+            let added = 0;
+            const failed = [];
+            for (const u of usernames) {
+                try {
+                    const r = await fetch(`/api/projects/${encodeURIComponent(currentProjectId)}/members`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username: u, role_id: roleId || null }),
+                    });
+                    if (!r.ok) {
+                        const j = await r.json().catch(() => ({}));
+                        failed.push(`${u}:${j.detail || r.statusText}`);
+                    } else {
+                        added++;
+                    }
+                } catch (e) { failed.push(`${u}:${e.message || e}`); }
+            }
+            if (failed.length) showToast(`已加 ${added} 人,失敗 ${failed.length}`, added ? 'success' : 'error');
+            else showToast(`已加 ${added} 人`, 'success');
+            pmCloseAddModal();
+            pmReload();
+        }
+        async function _pmSubmitAddFromGroup() {
+            const groupId = document.getElementById('pmAddGroupId').value;
+            const roleId = document.getElementById('pmAddGroupRoleId').value;
+            const includeDesc = document.getElementById('pmAddIncludeDesc').checked;
+            if (!groupId) { showToast('請選擇群組', 'error'); return; }
             try {
-                const r = await fetch(`/api/projects/${encodeURIComponent(currentProjectId)}/members`, {
+                const r = await fetch(`/api/projects/${encodeURIComponent(currentProjectId)}/members/from-group`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, role_id: roleId || null }),
+                    body: JSON.stringify({ group_id: groupId, role_id: roleId || null, include_descendants: includeDesc }),
                 });
                 if (!r.ok) {
                     const j = await r.json().catch(() => ({}));
-                    showToast('加成員失敗:' + (j.detail || r.statusText), 'error');
-                    return;
+                    throw new Error(j.detail || `HTTP ${r.status}`);
                 }
-                showToast('成員已加入', 'success');
+                const j = await r.json();
+                const skipMsg = (j.skipped && j.skipped.length) ? ` · 跳過 ${j.skipped.length}(已是成員或不在此 org)` : '';
+                showToast(`已從群組(展開 ${j.expanded_groups} 個)加 ${j.added} 人${skipMsg}`, 'success');
                 pmCloseAddModal();
                 pmReload();
             } catch (e) {
-                showToast('加成員失敗:' + (e.message || e), 'error');
+                showToast('從群組加失敗:' + (e.message || e), 'error');
             }
         }
 
@@ -17858,10 +18053,83 @@ gantt
                 <div class="border border-stone-100 rounded-md p-3">
                     <div class="text-xs font-bold text-amber-700 mb-2">${_esc(g)}</div>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
-                        ${arr.map(p => `<div class="text-xs"><span class="font-mono text-stone-400">${_esc(p.key)}</span> · ${_esc(p.label)}</div>`).join('')}
+                        ${arr.map(p => `<button type="button" onclick="showPermissionUsageDrawer('${_esc(p.key)}','${_esc(p.label)}')"
+                            class="text-left text-xs px-2 py-1 rounded hover:bg-amber-50 border border-stone-100 hover:border-amber-200 transition flex items-center gap-1 group"
+                            title="點擊查看哪些角色含此權限 + 多少人">
+                            <span class="font-mono text-stone-400 group-hover:text-amber-700">${_esc(p.key)}</span>
+                            <span class="text-stone-700">·</span>
+                            <span class="text-stone-700">${_esc(p.label)}</span>
+                            <i class="fa-solid fa-magnifying-glass text-[10px] text-stone-300 group-hover:text-amber-500 ml-auto"></i>
+                        </button>`).join('')}
                     </div>
                 </div>
             `).join('');
+        }
+
+        // ─── C1:點權限 → drawer 顯示哪些角色含它 + 多少人 ─────────
+        async function showPermissionUsageDrawer(key, label) {
+            // open with skeleton first
+            const skel = `<div class="text-center py-6 text-stone-400 text-xs"><i class="fa-solid fa-spinner fa-spin"></i> 載入中…</div>`;
+            _openPermDrawer(key, label, skel);
+            try {
+                const r = await fetch(`/api/settings/permissions/${encodeURIComponent(key)}/usage`);
+                if (!r.ok) throw new Error('HTTP '+r.status);
+                const u = await r.json();
+                const roleRows = (u.roles || []).map(r => {
+                    const scopeBadge = r.scope === 'project'
+                        ? '<span class="text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-600 border border-blue-200 rounded">專案</span>'
+                        : '<span class="text-[10px] px-1.5 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded">組織</span>';
+                    const sysBadge = r.is_system ? ' <span class="text-[10px] px-1.5 py-0.5 bg-stone-100 text-stone-500 rounded">系統</span>' : '';
+                    return `<li class="flex items-center justify-between py-1.5 border-b border-stone-100 text-xs">
+                        <div class="flex items-center gap-2">
+                            <span class="font-semibold text-stone-700">${_esc(r.name)}</span>
+                            ${scopeBadge}${sysBadge}
+                        </div>
+                        <span class="font-mono text-stone-500">${r.users_count} 人</span>
+                    </li>`;
+                }).join('') || '<li class="py-2 text-xs text-stone-400 text-center">沒有任何角色含此權限</li>';
+                const body = `
+                    <div class="grid grid-cols-2 gap-3 mb-4">
+                        <div class="p-3 bg-amber-50 rounded text-center">
+                            <div class="text-2xl font-bold text-amber-700">${(u.roles || []).length}</div>
+                            <div class="text-[10px] text-stone-500 mt-0.5">角色數</div>
+                        </div>
+                        <div class="p-3 bg-stone-50 rounded text-center">
+                            <div class="text-2xl font-bold text-stone-700">${u.total_users}</div>
+                            <div class="text-[10px] text-stone-500 mt-0.5">受影響使用者(去重)</div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="text-xs font-bold text-stone-600 mb-1">含此權限的角色</div>
+                        <ul class="border border-stone-100 rounded">${roleRows}</ul>
+                    </div>`;
+                _openPermDrawer(key, label, body);
+            } catch (e) {
+                _openPermDrawer(key, label, `<div class="text-rose-600 text-xs py-4">載入失敗:${_esc(e.message || String(e))}</div>`);
+            }
+        }
+        function _openPermDrawer(key, label, bodyHtml) {
+            closePermissionUsageDrawer();
+            const wrap = document.createElement('div');
+            wrap.id = '_permUsageDrawer';
+            wrap.innerHTML = `
+                <div class="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onclick="if(event.target===this)closePermissionUsageDrawer()">
+                    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full max-h-[80vh] overflow-y-auto">
+                        <div class="px-5 py-3 border-b border-stone-100 flex items-center justify-between">
+                            <div>
+                                <div class="font-bold text-stone-700">${_esc(label)}</div>
+                                <div class="font-mono text-[11px] text-stone-400">${_esc(key)}</div>
+                            </div>
+                            <button onclick="closePermissionUsageDrawer()" class="text-stone-400 hover:text-stone-600"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        <div class="p-5">${bodyHtml}</div>
+                    </div>
+                </div>`;
+            document.body.appendChild(wrap);
+        }
+        function closePermissionUsageDrawer() {
+            const el = document.getElementById('_permUsageDrawer');
+            if (el) el.remove();
         }
 
         // ─── 角色管理 ────────────────────────────────────────────────
@@ -18650,8 +18918,7 @@ gantt
             return _currentOrgCache;
         }
 
-        // 成員歸屬 pane — 只剩 email_domains 編輯區。Invite-code 流程已移除,
-        // 組織歸屬統一透過註冊時的 email @domain 比對。
+        // 成員歸屬 pane — Email Domain 編輯 + Tier C4 邀請列表。
         async function renderInvitesView() {
             const inp = document.getElementById('orgEmailDomains');
             const hint = document.getElementById('orgEmailDomainsHint');
@@ -18662,6 +18929,204 @@ gantt
             } else {
                 inp.value = '';
                 hint.textContent = '⚠ 無法取得當前組織(可能需要 superuser 權限)';
+            }
+            invReload();
+        }
+
+        // ─── C2:Email domain 預覽器 ────────────────────────────
+        async function previewOrgEmailDomains() {
+            const org = await _loadCurrentOrg();
+            if (!org) { showToast('無法取得當前組織', 'error'); return; }
+            const raw = document.getElementById('orgEmailDomains').value || '';
+            const domains = raw.split(',').map(s => s.trim().toLowerCase().replace(/^@/, '')).filter(Boolean);
+            if (!domains.length) { showToast('請先輸入至少一個 domain', 'info'); return; }
+            // 顯示骨架 modal 後逐一 fetch
+            _openDomainPreviewModal(domains, '<div class="text-center py-6 text-stone-400 text-xs"><i class="fa-solid fa-spinner fa-spin"></i> 比對中…</div>');
+            try {
+                const results = await Promise.all(domains.map(async d => {
+                    const r = await fetch(`/api/orgs/${encodeURIComponent(org.id)}/users-matching-domain?domain=${encodeURIComponent(d)}`);
+                    if (!r.ok) return { domain: d, error: 'HTTP '+r.status, matched_users: [], would_join_count: 0, already_in_count: 0 };
+                    return await r.json();
+                }));
+                const html = results.map(r => {
+                    if (r.error) return `<div class="border border-rose-200 bg-rose-50 text-rose-700 text-xs p-2 rounded mb-2">@${_esc(r.domain)} — 失敗:${_esc(r.error)}</div>`;
+                    const total = r.matched_users.length;
+                    const list = total
+                        ? r.matched_users.map(u => `<li class="flex items-center justify-between text-xs py-1 border-b border-stone-100 last:border-b-0">
+                            <div>
+                                <span class="font-semibold text-stone-700">${_esc(u.display_name || u.username)}</span>
+                                <span class="text-stone-400 font-mono ml-2">@${_esc(u.username)}</span>
+                                <span class="text-stone-500 ml-2">${_esc(u.email)}</span>
+                            </div>
+                            ${u.is_in_this_org
+                                ? '<span class="text-[10px] px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded">已在此 org</span>'
+                                : '<span class="text-[10px] px-1.5 py-0.5 bg-amber-50 text-amber-700 rounded">會新加入</span>'}
+                          </li>`).join('')
+                        : '<li class="py-2 text-xs text-stone-400 text-center">沒有符合此 domain 的已註冊使用者</li>';
+                    return `
+                        <section class="mb-3">
+                            <div class="flex items-center justify-between mb-1">
+                                <div class="font-mono text-sm text-amber-700">@${_esc(r.domain)}</div>
+                                <div class="text-xs text-stone-500">會新加入 <b class="text-amber-700">${r.would_join_count}</b> · 已在 <b>${r.already_in_count}</b></div>
+                            </div>
+                            <ul class="border border-stone-100 rounded">${list}</ul>
+                        </section>`;
+                }).join('');
+                _openDomainPreviewModal(domains, html);
+            } catch (e) {
+                _openDomainPreviewModal(domains, `<div class="text-rose-600 text-xs py-4">載入失敗:${_esc(e.message || String(e))}</div>`);
+            }
+        }
+        function _openDomainPreviewModal(domains, body) {
+            closeDomainPreviewModal();
+            const wrap = document.createElement('div');
+            wrap.id = '_domainPreviewModal';
+            wrap.innerHTML = `
+                <div class="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onclick="if(event.target===this)closeDomainPreviewModal()">
+                    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[80vh] overflow-y-auto">
+                        <div class="px-5 py-3 border-b border-stone-100 flex items-center justify-between">
+                            <div>
+                                <div class="font-bold text-stone-700"><i class="fa-solid fa-magnifying-glass text-amber-500"></i> Email Domain 預覽</div>
+                                <div class="text-[11px] text-stone-400 mt-0.5">${_esc(domains.map(d => '@'+d).join(', '))}</div>
+                            </div>
+                            <button onclick="closeDomainPreviewModal()" class="text-stone-400 hover:text-stone-600"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        <div class="p-5">${body}</div>
+                    </div>
+                </div>`;
+            document.body.appendChild(wrap);
+        }
+        function closeDomainPreviewModal() {
+            const el = document.getElementById('_domainPreviewModal');
+            if (el) el.remove();
+        }
+
+        // ─── C4:邀請碼列表 + 寄送 / 重寄 / 延期 / 取消 / 批次 ────────
+        async function invReload() {
+            const tbody = document.getElementById('invTableBody');
+            if (!tbody) return;
+            _renderTableSkeleton(tbody, 5, 4);
+            try {
+                const r = await fetch('/api/invites');
+                if (!r.ok) throw new Error('HTTP '+r.status);
+                const list = await r.json();
+                if (!list.length) {
+                    _renderTableEmpty(tbody, 5, '尚無邀請', '寄第一封邀請', 'invOpenSingleModal()');
+                    return;
+                }
+                tbody.innerHTML = list.map(inv => {
+                    const stateBadge = inv.is_used
+                        ? `<span class="text-[10px] px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded">已使用</span>`
+                        : (inv.is_expired
+                            ? `<span class="text-[10px] px-1.5 py-0.5 bg-rose-50 text-rose-700 rounded">已過期</span>`
+                            : `<span class="text-[10px] px-1.5 py-0.5 bg-amber-50 text-amber-700 rounded">有效</span>`);
+                    const exp = inv.expires_at ? new Date(inv.expires_at).toLocaleString() : '—';
+                    const canResend = !inv.is_used && !inv.is_expired && !!inv.email;
+                    const canExtend = !inv.is_used;
+                    return `<tr class="hover:bg-amber-50/30">
+                        <td class="p-3"><div class="font-medium text-stone-800">${_esc(inv.email || '—')}</div><div class="font-mono text-[10px] text-stone-400">${_esc((inv.token || '').slice(0,8))}…</div></td>
+                        <td class="p-3">${stateBadge}</td>
+                        <td class="p-3 text-stone-500 text-[11px]">${exp}</td>
+                        <td class="p-3 text-stone-500 text-[11px]">${_esc(inv.created_by || '—')}</td>
+                        <td class="p-3 text-center whitespace-nowrap space-x-1">
+                            ${canResend ? `<button onclick="invResend('${_esc(inv.id)}')" title="重寄邀請信" class="text-xs px-2 py-1 bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 rounded"><i class="fa-solid fa-paper-plane"></i></button>` : ''}
+                            ${canExtend ? `<button onclick="invExtend('${_esc(inv.id)}')" title="延長有效期" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded"><i class="fa-solid fa-clock-rotate-left"></i></button>` : ''}
+                            <button onclick="invRevoke('${_esc(inv.id)}', '${_esc(inv.email || '(無 email)')}')" title="撤銷邀請" class="text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                    </tr>`;
+                }).join('');
+            } catch (e) {
+                _renderTableError(tbody, 5, '載入失敗:' + (e.message || e), 'invReload');
+            }
+        }
+        async function invResend(id) {
+            try {
+                const r = await fetch(`/api/invites/${encodeURIComponent(id)}/resend`, { method: 'POST' });
+                if (!r.ok) {
+                    const j = await r.json().catch(() => ({}));
+                    throw new Error(j.detail || `HTTP ${r.status}`);
+                }
+                showToast('邀請信已重寄', 'success');
+                invReload();
+            } catch (e) {
+                showToast('重寄失敗:' + (e.message || e), 'error');
+            }
+        }
+        async function invExtend(id) {
+            const days = prompt('延長幾天?(預設 7)', '7');
+            if (days === null) return;
+            const n = parseInt(days, 10);
+            if (!Number.isFinite(n) || n < 1) { showToast('請輸入有效天數', 'error'); return; }
+            try {
+                const r = await fetch(`/api/invites/${encodeURIComponent(id)}/extend?days=${n}`, { method: 'PATCH' });
+                if (!r.ok) {
+                    const j = await r.json().catch(() => ({}));
+                    throw new Error(j.detail || `HTTP ${r.status}`);
+                }
+                showToast(`已延長 ${n} 天`, 'success');
+                invReload();
+            } catch (e) {
+                showToast('延長失敗:' + (e.message || e), 'error');
+            }
+        }
+        async function invRevoke(id, label) {
+            if (!confirm(`撤銷邀請「${label}」?(對方點開 token 後無法使用)`)) return;
+            try {
+                const r = await fetch(`/api/invites/${encodeURIComponent(id)}`, { method: 'DELETE' });
+                if (!r.ok && r.status !== 204) {
+                    const j = await r.json().catch(() => ({}));
+                    throw new Error(j.detail || `HTTP ${r.status}`);
+                }
+                showToast('已撤銷', 'success');
+                invReload();
+            } catch (e) {
+                showToast('撤銷失敗:' + (e.message || e), 'error');
+            }
+        }
+        async function invOpenSingleModal() {
+            const email = prompt('要邀請的 email:');
+            if (!email || !email.trim()) return;
+            const days = parseInt(prompt('有效天數(預設 7)', '7') || '7', 10);
+            try {
+                const r = await fetch('/api/invites', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ email: email.trim(), expires_in_days: days, send_email: true }),
+                });
+                if (!r.ok) {
+                    const j = await r.json().catch(() => ({}));
+                    throw new Error(j.detail || `HTTP ${r.status}`);
+                }
+                showToast('已寄出邀請信', 'success');
+                invReload();
+            } catch (e) {
+                showToast('寄送失敗:' + (e.message || e), 'error');
+            }
+        }
+        async function invOpenBulkModal() {
+            const raw = prompt('貼上多個 email,逗號或換行分隔(最多 200 筆):');
+            if (!raw) return;
+            const emails = raw.split(/[\s,;]+/).map(s => s.trim()).filter(Boolean);
+            if (!emails.length) { showToast('沒有解析到任何 email', 'error'); return; }
+            if (emails.length > 200) { showToast('一次最多 200 筆', 'error'); return; }
+            const days = parseInt(prompt('有效天數(預設 7)', '7') || '7', 10);
+            if (!confirm(`將寄 ${emails.length} 封邀請信(有效期 ${days} 天)。確定?`)) return;
+            try {
+                const r = await fetch('/api/invites/bulk', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ emails, expires_in_days: days, send_email: true }),
+                });
+                if (!r.ok) {
+                    const j = await r.json().catch(() => ({}));
+                    throw new Error(j.detail || `HTTP ${r.status}`);
+                }
+                const j = await r.json();
+                const skipMsg = (j.skipped && j.skipped.length) ? ` · 跳過 ${j.skipped.length}` : '';
+                showToast(`已建立 ${j.created.length} 封邀請${skipMsg}`, 'success');
+                invReload();
+            } catch (e) {
+                showToast('批次建立失敗:' + (e.message || e), 'error');
             }
         }
 
