@@ -2755,7 +2755,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                         <i class="fa-solid fa-play text-violet-500"></i>
                         <span data-i18n="home.section.execution">執行 · 監控 · Execution</span>
                         <span class="text-slate-300 font-normal">·</span>
-                        <span class="text-slate-400 font-medium">7</span>
+                        <span class="text-slate-400 font-medium">8</span>
                     </h4>
                     <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                         <button onclick="showTestMilestonesView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-teal-300 transition group">
@@ -2792,6 +2792,11 @@ driver.swipe(100, 800, 100, 200, 500)"
                             <div class="w-10 h-10 rounded-lg bg-red-100 text-red-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-bug"></i></div>
                             <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.defects">缺陷管理</div>
                             <div class="text-xs text-slate-500" data-i18n="home.card.defects.desc">缺陷列表 + 附件 + 工作流</div>
+                        </button>
+                        <button onclick="showReviewView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-300 transition group">
+                            <div class="w-10 h-10 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-clipboard-check"></i></div>
+                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.review">審核中心</div>
+                            <div class="text-xs text-slate-500" data-i18n="home.card.review.desc">案例 / 文件 / 腳本 / 報告 核可工作流</div>
                         </button>
                     </div>
                 </section>
@@ -7774,6 +7779,7 @@ driver.swipe(100, 800, 100, 200, 500)"
             'home.card.kanban.desc': { 'zh-TW': '缺陷 Kanban + KPI 概覽', 'en': 'Defect Kanban + KPI' },
             'home.card.reports.desc': { 'zh-TW': 'Dashboard / 歷史 / Trace 檢視', 'en': 'Dashboard / history / Trace' },
             'home.card.defects.desc': { 'zh-TW': '缺陷列表 + 附件 + 工作流', 'en': 'Defect list + attachments + workflow' },
+            'home.card.review.desc': { 'zh-TW': '案例 / 文件 / 腳本 / 報告 核可工作流', 'en': 'Approval workflow for cases / docs / scripts / reports' },
             'home.card.dbConfig.title': { 'zh-TW': 'DB 資訊', 'en': 'DB Config' },
             'home.card.requirements.title': { 'zh-TW': '需求 / RTM', 'en': 'Reqs / RTM' },
             // 左側專案目錄
