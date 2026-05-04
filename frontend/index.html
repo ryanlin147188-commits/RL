@@ -9898,7 +9898,8 @@ driver.swipe(100, 800, 100, 200, 500)"
         // ── Phase 4 多組織切換器 ─────────────────────────────────────────
         // 抓 /api/auth/me/orgs;只有 ≥ 2 個 org 才顯示;current org 視覺強調 + 點擊
         // 任何其他 org 走 /api/auth/switch-org 拿新 JWT 後整頁 reload。
-        let _orgsCache = null;
+        // 注意:不要叫 _orgsCache(會跟既有 renderOrgsList 的 superuser 全 org 列表 cache 撞名)。
+        let _meOrgsCache = null;
         async function renderOrgSwitcher() {
             const wrap = document.getElementById('orgSwitcher');
             const label = document.getElementById('orgSwitcherLabel');
@@ -9908,15 +9909,15 @@ driver.swipe(100, 800, 100, 200, 500)"
                 const r = await fetch('/api/auth/me/orgs');
                 if (!r.ok) { wrap.classList.add('hidden'); return; }
                 const orgs = await r.json();
-                _orgsCache = Array.isArray(orgs) ? orgs : [];
-                if (_orgsCache.length < 2) {
+                _meOrgsCache = Array.isArray(orgs) ? orgs : [];
+                if (_meOrgsCache.length < 2) {
                     wrap.classList.add('hidden');
                     return;
                 }
-                const current = _orgsCache.find(o => o.is_current) || _orgsCache[0];
+                const current = _meOrgsCache.find(o => o.is_current) || _meOrgsCache[0];
                 label.textContent = current.name || current.slug || '組織';
-                wrap.title = `當前組織:${current.name}\n你共在 ${_orgsCache.length} 個組織`;
-                menu.innerHTML = _orgsCache.map(o => {
+                wrap.title = `當前組織:${current.name}\n你共在 ${_meOrgsCache.length} 個組織`;
+                menu.innerHTML = _meOrgsCache.map(o => {
                     const isCur = o.is_current;
                     const cls = isCur
                         ? 'bg-amber-50 text-amber-800 cursor-default'
