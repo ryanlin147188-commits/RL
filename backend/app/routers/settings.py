@@ -4,9 +4,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
-from sqlalchemy import asc, select, update
+from sqlalchemy import asc, desc, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
@@ -16,6 +16,9 @@ from app.database import get_db
 from app.models.ai_token_config import AiTokenConfig
 from app.models.email_config import EmailConfig
 from app.models.notification_preference import NotificationPreference
+from app.models.org_membership import OrgMembership
+from app.models.project import Project
+from app.models.project_member import ProjectMember
 from app.models.role import Role
 from app.models.user import User
 from app.schemas.settings import (
@@ -152,6 +155,14 @@ def _role_visibility_filter(stmt, user: User):
     )
 
 
+_ROLE_SORT_COLS = {
+    "name": Role.name,
+    "scope": Role.scope,
+    "is_system": Role.is_system,
+    "created_at": Role.created_at,
+}
+
+
 @router.get(
     "/settings/roles",
     response_model=list[RoleResponse],
@@ -159,10 +170,47 @@ def _role_visibility_filter(stmt, user: User):
     dependencies=[Depends(require_permission(P.SETTINGS_READ))],
 )
 async def list_roles(
-    user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+    response: Response,
+    search: Optional[str] = None,
+    sort_by: Optional[str] = None,
+    sort_dir: str = "asc",
+    limit: Optional[int] = None,
+    offset: int = 0,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    stmt = select(Role).order_by(asc(Role.name))
+    """列出可見角色。可選 `?search=&sort_by=&sort_dir=&limit=&offset=`。
+    帶 `limit` 時 response header 加 `X-Total-Count`。"""
+    stmt = select(Role)
     stmt = _role_visibility_filter(stmt, user)
+
+    if search:
+        q = f"%{search.strip().lower()}%"
+        stmt = stmt.where(
+            or_(
+                func.lower(Role.name).like(q),
+                func.lower(func.coalesce(Role.description, "")).like(q),
+            )
+        )
+
+    sort_col = _ROLE_SORT_COLS.get((sort_by or "").strip()) or Role.name
+    direction = desc if (sort_dir or "asc").lower() == "desc" else asc
+    stmt = stmt.order_by(direction(sort_col))
+
+    if limit is not None:
+        count_stmt = select(func.count()).select_from(stmt.subquery())
+        total = (await db.execute(count_stmt)).scalar_one() or 0
+        response.headers["X-Total-Count"] = str(total)
+        try:
+            limit_int = max(1, min(int(limit), 500))
+        except (TypeError, ValueError):
+            limit_int = 50
+        try:
+            offset_int = max(0, int(offset))
+        except (TypeError, ValueError):
+            offset_int = 0
+        stmt = stmt.limit(limit_int).offset(offset_int)
+
     rows = (await db.execute(stmt)).scalars().all()
     return list(rows)
 
@@ -262,6 +310,115 @@ async def delete_role(
         raise HTTPException(400, "系統角色不可刪除")
     await db.delete(r)
     await db.flush()
+
+
+# ─── Tier B2:角色使用數(讓 admin 看清能否安全刪除 / 改權限) ─────────
+@router.get(
+    "/settings/roles/{role_id}/usage",
+    tags=["S · 設定"],
+    dependencies=[Depends(require_permission(P.SETTINGS_READ))],
+)
+async def get_role_usage(
+    role_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """回傳該 role 在 OrgMembership / ProjectMember 各被多少人 / 多少專案使用,
+    以及哪些 user 把這個 role 設成 OrgMembership.is_default(他們登入會切到對應 org)。
+    讀取性 endpoint;權限走 SETTINGS_READ。"""
+    r = await db.get(Role, role_id)
+    if not r:
+        raise HTTPException(404, "Role not found")
+    # 跨 org 防護:非 superuser 只能查自己 org / 系統 role(org_id is null)
+    if not user.is_superuser and r.organization_id and r.organization_id != user.organization_id:
+        raise HTTPException(404, "Role not found")
+
+    # OrgMembership 用此 role 的人數 + 多少人把這當 default
+    org_members_count = (await db.execute(
+        select(func.count()).select_from(OrgMembership).where(OrgMembership.role_id == role_id)
+    )).scalar_one() or 0
+    default_org_for_users = (await db.execute(
+        select(func.count()).select_from(OrgMembership)
+        .where(OrgMembership.role_id == role_id)
+        .where(OrgMembership.is_default.is_(True))
+    )).scalar_one() or 0
+
+    # ProjectMember 用此 role 的人數 + 多少 project 有人在用
+    project_members_count = (await db.execute(
+        select(func.count()).select_from(ProjectMember).where(ProjectMember.role_id == role_id)
+    )).scalar_one() or 0
+    project_rows = (await db.execute(
+        select(Project.id, Project.name, func.count(ProjectMember.id).label("count"))
+        .join(ProjectMember, ProjectMember.project_id == Project.id)
+        .where(ProjectMember.role_id == role_id)
+        .group_by(Project.id, Project.name)
+        .order_by(func.count(ProjectMember.id).desc())
+        .limit(50)
+    )).all()
+    return {
+        "role_id": role_id,
+        "role_name": r.name,
+        "org_members_count": int(org_members_count),
+        "default_org_for_users": int(default_org_for_users),
+        "project_members_count": int(project_members_count),
+        "projects": [
+            {"id": p.id, "name": p.name, "count": int(p.count)} for p in project_rows
+        ],
+        "total_users": int(org_members_count) + int(project_members_count),
+    }
+
+
+# ─── Tier B4:Clone role(快速建立相似權限的新角色) ────────────────
+@router.post(
+    "/settings/roles/{role_id}/clone",
+    response_model=RoleResponse,
+    status_code=201,
+    tags=["S · 設定"],
+    dependencies=[Depends(require_permission(P.ROLE_MANAGE))],
+)
+async def clone_role(
+    role_id: str,
+    payload: dict,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """從現有 role 拷貝 permissions_json 建立新 role。
+    body: `{"new_name": "...", "description": "..."}`(description 可省;預設帶
+    "(複製自 X)" 字樣)。新 role 強制 is_system=False、organization_id 跟
+    呼叫者一樣(superuser 可填 organization_id 跨 org 建)。"""
+    src = await db.get(Role, role_id)
+    if not src:
+        raise HTTPException(404, "Role not found")
+    if not user.is_superuser and src.organization_id and src.organization_id != user.organization_id:
+        raise HTTPException(404, "Role not found")
+
+    new_name = ((payload or {}).get("new_name") or "").strip()
+    if not new_name:
+        raise HTTPException(400, "缺少 new_name")
+    target_org_id = user.organization_id
+    if user.is_superuser:
+        target_org_id = (payload or {}).get("organization_id") or user.organization_id
+
+    # 同 org 不可重名
+    dup = (await db.execute(
+        select(Role).where(Role.name == new_name, Role.organization_id == target_org_id)
+    )).scalar_one_or_none()
+    if dup:
+        raise HTTPException(409, f"角色名稱「{new_name}」在本組織已存在")
+
+    description = (payload or {}).get("description") or f"(複製自 {src.name})"
+    cloned = Role(
+        name=new_name,
+        organization_id=target_org_id,
+        description=description,
+        permissions_json=list(src.permissions_json or []),
+        is_system=False,
+        scope=src.scope or "org",
+    )
+    db.add(cloned)
+    await db.flush()
+    await db.refresh(cloned)
+    return cloned
 
 
 # ─── NotificationPreference ────────────────────────────────────────────

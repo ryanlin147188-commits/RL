@@ -5,9 +5,9 @@ import secrets
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import asc, select
+from sqlalchemy import asc, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
@@ -475,24 +475,76 @@ def _can_manage_org(user: User, org_id: str) -> bool:
     return bool(user.is_superuser) or user.organization_id == org_id
 
 
+_ORG_MEMBER_SORT_COLS = {
+    "username": User.username,
+    "email": User.email,
+    "display_name": User.display_name,
+    "role_name": Role.name,
+    "status": OrgMembership.status,
+    "joined_at": OrgMembership.joined_at,
+}
+
+
 @router.get("/orgs/{org_id}/members", tags=["X · 組織"])
 async def list_org_members(
     org_id: str,
+    response: Response,
+    search: Optional[str] = None,
+    sort_by: Optional[str] = None,
+    sort_dir: str = "asc",
+    limit: Optional[int] = None,
+    offset: int = 0,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """列出組織內所有 OrgMembership(含 user / role 欄位)。"""
+    """列出組織 OrgMembership。可選 `?search=&sort_by=&sort_dir=&limit=&offset=`。
+    當帶 `limit` 時 response header 會有 `X-Total-Count`(unfiltered-by-page count)。
+    無 limit → 回全部(backward compat)。"""
     if not _can_manage_org(user, org_id):
         raise HTTPException(404, "Organization not found")
-    rows = (
-        await db.execute(
-            select(OrgMembership, User, Role)
-            .join(User, User.username == OrgMembership.username)
-            .outerjoin(Role, Role.id == OrgMembership.role_id)
-            .where(OrgMembership.organization_id == org_id)
-            .order_by(asc(User.username))
+
+    base_join = (
+        select(OrgMembership, User, Role)
+        .join(User, User.username == OrgMembership.username)
+        .outerjoin(Role, Role.id == OrgMembership.role_id)
+        .where(OrgMembership.organization_id == org_id)
+    )
+    count_join = (
+        select(func.count())
+        .select_from(OrgMembership)
+        .join(User, User.username == OrgMembership.username)
+        .outerjoin(Role, Role.id == OrgMembership.role_id)
+        .where(OrgMembership.organization_id == org_id)
+    )
+
+    if search:
+        q = f"%{search.strip().lower()}%"
+        cond = or_(
+            func.lower(User.username).like(q),
+            func.lower(func.coalesce(User.email, "")).like(q),
+            func.lower(func.coalesce(User.display_name, "")).like(q),
         )
-    ).all()
+        base_join = base_join.where(cond)
+        count_join = count_join.where(cond)
+
+    sort_col = _ORG_MEMBER_SORT_COLS.get((sort_by or "").strip()) or User.username
+    direction = desc if (sort_dir or "asc").lower() == "desc" else asc
+    base_join = base_join.order_by(direction(sort_col))
+
+    if limit is not None:
+        total = (await db.execute(count_join)).scalar_one() or 0
+        response.headers["X-Total-Count"] = str(total)
+        try:
+            limit_int = max(1, min(int(limit), 500))
+        except (TypeError, ValueError):
+            limit_int = 50
+        try:
+            offset_int = max(0, int(offset))
+        except (TypeError, ValueError):
+            offset_int = 0
+        base_join = base_join.limit(limit_int).offset(offset_int)
+
+    rows = (await db.execute(base_join)).all()
     return [
         {
             "id": mem.id,
@@ -555,6 +607,67 @@ async def add_org_member(
     db.add(mem)
     await db.flush()
     return {"id": mem.id, "username": mem.username, "organization_id": mem.organization_id}
+
+
+# ─── Tier B5:bulk 改角色 / 狀態(讓 admin 一次改 N 人) ─────────────
+@router.patch("/orgs/{org_id}/members/bulk", tags=["X · 組織"])
+async def bulk_update_org_members(
+    org_id: str,
+    payload: dict,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """一次更新多筆 OrgMembership 的 role_id / status。
+    body: `{"usernames": ["a", "b", ...], "role_id": "..." | null, "status": "active"}`
+    transaction 內單批 update,部分失敗(找不到使用者)會跳過該筆但繼續其他人。
+    回傳 `{updated: N, skipped: [{username, reason}, ...]}`。
+    """
+    if not _can_manage_org(user, org_id):
+        raise HTTPException(404, "Organization not found")
+    body = payload or {}
+    usernames = body.get("usernames") or []
+    if not isinstance(usernames, list) or not usernames:
+        raise HTTPException(400, "缺少 usernames(非空陣列)")
+    if len(usernames) > 200:
+        raise HTTPException(400, "單次最多 200 筆")
+
+    # 驗證 role_id(若有)— 在 loop 外驗一次,不要每筆都打 DB
+    has_role = "role_id" in body
+    role_id = body.get("role_id") or None if has_role else None
+    if has_role and role_id:
+        role = await db.get(Role, role_id)
+        if not role or (role.organization_id and role.organization_id != org_id):
+            raise HTTPException(400, "無效的 role_id")
+
+    has_status = "status" in body
+    new_status = (body.get("status") or "").strip() if has_status else None
+    if has_status and new_status not in ("active", "invited", "disabled"):
+        raise HTTPException(400, "status 必須是 active / invited / disabled")
+
+    if not has_role and not has_status:
+        raise HTTPException(400, "至少要指定 role_id 或 status 其中一個")
+
+    updated = 0
+    skipped: list[dict] = []
+    for u in usernames:
+        u = (u or "").strip()
+        if not u:
+            continue
+        mem = (await db.execute(
+            select(OrgMembership)
+            .where(OrgMembership.username == u)
+            .where(OrgMembership.organization_id == org_id)
+        )).scalar_one_or_none()
+        if not mem:
+            skipped.append({"username": u, "reason": "not a member"})
+            continue
+        if has_role:
+            mem.role_id = role_id
+        if has_status:
+            mem.status = new_status
+        updated += 1
+    await db.flush()
+    return {"updated": updated, "skipped": skipped}
 
 
 @router.patch("/orgs/{org_id}/members/{username}", tags=["X · 組織"])

@@ -230,6 +230,75 @@ async def delete_group(
     await db.flush()
 
 
+# ─── Tier B3:群組使用數(讓 admin 看清刪除前的影響面) ─────────────
+@router.get("/settings/groups/{group_id}/usage", tags=["S · 設定"])
+async def get_group_usage(
+    group_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """回傳群組使用情況:
+    * `members_count` — 直屬成員數
+    * `child_groups_count` — 直屬子群組數(刪除後它們會 SET NULL 升頂)
+    * `linked_todos_count` — 多少 TodoItem 把 assignee_type='group' assignee=this
+    * `linked_assignments_count` — 各 Assignable entity(Defect / TreeNode /
+      Requirement / TestDocument / ReviewRecord)指派為此群組的數量
+    """
+    from app.models.todo_item import TodoItem
+    from app.models.defect import Defect
+    from app.models.requirement import Requirement
+    from app.models.test_document import TestDocument
+    from app.models.tree_node import TreeNode
+    from app.models.review import ReviewRecord
+
+    await _check_or_404(db, group_id, user)
+
+    members_count = (await db.execute(
+        select(func.count()).select_from(GroupMembership)
+        .where(GroupMembership.group_id == group_id)
+    )).scalar_one() or 0
+    child_groups_count = (await db.execute(
+        select(func.count()).select_from(Group).where(Group.parent_id == group_id)
+    )).scalar_one() or 0
+
+    # TodoItem 用 assignee_id (group_id 字串) + assignee_type='group'
+    todos_count = (await db.execute(
+        select(func.count()).select_from(TodoItem)
+        .where(TodoItem.assignee == group_id)
+        .where(TodoItem.assignee_type == "group")
+    )).scalar_one() or 0
+
+    # 其他 Assignable entity(都用 assigned_to + assigned_to_type)
+    breakdown = {}
+    for label, model in (
+        ("defects", Defect),
+        ("testcases", TreeNode),
+        ("requirements", Requirement),
+        ("documents", TestDocument),
+        ("reviews", ReviewRecord),
+    ):
+        try:
+            cnt = (await db.execute(
+                select(func.count()).select_from(model)
+                .where(model.assigned_to == group_id)
+                .where(model.assigned_to_type == "group")
+            )).scalar_one() or 0
+            breakdown[label] = int(cnt)
+        except Exception:
+            breakdown[label] = 0
+
+    linked_assignments_count = sum(breakdown.values())
+
+    return {
+        "group_id": group_id,
+        "members_count": int(members_count),
+        "child_groups_count": int(child_groups_count),
+        "linked_todos_count": int(todos_count),
+        "linked_assignments_count": linked_assignments_count,
+        "breakdown": breakdown,
+    }
+
+
 # ─── Group Members ────────────────────────────────────────────────────
 
 @router.get(

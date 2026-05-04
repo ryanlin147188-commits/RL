@@ -3220,8 +3220,9 @@ driver.swipe(100, 800, 100, 200, 500)"
                                             <th class="p-3 text-left cursor-pointer select-none hover:bg-amber-100/60" onclick="rolesToggleSort('name')">角色名稱 <span id="rolesSortName"></span></th>
                                             <th class="p-3 text-left">說明</th>
                                             <th class="p-3 w-28 text-center cursor-pointer select-none hover:bg-amber-100/60" onclick="rolesToggleSort('perms_count')">權限數 <span id="rolesSortCount"></span></th>
+                                            <th class="p-3 w-28 text-center cursor-pointer select-none hover:bg-amber-100/60" onclick="rolesToggleSort('usage_total')" title="使用此角色的人數(組織 + 專案)">使用數 <span id="rolesSortUsage"></span></th>
                                             <th class="p-3 w-24 text-center">類型</th>
-                                            <th class="p-3 w-28 text-center">操作</th>
+                                            <th class="p-3 w-32 text-center">操作</th>
                                         </tr>
                                     </thead>
                                     <tbody id="rolesListBody" class="divide-y divide-stone-100"></tbody>
@@ -3290,10 +3291,17 @@ driver.swipe(100, 800, 100, 200, 500)"
                                     placeholder="搜尋使用者名稱 / 顯示名稱 / Email…"
                                     class="w-full pl-8 pr-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400">
                             </div>
+                            <div id="omBulkBar" class="hidden mb-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded flex items-center gap-3 text-xs">
+                                <span class="font-semibold text-amber-700">已選 <span id="omBulkCount">0</span> 人</span>
+                                <select id="omBulkRoleSelect" class="px-2 py-1 border border-stone-300 rounded text-xs bg-white"></select>
+                                <button onclick="omBulkApplyRole()" class="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold">套用角色</button>
+                                <button onclick="omBulkClear()" class="text-stone-500 hover:text-stone-700 ml-auto"><i class="fa-solid fa-xmark"></i> 取消選取</button>
+                            </div>
                             <div class="overflow-hidden border border-stone-100 rounded-md">
                                 <table class="w-full text-sm">
                                     <thead class="bg-amber-50/60 text-stone-600 text-xs uppercase">
                                         <tr>
+                                            <th class="p-3 w-8 text-center"><input type="checkbox" id="omSelectAll" onchange="omToggleSelectAll(this.checked)" class="rounded border-stone-300 text-amber-500 focus:ring-amber-400"></th>
                                             <th class="p-3 text-left cursor-pointer select-none hover:bg-amber-100/60" onclick="omToggleSort('username')">使用者 <span id="omSortUsername"></span></th>
                                             <th class="p-3 text-left cursor-pointer select-none hover:bg-amber-100/60" onclick="omToggleSort('email')">Email <span id="omSortEmail"></span></th>
                                             <th class="p-3 text-left w-48">Org 角色</th>
@@ -3303,7 +3311,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                                         </tr>
                                     </thead>
                                     <tbody id="omTableBody" class="divide-y divide-stone-100">
-                                        <tr><td colspan="6" class="p-4 text-center text-stone-400">載入中…</td></tr>
+                                        <tr><td colspan="7" class="p-4 text-center text-stone-400">載入中…</td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -3340,10 +3348,17 @@ driver.swipe(100, 800, 100, 200, 500)"
                                     placeholder="搜尋使用者名稱 / 顯示名稱 / Email…"
                                     class="w-full pl-8 pr-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400">
                             </div>
+                            <div id="pmBulkBar" class="hidden mb-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded flex items-center gap-3 text-xs">
+                                <span class="font-semibold text-amber-700">已選 <span id="pmBulkCount">0</span> 人</span>
+                                <select id="pmBulkRoleSelect" class="px-2 py-1 border border-stone-300 rounded text-xs bg-white"></select>
+                                <button onclick="pmBulkApplyRole()" class="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold">套用角色</button>
+                                <button onclick="pmBulkClear()" class="text-stone-500 hover:text-stone-700 ml-auto"><i class="fa-solid fa-xmark"></i> 取消選取</button>
+                            </div>
                             <div id="pmTableWrap" class="overflow-hidden border border-stone-100 rounded-md">
                                 <table class="w-full text-sm">
                                     <thead class="bg-amber-50/60 text-stone-600 text-xs uppercase">
                                         <tr>
+                                            <th class="p-3 w-8 text-center"><input type="checkbox" id="pmSelectAll" onchange="pmToggleSelectAll(this.checked)" class="rounded border-stone-300 text-amber-500 focus:ring-amber-400"></th>
                                             <th class="p-3 text-left cursor-pointer select-none hover:bg-amber-100/60" onclick="pmToggleSort('username')">使用者 <span id="pmSortUsername"></span></th>
                                             <th class="p-3 text-left cursor-pointer select-none hover:bg-amber-100/60" onclick="pmToggleSort('email')">Email <span id="pmSortEmail"></span></th>
                                             <th class="p-3 text-left w-56">角色(per-project)</th>
@@ -3353,7 +3368,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                                         </tr>
                                     </thead>
                                     <tbody id="pmTableBody" class="divide-y divide-stone-100">
-                                        <tr><td colspan="6" class="p-4 text-center text-stone-400" data-i18n="common.loading">載入中…</td></tr>
+                                        <tr><td colspan="7" class="p-4 text-center text-stone-400" data-i18n="common.loading">載入中…</td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -13305,12 +13320,81 @@ driver.swipe(100, 800, 100, 200, 500)"
             _renderPmTable(_pmMembersCache);
         }
 
+        // Tier B5: bulk selection state(專案成員)
+        let _pmSelected = new Set();
+        function pmToggleSelectAll(checked) {
+            const rows = document.querySelectorAll('#pmTableBody input.pm-row-cb');
+            rows.forEach(cb => { cb.checked = checked; });
+            _pmSelected.clear();
+            if (checked) rows.forEach(cb => _pmSelected.add(cb.dataset.username));
+            _pmRefreshBulkBar();
+        }
+        function pmToggleRow(username, checked) {
+            if (checked) _pmSelected.add(username);
+            else _pmSelected.delete(username);
+            _pmRefreshBulkBar();
+        }
+        function pmBulkClear() {
+            _pmSelected.clear();
+            const rows = document.querySelectorAll('#pmTableBody input.pm-row-cb');
+            rows.forEach(cb => { cb.checked = false; });
+            const sa = document.getElementById('pmSelectAll'); if (sa) sa.checked = false;
+            _pmRefreshBulkBar();
+        }
+        function _pmRefreshBulkBar() {
+            const bar = document.getElementById('pmBulkBar');
+            const cnt = document.getElementById('pmBulkCount');
+            if (!bar) return;
+            if (_pmSelected.size === 0) { bar.classList.add('hidden'); return; }
+            bar.classList.remove('hidden');
+            if (cnt) cnt.textContent = String(_pmSelected.size);
+            const sel = document.getElementById('pmBulkRoleSelect');
+            if (sel && !sel.dataset.populated) {
+                sel.innerHTML = '<option value="">— 改回繼承 Org 角色 —</option>' +
+                    (_pmAllRoles || []).map(r => {
+                        const tag = r.scope === 'project' ? ' (專案)' : ' (組織)';
+                        return `<option value="${_esc(r.id)}">${_esc(r.name)}${tag}</option>`;
+                    }).join('');
+                sel.dataset.populated = '1';
+            }
+        }
+        async function pmBulkApplyRole() {
+            if (!currentProjectId || _pmSelected.size === 0) return;
+            const sel = document.getElementById('pmBulkRoleSelect');
+            const roleId = sel ? sel.value : '';
+            const usernames = Array.from(_pmSelected);
+            const roleLabel = roleId ? sel.options[sel.selectedIndex].text : '繼承 Org 角色';
+            if (!confirm(`將 ${usernames.length} 名成員的專案角色改為「${roleLabel}」?`)) return;
+            try {
+                const r = await fetch(`/api/projects/${encodeURIComponent(currentProjectId)}/members/bulk`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ usernames, role_id: roleId || null }),
+                });
+                if (!r.ok) {
+                    const j = await r.json().catch(() => ({}));
+                    throw new Error(j.detail || `HTTP ${r.status}`);
+                }
+                const j = await r.json();
+                const skipMsg = (j.skipped && j.skipped.length) ? ` (${j.skipped.length} 跳過)` : '';
+                showToast(`已更新 ${j.updated} 人${skipMsg}`, 'success');
+                _pmSelected.clear();
+                _roleUsageMap = {};
+                pmReload();
+            } catch (e) {
+                showToast('批次更新失敗:' + (e.message || e), 'error');
+            }
+        }
+
         async function pmReload() {
             const nameEl = document.getElementById('pmCurrentProjectName');
             const tbody = document.getElementById('pmTableBody');
             const empty = document.getElementById('pmEmptyHint');
             const tableWrap = document.getElementById('pmTableWrap');
             const searchWrap = document.getElementById('pmSearchWrap');
+            _pmSelected.clear(); _pmRefreshBulkBar();
+            const sa = document.getElementById('pmSelectAll'); if (sa) sa.checked = false;
+            const sel = document.getElementById('pmBulkRoleSelect'); if (sel) delete sel.dataset.populated;
             if (!currentProjectId) {
                 nameEl.textContent = '—';
                 empty.classList.remove('hidden');
@@ -13323,7 +13407,7 @@ driver.swipe(100, 800, 100, 200, 500)"
             if (searchWrap) searchWrap.classList.remove('hidden');
             const proj = projectsData[currentProjectId];
             nameEl.textContent = proj ? proj.name : currentProjectId.slice(0, 8);
-            _renderTableSkeleton(tbody, 6, 5);
+            _renderTableSkeleton(tbody, 7, 5);
             try {
                 const r = await fetch(`/api/projects/${encodeURIComponent(currentProjectId)}/members`);
                 if (!r.ok) throw new Error('HTTP '+r.status);
@@ -13331,7 +13415,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 if (!_pmAllRoles.length) await pmLoadRoles();
                 _renderPmTable(_pmMembersCache);
             } catch (e) {
-                _renderTableError(tbody, 6, '載入失敗:' + (e.message || e), 'pmReload');
+                _renderTableError(tbody, 7, '載入失敗:' + (e.message || e), 'pmReload');
             }
         }
 
@@ -13367,7 +13451,7 @@ driver.swipe(100, 800, 100, 200, 500)"
             }
             if (!filtered.length) {
                 _renderTableEmpty(
-                    tbody, 6,
+                    tbody, 7,
                     _pmSearch ? '沒有符合條件的成員' : '尚無成員',
                     _pmSearch ? null : '加成員',
                     _pmSearch ? null : 'pmOpenAddModal()'
@@ -13387,8 +13471,10 @@ driver.swipe(100, 800, 100, 200, 500)"
                 const statusBadge = m.status === 'active'
                     ? '<span class="px-2 py-0.5 text-[11px] bg-emerald-50 text-emerald-700 rounded font-medium">active</span>'
                     : `<span class="px-2 py-0.5 text-[11px] bg-stone-100 text-stone-600 rounded">${_esc(m.status)}</span>`;
+                const isChecked = _pmSelected.has(m.username) ? 'checked' : '';
                 return `
                     <tr class="hover:bg-amber-50/40">
+                        <td class="p-3 text-center"><input type="checkbox" class="pm-row-cb rounded border-stone-300 text-amber-500 focus:ring-amber-400" data-username="${_esc(m.username)}" ${isChecked} onchange="pmToggleRow('${_esc(m.username)}', this.checked)"></td>
                         <td class="p-3">
                             <div class="font-semibold text-stone-800">${_esc(m.display_name || m.username)}</div>
                             <div class="text-[11px] text-stone-500 font-mono">@${_esc(m.username)}</div>
@@ -17794,17 +17880,37 @@ gantt
             _renderRolesTbody();
         }
 
+        // role_id -> { org_members_count, project_members_count, total_users }
+        let _roleUsageMap = {};
+        async function _loadRoleUsageCounts(roles) {
+            // Lazy fan-out — N small calls but cached in _roleUsageMap
+            const need = (roles || []).filter(r => !(r.id in _roleUsageMap));
+            await Promise.all(need.map(async (r) => {
+                try {
+                    const resp = await fetch(`/api/settings/roles/${encodeURIComponent(r.id)}/usage`);
+                    if (resp.ok) {
+                        const u = await resp.json();
+                        _roleUsageMap[r.id] = u;
+                    } else {
+                        _roleUsageMap[r.id] = null;
+                    }
+                } catch { _roleUsageMap[r.id] = null; }
+            }));
+        }
+
         async function renderRolesList() {
             const tbody = document.getElementById('rolesListBody');
             if (!tbody) return;
-            _renderTableSkeleton(tbody, 5, 5);
+            _renderTableSkeleton(tbody, 6, 5);
             try {
                 const r = await fetch('/api/settings/roles');
                 if (!r.ok) throw new Error('HTTP '+r.status);
                 _rolesCache = await r.json();
                 _renderRolesTbody();
+                // fetch usage in background, then re-render to fill column
+                _loadRoleUsageCounts(_rolesCache).then(() => _renderRolesTbody()).catch(()=>{});
             } catch (e) {
-                _renderTableError(tbody, 5, '載入失敗:' + (e.message || e), 'renderRolesList');
+                _renderTableError(tbody, 6, '載入失敗:' + (e.message || e), 'renderRolesList');
             }
         }
 
@@ -17815,11 +17921,18 @@ gantt
             const setIcon = (id, col) => { const el = document.getElementById(id); if (el) el.innerHTML = _sortIndicator(col, _rolesSort); };
             setIcon('rolesSortName', 'name');
             setIcon('rolesSortCount', 'perms_count');
+            setIcon('rolesSortUsage', 'usage_total');
             // 預備:加 perms_count 給排序用
-            const enriched = (_rolesCache || []).map(r => ({
-                ...r,
-                perms_count: (r.permissions_json || []).length,
-            }));
+            const enriched = (_rolesCache || []).map(r => {
+                const u = _roleUsageMap[r.id];
+                return {
+                    ...r,
+                    perms_count: (r.permissions_json || []).length,
+                    usage_total: u ? (u.total_users || 0) : -1,    // -1 = 尚未載入
+                    usage_org: u ? (u.org_members_count || 0) : null,
+                    usage_proj: u ? (u.project_members_count || 0) : null,
+                };
+            });
             // search filter
             let filtered = enriched.filter(r =>
                 _matchSearch(r, _rolesSearch, ['name', 'description'])
@@ -17832,23 +17945,90 @@ gantt
             if (hint) hint.textContent = _rolesSearch ? `符合「${_rolesSearch}」:${filtered.length} / ${enriched.length}` : '';
             if (!filtered.length) {
                 _renderTableEmpty(
-                    tbody, 5,
+                    tbody, 6,
                     _rolesSearch ? '沒有符合條件的角色' : '尚無角色',
                     _rolesSearch ? null : '新增角色',
                     _rolesSearch ? null : 'openRoleModal()'
                 );
                 return;
             }
+            const usageBadge = (role) => {
+                if (role.usage_total < 0) return '<span class="text-stone-400 text-xs">…</span>';
+                if (role.usage_total === 0) return '<span class="text-stone-400 text-xs">0</span>';
+                return `<button onclick="showRoleUsageDrawer('${_esc(role.id)}')" class="text-xs font-mono text-amber-700 hover:underline" title="點擊查看使用此角色的成員清單">${role.usage_total}<span class="text-[10px] text-stone-500 ml-1">(${role.usage_org}org/${role.usage_proj}proj)</span></button>`;
+            };
             tbody.innerHTML = filtered.map(role => `<tr class="hover:bg-amber-50/30">
                 <td class="p-3 font-semibold text-stone-800">${_esc(role.name)}</td>
                 <td class="p-3 text-xs text-stone-600">${_esc(role.description || '—')}</td>
                 <td class="p-3 text-center text-xs font-mono">${role.perms_count}</td>
+                <td class="p-3 text-center">${usageBadge(role)}</td>
                 <td class="p-3 text-center"><span class="text-[10px] px-1.5 py-0.5 rounded ${role.is_system ? 'bg-stone-100 text-stone-600' : 'bg-amber-100 text-amber-700'}">${role.is_system ? '系統' : '自訂'}</span></td>
                 <td class="p-3 text-center whitespace-nowrap space-x-1">
                     <button onclick="openRoleModal('${_esc(role.id)}')" title="編輯" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded"><i class="fa-solid fa-pen"></i></button>
+                    <button onclick="cloneRolePrompt('${_esc(role.id)}','${_esc(role.name)}')" title="複製此角色" class="text-xs px-2 py-1 bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 rounded"><i class="fa-solid fa-clone"></i></button>
                     ${!role.is_system ? `<button onclick="deleteRole('${_esc(role.id)}','${_esc(role.name)}')" title="刪除" class="text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded"><i class="fa-solid fa-trash"></i></button>` : ''}
                 </td>
             </tr>`).join('');
+        }
+
+        // ─── B4:角色 clone prompt ──────────────────
+        async function cloneRolePrompt(id, name) {
+            const newName = prompt(`複製角色「${name}」 — 新角色名稱:`, `${name} (副本)`);
+            if (!newName || !newName.trim()) return;
+            try {
+                const r = await fetch(`/api/settings/roles/${encodeURIComponent(id)}/clone`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ new_name: newName.trim() }),
+                });
+                if (!r.ok) {
+                    const err = await r.json().catch(() => ({}));
+                    throw new Error(err.detail || `HTTP ${r.status}`);
+                }
+                showToast('角色已複製', 'success');
+                _roleUsageMap = {};    // 失效 cache(新角色 usage_total = 0)
+                renderRolesList();
+            } catch (e) {
+                showToast('複製失敗:' + (e.message || e), 'error');
+            }
+        }
+
+        // ─── B2:角色使用情況 drawer(列出哪些 user 用此角色) ────
+        async function showRoleUsageDrawer(roleId) {
+            const role = (_rolesCache || []).find(r => r.id === roleId);
+            const u = _roleUsageMap[roleId];
+            if (!role || !u) return;
+            const projLines = (u.projects || []).map(p =>
+                `<li class="flex justify-between text-xs py-1 border-b border-stone-100"><span class="text-stone-700">${_esc(p.name)}</span><span class="font-mono text-stone-500">${p.count} 人</span></li>`
+            ).join('') || '<li class="text-xs text-stone-400 py-1">無專案使用</li>';
+            const html = `
+                <div class="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onclick="if(event.target===this)closeRoleUsageDrawer()">
+                    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full max-h-[80vh] overflow-y-auto">
+                        <div class="px-5 py-3 border-b border-stone-100 flex items-center justify-between">
+                            <h3 class="font-bold text-stone-700"><i class="fa-solid fa-user-tag text-amber-500"></i> 「${_esc(role.name)}」使用情況</h3>
+                            <button onclick="closeRoleUsageDrawer()" class="text-stone-400 hover:text-stone-600"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        <div class="p-5 space-y-4">
+                            <div class="grid grid-cols-3 gap-3 text-center">
+                                <div class="p-3 bg-amber-50 rounded"><div class="text-2xl font-bold text-amber-700">${u.total_users}</div><div class="text-[10px] text-stone-500 mt-0.5">總人數</div></div>
+                                <div class="p-3 bg-stone-50 rounded"><div class="text-2xl font-bold text-stone-700">${u.org_members_count}</div><div class="text-[10px] text-stone-500 mt-0.5">組織成員</div></div>
+                                <div class="p-3 bg-stone-50 rounded"><div class="text-2xl font-bold text-stone-700">${u.project_members_count}</div><div class="text-[10px] text-stone-500 mt-0.5">專案成員</div></div>
+                            </div>
+                            <div>
+                                <div class="text-xs font-bold text-stone-600 mb-1">分布在哪些專案</div>
+                                <ul class="border border-stone-100 rounded">${projLines}</ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+            const wrap = document.createElement('div');
+            wrap.id = '_roleUsageDrawer';
+            wrap.innerHTML = html;
+            document.body.appendChild(wrap);
+        }
+        function closeRoleUsageDrawer() {
+            const el = document.getElementById('_roleUsageDrawer');
+            if (el) el.remove();
         }
         async function openRoleModal(id) {
             _editingRoleId = id || null;
@@ -17908,12 +18088,24 @@ gantt
                 }
                 showToast(_editingRoleId ? '已更新' : '已建立', 'success');
                 closeRoleModal();
+                _roleUsageMap = {};
                 renderRolesList();
             } catch (e) { showToast('儲存失敗：'+e.message, 'error'); }
             return false;
         }
         async function deleteRole(id, name) {
-            if (!confirm(`確定刪除角色「${name}」？`)) return;
+            // Tier B2 cascade preview — 刪除前先查 usage
+            let warning = `確定刪除角色「${name}」？`;
+            try {
+                const ur = await fetch(`/api/settings/roles/${encodeURIComponent(id)}/usage`);
+                if (ur.ok) {
+                    const u = await ur.json();
+                    if (u.total_users > 0) {
+                        warning = `角色「${name}」目前有 ${u.total_users} 名使用者(${u.org_members_count} 組織成員 / ${u.project_members_count} 專案成員)。\n刪除後這些指派會被解除。\n\n確定刪除?`;
+                    }
+                }
+            } catch (_) { /* fall back to plain confirm */ }
+            if (!confirm(warning)) return;
             try {
                 const r = await fetch('/api/settings/roles/'+id, { method:'DELETE' });
                 if (!r.ok && r.status !== 204) {
@@ -17921,6 +18113,7 @@ gantt
                     try { detail = (await r.json()).detail || detail; } catch (_) {}
                     throw new Error(detail);
                 }
+                delete _roleUsageMap[id];
                 showToast('已刪除', 'success'); renderRolesList();
             } catch (e) { showToast('刪除失敗：'+e.message, 'error'); }
         }
@@ -18393,20 +18586,27 @@ gantt
             if (!_selectedGroupId) return;
             const g = _groupsCache.find(x => x.id === _selectedGroupId);
             if (!g) return;
-            // Tier A:刪前先抓最新成員 / 子群組數,讓使用者看清後果
+            // Tier B3:用 /usage endpoint 一次拿到 members / 子群組 / 連動 todo / assignment
             let memberCount = g.member_count || 0;
+            let childCount = (_groupsCache || []).filter(c => c.parent_id === _selectedGroupId).length;
+            let todoCount = 0;
+            let assignCount = 0;
             try {
-                const mr = await fetch(`/api/settings/groups/${encodeURIComponent(_selectedGroupId)}/members`);
-                if (mr.ok) {
-                    const ms = await mr.json();
-                    memberCount = (ms || []).length;
+                const ur = await fetch(`/api/settings/groups/${encodeURIComponent(_selectedGroupId)}/usage`);
+                if (ur.ok) {
+                    const u = await ur.json();
+                    memberCount = u.members_count ?? memberCount;
+                    childCount = u.child_groups_count ?? childCount;
+                    todoCount = u.linked_todos_count || 0;
+                    assignCount = u.linked_assignments_count || 0;
                 }
-            } catch (_) { /* fallback to cache */ }
-            const childCount = (_groupsCache || []).filter(c => c.parent_id === _selectedGroupId).length;
+            } catch (_) { /* fallback */ }
             const lines = [
                 `確定刪除群組「${g.name}」?`,
                 memberCount > 0 ? `\n⚠ 此群組目前有 ${memberCount} 名成員,刪除後成員不會被刪除,但會失去群組歸屬。` : '',
                 childCount > 0 ? `\n⚠ 此群組有 ${childCount} 個子群組,刪除後它們會升頂(parent_id 自動清空)。` : '',
+                todoCount > 0 ? `\n⚠ 此群組被 ${todoCount} 個 To-do 指派為負責人,刪除後這些指派會失效。` : '',
+                assignCount > 0 ? `\n⚠ 此群組被 ${assignCount} 個其它任務 / 缺陷指派,刪除後這些指派會失效。` : '',
             ].filter(Boolean).join('');
             if (!confirm(lines)) return;
             try {
@@ -18480,18 +18680,86 @@ gantt
             _omSort = _toggleSortState(_omSort, field);
             _renderOmTable(_omMembersCache, _omOrgIdCache);
         }
+        // Tier B5: bulk selection state
+        let _omSelected = new Set();
+        function omToggleSelectAll(checked) {
+            const rows = document.querySelectorAll('#omTableBody input.om-row-cb');
+            rows.forEach(cb => { cb.checked = checked; });
+            _omSelected.clear();
+            if (checked) rows.forEach(cb => _omSelected.add(cb.dataset.username));
+            _omRefreshBulkBar();
+        }
+        function omToggleRow(username, checked) {
+            if (checked) _omSelected.add(username);
+            else _omSelected.delete(username);
+            _omRefreshBulkBar();
+        }
+        function omBulkClear() {
+            _omSelected.clear();
+            const rows = document.querySelectorAll('#omTableBody input.om-row-cb');
+            rows.forEach(cb => { cb.checked = false; });
+            const sa = document.getElementById('omSelectAll'); if (sa) sa.checked = false;
+            _omRefreshBulkBar();
+        }
+        function _omRefreshBulkBar() {
+            const bar = document.getElementById('omBulkBar');
+            const cnt = document.getElementById('omBulkCount');
+            if (!bar) return;
+            if (_omSelected.size === 0) { bar.classList.add('hidden'); return; }
+            bar.classList.remove('hidden');
+            if (cnt) cnt.textContent = String(_omSelected.size);
+            // populate role dropdown
+            const sel = document.getElementById('omBulkRoleSelect');
+            if (sel && !sel.dataset.populated) {
+                const orgRoles = (_pmAllRoles || []).filter(r => r.scope === 'org');
+                sel.innerHTML = '<option value="">— 改為「無角色」 —</option>' +
+                    orgRoles.map(r => `<option value="${_esc(r.id)}">${_esc(r.name)}</option>`).join('');
+                sel.dataset.populated = '1';
+            }
+        }
+        async function omBulkApplyRole() {
+            if (!_omOrgIdCache || _omSelected.size === 0) return;
+            const sel = document.getElementById('omBulkRoleSelect');
+            const roleId = sel ? sel.value : '';
+            const usernames = Array.from(_omSelected);
+            const roleLabel = roleId ? (sel.options[sel.selectedIndex].text) : '無角色';
+            if (!confirm(`將 ${usernames.length} 名成員的組織角色改為「${roleLabel}」?`)) return;
+            try {
+                const r = await fetch(`/api/orgs/${encodeURIComponent(_omOrgIdCache)}/members/bulk`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ usernames, role_id: roleId || null }),
+                });
+                if (!r.ok) {
+                    const j = await r.json().catch(() => ({}));
+                    throw new Error(j.detail || `HTTP ${r.status}`);
+                }
+                const j = await r.json();
+                const skipMsg = (j.skipped && j.skipped.length) ? ` (${j.skipped.length} 跳過)` : '';
+                showToast(`已更新 ${j.updated} 人${skipMsg}`, 'success');
+                _omSelected.clear();
+                _roleUsageMap = {};
+                omReload();
+            } catch (e) {
+                showToast('批次更新失敗:' + (e.message || e), 'error');
+            }
+        }
+
         async function omReload() {
             const tbody = document.getElementById('omTableBody');
             const nameEl = document.getElementById('omOrgName');
+            _omSelected.clear(); _omRefreshBulkBar();
+            const sa = document.getElementById('omSelectAll'); if (sa) sa.checked = false;
+            const sel = document.getElementById('omBulkRoleSelect'); if (sel) delete sel.dataset.populated;
             await _loadCurrentOrg(true);
             const org = _currentOrgCache;
             if (!org) {
                 if (nameEl) nameEl.textContent = '—';
-                _renderTableError(tbody, 6, '無法取得當前組織', 'omReload');
+                _renderTableError(tbody, 7, '無法取得當前組織', 'omReload');
                 return;
             }
             if (nameEl) nameEl.textContent = org.name || org.slug || '—';
-            _renderTableSkeleton(tbody, 6, 5);
+            _renderTableSkeleton(tbody, 7, 5);
             try {
                 const r = await fetch(`/api/orgs/${encodeURIComponent(org.id)}/members`);
                 if (!r.ok) throw new Error('HTTP '+r.status);
@@ -18500,7 +18768,7 @@ gantt
                 if (!_pmAllRoles.length) await pmLoadRoles();
                 _renderOmTable(_omMembersCache, org.id);
             } catch (e) {
-                _renderTableError(tbody, 6, '載入失敗:' + (e.message || e), 'omReload');
+                _renderTableError(tbody, 7, '載入失敗:' + (e.message || e), 'omReload');
             }
         }
 
@@ -18527,7 +18795,7 @@ gantt
                     : '';
             }
             if (!filtered.length) {
-                _renderTableEmpty(tbody, 6, _omSearch ? '沒有符合條件的成員' : '尚無成員', null, null);
+                _renderTableEmpty(tbody, 7, _omSearch ? '沒有符合條件的成員' : '尚無成員', null, null);
                 return;
             }
             const orgRoles = (_pmAllRoles || []).filter(r => r.scope === 'org');
@@ -18543,8 +18811,10 @@ gantt
                     ? '<span class="px-2 py-0.5 text-[11px] bg-emerald-50 text-emerald-700 rounded font-medium">active</span>'
                     : `<span class="px-2 py-0.5 text-[11px] bg-stone-100 text-stone-600 rounded">${_esc(m.status)}</span>`;
                 const isDefault = m.is_default ? ' <span class="text-[10px] text-amber-600 font-medium">★ 預設</span>' : '';
+                const isChecked = _omSelected.has(m.username) ? 'checked' : '';
                 return `
                     <tr class="hover:bg-amber-50/40">
+                        <td class="p-3 text-center"><input type="checkbox" class="om-row-cb rounded border-stone-300 text-amber-500 focus:ring-amber-400" data-username="${_esc(m.username)}" ${isChecked} onchange="omToggleRow('${_esc(m.username)}', this.checked)"></td>
                         <td class="p-3">
                             <div class="font-semibold text-stone-800">${_esc(m.display_name || m.username)}${isDefault}</div>
                             <div class="text-[11px] text-stone-500 font-mono">@${_esc(m.username)}</div>
