@@ -841,7 +841,6 @@
                     <button type="button" onclick="closeNavDrawer(); showDbConfigView()"     class="nav-drawer-btn"><i class="fa-solid fa-database text-indigo-600"></i><span data-i18n="nav.dbConfig">DB資訊</span></button>
                     <button type="button" onclick="closeNavDrawer(); showMockView()"         class="nav-drawer-btn"><i class="fa-solid fa-plug text-amber-600"></i><span data-i18n="nav.mock">Mock</span></button>
                     <button type="button" onclick="closeNavDrawer(); showTestVersionsView()" class="nav-drawer-btn"><i class="fa-solid fa-tag text-amber-600"></i><span data-i18n="nav.testVersions">測試版號</span></button>
-                    <button type="button" onclick="closeNavDrawer(); showProjectMembersView()" class="nav-drawer-btn"><i class="fa-solid fa-users-gear text-amber-600"></i><span data-i18n="nav.projectMembers">專案成員</span></button>
                 </div>
             </section>
 
@@ -2966,56 +2965,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 </div>
             </div>
 
-            <!-- 視圖：專案成員管理(Phase 5 多租戶)─────────────────────────
-                 列出當前 currentProjectId 的所有成員與其 per-project 角色。
-                 加成員 / 改角色 / 移除三種操作;管理員(superuser 或同 org)才能操作。 -->
-            <div id="projectMembersWorkspace" class="flex-1 overflow-y-auto p-6 bg-amber-50/30 hidden">
-                <div class="max-w-5xl mx-auto">
-                    <div class="bg-white rounded-lg border border-amber-100 shadow-sm p-4 mb-4 flex flex-wrap items-center gap-3">
-                        <div class="flex-1 min-w-0">
-                            <div class="text-xs text-stone-500" data-i18n="pm.subtitle">當前專案的成員與角色</div>
-                            <div id="pmCurrentProjectName" class="text-lg font-bold text-stone-800 truncate">—</div>
-                        </div>
-                        <button onclick="pmReload()" title="重新整理"
-                            class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50 transition">
-                            <i class="fa-solid fa-rotate"></i> <span data-i18n="common.refresh">重新整理</span>
-                        </button>
-                        <button onclick="pmOpenAddModal()"
-                            class="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold shadow-sm transition flex items-center gap-1.5">
-                            <i class="fa-solid fa-user-plus"></i> <span data-i18n="pm.add">加成員</span>
-                        </button>
-                    </div>
-
-                    <div id="pmEmptyHint" class="hidden bg-amber-50 border border-amber-200 rounded-lg p-6 text-center text-amber-800">
-                        <i class="fa-solid fa-circle-info"></i>
-                        <span data-i18n="pm.empty">請先在左側選一個專案。</span>
-                    </div>
-
-                    <div id="pmTableWrap" class="bg-white rounded-lg border border-amber-100 shadow-sm overflow-hidden">
-                        <table class="w-full text-sm">
-                            <thead class="bg-amber-50/60 border-b border-amber-100 text-stone-600 text-xs uppercase">
-                                <tr>
-                                    <th class="p-3 text-left">使用者</th>
-                                    <th class="p-3 text-left">Email</th>
-                                    <th class="p-3 text-left w-56">角色(per-project)</th>
-                                    <th class="p-3 text-left w-24">狀態</th>
-                                    <th class="p-3 text-left w-32">加入時間</th>
-                                    <th class="p-3 text-center w-20"></th>
-                                </tr>
-                            </thead>
-                            <tbody id="pmTableBody" class="divide-y divide-amber-50">
-                                <tr><td colspan="6" class="p-4 text-center text-stone-400" data-i18n="common.loading">載入中…</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    <div class="mt-3 text-[11px] text-stone-500">
-                        <i class="fa-solid fa-circle-info text-amber-500"></i>
-                        per-project 角色為空 = 從組織層 (OrgMembership) 繼承;指定後 override 該專案內的權限。
-                    </div>
-                </div>
-            </div>
-
-            <!-- 加成員 modal -->
+            <!-- 加成員 modal(供「設定 → 專案成員」分頁使用)-->
             <div id="pmAddModal" class="hidden fixed inset-0 z-[170] bg-black/40 flex items-center justify-center p-4">
                 <div class="bg-white rounded-lg shadow-xl border border-stone-200 w-full max-w-md">
                     <div class="px-5 py-3 border-b flex justify-between items-center">
@@ -3058,6 +3008,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                         <button id="setTabGroups"   onclick="settingsSwitchTab('groups')"   class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-people-group"></i> <span data-i18n="settings.tab.groups">群組</span></button>
                         <button id="setTabInvites"  onclick="settingsSwitchTab('invites')"  class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-at"></i> <span data-i18n="settings.tab.invites">成員歸屬</span></button>
                         <button id="setTabOrgMembers" onclick="settingsSwitchTab('orgMembers')" class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-users"></i> <span data-i18n="settings.tab.orgmembers">組織成員</span></button>
+                        <button id="setTabProjectMembers" onclick="settingsSwitchTab('projectMembers')" class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-users-gear"></i> <span data-i18n="settings.tab.projectmembers">專案成員</span></button>
                     </div>
 
                     <!-- ─── Pane 1: 使用者設定（保留原本內容） ─── -->
@@ -3339,7 +3290,50 @@ driver.swipe(100, 800, 100, 200, 500)"
                             </div>
                             <div class="mt-2 text-[11px] text-stone-500">
                                 <i class="fa-solid fa-circle-info text-amber-500"></i>
-                                想限縮某使用者只能看特定專案?到 nav drawer → 設定 → <b>專案成員</b> 管理;這裡只管 org 層的可見性。
+                                想限縮某使用者只能看特定專案?到右邊「<b>專案成員</b>」分頁管理;這裡只管 org 層的可見性。
+                            </div>
+                        </section>
+                    </div>
+
+                    <!-- ─── Pane 10: 專案成員(Phase 5 多租戶,當前專案 scope)─── -->
+                    <div id="setPaneProjectMembers" class="hidden space-y-4">
+                        <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-4">
+                            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                                <div class="flex-1 min-w-0">
+                                    <h3 class="font-bold text-stone-700 text-base flex items-center gap-2"><i class="fa-solid fa-users-gear text-amber-500"></i> 專案成員(<span id="pmCurrentProjectName">—</span>)</h3>
+                                    <p class="text-xs text-stone-500 mt-1" data-i18n="pm.subtitle">當前專案的成員與 per-project 角色</p>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <button onclick="pmReload()" class="text-xs px-2.5 py-1.5 border border-stone-300 rounded hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
+                                    <button onclick="pmOpenAddModal()" class="text-xs px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold"><i class="fa-solid fa-user-plus"></i> 加成員</button>
+                                </div>
+                            </div>
+
+                            <div id="pmEmptyHint" class="hidden bg-amber-50 border border-amber-200 rounded-lg p-4 text-center text-amber-800 text-sm">
+                                <i class="fa-solid fa-circle-info"></i>
+                                <span data-i18n="pm.empty">請先在左側選一個專案。</span>
+                            </div>
+
+                            <div id="pmTableWrap" class="overflow-hidden border border-stone-100 rounded-md">
+                                <table class="w-full text-sm">
+                                    <thead class="bg-amber-50/60 text-stone-600 text-xs uppercase">
+                                        <tr>
+                                            <th class="p-3 text-left">使用者</th>
+                                            <th class="p-3 text-left">Email</th>
+                                            <th class="p-3 text-left w-56">角色(per-project)</th>
+                                            <th class="p-3 text-left w-24">狀態</th>
+                                            <th class="p-3 text-left w-28">加入時間</th>
+                                            <th class="p-3 text-center w-20"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="pmTableBody" class="divide-y divide-stone-100">
+                                        <tr><td colspan="6" class="p-4 text-center text-stone-400" data-i18n="common.loading">載入中…</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="mt-2 text-[11px] text-stone-500">
+                                <i class="fa-solid fa-circle-info text-amber-500"></i>
+                                per-project 角色為空 = 從組織層(OrgMembership)繼承;指定後 override 該專案內的權限。
                             </div>
                         </section>
                     </div>
@@ -4953,7 +4947,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                     '#dbconfig':        'dbConfigWorkspace',
                     '#mock':            'mockWorkspace',
                     '#usersettings':    'userSettingsWorkspace',
-                    '#projectmembers':  'projectMembersWorkspace',
                 };
                 var hash = (window.location.hash || '#home').toLowerCase();
                 var wsId = HASH_TO_WORKSPACE[hash] || 'homeWorkspace';
@@ -10276,7 +10269,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                 'showTestPlanView', 'showRequirementsView', 'showTestKanbanView',
                 'showTestProjectsView', 'showTestDataSetsView',
                 'showTestDocumentsView', 'showWbsView', 'showBacklogView',
-                'showProjectMembersView',
             ];
             const _hashToFn = {};   // '#defects' → 'showDefectsView'
             let _suppressHashChange = false;
@@ -10897,8 +10889,6 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('wbsWorkspace')?.classList.add('hidden');
             document.getElementById('backlogWorkspace')?.classList.add('hidden');
             document.getElementById('reviewWorkspace')?.classList.add('hidden');
-            // Phase 5 多租戶 workspace
-            document.getElementById('projectMembersWorkspace')?.classList.add('hidden');
         }
 
         // ================== 審核中心 (Review Center) =====================
@@ -13259,17 +13249,12 @@ driver.swipe(100, 800, 100, 200, 500)"
 
         }
 
-        // ── Phase 5 多租戶:專案成員管理頁 ───────────────────────────────
+        // ── Phase 5 多租戶:專案成員管理(現已移到「設定 → 專案成員」分頁)─
+        // 保留 function 名供舊呼叫點(例如 home view 快速導覽 / 鍵盤 shortcut)
+        // 一鍵跳到正確分頁 — 跟使用者體感一致。
         function showProjectMembersView() {
-            if (!confirmDiscardIfDirty()) return;
-            _hideAllWorkspaces();
-            _setViewMeta('pm.title', 'pm.title', '<i class="fa-solid fa-users-gear text-amber-500"></i>', 'Members', 'bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium');
-            document.getElementById('projectMembersWorkspace').classList.remove('hidden');
-            document.getElementById('mainHeader').classList.remove('hidden');
-            document.getElementById('mainActions').classList.add('hidden');
-            currentTestCase = null;
-            pmReload();
-            try { _afterViewChange(); } catch (_) {}
+            try { showUserSettingsView(); } catch (_) {}
+            try { settingsSwitchTab('projectMembers'); } catch (_) {}
         }
 
         let _pmAllRoles = [];   // {id, name, scope}[];載入過後 cache 給角色下拉用
@@ -17589,7 +17574,7 @@ gantt
         }
 
         // ─── 設定（Settings）── 9 個 tab
-        const _SETTINGS_TABS = ['user','perms','roles','notif','email','ai','groups','invites','orgMembers'];
+        const _SETTINGS_TABS = ['user','perms','roles','notif','email','ai','groups','invites','orgMembers','projectMembers'];
         const _SETTINGS_TAB_BTN_ON  = 'px-3 py-1.5 text-sm font-medium rounded text-amber-700 bg-amber-50 border border-amber-300';
         const _SETTINGS_TAB_BTN_OFF = 'px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50';
         function settingsSwitchTab(name) {
@@ -17614,6 +17599,7 @@ gantt
             else if (name === 'groups') renderGroupsView();
             else if (name === 'invites') renderInvitesView();
             else if (name === 'orgMembers') omReload();
+            else if (name === 'projectMembers') pmReload();
         }
 
         // ─── 權限清單（唯讀） ─────────────────────────────────────────
