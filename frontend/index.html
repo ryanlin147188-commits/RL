@@ -3207,14 +3207,27 @@ driver.swipe(100, 800, 100, 200, 500)"
                                     <button onclick="openRoleModal()" class="text-xs px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold"><i class="fa-solid fa-plus"></i> 新增角色</button>
                                 </div>
                             </div>
+                            <div class="mb-2 relative">
+                                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-xs"></i>
+                                <input type="search" id="rolesSearch" oninput="rolesOnSearchInput(this.value)"
+                                    placeholder="搜尋角色名稱 / 說明…"
+                                    class="w-full pl-8 pr-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400">
+                            </div>
                             <div class="overflow-hidden border border-stone-100 rounded-md">
                                 <table class="w-full text-sm">
                                     <thead class="bg-amber-50/60 text-stone-600 text-xs uppercase">
-                                        <tr><th class="p-3 text-left">角色名稱</th><th class="p-3 text-left">說明</th><th class="p-3 w-28 text-center">權限數</th><th class="p-3 w-24 text-center">類型</th><th class="p-3 w-28 text-center">操作</th></tr>
+                                        <tr>
+                                            <th class="p-3 text-left cursor-pointer select-none hover:bg-amber-100/60" onclick="rolesToggleSort('name')">角色名稱 <span id="rolesSortName"></span></th>
+                                            <th class="p-3 text-left">說明</th>
+                                            <th class="p-3 w-28 text-center cursor-pointer select-none hover:bg-amber-100/60" onclick="rolesToggleSort('perms_count')">權限數 <span id="rolesSortCount"></span></th>
+                                            <th class="p-3 w-24 text-center">類型</th>
+                                            <th class="p-3 w-28 text-center">操作</th>
+                                        </tr>
                                     </thead>
                                     <tbody id="rolesListBody" class="divide-y divide-stone-100"></tbody>
                                 </table>
                             </div>
+                            <div class="mt-2 text-[11px] text-stone-500" id="rolesFilterHint"></div>
                         </section>
                     </div>
 
@@ -3271,15 +3284,21 @@ driver.swipe(100, 800, 100, 200, 500)"
                                 </div>
                             </div>
                             <p class="text-xs text-stone-500 mb-3">列出當前組織所有成員與其組織層角色;切換組織透過上方列右側的「組織」下拉。</p>
+                            <div class="mb-2 relative">
+                                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-xs"></i>
+                                <input type="search" id="omSearch" oninput="omOnSearchInput(this.value)"
+                                    placeholder="搜尋使用者名稱 / 顯示名稱 / Email…"
+                                    class="w-full pl-8 pr-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400">
+                            </div>
                             <div class="overflow-hidden border border-stone-100 rounded-md">
                                 <table class="w-full text-sm">
                                     <thead class="bg-amber-50/60 text-stone-600 text-xs uppercase">
                                         <tr>
-                                            <th class="p-3 text-left">使用者</th>
-                                            <th class="p-3 text-left">Email</th>
+                                            <th class="p-3 text-left cursor-pointer select-none hover:bg-amber-100/60" onclick="omToggleSort('username')">使用者 <span id="omSortUsername"></span></th>
+                                            <th class="p-3 text-left cursor-pointer select-none hover:bg-amber-100/60" onclick="omToggleSort('email')">Email <span id="omSortEmail"></span></th>
                                             <th class="p-3 text-left w-48">Org 角色</th>
                                             <th class="p-3 text-left w-24">狀態</th>
-                                            <th class="p-3 text-left w-28">加入時間</th>
+                                            <th class="p-3 text-left w-28 cursor-pointer select-none hover:bg-amber-100/60" onclick="omToggleSort('joined_at')">加入時間 <span id="omSortJoinedAt"></span></th>
                                             <th class="p-3 text-center w-20"></th>
                                         </tr>
                                     </thead>
@@ -3288,6 +3307,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                                     </tbody>
                                 </table>
                             </div>
+                            <div class="mt-2 text-[11px] text-stone-500" id="omFilterHint"></div>
                             <div class="mt-2 text-[11px] text-stone-500">
                                 <i class="fa-solid fa-circle-info text-amber-500"></i>
                                 想限縮某使用者只能看特定專案?到右邊「<b>專案成員</b>」分頁管理;這裡只管 org 層的可見性。
@@ -3314,15 +3334,21 @@ driver.swipe(100, 800, 100, 200, 500)"
                                 <span data-i18n="pm.empty">請先在左側選一個專案。</span>
                             </div>
 
+                            <div id="pmSearchWrap" class="mb-2 relative">
+                                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-xs"></i>
+                                <input type="search" id="pmSearch" oninput="pmOnSearchInput(this.value)"
+                                    placeholder="搜尋使用者名稱 / 顯示名稱 / Email…"
+                                    class="w-full pl-8 pr-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400">
+                            </div>
                             <div id="pmTableWrap" class="overflow-hidden border border-stone-100 rounded-md">
                                 <table class="w-full text-sm">
                                     <thead class="bg-amber-50/60 text-stone-600 text-xs uppercase">
                                         <tr>
-                                            <th class="p-3 text-left">使用者</th>
-                                            <th class="p-3 text-left">Email</th>
+                                            <th class="p-3 text-left cursor-pointer select-none hover:bg-amber-100/60" onclick="pmToggleSort('username')">使用者 <span id="pmSortUsername"></span></th>
+                                            <th class="p-3 text-left cursor-pointer select-none hover:bg-amber-100/60" onclick="pmToggleSort('email')">Email <span id="pmSortEmail"></span></th>
                                             <th class="p-3 text-left w-56">角色(per-project)</th>
                                             <th class="p-3 text-left w-24">狀態</th>
-                                            <th class="p-3 text-left w-28">加入時間</th>
+                                            <th class="p-3 text-left w-28 cursor-pointer select-none hover:bg-amber-100/60" onclick="pmToggleSort('joined_at')">加入時間 <span id="pmSortJoinedAt"></span></th>
                                             <th class="p-3 text-center w-20"></th>
                                         </tr>
                                     </thead>
@@ -3331,6 +3357,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                                     </tbody>
                                 </table>
                             </div>
+                            <div class="mt-2 text-[11px] text-stone-500" id="pmFilterHint"></div>
                             <div class="mt-2 text-[11px] text-stone-500">
                                 <i class="fa-solid fa-circle-info text-amber-500"></i>
                                 per-project 角色為空 = 從組織層(OrgMembership)繼承;指定後 override 該專案內的權限。
@@ -3366,8 +3393,14 @@ driver.swipe(100, 800, 100, 200, 500)"
                             <p class="text-xs text-stone-500 mb-3">群組 ≠ 角色;角色管權限,群組管成員集合。同 org 內可巢狀(子群組會繼承父群組的指派通知)。建立群組後可從待辦的「負責人」下拉選擇,通知會 fan-out 給所有成員。</p>
                             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <!-- 左欄:群組樹 -->
-                                <div class="border border-stone-200 rounded-md bg-stone-50/40 p-3 space-y-1 max-h-[60vh] overflow-y-auto">
-                                    <div class="text-[11px] font-semibold text-stone-500 mb-2">群組(共 <span id="groupsListCount">0</span>)</div>
+                                <div class="border border-stone-200 rounded-md bg-stone-50/40 p-3 space-y-2 max-h-[60vh] overflow-y-auto">
+                                    <div class="relative">
+                                        <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400 text-[11px]"></i>
+                                        <input type="search" id="groupsSearch" oninput="groupsOnSearchInput(this.value)"
+                                            placeholder="搜尋群組…"
+                                            class="w-full pl-7 pr-2 py-1.5 border border-stone-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-amber-400">
+                                    </div>
+                                    <div class="text-[11px] font-semibold text-stone-500">群組(共 <span id="groupsListCount">0</span>)</div>
                                     <div id="groupsTree" class="space-y-1">
                                         <div class="text-xs text-stone-400 p-3 text-center">載入中…</div>
                                     </div>
@@ -13258,31 +13291,47 @@ driver.swipe(100, 800, 100, 200, 500)"
         }
 
         let _pmAllRoles = [];   // {id, name, scope}[];載入過後 cache 給角色下拉用
+        // Tier A:search/sort 狀態(專案成員 tab 用)
+        let _pmMembersCache = [];
+        let _pmSearch = '';
+        let _pmSort = { field: null, dir: null };
+        const _pmOnSearchInputDebounced = _debounce((v) => {
+            _pmSearch = v || '';
+            _renderPmTable(_pmMembersCache);
+        }, 200);
+        function pmOnSearchInput(v) { _pmOnSearchInputDebounced(v); }
+        function pmToggleSort(field) {
+            _pmSort = _toggleSortState(_pmSort, field);
+            _renderPmTable(_pmMembersCache);
+        }
 
         async function pmReload() {
             const nameEl = document.getElementById('pmCurrentProjectName');
             const tbody = document.getElementById('pmTableBody');
             const empty = document.getElementById('pmEmptyHint');
             const tableWrap = document.getElementById('pmTableWrap');
+            const searchWrap = document.getElementById('pmSearchWrap');
             if (!currentProjectId) {
                 nameEl.textContent = '—';
                 empty.classList.remove('hidden');
                 tableWrap.classList.add('hidden');
+                if (searchWrap) searchWrap.classList.add('hidden');
                 return;
             }
             empty.classList.add('hidden');
             tableWrap.classList.remove('hidden');
+            if (searchWrap) searchWrap.classList.remove('hidden');
             const proj = projectsData[currentProjectId];
             nameEl.textContent = proj ? proj.name : currentProjectId.slice(0, 8);
-            tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-stone-400">載入中…</td></tr>';
+            _renderTableSkeleton(tbody, 6, 5);
             try {
                 const r = await fetch(`/api/projects/${encodeURIComponent(currentProjectId)}/members`);
                 if (!r.ok) throw new Error('HTTP '+r.status);
-                const members = await r.json();
+                _pmMembersCache = await r.json();
                 if (!_pmAllRoles.length) await pmLoadRoles();
-                _renderPmTable(members);
+                _renderPmTable(_pmMembersCache);
             } catch (e) {
-                tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-rose-500">載入失敗:${_esc(e.message || e)}</td></tr>`;
+                _renderTableError(tbody, 6, '載入失敗:' + (e.message || e), 'pmReload');
             }
         }
 
@@ -13298,8 +13347,31 @@ driver.swipe(100, 800, 100, 200, 500)"
 
         function _renderPmTable(members) {
             const tbody = document.getElementById('pmTableBody');
-            if (!members.length) {
-                tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-stone-400">尚無成員;點右上「加成員」開始。</td></tr>';
+            // 排序圖示
+            const setIcon = (id, col) => { const el = document.getElementById(id); if (el) el.innerHTML = _sortIndicator(col, _pmSort); };
+            setIcon('pmSortUsername', 'username');
+            setIcon('pmSortEmail', 'email');
+            setIcon('pmSortJoinedAt', 'joined_at');
+            // search filter
+            let filtered = (members || []).filter(m =>
+                _matchSearch(m, _pmSearch, ['username', 'display_name', 'email'])
+            );
+            if (_pmSort && _pmSort.field) {
+                filtered = _sortBy(filtered, _pmSort.field, _pmSort.dir);
+            }
+            const hint = document.getElementById('pmFilterHint');
+            if (hint) {
+                hint.textContent = _pmSearch
+                    ? `符合「${_pmSearch}」:${filtered.length} / ${members.length}`
+                    : 'per-project 角色為空 = 從組織層 (OrgMembership) 繼承;指定後 override 該專案內的權限。';
+            }
+            if (!filtered.length) {
+                _renderTableEmpty(
+                    tbody, 6,
+                    _pmSearch ? '沒有符合條件的成員' : '尚無成員',
+                    _pmSearch ? null : '加成員',
+                    _pmSearch ? null : 'pmOpenAddModal()'
+                );
                 return;
             }
             const roleOptions = (currentRoleId) => {
@@ -13310,7 +13382,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 }).join('');
                 return inherit + items;
             };
-            tbody.innerHTML = members.map(m => {
+            tbody.innerHTML = filtered.map(m => {
                 const joined = m.joined_at ? new Date(m.joined_at).toLocaleDateString() : '—';
                 const statusBadge = m.status === 'active'
                     ? '<span class="px-2 py-0.5 text-[11px] bg-emerald-50 text-emerald-700 rounded font-medium">active</span>'
@@ -15298,6 +15370,83 @@ driver.swipe(100, 800, 100, 200, 500)"
         // 共用：esc / fmt / 設定通用 view 切換頭
         // ════════════════════════════════════════════════════════════════
         function _esc(v) { return v == null ? '' : String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+        // ─── 共用 table state helpers(Tier A:統一 6 個權限/成員管理表的 loading/empty/error)─
+        // 用法:
+        //   _renderTableSkeleton(tbody, 6, 5)        → 5 行假資料,每列 6 欄
+        //   _renderTableEmpty(tbody, 6, '尚無成員', '加成員', 'pmOpenAddModal()')
+        //   _renderTableError(tbody, 6, err.message, 'pmReload')
+        function _renderTableSkeleton(tbody, cols = 6, rows = 5) {
+            if (!tbody) return;
+            const cells = Array(cols).fill('').map(() =>
+                '<td class="p-3"><div class="h-3 bg-stone-200 rounded animate-pulse"></div></td>'
+            ).join('');
+            tbody.innerHTML = Array(rows).fill('').map(() => `<tr>${cells}</tr>`).join('');
+        }
+        function _renderTableEmpty(tbody, cols = 6, message = '尚無資料', ctaLabel = null, ctaOnclick = null) {
+            if (!tbody) return;
+            const cta = ctaLabel && ctaOnclick
+                ? `<button onclick="${ctaOnclick}" class="mt-3 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs rounded font-semibold transition"><i class="fa-solid fa-plus"></i> ${_esc(ctaLabel)}</button>`
+                : '';
+            tbody.innerHTML = `<tr><td colspan="${cols}" class="p-8 text-center text-stone-400">
+                <i class="fa-solid fa-folder-open text-2xl mb-2 block opacity-50"></i>
+                <div class="text-sm">${_esc(message)}</div>
+                ${cta}
+            </td></tr>`;
+        }
+        function _renderTableError(tbody, cols = 6, errorMsg = '載入失敗', retryFnName = null) {
+            if (!tbody) return;
+            const retry = retryFnName
+                ? `<button onclick="${retryFnName}()" class="mt-3 px-3 py-1.5 bg-stone-200 hover:bg-stone-300 text-stone-700 text-xs rounded transition"><i class="fa-solid fa-rotate"></i> 重試</button>`
+                : '';
+            tbody.innerHTML = `<tr><td colspan="${cols}" class="p-6 text-center text-rose-500">
+                <i class="fa-solid fa-circle-exclamation text-xl mb-2 block"></i>
+                <div class="text-sm font-medium">${_esc(errorMsg)}</div>
+                ${retry}
+            </td></tr>`;
+        }
+
+        // 通用 client-side 比對 + 排序工具(給 Tier A search/sort 用)
+        function _matchSearch(item, query, fields) {
+            if (!query) return true;
+            const q = query.toLowerCase();
+            return fields.some(f => {
+                const v = item[f];
+                return v != null && String(v).toLowerCase().includes(q);
+            });
+        }
+        function _sortBy(arr, field, dir) {
+            if (!field) return arr;
+            const mul = dir === 'desc' ? -1 : 1;
+            return [...arr].sort((a, b) => {
+                const av = a[field] ?? '';
+                const bv = b[field] ?? '';
+                if (av < bv) return -1 * mul;
+                if (av > bv) return 1 * mul;
+                return 0;
+            });
+        }
+        // <th> 用的排序圖示渲染:_sortIndicator('name', state) → ▲ / ▼ / 空
+        function _sortIndicator(col, sortState) {
+            if (!sortState || sortState.field !== col) return '<i class="fa-solid fa-sort text-stone-300 text-[10px] ml-1"></i>';
+            return sortState.dir === 'desc'
+                ? '<i class="fa-solid fa-sort-down text-amber-600 text-[10px] ml-1"></i>'
+                : '<i class="fa-solid fa-sort-up text-amber-600 text-[10px] ml-1"></i>';
+        }
+        function _toggleSortState(state, field) {
+            // 沒選過 → asc; 同 col asc → desc; 同 col desc → 還原(field=null)
+            if (!state.field || state.field !== field) return { field, dir: 'asc' };
+            if (state.dir === 'asc') return { field, dir: 'desc' };
+            return { field: null, dir: null };
+        }
+        // debounce helper(給 search input 用)
+        function _debounce(fn, ms = 200) {
+            let t;
+            return function (...args) {
+                clearTimeout(t);
+                t = setTimeout(() => fn.apply(this, args), ms);
+            };
+        }
         // _setView(workspaceId, titleHtml, tag, tagClass, filename, [opts])
         // opts.titleKey / opts.filenameKey:若提供,套用 i18n 翻譯,並掛 data-i18n
         // 讓切換語系時自動重譯。icon 仍由 titleHtml 內的 <i> 提供。
@@ -17632,28 +17781,74 @@ gantt
         // ─── 角色管理 ────────────────────────────────────────────────
         let _rolesCache = [];
         let _editingRoleId = null;
+        // Tier A:角色 search + sort 狀態
+        let _rolesSearch = '';
+        let _rolesSort = { field: 'name', dir: 'asc' };
+        const _rolesOnSearchInputDebounced = _debounce((v) => {
+            _rolesSearch = v || '';
+            _renderRolesTbody();
+        }, 200);
+        function rolesOnSearchInput(v) { _rolesOnSearchInputDebounced(v); }
+        function rolesToggleSort(field) {
+            _rolesSort = _toggleSortState(_rolesSort, field);
+            _renderRolesTbody();
+        }
+
         async function renderRolesList() {
             const tbody = document.getElementById('rolesListBody');
             if (!tbody) return;
-            tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-stone-400">載入中…</td></tr>';
+            _renderTableSkeleton(tbody, 5, 5);
             try {
                 const r = await fetch('/api/settings/roles');
                 if (!r.ok) throw new Error('HTTP '+r.status);
                 _rolesCache = await r.json();
-                if (!_rolesCache.length) { tbody.innerHTML = '<tr><td colspan="5" class="p-6 text-center text-stone-400">尚無角色</td></tr>'; return; }
-                tbody.innerHTML = _rolesCache.map(role => `<tr class="hover:bg-amber-50/30">
-                    <td class="p-3 font-semibold text-stone-800">${_esc(role.name)}</td>
-                    <td class="p-3 text-xs text-stone-600">${_esc(role.description || '—')}</td>
-                    <td class="p-3 text-center text-xs font-mono">${(role.permissions_json||[]).length}</td>
-                    <td class="p-3 text-center"><span class="text-[10px] px-1.5 py-0.5 rounded ${role.is_system ? 'bg-stone-100 text-stone-600' : 'bg-amber-100 text-amber-700'}">${role.is_system ? '系統' : '自訂'}</span></td>
-                    <td class="p-3 text-center whitespace-nowrap space-x-1">
-                        <button onclick="openRoleModal('${_esc(role.id)}')" title="編輯" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded"><i class="fa-solid fa-pen"></i></button>
-                        ${!role.is_system ? `<button onclick="deleteRole('${_esc(role.id)}','${_esc(role.name)}')" title="刪除" class="text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded"><i class="fa-solid fa-trash"></i></button>` : ''}
-                    </td>
-                </tr>`).join('');
+                _renderRolesTbody();
             } catch (e) {
-                tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-red-500">載入失敗：${_esc(e.message)}</td></tr>`;
+                _renderTableError(tbody, 5, '載入失敗:' + (e.message || e), 'renderRolesList');
             }
+        }
+
+        function _renderRolesTbody() {
+            const tbody = document.getElementById('rolesListBody');
+            if (!tbody) return;
+            // 排序圖示
+            const setIcon = (id, col) => { const el = document.getElementById(id); if (el) el.innerHTML = _sortIndicator(col, _rolesSort); };
+            setIcon('rolesSortName', 'name');
+            setIcon('rolesSortCount', 'perms_count');
+            // 預備:加 perms_count 給排序用
+            const enriched = (_rolesCache || []).map(r => ({
+                ...r,
+                perms_count: (r.permissions_json || []).length,
+            }));
+            // search filter
+            let filtered = enriched.filter(r =>
+                _matchSearch(r, _rolesSearch, ['name', 'description'])
+            );
+            // sort
+            if (_rolesSort && _rolesSort.field) {
+                filtered = _sortBy(filtered, _rolesSort.field, _rolesSort.dir);
+            }
+            const hint = document.getElementById('rolesFilterHint');
+            if (hint) hint.textContent = _rolesSearch ? `符合「${_rolesSearch}」:${filtered.length} / ${enriched.length}` : '';
+            if (!filtered.length) {
+                _renderTableEmpty(
+                    tbody, 5,
+                    _rolesSearch ? '沒有符合條件的角色' : '尚無角色',
+                    _rolesSearch ? null : '新增角色',
+                    _rolesSearch ? null : 'openRoleModal()'
+                );
+                return;
+            }
+            tbody.innerHTML = filtered.map(role => `<tr class="hover:bg-amber-50/30">
+                <td class="p-3 font-semibold text-stone-800">${_esc(role.name)}</td>
+                <td class="p-3 text-xs text-stone-600">${_esc(role.description || '—')}</td>
+                <td class="p-3 text-center text-xs font-mono">${role.perms_count}</td>
+                <td class="p-3 text-center"><span class="text-[10px] px-1.5 py-0.5 rounded ${role.is_system ? 'bg-stone-100 text-stone-600' : 'bg-amber-100 text-amber-700'}">${role.is_system ? '系統' : '自訂'}</span></td>
+                <td class="p-3 text-center whitespace-nowrap space-x-1">
+                    <button onclick="openRoleModal('${_esc(role.id)}')" title="編輯" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded"><i class="fa-solid fa-pen"></i></button>
+                    ${!role.is_system ? `<button onclick="deleteRole('${_esc(role.id)}','${_esc(role.name)}')" title="刪除" class="text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded"><i class="fa-solid fa-trash"></i></button>` : ''}
+                </td>
+            </tr>`).join('');
         }
         async function openRoleModal(id) {
             _editingRoleId = id || null;
@@ -17960,6 +18155,14 @@ gantt
             }
         }
 
+        // Tier A:群組樹 search 狀態
+        let _groupsSearch = '';
+        const _groupsOnSearchInputDebounced = _debounce((v) => {
+            _groupsSearch = (v || '').toLowerCase();
+            _renderGroupTree();
+        }, 200);
+        function groupsOnSearchInput(v) { _groupsOnSearchInputDebounced(v); }
+
         function _renderGroupTree() {
             const tree = document.getElementById('groupsTree');
             if (!tree) return;
@@ -17972,7 +18175,26 @@ gantt
             Object.values(byId).forEach(g => {
                 if (g.parent_id && byId[g.parent_id]) byId[g.parent_id].children.push(g);
             });
+            // search 過濾:節點 + 任何後代命中即保留(用 walker 標 _matched)
+            if (_groupsSearch) {
+                const matchSelf = (g) => (g.name || '').toLowerCase().includes(_groupsSearch)
+                    || (g.description || '').toLowerCase().includes(_groupsSearch);
+                const markMatched = (g) => {
+                    let any = matchSelf(g);
+                    g.children = g.children.filter(c => markMatched(c));
+                    if (g.children.length) any = true;
+                    return any;
+                };
+                Object.values(byId).filter(g => !g.parent_id).forEach(markMatched);
+            }
             const roots = Object.values(byId).filter(g => !g.parent_id || !byId[g.parent_id]);
+            // search mode 額外把不符合的 root 整個過濾掉(matchSelf || hasMatchedChild)
+            const finalRoots = _groupsSearch
+                ? roots.filter(g =>
+                    (g.name || '').toLowerCase().includes(_groupsSearch)
+                    || (g.description || '').toLowerCase().includes(_groupsSearch)
+                    || (g.children && g.children.length))
+                : roots;
 
             const renderNode = (g, depth) => {
                 const isSelected = g.id === _selectedGroupId;
@@ -17988,7 +18210,11 @@ gantt
                 </div>`;
                 return html + g.children.map(c => renderNode(c, depth + 1)).join('');
             };
-            tree.innerHTML = roots.map(g => renderNode(g, 0)).join('');
+            if (!finalRoots.length && _groupsSearch) {
+                tree.innerHTML = `<div class="text-xs text-stone-400 p-3 text-center">沒有符合「${_esc(_groupsSearch)}」的群組</div>`;
+                return;
+            }
+            tree.innerHTML = finalRoots.map(g => renderNode(g, 0)).join('');
         }
 
         async function selectGroup(id) {
@@ -18167,11 +18393,27 @@ gantt
             if (!_selectedGroupId) return;
             const g = _groupsCache.find(x => x.id === _selectedGroupId);
             if (!g) return;
-            if (!confirm(`確定刪除群組「${g.name}」?(子群組會升頂、成員會被解除;不會刪除使用者)`)) return;
+            // Tier A:刪前先抓最新成員 / 子群組數,讓使用者看清後果
+            let memberCount = g.member_count || 0;
+            try {
+                const mr = await fetch(`/api/settings/groups/${encodeURIComponent(_selectedGroupId)}/members`);
+                if (mr.ok) {
+                    const ms = await mr.json();
+                    memberCount = (ms || []).length;
+                }
+            } catch (_) { /* fallback to cache */ }
+            const childCount = (_groupsCache || []).filter(c => c.parent_id === _selectedGroupId).length;
+            const lines = [
+                `確定刪除群組「${g.name}」?`,
+                memberCount > 0 ? `\n⚠ 此群組目前有 ${memberCount} 名成員,刪除後成員不會被刪除,但會失去群組歸屬。` : '',
+                childCount > 0 ? `\n⚠ 此群組有 ${childCount} 個子群組,刪除後它們會升頂(parent_id 自動清空)。` : '',
+            ].filter(Boolean).join('');
+            if (!confirm(lines)) return;
             try {
                 const r = await fetch('/api/settings/groups/'+_selectedGroupId, { method: 'DELETE' });
                 if (!r.ok && r.status !== 204) throw new Error('HTTP '+r.status);
-                showToast('已刪除', 'success');
+                const detail = memberCount > 0 ? `已刪除(已解除 ${memberCount} 名成員的群組歸屬)` : '已刪除';
+                showToast(detail, 'success');
                 _selectedGroupId = null;
                 await renderGroupsView();
             } catch (e) { showToast('刪除失敗:'+e.message, 'error'); }
@@ -18224,6 +18466,20 @@ gantt
         }
 
         // ── Phase 7 多租戶:組織成員列表 ─────────────────────────────────
+        // Tier A 加上 search + sort + skeleton/empty/error 共用樣板。
+        let _omMembersCache = [];           // 上次 fetch 結果(完整,給 search filter 用)
+        let _omOrgIdCache = null;
+        let _omSearch = '';
+        let _omSort = { field: null, dir: null };  // _toggleSortState 維護
+        const _omOnSearchInputDebounced = _debounce((v) => {
+            _omSearch = v || '';
+            _renderOmTable(_omMembersCache, _omOrgIdCache);
+        }, 200);
+        function omOnSearchInput(v) { _omOnSearchInputDebounced(v); }
+        function omToggleSort(field) {
+            _omSort = _toggleSortState(_omSort, field);
+            _renderOmTable(_omMembersCache, _omOrgIdCache);
+        }
         async function omReload() {
             const tbody = document.getElementById('omTableBody');
             const nameEl = document.getElementById('omOrgName');
@@ -18231,26 +18487,47 @@ gantt
             const org = _currentOrgCache;
             if (!org) {
                 if (nameEl) nameEl.textContent = '—';
-                tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-rose-500">無法取得當前組織</td></tr>';
+                _renderTableError(tbody, 6, '無法取得當前組織', 'omReload');
                 return;
             }
             if (nameEl) nameEl.textContent = org.name || org.slug || '—';
-            tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-stone-400">載入中…</td></tr>';
+            _renderTableSkeleton(tbody, 6, 5);
             try {
                 const r = await fetch(`/api/orgs/${encodeURIComponent(org.id)}/members`);
                 if (!r.ok) throw new Error('HTTP '+r.status);
-                const members = await r.json();
+                _omMembersCache = await r.json();
+                _omOrgIdCache = org.id;
                 if (!_pmAllRoles.length) await pmLoadRoles();
-                _renderOmTable(members, org.id);
+                _renderOmTable(_omMembersCache, org.id);
             } catch (e) {
-                tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-rose-500">載入失敗:${_esc(e.message || e)}</td></tr>`;
+                _renderTableError(tbody, 6, '載入失敗:' + (e.message || e), 'omReload');
             }
         }
 
         function _renderOmTable(members, orgId) {
             const tbody = document.getElementById('omTableBody');
-            if (!members.length) {
-                tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-stone-400">尚無成員</td></tr>';
+            // 更新表頭排序圖示
+            const setIcon = (id, col) => { const el = document.getElementById(id); if (el) el.innerHTML = _sortIndicator(col, _omSort); };
+            setIcon('omSortUsername', 'username');
+            setIcon('omSortEmail', 'email');
+            setIcon('omSortJoinedAt', 'joined_at');
+            // search filter
+            let filtered = (members || []).filter(m =>
+                _matchSearch(m, _omSearch, ['username', 'display_name', 'email'])
+            );
+            // sort
+            if (_omSort && _omSort.field) {
+                filtered = _sortBy(filtered, _omSort.field, _omSort.dir);
+            }
+            // hint
+            const hint = document.getElementById('omFilterHint');
+            if (hint) {
+                hint.textContent = _omSearch
+                    ? `符合「${_omSearch}」的成員:${filtered.length} / ${members.length}`
+                    : '';
+            }
+            if (!filtered.length) {
+                _renderTableEmpty(tbody, 6, _omSearch ? '沒有符合條件的成員' : '尚無成員', null, null);
                 return;
             }
             const orgRoles = (_pmAllRoles || []).filter(r => r.scope === 'org');
@@ -18260,7 +18537,7 @@ gantt
                     `<option value="${_esc(r.id)}" ${curId === r.id ? 'selected' : ''}>${_esc(r.name)}</option>`
                 ).join('');
             };
-            tbody.innerHTML = members.map(m => {
+            tbody.innerHTML = filtered.map(m => {
                 const joined = m.joined_at ? new Date(m.joined_at).toLocaleDateString() : '—';
                 const statusBadge = m.status === 'active'
                     ? '<span class="px-2 py-0.5 text-[11px] bg-emerald-50 text-emerald-700 rounded font-medium">active</span>'
@@ -18312,7 +18589,31 @@ gantt
         }
 
         async function omRemove(orgId, username) {
-            if (!confirm(`確定移除「${username}」?\n他在此組織的所有 ProjectMember 也會一併刪除。`)) return;
+            // Tier A:cascade preview — 算一下這個 user 在此 org 下的 ProjectMember 數,
+            // 提早讓 admin 看到「按下確定會解除 N 個專案的成員身份」。
+            // 後端 DELETE 已經 cascade 過,這裡只是 read-only 預覽,失敗不擋流程。
+            let projCount = null;
+            try {
+                // 全 org projects → 各自查 members,撈到該 username 就計 1
+                // (大型 org 就改 backend 加 endpoint;Tier A 先客戶端聚合)
+                const projRes = await fetch('/api/projects');
+                if (projRes.ok) {
+                    const projs = await projRes.json();
+                    const counts = await Promise.all(projs.map(async p => {
+                        try {
+                            const mr = await fetch(`/api/projects/${encodeURIComponent(p.id)}/members`);
+                            if (!mr.ok) return 0;
+                            const ms = await mr.json();
+                            return ms.some(m => m.username === username) ? 1 : 0;
+                        } catch (_) { return 0; }
+                    }));
+                    projCount = counts.reduce((a, b) => a + b, 0);
+                }
+            } catch (_) { /* preview optional */ }
+            const cascadeMsg = (projCount != null && projCount > 0)
+                ? `\n⚠ 同時會從 ${projCount} 個專案中移除該成員身份(專案資料本身不刪)。`
+                : (projCount === 0 ? '\n(該使用者目前不在此 org 的任何專案 member 表)' : '');
+            if (!confirm(`確定移除「${username}」?${cascadeMsg}`)) return;
             try {
                 const r = await fetch(`/api/orgs/${encodeURIComponent(orgId)}/members/${encodeURIComponent(username)}`, {
                     method: 'DELETE',
@@ -18322,7 +18623,7 @@ gantt
                     showToast('移除失敗:' + (j.detail || r.statusText), 'error');
                     return;
                 }
-                showToast('已移除', 'success');
+                showToast(projCount > 0 ? `已移除(同時清除 ${projCount} 個專案成員)` : '已移除', 'success');
                 omReload();
             } catch (e) {
                 showToast('移除失敗:' + (e.message || e), 'error');
