@@ -11,29 +11,24 @@
     <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <!-- Perf A2: 非 critical-path 的 CDN script 全部 defer，讓 HTML 解析不被阻塞。
-         tailwindcss 必須維持同步以避免 FOUC。defer 保證腳本仍照宣告順序在 DOMContentLoaded 之前執行，
-         所以 mermaid.initialize 改放到 DOMContentLoaded listener 內，避免在 mermaid 載入完成前提前呼叫。 -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0" defer></script>
-    <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js" defer></script>
-    <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" defer></script>
-    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js" defer></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            if (typeof mermaid !== 'undefined') {
-                mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: 'default' });
-            }
-        });
-    </script>
+    <!-- Perf B1/B2: Chart.js / chartjs-plugin-datalabels / html2pdf / marked / mermaid
+         全部從 critical path 移除,改由 ensureChartJs() / ensureMarkdown() / ensureHtml2Pdf()
+         在第一次需要時動態 inject。首頁 / 登入 / 純列表類 view 完全不會載入這些函式庫。
+         (loaders 定義見 inline script 開頭的 §0.5。) -->
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
     <!-- Perf A4: 三個 core module 平行 fetch,避免 module graph resolution 一個一個串列載入 -->
     <link rel="modulepreload" href="/js/core/auth.js">
     <link rel="modulepreload" href="/js/core/api.js">
     <link rel="modulepreload" href="/js/core/store.js">
     <script type="module">
         import "/js/core/auth.js";
-        import "/js/core/api.js";
+        import { apiFetch, ApiError } from "/js/core/api.js";
         import "/js/core/store.js";
+        // Perf B4: 把 modular apiFetch 暴露給 inline script 區塊內的 30+ callsite。
+        // 這版會自動帶 Bearer token + 401 silent refresh,解掉 token 過期後的
+        // silent-401 bug;同時刪除 index.html 內重複的 inline apiFetch。
+        window.apiFetch = apiFetch;
+        window.ApiError = ApiError;
     </script>
     <script>
         tailwind.config = {
@@ -4852,6 +4847,55 @@ driver.swipe(100, 800, 100, 200, 500)"
         let currentModalAction = null;
         let targetNodeId = null;
 
+        // ==================== 0.5. Lazy-load helpers(Perf B1/B2) ====================
+        // Chart.js / mermaid / marked / html2pdf 不在 boot 路徑載入,改由首次用到的
+        // view 呼叫對應 ensure* 函式才動態 inject <script>。同一函式重入時靠 cached
+        // promise 去重,不會重複 fetch。失敗的 script 會把 cache 清掉,下次重試。
+        function _loadScript(src) {
+            return new Promise((resolve, reject) => {
+                const s = document.createElement('script');
+                s.src = src;
+                s.async = false;   // 維持宣告順序,避免 plugin 比 chart.js 先到
+                s.onload = () => resolve();
+                s.onerror = () => reject(new Error('failed to load ' + src));
+                document.head.appendChild(s);
+            });
+        }
+        let _chartJsPromise = null;
+        function ensureChartJs() {
+            if (window.Chart) return Promise.resolve();
+            if (_chartJsPromise) return _chartJsPromise;
+            _chartJsPromise = (async () => {
+                await _loadScript('https://cdn.jsdelivr.net/npm/chart.js');
+                await _loadScript('https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0');
+            })().catch((e) => { _chartJsPromise = null; throw e; });
+            return _chartJsPromise;
+        }
+        let _markdownPromise = null;
+        function ensureMarkdown() {
+            // marked 渲染 Markdown,mermaid 渲染流程圖。renderMarkdownInto() 兩個都用得到。
+            if (window.marked && window.mermaid) return Promise.resolve();
+            if (_markdownPromise) return _markdownPromise;
+            _markdownPromise = (async () => {
+                await Promise.all([
+                    window.marked  ? null : _loadScript('https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js'),
+                    window.mermaid ? null : _loadScript('https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js'),
+                ].filter(Boolean));
+                if (window.mermaid) {
+                    try { mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: 'default' }); } catch (_) {}
+                }
+            })().catch((e) => { _markdownPromise = null; throw e; });
+            return _markdownPromise;
+        }
+        let _html2pdfPromise = null;
+        function ensureHtml2Pdf() {
+            if (window.html2pdf) return Promise.resolve();
+            if (_html2pdfPromise) return _html2pdfPromise;
+            _html2pdfPromise = _loadScript('https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js')
+                .catch((e) => { _html2pdfPromise = null; throw e; });
+            return _html2pdfPromise;
+        }
+
         // ==================== 0. Toast 提示系統 ====================
         function showToast(message, type = 'info') {
             const container = document.getElementById('toastContainer');
@@ -6204,11 +6248,14 @@ driver.swipe(100, 800, 100, 200, 500)"
             currentTestCase = null;
             renderTree(activeTreeData, document.getElementById('treeContainer'));
 
-            ensureDashboardCharts();
-            refreshDashboard();
+            // Perf B1: ensureDashboardCharts 現在會 lazy-load Chart.js;
+            // refreshDashboard 必須等它把 canvas 實例建好才能餵資料,所以串在 .then() 裡。
+            ensureDashboardCharts()
+                .then(() => refreshDashboard())
+                .catch((e) => showToast('Chart 元件載入失敗:' + (e.message || e), 'error'));
             startRunningReportPolling();
             try { _afterViewChange(); } catch (_) {}
-        
+
         }
 
         // Dashboard 顯示期間持續輪詢：每 5 秒刷新一次最近報告；切離 Dashboard 時自動停止
@@ -6233,7 +6280,9 @@ driver.swipe(100, 800, 100, 200, 500)"
         }
 
         // 首次顯示時才建立 Chart 實例（canvas 需要已掛載在 DOM）
-        function ensureDashboardCharts() {
+        // Perf B1: Chart.js + datalabels 改成首次進入 reportWorkspace 才動態 inject。
+        async function ensureDashboardCharts() {
+            await ensureChartJs();
             if (!statusChartInst) {
                 statusChartInst = new Chart(document.getElementById('statusChart').getContext('2d'), {
                     type: 'doughnut',
@@ -7104,8 +7153,10 @@ driver.swipe(100, 800, 100, 200, 500)"
         // 改為依 mockReportData[currentReportId] 自行渲染一份「線性、全展開」的 DOM
         // 放到一個離屏容器，再由 html2pdf 截圖輸出。
         async function exportReportPdf() {
-            if (typeof html2pdf === 'undefined') {
-                showToast('PDF 匯出元件尚未載入，請稍候再試', 'error');
+            // Perf B2: html2pdf 改成首次呼叫時才動態 inject。
+            try { await ensureHtml2Pdf(); }
+            catch (e) {
+                showToast('PDF 匯出元件載入失敗:' + (e.message || e), 'error');
                 return;
             }
             const report = currentReportId ? mockReportData[currentReportId] : null;
@@ -7449,16 +7500,9 @@ driver.swipe(100, 800, 100, 200, 500)"
             return out;
         }
 
-        async function apiFetch(url, opts = {}) {
-            const res = await fetch(url, opts);
-            if (!res.ok) {
-                let msg = res.statusText;
-                try { const j = await res.json(); msg = j.detail || msg; } catch {}
-                throw new Error(`HTTP ${res.status} ${msg}`);
-            }
-            if (res.status === 204) return null;
-            return res.json();
-        }
+        // Perf B4: inline apiFetch 已被 module script 開頭 import 的 modular 版本
+        // (見 /js/core/api.js)取代並掛上 window.apiFetch,提供 Bearer token + 401
+        // silent refresh。此處原本的本地副本已移除,避免語意不一致。
 
         // 重新命名目前選取的專案
         async function renameCurrentProject() {
@@ -7511,11 +7555,13 @@ driver.swipe(100, 800, 100, 200, 500)"
             }
         }
 
-        async function initProjects() {
+        // Perf B3: 接受 caller 預先發出的 projects fetch promise(可在 /api/auth/me
+         // 同時 kick),省一個 RTT。沒帶就維持原本同步發 fetch 的行為,向後相容。
+        async function initProjects(prefetchedProjectsPromise) {
             const sel = document.getElementById('projectSelector');
             sel.innerHTML = '';
             try {
-                const list = await apiFetch('/api/projects');
+                const list = await (prefetchedProjectsPromise || apiFetch('/api/projects'));
                 Object.keys(projectsData).forEach(k => delete projectsData[k]);
                 if (!list.length) {
                     sel.innerHTML = '<option value="">（尚無專案，請先建立）</option>';
@@ -9735,6 +9781,11 @@ driver.swipe(100, 800, 100, 200, 500)"
                 return;
             }
             // 已登入：先驗證 token 還有效（會自動 silent refresh）
+            // Perf B3: 同時 kick 出 /api/projects(initProjects 需要的)— 兩個請求
+            // 平行飛,而不是 me ok 後再追問 projects。me 失敗時把 projReq 的 unhandled
+            // rejection 吃掉以免汙染 console。
+            const projReq = apiFetch('/api/projects');
+            projReq.catch(() => {});
             try {
                 const r = await window.fetch('/api/auth/me');
                 if (!r.ok) {
@@ -9757,7 +9808,7 @@ driver.swipe(100, 800, 100, 200, 500)"
             // 通過驗證 → 正常初始化平台
             renderExecutionModeButton();
             updateUserMenuUI();
-            initProjects().then(() => {
+            initProjects(projReq).then(() => {
                 // Hash-aware initial dispatch — preserves the view across
                 // reload. Falls back to showHomeView when hash is empty
                 // or doesn't map to a known view.
@@ -16654,10 +16705,12 @@ gantt
 
         // 把 markdown → safe HTML，並將 ```mermaid 區塊抽出來改用 mermaid.render() 渲染為 SVG。
         // 此 helper 同時被測試文件與測試計畫的編輯器使用。
+        // Perf B2: marked / mermaid 改成首次呼叫時才動態 inject(見 §0.5 ensureMarkdown)。
         async function renderMarkdownInto(targetEl, mdText) {
             if (!targetEl) return;
-            if (typeof marked === 'undefined') {
-                targetEl.innerHTML = '<em class="text-rose-500">marked.js 未載入</em>';
+            try { await ensureMarkdown(); }
+            catch (e) {
+                targetEl.innerHTML = '<em class="text-rose-500">Markdown 元件載入失敗:' + (e.message || e) + '</em>';
                 return;
             }
             try { marked.setOptions({ gfm: true, breaks: true, headerIds: false, mangle: false }); } catch (_) {}
