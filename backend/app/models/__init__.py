@@ -22,7 +22,9 @@ from .notification import Notification
 from .notification_preference import NotificationPreference
 from .oidc_provider import OidcProvider
 from .org_invite import OrgInvite
+from .org_membership import OrgMembership
 from .organization import Organization
+from .project_member import ProjectMember
 from .role import Role
 from .user import User
 from .project_device import DevicePlatform, ProjectDevice
@@ -77,7 +79,9 @@ __all__ = [
     "TodoLink", "ALLOWED_TARGET_TYPES",
     "User",
     # Multi-tenancy + audit
-    "Organization", "AuditLog", "OrgInvite",
+    "Organization", "AuditLog", "OrgInvite", "OrgMembership",
+    # Per-project membership + roles
+    "ProjectMember",
     # SSO / OIDC
     "OidcProvider",
     # Mock + DB connection persistence (取代 localStorage)

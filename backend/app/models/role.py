@@ -26,6 +26,9 @@ class Role(Base):
     # permissions_json: list[str] 權限 key 列表（如 "testcase.read", "defect.write"）
     permissions_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     is_system: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # 角色作用範圍:'org' 套用全 org / 'project' 限定為某 ProjectMember 的角色。
+    # 同個 Role row 不會同時兩種範圍 — UI / API 在建立時要二擇一。
+    scope: Mapped[str] = mapped_column(String(16), nullable=False, default="org", server_default="org")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
