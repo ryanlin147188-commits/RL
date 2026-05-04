@@ -380,14 +380,13 @@ async def create_invite(
             from app.services.email_service import render_invite_email
             from tasks.email_tasks import send_email_task
 
-            # Best-effort URL using the request's host header. Behind a proxy
-            # this resolves to the public origin via X-Forwarded-Host (uvicorn
-            # `--proxy-headers`).
-            register_url = (
-                f"https://{org.slug}/register?token={token}&email={target_email}"
-                if False  # placeholder; admin-driven flow doesn't have a Request handle
-                else f"/register?token={token}&email={target_email}"
-            )
+            # Admin-driven invite flow doesn't have a Request handle here, so
+            # we can't read X-Forwarded-Host to build an absolute URL. Falls
+            # back to a relative path; the email template / receiving inbox
+            # resolves it against the org's mail-side base URL.
+            # TODO: thread Request through this call site so we can use
+            # `https://{request.url.netloc}/...` like /api/auth/register does.
+            register_url = f"/register?token={token}&email={target_email}"
             html_body, text_body = render_invite_email(
                 org_name=org.name,
                 register_url=register_url,

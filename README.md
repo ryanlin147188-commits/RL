@@ -143,7 +143,7 @@ See [操作說明.md](操作說明.md) (Chinese) for an end-to-end user guide. E
 Before exposing RL to the internet:
 
 - Set `ALLOWED_ORIGINS` to your front-end origin (never `*`).
-- Override default secrets — `AUTOTEST_JWT_SECRET`, `AUTOTEST_FERNET_KEY`, `DB_PASSWORD`, `MINIO_ROOT_PASSWORD`. The deploy script generates random values on first run; rotate them on a schedule.
+- Override default secrets — `AUTOTEST_JWT_SECRET`, `AUTOTEST_FERNET_KEY`, `DB_PASSWORD`, `S3_ROOT_PASSWORD`. The deploy script generates random values on first run; rotate them on a schedule.
 - Run behind HTTPS (e.g., a reverse proxy with Let's Encrypt or your own CA).
 - Pin `RECORDER_IMAGE` and `ROBOT_RUNNER_IMAGE` to specific tags or sha256 digests — never `latest`.
 - Schedule backups of the PostgreSQL and SeaweedFS volumes.

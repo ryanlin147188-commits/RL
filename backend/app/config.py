@@ -22,12 +22,12 @@ class Settings(BaseSettings):
     # 跨平台：Windows 用 "C:/path/to/proj"、macOS/Linux 用 "/Users/you/proj" 或 "/home/you/proj"
     RECORDER_HOST_ROOT: str = "."
 
-    # 物件儲存：local | minio（後端用 SeaweedFS S3 API；env 名稱沿用 MINIO_* 為相容性）
+    # 物件儲存：s3(透過 SeaweedFS 提供 S3-compatible API)
     # SeaweedFS 預設 S3 port 8333；服務名稱 seaweedfs
-    STORAGE_BACKEND: str = "local"
-    MINIO_ENDPOINT: str = "http://seaweedfs:8333"
-    MINIO_ACCESS_KEY: str = "admin"
-    MINIO_SECRET_KEY: str = "admin123"
+    STORAGE_BACKEND: str = "s3"
+    S3_ENDPOINT: str = "http://seaweedfs:8333"
+    S3_ACCESS_KEY: str = "admin"
+    S3_SECRET_KEY: str = "admin123"
 
     # 應用程式
     APP_HOST: str = "0.0.0.0"

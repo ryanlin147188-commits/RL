@@ -1074,16 +1074,16 @@ def run_testcase(
         publish_log("ERROR", "  ⚠ 此案例 steps_json 為空")
         return [CaseResult(passed=False, steps=[], duration_ms=0)]
 
-    if (settings.STORAGE_BACKEND or "local").lower() != "minio":
+    if (settings.STORAGE_BACKEND or "").lower() != "s3":
         publish_log(
             "ERROR",
-            "  💥 Spawn 模式需要 STORAGE_BACKEND=minio；目前是 local，請改 .env 後重啟",
+            f"  💥 Spawn 模式需要 STORAGE_BACKEND=s3；目前是 '{settings.STORAGE_BACKEND}'，請改 .env 後重啟",
         )
         return [CaseResult(passed=False, steps=[], duration_ms=0)]
 
     # ── 1) 產生 .robot 文字 ────────────────────────────
     # spawn 模式下 video_dir / trace_dir 是「容器內」的暫存路徑（由 robot_container.py 決定），
-    # 不需要在 worker process 端真的建目錄。listener 會把產物存到 MinIO 而非本地檔系統。
+    # 不需要在 worker process 端真的建目錄。listener 會把產物存到 SeaweedFS 而非本地檔系統。
     robot_text, _ = _build_robot_file(
         steps,
         ddt,
@@ -1099,16 +1099,16 @@ def run_testcase(
 
     task_id = _extract_task_id(publish_log) or report_id
 
-    # ── 2) 上傳 .robot 到 MinIO ────────────────────────
+    # ── 2) 上傳 .robot 到 SeaweedFS ────────────────────────
     robot_key = f"inputs/{task_id}/{case_tag}.robot"
     result_key = f"results-json/{task_id}/{case_tag}.json"
     try:
         from app.services.storage_service import save_bytes  # type: ignore
 
         save_bytes(robot_text.encode("utf-8"), robot_key, bucket="results", content_type="text/plain")
-        publish_log("INFO", f"  ⬆ .robot 上傳至 MinIO key={robot_key}")
+        publish_log("INFO", f"  ⬆ .robot 上傳至 SeaweedFS key={robot_key}")
     except Exception as e:
-        publish_log("ERROR", f"  💥 .robot 上傳 MinIO 失敗: {e}")
+        publish_log("ERROR", f"  💥 .robot 上傳 SeaweedFS 失敗: {e}")
         return [CaseResult(passed=False, steps=[], duration_ms=0)]
 
     # ── 3) Spawn 容器 ─────────────────────────────────
@@ -1121,10 +1121,10 @@ def run_testcase(
         "JOB_ROBOT_KEY": robot_key,
         "JOB_RESULT_KEY": result_key,
         "PLAYWRIGHT_HEADLESS": "1" if headless else "0",
-        "STORAGE_BACKEND": "minio",
-        "MINIO_ENDPOINT": settings.MINIO_ENDPOINT,
-        "MINIO_ACCESS_KEY": settings.MINIO_ACCESS_KEY,
-        "MINIO_SECRET_KEY": settings.MINIO_SECRET_KEY,
+        "STORAGE_BACKEND": "s3",
+        "S3_ENDPOINT": settings.S3_ENDPOINT,
+        "S3_ACCESS_KEY": settings.S3_ACCESS_KEY,
+        "S3_SECRET_KEY": settings.S3_SECRET_KEY,
         "REDIS_URL": settings.REDIS_URL,
         "BASE_URL": settings.BASE_URL,
         "AUTOTEST_TASK_ID": task_id,
@@ -1183,9 +1183,9 @@ def run_testcase(
 
         s3 = boto3.client(
             "s3",
-            endpoint_url=settings.MINIO_ENDPOINT,
-            aws_access_key_id=settings.MINIO_ACCESS_KEY,
-            aws_secret_access_key=settings.MINIO_SECRET_KEY,
+            endpoint_url=settings.S3_ENDPOINT,
+            aws_access_key_id=settings.S3_ACCESS_KEY,
+            aws_secret_access_key=settings.S3_SECRET_KEY,
             region_name="us-east-1",
         )
         obj = s3.get_object(Bucket="results", Key=result_key)
@@ -1306,7 +1306,7 @@ def _resolve_screenshot_url(
 
     # 轉成 URL
     try:
-        if (settings.STORAGE_BACKEND or "local").lower() == "minio":
+        if (settings.STORAGE_BACKEND or "").lower() == "s3":
             from app.services.storage_service import save_bytes  # type: ignore
 
             with open(candidate, "rb") as fh:
@@ -1452,33 +1452,3 @@ def _ffmpeg_clip(
     except (subprocess.TimeoutExpired, OSError):
         pass
     return None
-
-
-def _to_pics_url(abs_path: str, report_id: str) -> Optional[str]:
-    """
-    將 PIC_FOLDER 下的絕對路徑轉成可由瀏覽器存取的 URL。
-    STORAGE_BACKEND=minio 時上傳到 ``results`` bucket；否則退回 /pics/ static mount。
-    """
-    if not abs_path or not os.path.isfile(abs_path):
-        return None
-    try:
-        if (settings.STORAGE_BACKEND or "local").lower() == "minio":
-            from app.services.storage_service import save_bytes  # type: ignore
-
-            with open(abs_path, "rb") as fh:
-                data = fh.read()
-            base = os.path.basename(abs_path)
-            sub = "traces" if base.endswith(".zip") else "videos"
-            key = f"{sub}/{report_id}/{base}"
-            ct = "application/zip" if base.endswith(".zip") else "video/webm"
-            return save_bytes(data, key, bucket="results", content_type=ct)
-    except Exception:
-        pass
-
-    pic_root = os.path.abspath(settings.PIC_FOLDER)
-    ap = os.path.abspath(abs_path)
-    if not ap.startswith(pic_root):
-        return None
-    rel = ap[len(pic_root):].replace("\\", "/").lstrip("/")
-    base_url = (settings.BASE_URL or "").rstrip("/")
-    return f"{base_url}/pics/{rel}"

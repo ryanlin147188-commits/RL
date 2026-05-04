@@ -271,7 +271,7 @@ async def upload_screenshot(
     if len(content) > 10 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="截圖超過 10 MB 上限")
 
-    # 寫到 SeaweedFS(STORAGE_BACKEND=minio)或 PIC_FOLDER(local fallback)
+    # 寫到 SeaweedFS(STORAGE_BACKEND=s3)
     from app.services.storage_service import save_bytes
     key = f"{report_id}/{safe_name}"
     content_type = file.content_type or "image/png"

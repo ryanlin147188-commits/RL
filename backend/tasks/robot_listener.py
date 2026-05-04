@@ -302,14 +302,14 @@ class RTListener:
 
             self._results.append(buf)
 
-        # 2) 處理 video / trace（spawn + STORAGE_BACKEND=minio 時才有意義）
-        if self._enable_recording and self._is_minio_mode():
+        # 2) 處理 video / trace（spawn + STORAGE_BACKEND=s3 時才有意義）
+        if self._enable_recording and self._is_s3_mode():
             try:
                 self._process_videos_and_traces()
             except Exception as e:
                 self._publish("WARN", f"video/trace 處理失敗: {e}")
 
-        # 3) 寫入結果 JSON（spawn 模式：寫到本地檔，由 robot_container.py 上傳到 MinIO）
+        # 3) 寫入結果 JSON（spawn 模式：寫到本地檔，由 robot_container.py 上傳到 SeaweedFS）
         if self._result_path:
             try:
                 os.makedirs(os.path.dirname(self._result_path), exist_ok=True)
@@ -325,10 +325,10 @@ class RTListener:
                 pass
 
     # ── video/trace 處理 ─────────────────────────────────
-    def _is_minio_mode(self) -> bool:
+    def _is_s3_mode(self) -> bool:
         try:
             from app.config import settings  # type: ignore
-            return (settings.STORAGE_BACKEND or "local").lower() == "minio"
+            return (settings.STORAGE_BACKEND or "").lower() == "s3"
         except Exception:
             return False
 
@@ -464,25 +464,15 @@ class RTListener:
     def _to_url(self, abs_path: str) -> str | None:
         """把絕對路徑轉成對外可存取的 URL。
 
-        STORAGE_BACKEND=minio 時會把檔案上傳到 ``results`` bucket 後
-        回傳 ``/results/<key>``；否則退回原本的 ``/pics/<rel>`` 行為。
+        把檔案上傳到 ``results`` bucket(SeaweedFS),回傳 ``/results/<key>``。
         """
         try:
-            from app.config import settings  # 延遲 import 避免循環
+            from app.services.storage_service import save_bytes
 
-            if (settings.STORAGE_BACKEND or "local").lower() == "minio":
-                from app.services.storage_service import save_bytes
-
-                with open(abs_path, "rb") as fh:
-                    data = fh.read()
-                key = f"screenshots/{os.path.basename(abs_path)}"
-                return save_bytes(data, key, bucket="results", content_type="image/png")
-
-            pic_root = os.path.abspath(settings.PIC_FOLDER)
-            ap = os.path.abspath(abs_path)
-            if ap.startswith(pic_root):
-                rel = ap[len(pic_root):].replace("\\", "/").lstrip("/")
-                return f"{settings.BASE_URL}/pics/{rel}"
+            with open(abs_path, "rb") as fh:
+                data = fh.read()
+            key = f"screenshots/{os.path.basename(abs_path)}"
+            return save_bytes(data, key, bucket="results", content_type="image/png")
         except Exception:
             pass
         return None

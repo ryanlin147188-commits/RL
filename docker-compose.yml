@@ -86,8 +86,8 @@ services:
       seaweedfs:
         condition: service_healthy
     environment:
-      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-admin}
-      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required - run ./deploy.sh first to generate one}
+      AWS_ACCESS_KEY_ID: ${S3_ROOT_USER:-admin}
+      AWS_SECRET_ACCESS_KEY: ${S3_ROOT_PASSWORD:?S3_ROOT_PASSWORD is required - run ./deploy.sh first to generate one}
       AWS_DEFAULT_REGION: us-east-1
     entrypoint: >
       /bin/sh -c "
@@ -118,13 +118,18 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required - run ./deploy.sh first to generate one}
       DB_NAME: ${DB_NAME:-autotest_db}
       REDIS_URL: redis://valkey:6379/0
+      # PIC_FOLDER:容器內暫存路徑,給 robot listener / recorder session 寫
+      # 中介檔(產出後立刻上傳到 SeaweedFS 再刪)。不是持久化儲存;真正的
+      # 業務檔案一律走 STORAGE_BACKEND=s3 → SeaweedFS。
       PIC_FOLDER: /app/PIC
       BASE_URL: ${BASE_URL:-http://localhost}
-      STORAGE_BACKEND: ${STORAGE_BACKEND:-minio}
-      # MINIO_* 環境變數沿用作為「S3 端點」設定（內容指向 SeaweedFS）
-      MINIO_ENDPOINT: http://seaweedfs:8333
-      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-admin}
-      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required - run ./deploy.sh first to generate one}
+      # STORAGE_BACKEND 必填,只接受 's3'(背後接 SeaweedFS)。
+      # 設成其他值或不設都會讓 stack 啟動失敗,避免上傳偷偷寫到容器本機。
+      STORAGE_BACKEND: ${STORAGE_BACKEND:?STORAGE_BACKEND is required and must be 's3' (SeaweedFS via S3-compatible API; set STORAGE_BACKEND=s3 in .env)}
+      # SeaweedFS 的 S3-compatible 端點與 IAM credentials
+      S3_ENDPOINT: http://seaweedfs:8333
+      S3_ACCESS_KEY: ${S3_ROOT_USER:-admin}
+      S3_SECRET_KEY: ${S3_ROOT_PASSWORD:?S3_ROOT_PASSWORD is required - run ./deploy.sh first to generate one}
       APP_HOST: 0.0.0.0
       APP_PORT: 8000
       DEBUG: "False"
@@ -145,9 +150,9 @@ services:
       RECORDER_INTERNAL_BASE_URL: http://backend:8000
       RECORDER_IDLE_TIMEOUT_MIN: 30
       DOCKER_HOST: tcp://docker-proxy:2375
-    ports:
-      - "8000:8000"
-      # 動態錄製容器會 publish 到 host 的 6080-6200 區段 port,不用在 backend 區塊另外 expose
+    # 不對外 publish 8000;所有外部流量必須經 frontend nginx → APISIX → backend。
+    # 同網路內(celery / apisix / recorder)以 backend:8000 解析,不需 host port。
+    # 動態錄製容器會 publish 到 host 的 6080-6200 區段 port,不在 backend 區塊另外 expose。
 
   celery:
     build:
@@ -170,12 +175,14 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required - run ./deploy.sh first to generate one}
       DB_NAME: ${DB_NAME:-autotest_db}
       REDIS_URL: redis://valkey:6379/0
+      # PIC_FOLDER:robot listener 寫產物的暫存路徑,跑完上傳到 SeaweedFS 即丟。
       PIC_FOLDER: /app/PIC
       BASE_URL: ${BASE_URL:-http://localhost}
-      STORAGE_BACKEND: ${STORAGE_BACKEND:-minio}
-      MINIO_ENDPOINT: http://seaweedfs:8333
-      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-admin}
-      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required - run ./deploy.sh first to generate one}
+      # STORAGE_BACKEND 必填(同 backend 區塊),強制走 SeaweedFS。
+      STORAGE_BACKEND: ${STORAGE_BACKEND:?STORAGE_BACKEND is required and must be 's3' (SeaweedFS via S3-compatible API; set STORAGE_BACKEND=s3 in .env)}
+      S3_ENDPOINT: http://seaweedfs:8333
+      S3_ACCESS_KEY: ${S3_ROOT_USER:-admin}
+      S3_SECRET_KEY: ${S3_ROOT_PASSWORD:?S3_ROOT_PASSWORD is required - run ./deploy.sh first to generate one}
       PLAYWRIGHT_HEADLESS: ${PLAYWRIGHT_HEADLESS:-1}
       # Celery worker 也會 import app.* 模組,需要相同的 secret(必填)
       AUTOTEST_JWT_SECRET: ${AUTOTEST_JWT_SECRET:?AUTOTEST_JWT_SECRET is required - run ./deploy.sh first to generate one}
@@ -190,7 +197,7 @@ services:
     container_name: autotest-frontend
     restart: unless-stopped
     depends_on:
-      - backend
+      - apisix
     ports:
       - "80:80"
     volumes:
@@ -246,8 +253,12 @@ services:
     volumes:
       - ./fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
       - ./fluent-bit/parsers.conf:/fluent-bit/etc/parsers.conf:ro
+      # Lua filter:讀 docker config.v2.json 補 container_name 欄位
+      - ./fluent-bit/enrich.lua:/fluent-bit/etc/enrich.lua:ro
       # 讀取 host 上 docker daemon 寫的容器 log（json-file driver）
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      # tail 的 position DB:重啟時從斷點繼續,不漏 log 也不重讀
+      - fluent_bit_state:/fluent-bit/state
 
   # ── RFC-8 觀察性堆疊(profile=obs:預設不啟動,docker compose --profile obs up)──
   # Prometheus 抓取 /metrics(內建 /graph UI 看 metrics)、Jaeger 接 OTLP trace
@@ -288,6 +299,7 @@ volumes:
   seaweedfs_data:
   victoria_logs_data:
   prometheus_data:
+  fluent_bit_state:
 
 # SeaweedFS S3 IAM 設定:從 .env 注入,docker compose 會在啟動時做變數替換。
 # 修改後須 docker compose down -v 並 up 才能重新生效(SeaweedFS 啟動時讀一次)。
@@ -297,11 +309,11 @@ configs:
       {
         "identities": [
           {
-            "name": "${MINIO_ROOT_USER:-admin}",
+            "name": "${S3_ROOT_USER:-admin}",
             "credentials": [
               {
-                "accessKey": "${MINIO_ROOT_USER:-admin}",
-                "secretKey": "${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required - run ./deploy.sh first to generate one}"
+                "accessKey": "${S3_ROOT_USER:-admin}",
+                "secretKey": "${S3_ROOT_PASSWORD:?S3_ROOT_PASSWORD is required - run ./deploy.sh first to generate one}"
               }
             ],
             "actions": ["Admin", "Read", "Write", "List", "Tagging"]

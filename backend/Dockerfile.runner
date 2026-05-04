@@ -22,7 +22,7 @@ USER root
 RUN dnf install -y xorg-x11-server-Xvfb procps-ng \
     && dnf clean all
 
-# boto3：上傳到 SeaweedFS S3（S3 相容 API；env 變數沿用 MINIO_* 命名）
+# boto3：上傳到 SeaweedFS S3（S3-compatible API,env 變數用 S3_* 命名）
 # redis：listener 用 pub/sub 把 log 推到 Valkey，由 backend WS endpoint 中繼到前端
 # psycopg2-binary：DatabaseLibrary 連 PostgreSQL 測試用
 # pydantic-settings：app.config 需要

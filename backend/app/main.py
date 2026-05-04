@@ -214,6 +214,18 @@ async def _warn_if_no_users() -> None:
 async def lifespan(app: FastAPI):
     # Startup：建立 PIC 資料夾 + 自動建表 + 啟動排程背景任務
     os.makedirs(settings.PIC_FOLDER, exist_ok=True)
+    # Storage backend is S3-only (SeaweedFS via S3-compatible API). The
+    # earlier 'local' fallback wrote uploads to the container's filesystem
+    # which got wiped on restart — proven config-incident magnet, so it's
+    # gone in every environment now.
+    _backend = (settings.STORAGE_BACKEND or "").strip().lower()
+    if _backend != "s3":
+        raise RuntimeError(
+            f"STORAGE_BACKEND='{settings.STORAGE_BACKEND}' is not supported. "
+            f"Set STORAGE_BACKEND=s3 in .env (only SeaweedFS-backed S3 is "
+            f"available; the 'local' / 'minio' values from earlier versions "
+            f"have been removed)."
+        )
     await init_db()
     try:
         await _seed_default_roles()

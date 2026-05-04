@@ -38,13 +38,13 @@ from robot.api.deco import keyword
 ROBOT_LIBRARY_SCOPE = "GLOBAL"
 
 
-def _minio_client():
+def _s3_client():
     import boto3  # type: ignore
     return boto3.client(
         "s3",
-        endpoint_url=os.environ["MINIO_ENDPOINT"],
-        aws_access_key_id=os.environ["MINIO_ACCESS_KEY"],
-        aws_secret_access_key=os.environ["MINIO_SECRET_KEY"],
+        endpoint_url=os.environ["S3_ENDPOINT"],
+        aws_access_key_id=os.environ["S3_ACCESS_KEY"],
+        aws_secret_access_key=os.environ["S3_SECRET_KEY"],
         region_name="us-east-1",
     )
 
@@ -55,7 +55,7 @@ def _to_url(key: str) -> str:
 
 
 def _download_baseline(step_uuid: str) -> Optional[bytes]:
-    s3 = _minio_client()
+    s3 = _s3_client()
     key = f"baselines/{step_uuid}.png"
     try:
         obj = s3.get_object(Bucket="results", Key=key)
@@ -65,7 +65,7 @@ def _download_baseline(step_uuid: str) -> Optional[bytes]:
 
 
 def _upload_bytes(data: bytes, key: str, content_type: str = "image/png") -> str:
-    s3 = _minio_client()
+    s3 = _s3_client()
     s3.put_object(Bucket="results", Key=key, Body=data, ContentType=content_type)
     return _to_url(key)
 

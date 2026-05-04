@@ -79,12 +79,12 @@ seaweedfs:
 # ── Secrets --------------------------------------------------------------
 # When `existingSecret` is set the chart will not create the secret; you
 # must provide one with keys: AUTOTEST_JWT_SECRET, AUTOTEST_FERNET_KEY,
-# DB_PASSWORD, MINIO_ROOT_PASSWORD.
+# DB_PASSWORD, S3_ROOT_PASSWORD.
 secrets:
   existingSecret: ""
   jwtSecret: ""        # OVERRIDE
   fernetKey: ""        # OVERRIDE
-  minioRootPassword: "" # OVERRIDE
+  s3RootPassword: ""   # OVERRIDE
 
 # ── Ingress --------------------------------------------------------------
 ingress:

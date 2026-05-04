@@ -160,15 +160,15 @@ async def copy_from(
         raise HTTPException(status_code=400, detail="source_url path 不合法")
 
     from app.config import settings
-    if (settings.STORAGE_BACKEND or "local").lower() != "minio":
-        raise HTTPException(status_code=400, detail="copy-from 目前只支援 STORAGE_BACKEND=minio")
+    if (settings.STORAGE_BACKEND or "").lower() != "s3":
+        raise HTTPException(status_code=400, detail="copy-from 目前只支援 STORAGE_BACKEND=s3")
 
     import boto3  # type: ignore
     s3 = boto3.client(
         "s3",
-        endpoint_url=settings.MINIO_ENDPOINT,
-        aws_access_key_id=settings.MINIO_ACCESS_KEY,
-        aws_secret_access_key=settings.MINIO_SECRET_KEY,
+        endpoint_url=settings.S3_ENDPOINT,
+        aws_access_key_id=settings.S3_ACCESS_KEY,
+        aws_secret_access_key=settings.S3_SECRET_KEY,
         region_name="us-east-1",
     )
     try:

@@ -1,14 +1,15 @@
 """Storage abstraction.
 
-Two backends are supported, switched via ``STORAGE_BACKEND`` env var:
+Single backend: ``s3`` — write to a SeaweedFS bucket via the S3-compatible
+API (boto3). Files are served back to the user via authenticated backend
+proxy routes for ``/pics/<key>`` and ``/results/<key>``. The DB only
+stores the relative URL so the platform stays agnostic to the actual host.
 
-* ``local`` — write to ``settings.PIC_FOLDER`` and serve through the
-  authenticated backend artifact routes. Default for dev quick-start.
-* ``minio`` — write to a MinIO bucket via the S3-compatible API (boto3).
-  Files are served back to the user via short-lived signed URLs or an
-  authenticated backend proxy for ``/pics/<key>`` and ``/results/<key>``.
-  The DB only stores the relative URL so the platform remains agnostic to
-  the actual host.
+``STORAGE_BACKEND`` env var must be ``s3``. Earlier versions accepted
+``local`` (filesystem) and ``minio`` (alias for the S3 path); both have
+been removed — uploads must persist to SeaweedFS, not the container's
+local filesystem (which would be wiped on restart) and not a Minio name
+that no longer reflects the actual implementation.
 
 Public surface:
 
@@ -16,16 +17,16 @@ Public surface:
 * ``save_bytes(data, key, bucket, content_type)`` — used by the Celery
   Robot listener to persist per-step screenshots and the final
   ``log.html`` / ``report.html``.
+* ``fetch_bytes(bucket, key)`` — read back via the artifact proxy.
+* ``save_upload(file, bucket, key)`` — generic UploadFile sink.
 """
 
 from __future__ import annotations
 
 import io
-import os
 import uuid
 from typing import Literal, Protocol
 
-import aiofiles
 from fastapi import HTTPException, UploadFile
 
 from app.config import settings
@@ -43,56 +44,19 @@ class _StorageBackend(Protocol):
     def fetch_bytes(self, bucket: BucketName, key: str) -> bytes: ...
 
 
-# ── Local filesystem backend ──────────────────────────────────────────
+# ── S3-compatible backend (SeaweedFS) ─────────────────────────────────
 
 
-class _LocalStorage:
-    """Write files under ``settings.PIC_FOLDER/<bucket>/<key>``."""
-
-    def __init__(self, root: str) -> None:
-        self._root = root
-
-    def _full_path(self, bucket: BucketName, key: str) -> str:
-        path = os.path.join(self._root, bucket, key)
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        return path
-
-    async def put_upload(self, file: UploadFile, bucket: BucketName, key: str) -> str:
-        content = await file.read()
-        if len(content) > MAX_SIZE_BYTES:
-            raise HTTPException(status_code=413, detail="檔案超過 10 MB 上限")
-        async with aiofiles.open(self._full_path(bucket, key), "wb") as f:
-            await f.write(content)
-        return f"{_BUCKET_TO_URL_PREFIX[bucket]}/{key}"
-
-    def put_bytes(self, data: bytes, bucket: BucketName, key: str, content_type: str) -> str:
-        with open(self._full_path(bucket, key), "wb") as f:
-            f.write(data)
-        return f"{_BUCKET_TO_URL_PREFIX[bucket]}/{key}"
-
-    def fetch_bytes(self, bucket: BucketName, key: str) -> bytes:
-        """Sprint 5.1 — 讀回 put_bytes / put_upload 寫入的檔(local backend)。"""
-        path = os.path.join(self._root, bucket, key)
-        if not os.path.exists(path):
-            raise HTTPException(404, f"object not found: {bucket}/{key}")
-        with open(path, "rb") as f:
-            return f.read()
-
-
-# ── MinIO (S3-compatible) backend ─────────────────────────────────────
-
-
-class _MinioStorage:
+class _S3Storage:
     def __init__(self) -> None:
-        # boto3 是可選依賴：只有 STORAGE_BACKEND=minio 時才會被載入
         import boto3  # type: ignore[import-not-found]
         from botocore.client import Config  # type: ignore[import-not-found]
 
         self._client = boto3.client(
             "s3",
-            endpoint_url=settings.MINIO_ENDPOINT,
-            aws_access_key_id=settings.MINIO_ACCESS_KEY,
-            aws_secret_access_key=settings.MINIO_SECRET_KEY,
+            endpoint_url=settings.S3_ENDPOINT,
+            aws_access_key_id=settings.S3_ACCESS_KEY,
+            aws_secret_access_key=settings.S3_SECRET_KEY,
             config=Config(signature_version="s3v4"),
             region_name="us-east-1",
         )
@@ -114,7 +78,6 @@ class _MinioStorage:
         return f"{_BUCKET_TO_URL_PREFIX[bucket]}/{key}"
 
     def fetch_bytes(self, bucket: BucketName, key: str) -> bytes:
-        """Sprint 5.1 — 從 SeaweedFS / MinIO 讀回 object。"""
         try:
             obj = self._client.get_object(Bucket=bucket, Key=key)
             return obj["Body"].read()
@@ -123,10 +86,15 @@ class _MinioStorage:
 
 
 def _build_backend() -> _StorageBackend:
-    backend = (settings.STORAGE_BACKEND or "local").lower()
-    if backend == "minio":
-        return _MinioStorage()
-    return _LocalStorage(settings.PIC_FOLDER)
+    backend = (settings.STORAGE_BACKEND or "").lower()
+    if backend != "s3":
+        raise RuntimeError(
+            f"STORAGE_BACKEND='{settings.STORAGE_BACKEND}' is not supported. "
+            f"This deploy only supports STORAGE_BACKEND=s3 (SeaweedFS via "
+            f"S3-compatible API). The 'local' / 'minio' values from earlier "
+            f"versions have been removed."
+        )
+    return _S3Storage()
 
 
 _backend: _StorageBackend = _build_backend()
@@ -155,17 +123,16 @@ def save_bytes(data: bytes, key: str, *, bucket: BucketName = "results", content
 
 
 def fetch_bytes(bucket: BucketName, key: str) -> bytes:
-    """Sprint 5.1 — Read bytes back from storage(local 或 MinIO/SeaweedFS)。"""
+    """Read bytes back from SeaweedFS via the artifact proxy."""
     return _backend.fetch_bytes(bucket, key)
 
 
 async def save_upload(file: UploadFile, *, bucket: BucketName = "pic", key: str | None = None) -> str:
-    """Persist a generic UploadFile via the active backend (SeaweedFS or local fallback).
+    """Persist a generic UploadFile to SeaweedFS.
 
-    Returns the relative URL (`/pics/<key>` or `/results/<key>`).
+    Returns the relative URL (``/pics/<key>`` or ``/results/<key>``).
     """
     if key is None:
-        # 推 ext 失敗就用 .bin
         ext = ""
         if file.filename and "." in file.filename:
             ext = "." + file.filename.rsplit(".", 1)[-1]

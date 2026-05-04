@@ -94,9 +94,9 @@ DB_PASSWORD=$dbPwd
 DB_NAME=autotest_db
 BASE_URL=http://localhost
 ALLOWED_ORIGINS=http://localhost
-STORAGE_BACKEND=minio
-MINIO_ROOT_USER=admin
-MINIO_ROOT_PASSWORD=$s3Pwd
+STORAGE_BACKEND=s3
+S3_ROOT_USER=admin
+S3_ROOT_PASSWORD=$s3Pwd
 AUTOTEST_JWT_SECRET=$jwt
 AUTOTEST_FERNET_KEY=$fernet
 "@
@@ -113,9 +113,9 @@ AUTOTEST_FERNET_KEY=$fernet
         @{ Key = 'DB_NAME';              Value = 'autotest_db' }
         @{ Key = 'BASE_URL';             Value = 'http://localhost' }
         @{ Key = 'ALLOWED_ORIGINS';      Value = 'http://localhost' }
-        @{ Key = 'STORAGE_BACKEND';      Value = 'minio' }
-        @{ Key = 'MINIO_ROOT_USER';      Value = 'admin' }
-        @{ Key = 'MINIO_ROOT_PASSWORD';  Value = (New-RandomHex -Bytes 24) }
+        @{ Key = 'STORAGE_BACKEND';      Value = 's3' }
+        @{ Key = 'S3_ROOT_USER';         Value = 'admin' }
+        @{ Key = 'S3_ROOT_PASSWORD';     Value = (New-RandomHex -Bytes 24) }
         @{ Key = 'AUTOTEST_JWT_SECRET';  Value = (New-RandomHex -Bytes 32) }
         @{ Key = 'AUTOTEST_FERNET_KEY';  Value = (New-FernetKey) }
     )

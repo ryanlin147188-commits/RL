@@ -11,7 +11,7 @@
 #   - 其他 service(postgres / valkey / seaweedfs / apisix / fluent-bit / victoria-logs)
 #     完全跟原 dev compose 一致
 #
-# 必填 secret:DB_PASSWORD、MINIO_ROOT_PASSWORD、AUTOTEST_JWT_SECRET、
+# 必填 secret:DB_PASSWORD、S3_ROOT_PASSWORD、AUTOTEST_JWT_SECRET、
 # AUTOTEST_FERNET_KEY。可先跑根目錄 deploy.sh 產生 .env。
 
 services:
@@ -74,8 +74,8 @@ services:
       seaweedfs:
         condition: service_healthy
     environment:
-      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-admin}
-      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required - run ./deploy.sh first to generate one}
+      AWS_ACCESS_KEY_ID: ${S3_ROOT_USER:-admin}
+      AWS_SECRET_ACCESS_KEY: ${S3_ROOT_PASSWORD:?S3_ROOT_PASSWORD is required - run ./deploy.sh first to generate one}
       AWS_DEFAULT_REGION: us-east-1
     entrypoint: >
       /bin/sh -c "
@@ -124,10 +124,10 @@ services:
       REDIS_URL: redis://valkey:6379/0
       PIC_FOLDER: /app/PIC
       BASE_URL: ${BASE_URL:-http://localhost}
-      STORAGE_BACKEND: ${STORAGE_BACKEND:-minio}
-      MINIO_ENDPOINT: http://seaweedfs:8333
-      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-admin}
-      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required - run ./deploy.sh first to generate one}
+      STORAGE_BACKEND: ${STORAGE_BACKEND:?STORAGE_BACKEND is required and must be 's3' (SeaweedFS via S3-compatible API; set STORAGE_BACKEND=s3 in .env)}
+      S3_ENDPOINT: http://seaweedfs:8333
+      S3_ACCESS_KEY: ${S3_ROOT_USER:-admin}
+      S3_SECRET_KEY: ${S3_ROOT_PASSWORD:?S3_ROOT_PASSWORD is required - run ./deploy.sh first to generate one}
       APP_HOST: 0.0.0.0
       APP_PORT: 8000
       DEBUG: "False"
@@ -159,10 +159,10 @@ services:
       REDIS_URL: redis://valkey:6379/0
       PIC_FOLDER: /app/PIC
       BASE_URL: ${BASE_URL:-http://localhost}
-      STORAGE_BACKEND: ${STORAGE_BACKEND:-minio}
-      MINIO_ENDPOINT: http://seaweedfs:8333
-      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-admin}
-      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required - run ./deploy.sh first to generate one}
+      STORAGE_BACKEND: ${STORAGE_BACKEND:?STORAGE_BACKEND is required and must be 's3' (SeaweedFS via S3-compatible API; set STORAGE_BACKEND=s3 in .env)}
+      S3_ENDPOINT: http://seaweedfs:8333
+      S3_ACCESS_KEY: ${S3_ROOT_USER:-admin}
+      S3_SECRET_KEY: ${S3_ROOT_PASSWORD:?S3_ROOT_PASSWORD is required - run ./deploy.sh first to generate one}
       PLAYWRIGHT_HEADLESS: ${PLAYWRIGHT_HEADLESS:-1}
       AUTOTEST_JWT_SECRET: ${AUTOTEST_JWT_SECRET:?AUTOTEST_JWT_SECRET is required - run ./deploy.sh first to generate one}
       AUTOTEST_FERNET_KEY: ${AUTOTEST_FERNET_KEY:?AUTOTEST_FERNET_KEY is required - run ./deploy.sh first to generate one}
@@ -239,7 +239,7 @@ configs:
           {
             "name": "admin",
             "credentials": [
-              { "accessKey": "${MINIO_ROOT_USER:-admin}", "secretKey": "${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD is required - run ./deploy.sh first to generate one}" }
+              { "accessKey": "${S3_ROOT_USER:-admin}", "secretKey": "${S3_ROOT_PASSWORD:?S3_ROOT_PASSWORD is required - run ./deploy.sh first to generate one}" }
             ],
             "actions": ["Admin", "Read", "Write", "List", "Tagging"]
           },

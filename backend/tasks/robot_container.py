@@ -37,9 +37,9 @@ def _download_from_minio(key: str, dest_path: str) -> None:
     """從 results bucket 拉檔到 dest_path。"""
     import boto3  # type: ignore
 
-    endpoint = _env("MINIO_ENDPOINT", required=True)
-    ak = _env("MINIO_ACCESS_KEY", required=True)
-    sk = _env("MINIO_SECRET_KEY", required=True)
+    endpoint = _env("S3_ENDPOINT", required=True)
+    ak = _env("S3_ACCESS_KEY", required=True)
+    sk = _env("S3_SECRET_KEY", required=True)
     bucket = _env("ROBOT_INPUT_BUCKET", "results")
 
     s3 = boto3.client(
@@ -102,7 +102,7 @@ def main() -> int:
     env["AUTOTEST_SCREENSHOT_URL_PREFIX"] = (
         f"{_env('BASE_URL', 'http://localhost')}/results/screenshots/{report_id}"
     )
-    env["STORAGE_BACKEND"] = "minio"  # 強制走 MinIO；spawn 模式下不接受 local
+    env["STORAGE_BACKEND"] = "s3"  # 強制走 SeaweedFS;spawn 模式下不接受其他 backend
     # ENABLE_RECORDING 由外部 worker 帶入（見 robot_runner.py）；listener 用來決定是否處理 video/trace
     if "ENABLE_RECORDING" not in env:
         env["ENABLE_RECORDING"] = "1"

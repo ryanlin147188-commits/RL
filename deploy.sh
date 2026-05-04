@@ -99,9 +99,9 @@ DB_PASSWORD=$(rand_hex 24)
 DB_NAME=autotest_db
 BASE_URL=http://localhost
 ALLOWED_ORIGINS=http://localhost
-STORAGE_BACKEND=minio
-MINIO_ROOT_USER=admin
-MINIO_ROOT_PASSWORD=$(rand_hex 24)
+STORAGE_BACKEND=s3
+S3_ROOT_USER=admin
+S3_ROOT_PASSWORD=$(rand_hex 24)
 AUTOTEST_JWT_SECRET=$(rand_hex 32)
 AUTOTEST_FERNET_KEY=$(rand_fernet)
 EOF
@@ -115,9 +115,9 @@ EOF
     ensure_env_var "$f" DB_NAME autotest_db && appended=$((appended+1))
     ensure_env_var "$f" BASE_URL http://localhost && appended=$((appended+1))
     ensure_env_var "$f" ALLOWED_ORIGINS http://localhost && appended=$((appended+1))
-    ensure_env_var "$f" STORAGE_BACKEND minio && appended=$((appended+1))
-    ensure_env_var "$f" MINIO_ROOT_USER admin && appended=$((appended+1))
-    ensure_env_var "$f" MINIO_ROOT_PASSWORD "$(rand_hex 24)" && appended=$((appended+1))
+    ensure_env_var "$f" STORAGE_BACKEND s3 && appended=$((appended+1))
+    ensure_env_var "$f" S3_ROOT_USER admin && appended=$((appended+1))
+    ensure_env_var "$f" S3_ROOT_PASSWORD "$(rand_hex 24)" && appended=$((appended+1))
     ensure_env_var "$f" AUTOTEST_JWT_SECRET "$(rand_hex 32)" && appended=$((appended+1))
     ensure_env_var "$f" AUTOTEST_FERNET_KEY "$(rand_fernet)" && appended=$((appended+1))
     if (( appended == 0 )); then

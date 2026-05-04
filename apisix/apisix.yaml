@@ -38,9 +38,12 @@ routes:
         # Keep this as a concrete comma-separated list. APISIX standalone
         # validates this YAML directly and does not expand shell-style
         # ${VAR:-default} placeholders.
+        # NOTE: APISIX cors plugin refuses '*' when allow_credential=true;
+        # use the literal '**' which means "wildcard with credentials,
+        # caller is aware of the implications".
         allow_origins: "http://localhost,http://localhost:9080"
         allow_methods: "GET,POST,PUT,PATCH,DELETE,HEAD,OPTIONS"
-        allow_headers: "*"
+        allow_headers: "**"
         allow_credential: true
         max_age: 3600
       client-control:
@@ -81,7 +84,44 @@ routes:
         include_in_response: true
       cors:
         allow_origins: "http://localhost,http://localhost:9080"
+        allow_methods: "GET,POST,HEAD,OPTIONS"
+        allow_headers: "**"
         allow_credential: true
+
+  # /pics/* + /results/* -> backend (artifact streams: screenshots / videos /
+  # robot reports). Auth happens at backend; here we just want the same
+  # request-id + breaker visibility as /api/*. Skip body cap (these are GET
+  # downloads) and use a higher per-IP budget because a single report page
+  # may pull dozens of artifacts in parallel.
+  - id: artifact_routes
+    uris:
+      - /pics/*
+      - /results/*
+    upstream_id: backend_api
+    plugins:
+      request-id:
+        include_in_response: true
+      cors:
+        allow_origins: "http://localhost,http://localhost:9080"
+        allow_methods: "GET,HEAD,OPTIONS"
+        allow_headers: "**"
+        allow_credential: true
+      limit-count:
+        count: 1200
+        time_window: 60
+        rejected_code: 429
+        key_type: var
+        key: remote_addr
+      api-breaker:
+        break_response_code: 503
+        break_response_body: '{"error":"upstream_unavailable"}'
+        max_breaker_sec: 30
+        unhealthy:
+          http_statuses: [500, 502, 503, 504]
+          failures: 5
+        healthy:
+          http_statuses: [200, 204, 206, 301, 302]
+          successes: 3
 
   # Liveness: APISIX answers locally so a missing backend cannot break LB checks.
   - id: gateway_health
