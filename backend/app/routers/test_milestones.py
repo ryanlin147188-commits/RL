@@ -8,6 +8,7 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
+from app.auth.project_membership import ensure_project_member
 from app.auth.scope import (
     ensure_project_in_scope,
     ensure_project_writable,
@@ -34,7 +35,12 @@ def _resolve_status(val, default):
         return default
 
 
-@router.get("/milestones", response_model=list[MilestoneResponse], tags=["M · 測試時程"])
+@router.get(
+    "/milestones",
+    response_model=list[MilestoneResponse],
+    tags=["M · 測試時程"],
+    dependencies=[Depends(ensure_project_member)],
+)
 async def list_milestones(
     project_id: Optional[str] = Query(None),
     user: User = Depends(get_current_user),

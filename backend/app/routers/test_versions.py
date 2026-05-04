@@ -12,6 +12,7 @@ from sqlalchemy import asc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
+from app.auth.project_membership import ensure_project_member
 from app.database import get_db
 from app.models.defect import Defect
 from app.models.execution_report import ExecutionReport
@@ -81,7 +82,12 @@ def _to_response(v: TestVersion, usage_count: int = 0) -> dict:
     }
 
 
-@router.get("/test-versions", response_model=list[TestVersionResponse], tags=["TV · 測試版號"])
+@router.get(
+    "/test-versions",
+    response_model=list[TestVersionResponse],
+    tags=["TV · 測試版號"],
+    dependencies=[Depends(ensure_project_member)],
+)
 async def list_test_versions(
     project_id: Optional[str] = Query(None),
     platform: Optional[str] = Query(None, description="WEB / API / APP"),

@@ -8,6 +8,7 @@ from sqlalchemy import asc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
+from app.auth.project_membership import ensure_project_member
 from app.auth.scope import (
     ensure_project_in_scope,
     ensure_project_writable,
@@ -39,7 +40,12 @@ def _resolve_status(val, default):
         return default
 
 
-@router.get("/wbs", response_model=list[WbsItemResponse], tags=["R · WBS"])
+@router.get(
+    "/wbs",
+    response_model=list[WbsItemResponse],
+    tags=["R · WBS"],
+    dependencies=[Depends(ensure_project_member)],
+)
 async def list_wbs(
     project_id: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
@@ -59,7 +65,11 @@ async def list_wbs(
     return list(rows)
 
 
-@router.get("/wbs/tree", tags=["R · WBS"])
+@router.get(
+    "/wbs/tree",
+    tags=["R · WBS"],
+    dependencies=[Depends(ensure_project_member)],
+)
 async def wbs_tree(
     project_id: str = Query(...),
     user: User = Depends(get_current_user),

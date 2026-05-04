@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.dependencies import get_current_user
 from app.auth.permissions import require_permission
 from app.auth.permissions_catalog import P
+from app.auth.project_membership import ensure_project_member
 from app.auth.scope import ensure_project_writable
 from app.database import get_db
 from app.models.db_config import DbConfig
@@ -69,7 +70,10 @@ def _validate(payload_dict: dict) -> None:
     "/db-configs",
     response_model=list[DbConfigResponse],
     tags=["AA · DB 連線"],
-    dependencies=[Depends(require_permission(P.SETTINGS_READ))],
+    dependencies=[
+        Depends(require_permission(P.SETTINGS_READ)),
+        Depends(ensure_project_member),
+    ],
 )
 async def list_db_configs(
     project_id: Optional[str] = Query(None),

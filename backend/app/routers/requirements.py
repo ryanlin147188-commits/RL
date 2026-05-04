@@ -8,6 +8,7 @@ from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
+from app.auth.project_membership import ensure_project_member
 from app.auth.scope import (
     ensure_project_in_scope,
     ensure_project_writable,
@@ -81,7 +82,12 @@ async def _to_response(db: AsyncSession, r: Requirement) -> RequirementResponse:
     )
 
 
-@router.get("/requirements", response_model=list[RequirementResponse], tags=["O · 需求 / RTM"])
+@router.get(
+    "/requirements",
+    response_model=list[RequirementResponse],
+    tags=["O · 需求 / RTM"],
+    dependencies=[Depends(ensure_project_member)],
+)
 async def list_requirements(
     project_id: Optional[str] = Query(None),
     page: Pagination = Depends(Pagination.from_query),
@@ -206,7 +212,12 @@ async def replace_requirement_links(
     return {"ok": True, "count": len(payload.testcase_node_ids)}
 
 
-@router.get("/rtm/matrix", response_model=RtmMatrixResponse, tags=["O · 需求 / RTM"])
+@router.get(
+    "/rtm/matrix",
+    response_model=RtmMatrixResponse,
+    tags=["O · 需求 / RTM"],
+    dependencies=[Depends(ensure_project_member)],
+)
 async def rtm_matrix(
     project_id: str = Query(...),
     user: User = Depends(get_current_user),
@@ -271,7 +282,11 @@ async def rtm_matrix(
 
 # ========== RTM 追溯鏈（User Story → AC → Test Case → Bug） ==========
 
-@router.get("/rtm/chain", tags=["O · 需求 / RTM"])
+@router.get(
+    "/rtm/chain",
+    tags=["O · 需求 / RTM"],
+    dependencies=[Depends(ensure_project_member)],
+)
 async def rtm_chain(
     project_id: str = Query(...),
     db: AsyncSession = Depends(get_db),

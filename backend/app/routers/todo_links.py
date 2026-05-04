@@ -14,6 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
+from app.auth.project_membership import ensure_project_member
 from app.database import get_db
 from app.models.defect import Defect
 from app.models.project import Project
@@ -238,6 +239,7 @@ async def list_todos_by_target(
 @router.get(
     "/links/by-target/batch",
     tags=["T · 待辦"],
+    dependencies=[Depends(ensure_project_member)],
 )
 async def batch_links_by_target(
     target_type: str = Query(...),

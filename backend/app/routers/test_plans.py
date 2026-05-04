@@ -9,6 +9,7 @@ from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
+from app.auth.project_membership import ensure_project_member
 from app.auth.scope import (
     ensure_project_in_scope,
     ensure_project_writable,
@@ -40,7 +41,12 @@ def _resolve_status(val, default):
         return default
 
 
-@router.get("/plans", response_model=list[TestPlanResponse], tags=["N · 測試計畫"])
+@router.get(
+    "/plans",
+    response_model=list[TestPlanResponse],
+    tags=["N · 測試計畫"],
+    dependencies=[Depends(ensure_project_member)],
+)
 async def list_plans(
     project_id: Optional[str] = Query(None),
     status: Optional[str] = Query(None),

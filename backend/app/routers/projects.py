@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.dependencies import get_current_user
 from app.auth.permissions import require_permission
 from app.auth.permissions_catalog import P
+from app.auth.project_membership import ensure_project_member
 from app.database import get_db
 from app.models.project import Project
 from app.models.project_member import ProjectMember
@@ -102,7 +103,10 @@ def _check_org_or_404(proj: Optional[Project], user: User) -> Project:
 # 3. GET /api/projects/{projectId}/tree
 @router.get(
     "/projects/{project_id}/tree",
-    dependencies=[Depends(require_permission(P.PROJECT_READ))],
+    dependencies=[
+        Depends(require_permission(P.PROJECT_READ)),
+        Depends(ensure_project_member),
+    ],
 )
 async def get_project_tree(
     project_id: str,
@@ -126,7 +130,10 @@ async def get_project_tree(
 @router.delete(
     "/projects/{project_id}",
     status_code=204,
-    dependencies=[Depends(require_permission(P.PROJECT_DELETE))],
+    dependencies=[
+        Depends(require_permission(P.PROJECT_DELETE)),
+        Depends(ensure_project_member),
+    ],
 )
 async def delete_project(
     project_id: str,
@@ -145,7 +152,10 @@ async def delete_project(
 @router.put(
     "/projects/{project_id}",
     response_model=ProjectResponse,
-    dependencies=[Depends(require_permission(P.PROJECT_WRITE))],
+    dependencies=[
+        Depends(require_permission(P.PROJECT_WRITE)),
+        Depends(ensure_project_member),
+    ],
 )
 async def update_project(
     project_id: str,
@@ -174,7 +184,10 @@ async def update_project(
 @router.get(
     "/projects/{project_id}",
     response_model=ProjectResponse,
-    dependencies=[Depends(require_permission(P.PROJECT_READ))],
+    dependencies=[
+        Depends(require_permission(P.PROJECT_READ)),
+        Depends(ensure_project_member),
+    ],
 )
 async def get_project(
     project_id: str,

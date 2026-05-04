@@ -8,6 +8,7 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
+from app.auth.project_membership import ensure_project_member
 from app.database import get_db
 from app.models.mock_endpoint import MockEndpoint
 from app.models.user import User
@@ -20,7 +21,12 @@ from app.schemas.mock_endpoint import (
 router = APIRouter()
 
 
-@router.get("/mock-endpoints", response_model=list[MockEndpointResponse], tags=["Z · Mock 端點"])
+@router.get(
+    "/mock-endpoints",
+    response_model=list[MockEndpointResponse],
+    tags=["Z · Mock 端點"],
+    dependencies=[Depends(ensure_project_member)],
+)
 async def list_mock_endpoints(
     project_id: Optional[str] = Query(None),
     user: User = Depends(get_current_user),

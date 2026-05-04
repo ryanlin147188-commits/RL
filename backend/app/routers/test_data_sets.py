@@ -8,6 +8,7 @@ from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
+from app.auth.project_membership import ensure_project_member
 from app.auth.scope import (
     ensure_project_in_scope,
     ensure_project_writable,
@@ -43,7 +44,12 @@ def _resolve_category(val, default):
         return default
 
 
-@router.get("/data-sets", response_model=list[TestDataSetResponse], tags=["P · 測試資料集 (DDT)"])
+@router.get(
+    "/data-sets",
+    response_model=list[TestDataSetResponse],
+    tags=["P · 測試資料集 (DDT)"],
+    dependencies=[Depends(ensure_project_member)],
+)
 async def list_data_sets(
     project_id: Optional[str] = Query(None),
     category: Optional[str] = Query(None),

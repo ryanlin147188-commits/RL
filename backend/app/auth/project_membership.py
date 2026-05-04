@@ -79,22 +79,29 @@ async def _resolve_effective_role(
 
 
 async def ensure_project_member(
-    project_id: str,
+    project_id: Optional[str] = None,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Optional[ProjectMember]:
     """Block requests where ``current_user`` is not a member of ``project_id``.
 
-    Returns the matching :class:`ProjectMember` row, or ``None`` for the
-    superuser bypass path. Use as ``Depends(ensure_project_member)`` on any
-    route with a ``project_id`` path parameter (or query parameter — FastAPI
-    sources the value automatically).
+    ``project_id`` is sourced by FastAPI from the route's path or query
+    parameters. Three cases:
 
-    Raises:
-        404: project not found, or user has no active membership. We use 404
-            (not 403) for the latter to avoid leaking project existence to
-            non-members.
+    * ``project_id is None`` — caller didn't bind a project (e.g. an org-wide
+      listing endpoint with ``project_id: Optional[str] = Query(None)``).
+      Nothing to check; the route's own tenant-scoping handles isolation.
+    * Superuser — bypass; return ``None``.
+    * Otherwise — must have an active :class:`ProjectMember` row for that
+      project, else 404 (not 403, to avoid leaking project existence).
+
+    Returns the matching :class:`ProjectMember` row when found, or ``None``
+    in the bypass / no-project cases. Use as
+    ``dependencies=[Depends(ensure_project_member)]`` on any route with a
+    ``project_id`` parameter.
     """
+    if not project_id:
+        return None
     if user.is_superuser:
         return None
     proj = await db.get(Project, project_id)

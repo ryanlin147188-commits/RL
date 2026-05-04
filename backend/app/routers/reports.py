@@ -6,6 +6,7 @@ from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
+from app.auth.project_membership import ensure_project_member
 from app.auth.scope import ensure_project_in_scope, scope_by_project
 from app.database import get_db
 from app.models.execution_report import ExecutionReport, ReportStatus
@@ -46,7 +47,11 @@ def _step_with_signed_artifacts(step: ExecutionStepLog) -> dict:
 
 
 # 11. GET /api/dashboard/metrics
-@router.get("/dashboard/metrics", response_model=MetricsResponse)
+@router.get(
+    "/dashboard/metrics",
+    response_model=MetricsResponse,
+    dependencies=[Depends(ensure_project_member)],
+)
 async def get_metrics(
     project_id: str = Query(..., description="專案 ID"),
     user: User = Depends(get_current_user),
@@ -98,7 +103,11 @@ async def get_metrics(
 
 
 # 12. GET /api/dashboard/charts
-@router.get("/dashboard/charts", response_model=ChartsResponse)
+@router.get(
+    "/dashboard/charts",
+    response_model=ChartsResponse,
+    dependencies=[Depends(ensure_project_member)],
+)
 async def get_charts(
     project_id: str = Query(...),
     user: User = Depends(get_current_user),
@@ -175,7 +184,11 @@ async def get_charts(
 
 
 # 13. GET /api/v1/reports  （分頁）
-@router.get("/reports", response_model=PaginatedResponse[ReportListItem])
+@router.get(
+    "/reports",
+    response_model=PaginatedResponse[ReportListItem],
+    dependencies=[Depends(ensure_project_member)],
+)
 async def list_reports(
     project_id: str = Query(...),
     page: int = Query(1, ge=1, description="頁碼(從 1 開始)"),

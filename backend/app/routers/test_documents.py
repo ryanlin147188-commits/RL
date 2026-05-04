@@ -8,6 +8,7 @@ from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
+from app.auth.project_membership import ensure_project_member
 from app.auth.scope import (
     ensure_project_in_scope,
     ensure_project_writable,
@@ -49,6 +50,7 @@ def _resolve_category(val, default):
     "/documents",
     response_model=list[TestDocumentResponse],
     tags=["Q · 測試文件"],
+    dependencies=[Depends(ensure_project_member)],
 )
 async def list_documents(
     project_id: Optional[str] = Query(None),

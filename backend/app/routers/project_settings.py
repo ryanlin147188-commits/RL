@@ -13,6 +13,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
+from app.auth.project_membership import ensure_project_member
 from app.auth.scope import ensure_project_in_scope, ensure_project_writable
 from app.database import get_db
 from app.models.project import Project
@@ -34,7 +35,11 @@ router = APIRouter()
 # ════════════════════════════════════════════════════════════════
 
 
-@router.get("/projects/{project_id}/env-vars", response_model=EnvVarsListResponse)
+@router.get(
+    "/projects/{project_id}/env-vars",
+    response_model=EnvVarsListResponse,
+    dependencies=[Depends(ensure_project_member)],
+)
 async def list_env_vars(
     project_id: str,
     user: User = Depends(get_current_user),
@@ -49,7 +54,11 @@ async def list_env_vars(
     return EnvVarsListResponse(project_id=project_id, items=rows)
 
 
-@router.put("/projects/{project_id}/env-vars", response_model=EnvVarsListResponse)
+@router.put(
+    "/projects/{project_id}/env-vars",
+    response_model=EnvVarsListResponse,
+    dependencies=[Depends(ensure_project_member)],
+)
 async def replace_env_vars(
     project_id: str,
     items: list[EnvVarItem],
@@ -89,7 +98,11 @@ async def replace_env_vars(
 # ════════════════════════════════════════════════════════════════
 
 
-@router.get("/projects/{project_id}/devices", response_model=DevicesListResponse)
+@router.get(
+    "/projects/{project_id}/devices",
+    response_model=DevicesListResponse,
+    dependencies=[Depends(ensure_project_member)],
+)
 async def list_devices(
     project_id: str,
     user: User = Depends(get_current_user),
@@ -104,7 +117,11 @@ async def list_devices(
     return DevicesListResponse(project_id=project_id, items=rows)
 
 
-@router.put("/projects/{project_id}/devices", response_model=DevicesListResponse)
+@router.put(
+    "/projects/{project_id}/devices",
+    response_model=DevicesListResponse,
+    dependencies=[Depends(ensure_project_member)],
+)
 async def replace_devices(
     project_id: str,
     items: list[DeviceItem],

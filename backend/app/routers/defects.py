@@ -13,6 +13,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from app.auth.dependencies import get_current_user
 from app.auth.permissions import require_permission
 from app.auth.permissions_catalog import P
+from app.auth.project_membership import ensure_project_member
 from app.auth.scope import (
     ensure_project_in_scope,
     ensure_project_writable,
@@ -55,7 +56,10 @@ def _resolve_enum(enum_cls, val, default):
     "/defects",
     response_model=list[DefectResponse],
     tags=["L · 缺陷管理"],
-    dependencies=[Depends(require_permission(P.DEFECT_READ))],
+    dependencies=[
+        Depends(require_permission(P.DEFECT_READ)),
+        Depends(ensure_project_member),
+    ],
 )
 async def list_defects(
     project_id: Optional[str] = Query(None),
@@ -220,7 +224,10 @@ async def delete_defect(
 @router.get(
     "/defects/stats/summary",
     tags=["L · 缺陷管理"],
-    dependencies=[Depends(require_permission(P.DEFECT_READ))],
+    dependencies=[
+        Depends(require_permission(P.DEFECT_READ)),
+        Depends(ensure_project_member),
+    ],
 )
 async def defects_summary(
     project_id: Optional[str] = Query(None),

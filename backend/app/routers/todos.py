@@ -9,6 +9,7 @@ from sqlalchemy import asc, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
+from app.auth.project_membership import ensure_project_member
 from app.common import Pagination
 from app.database import get_db
 from app.models.group import Group, GroupMembership
@@ -176,7 +177,11 @@ def _enrich(t: TodoItem) -> dict:
     }
 
 
-@router.get("/todos", tags=["T · 待辦"])
+@router.get(
+    "/todos",
+    tags=["T · 待辦"],
+    dependencies=[Depends(ensure_project_member)],
+)
 async def list_todos(
     project_id: Optional[str] = Query(None),
     assignee: Optional[str] = Query(None),
@@ -236,7 +241,11 @@ async def list_todos(
     return enriched
 
 
-@router.get("/todos/summary", tags=["T · 待辦"])
+@router.get(
+    "/todos/summary",
+    tags=["T · 待辦"],
+    dependencies=[Depends(ensure_project_member)],
+)
 async def todo_summary(
     project_id: Optional[str] = Query(None),
     assignee: Optional[str] = Query(None),
@@ -271,7 +280,11 @@ async def todo_summary(
     }
 
 
-@router.get("/todos/tree", tags=["T · 待辦"])
+@router.get(
+    "/todos/tree",
+    tags=["T · 待辦"],
+    dependencies=[Depends(ensure_project_member)],
+)
 async def todo_tree(
     project_id: Optional[str] = Query(None),
     assignee: Optional[str] = Query(None),
