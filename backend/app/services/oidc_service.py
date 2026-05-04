@@ -209,6 +209,17 @@ async def provision_user_from_claims(
     )
     db.add(user)
     await db.flush()
+    # 多組織模型:同步加 OrgMembership(SSO 進來這就是預設 active org)。
+    if user.organization_id:
+        from app.models.org_membership import OrgMembership
+        db.add(OrgMembership(
+            username=user.username,
+            organization_id=user.organization_id,
+            role_id=user.role_id,
+            is_default=True,
+            status="active",
+        ))
+        await db.flush()
     await db.refresh(user)
     return user
 

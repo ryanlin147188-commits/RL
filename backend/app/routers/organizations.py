@@ -13,7 +13,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.dependencies import get_current_user
 from app.database import get_db
 from app.models.org_invite import OrgInvite
+from app.models.org_membership import OrgMembership
 from app.models.organization import Organization
+from app.models.role import Role
 from app.models.user import User
 from app.rate_limit import limiter
 
@@ -461,4 +463,172 @@ async def revoke_invite(
     if not user.is_superuser and inv.organization_id != user.organization_id:
         raise HTTPException(404, "Invite not found")
     await db.delete(inv)
+    await db.flush()
+
+
+# ─────────────────── Org Members CRUD(多組織用)───────────────────────
+# 一個 user 可在多個 org 各佔一筆 OrgMembership;這幾個 endpoint 是給 org admin
+# 在「組織成員」UI 用,可以新增現有 user 進來、改角色、移除等。
+# 嚴格走 org_id 路徑參數 + 權限檢查(只有 superuser 或同 org admin 能動)。
+
+def _can_manage_org(user: User, org_id: str) -> bool:
+    return bool(user.is_superuser) or user.organization_id == org_id
+
+
+@router.get("/orgs/{org_id}/members", tags=["X · 組織"])
+async def list_org_members(
+    org_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """列出組織內所有 OrgMembership(含 user / role 欄位)。"""
+    if not _can_manage_org(user, org_id):
+        raise HTTPException(404, "Organization not found")
+    rows = (
+        await db.execute(
+            select(OrgMembership, User, Role)
+            .join(User, User.username == OrgMembership.username)
+            .outerjoin(Role, Role.id == OrgMembership.role_id)
+            .where(OrgMembership.organization_id == org_id)
+            .order_by(asc(User.username))
+        )
+    ).all()
+    return [
+        {
+            "id": mem.id,
+            "username": u.username,
+            "display_name": u.display_name,
+            "email": u.email,
+            "role_id": role.id if role else None,
+            "role_name": role.name if role else None,
+            "is_default": bool(mem.is_default),
+            "status": mem.status,
+            "joined_at": mem.joined_at.isoformat() if mem.joined_at else None,
+        }
+        for mem, u, role in rows
+    ]
+
+
+@router.post("/orgs/{org_id}/members", status_code=201, tags=["X · 組織"])
+async def add_org_member(
+    org_id: str,
+    payload: dict,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """把現有使用者加進組織。body `{"username": "...", "role_id": "..." | null}`。
+    若該 user 已是成員 → 409。
+    寄邀請給沒帳號的人請改用 `POST /api/invites`。"""
+    if not _can_manage_org(user, org_id):
+        raise HTTPException(404, "Organization not found")
+    target_username = (payload or {}).get("username", "").strip()
+    role_id = (payload or {}).get("role_id") or None
+    if not target_username:
+        raise HTTPException(400, "缺少 username")
+    target = await db.get(User, target_username)
+    if not target:
+        raise HTTPException(404, "找不到該使用者")
+    org = await db.get(Organization, org_id)
+    if not org:
+        raise HTTPException(404, "找不到該組織")
+    if role_id:
+        role = await db.get(Role, role_id)
+        if not role or (role.organization_id and role.organization_id != org_id):
+            raise HTTPException(400, "無效的 role_id(不存在或不屬於此組織)")
+    existing = (
+        await db.execute(
+            select(OrgMembership)
+            .where(OrgMembership.username == target_username)
+            .where(OrgMembership.organization_id == org_id)
+        )
+    ).scalar_one_or_none()
+    if existing:
+        raise HTTPException(409, "該使用者已是組織成員")
+    mem = OrgMembership(
+        username=target_username,
+        organization_id=org_id,
+        role_id=role_id,
+        is_default=False,    # 由使用者自行 switch 設 default
+        status="active",
+        invited_by=user.username,
+    )
+    db.add(mem)
+    await db.flush()
+    return {"id": mem.id, "username": mem.username, "organization_id": mem.organization_id}
+
+
+@router.patch("/orgs/{org_id}/members/{username}", tags=["X · 組織"])
+async def update_org_member(
+    org_id: str,
+    username: str,
+    payload: dict,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """改 OrgMembership 的 role_id 或 status。body 可含 `role_id` / `status`。"""
+    if not _can_manage_org(user, org_id):
+        raise HTTPException(404, "Organization not found")
+    mem = (
+        await db.execute(
+            select(OrgMembership)
+            .where(OrgMembership.username == username)
+            .where(OrgMembership.organization_id == org_id)
+        )
+    ).scalar_one_or_none()
+    if not mem:
+        raise HTTPException(404, "找不到此成員")
+    if "role_id" in (payload or {}):
+        role_id = payload["role_id"] or None
+        if role_id:
+            role = await db.get(Role, role_id)
+            if not role or (role.organization_id and role.organization_id != org_id):
+                raise HTTPException(400, "無效的 role_id")
+        mem.role_id = role_id
+    if "status" in (payload or {}):
+        new_status = (payload["status"] or "").strip()
+        if new_status not in ("active", "invited", "disabled"):
+            raise HTTPException(400, "status 必須是 active / invited / disabled")
+        mem.status = new_status
+    await db.flush()
+    return {"ok": True, "id": mem.id, "role_id": mem.role_id, "status": mem.status}
+
+
+@router.delete("/orgs/{org_id}/members/{username}", status_code=204, tags=["X · 組織"])
+async def delete_org_member(
+    org_id: str,
+    username: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """從組織移除成員。OrgMembership 刪除後,該 user 在此 org 的所有 ProjectMember
+    也會 cascade-delete(走 FK ondelete=CASCADE)— 但要寫 SQL 強制清,
+    因為 ProjectMember 是綁 username + project,不會自動跟 OrgMembership 連動。
+    """
+    if not _can_manage_org(user, org_id):
+        raise HTTPException(404, "Organization not found")
+    mem = (
+        await db.execute(
+            select(OrgMembership)
+            .where(OrgMembership.username == username)
+            .where(OrgMembership.organization_id == org_id)
+        )
+    ).scalar_one_or_none()
+    if not mem:
+        raise HTTPException(404, "找不到此成員")
+    # 不允許自我移除(避免自鎖在門外)
+    if username == user.username and not user.is_superuser:
+        raise HTTPException(400, "不可移除自己;請改設 status=disabled 或請其他 admin 操作")
+    await db.delete(mem)
+    # 同時清掉 user 在此 org 下所有 project 的 ProjectMember
+    from app.models.project import Project
+    from app.models.project_member import ProjectMember
+    project_ids = (
+        await db.execute(select(Project.id).where(Project.organization_id == org_id))
+    ).scalars().all()
+    if project_ids:
+        await db.execute(
+            ProjectMember.__table__.delete()
+            .where(ProjectMember.username == username)
+            .where(ProjectMember.project_id.in_(project_ids))
+        )
     await db.flush()

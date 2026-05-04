@@ -9,6 +9,8 @@ from app.auth.permissions import require_permission
 from app.auth.permissions_catalog import P
 from app.database import get_db
 from app.models.project import Project
+from app.models.project_member import ProjectMember
+from app.models.role import Role
 from app.models.tree_node import TreeNode
 from app.models.user import User
 from app.schemas.project import ProjectCreate, ProjectResponse, ProjectUpdate
@@ -25,6 +27,9 @@ def _scope_filter(stmt, user: User):
 
 
 # 1. GET /api/projects
+# 多租戶 phase 2:加 ProjectMember 過濾。grandfather migration 已把所有同 org 的
+# user × project 寫進 ProjectMember,所以行為對既有使用者完全不變;管理員開始
+# 從某 project 移除成員後,該 user 立刻看不到該 project。
 @router.get(
     "/projects",
     response_model=list[ProjectResponse],
@@ -36,6 +41,14 @@ async def list_projects(
 ):
     stmt = select(Project).order_by(Project.created_at.desc())
     stmt = _scope_filter(stmt, user)
+    if not user.is_superuser:
+        # 只回 current_user 是 active member 的 projects。
+        stmt = stmt.join(
+            ProjectMember,
+            (ProjectMember.project_id == Project.id)
+            & (ProjectMember.username == user.username)
+            & (ProjectMember.status == "active"),
+        )
     result = await db.execute(stmt)
     return result.scalars().all()
 
@@ -63,6 +76,15 @@ async def create_project(
         tags=payload.tags,
     )
     db.add(project)
+    await db.flush()
+    # 建立者自動成為這個 project 的 member;role_id=NULL = 從 OrgMembership 繼承,
+    # 這樣建立者(通常是 admin)馬上就有完整權限,不用再走一次 add-member 流程。
+    db.add(ProjectMember(
+        project_id=project.id,
+        username=user.username,
+        role_id=None,
+        status="active",
+    ))
     await db.flush()
     await db.refresh(project)
     return project
@@ -161,3 +183,201 @@ async def get_project(
 ):
     proj = await db.get(Project, project_id)
     return _check_org_or_404(proj, user)
+
+
+# ─────────────────── Project Members CRUD(phase 2)───────────────────
+# 一個 project 內誰是成員 + 該成員在這 project 的角色(可 override OrgMembership 的角色)。
+# 權限檢查走 _check_org_or_404 + 呼叫者必須是 superuser 或 ProjectMember,
+# 進一步「能否管理成員」交給 require_permission(USER_MANAGE) 守。
+
+def _can_manage_project_members(user: User, proj: Project) -> bool:
+    """superuser 或同 org 的 admin(P.USER_MANAGE)能管理。前端會用 me/orgs 判斷。"""
+    return bool(user.is_superuser) or user.organization_id == proj.organization_id
+
+
+@router.get("/projects/{project_id}/assignable-users", tags=["G · 專案"])
+async def list_project_assignable_users(
+    project_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """列出該專案的成員(active + user.is_active),前端指派 picker 用。
+    取代 ``/api/auth/users/assignable`` 在 project-scoped 場景的角色 — 那一支
+    只看 organization_id,會把專案外的使用者也列出來。
+    """
+    proj = await db.get(Project, project_id)
+    _check_org_or_404(proj, user)
+    rows = (
+        await db.execute(
+            select(User)
+            .join(ProjectMember, ProjectMember.username == User.username)
+            .where(ProjectMember.project_id == project_id)
+            .where(ProjectMember.status == "active")
+            .where(User.is_active.is_(True))
+            .order_by(User.username)
+        )
+    ).scalars().all()
+    return [
+        {
+            "username": u.username,
+            "display_name": u.display_name,
+            "email": u.email,
+            "avatar_url": u.avatar_url,
+        }
+        for u in rows
+    ]
+
+
+@router.get("/projects/{project_id}/members", tags=["G · 專案"])
+async def list_project_members(
+    project_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """列出某專案的所有成員(含 user 資訊與 per-project role)。"""
+    proj = await db.get(Project, project_id)
+    _check_org_or_404(proj, user)
+    rows = (
+        await db.execute(
+            select(ProjectMember, User, Role)
+            .join(User, User.username == ProjectMember.username)
+            .outerjoin(Role, Role.id == ProjectMember.role_id)
+            .where(ProjectMember.project_id == project_id)
+            .order_by(User.username)
+        )
+    ).all()
+    return [
+        {
+            "id": pm.id,
+            "username": u.username,
+            "display_name": u.display_name,
+            "email": u.email,
+            "role_id": role.id if role else None,
+            "role_name": role.name if role else None,
+            "role_scope": role.scope if role else None,
+            "status": pm.status,
+            "joined_at": pm.joined_at.isoformat() if pm.joined_at else None,
+        }
+        for pm, u, role in rows
+    ]
+
+
+@router.post("/projects/{project_id}/members", status_code=201, tags=["G · 專案"])
+async def add_project_member(
+    project_id: str,
+    payload: dict,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """加成員到專案。body `{"username": "...", "role_id": "..." | null}`。"""
+    proj = await db.get(Project, project_id)
+    _check_org_or_404(proj, user)
+    if not _can_manage_project_members(user, proj):
+        raise HTTPException(403, "需要組織管理員權限才能管理專案成員")
+    target_username = (payload or {}).get("username", "").strip()
+    role_id = (payload or {}).get("role_id") or None
+    if not target_username:
+        raise HTTPException(400, "缺少 username")
+    target = await db.get(User, target_username)
+    if not target:
+        raise HTTPException(404, "找不到該使用者")
+    # 必要前提:該 user 必須先是這個 org 的 OrgMembership(避免跨 org 加成員)。
+    from app.models.org_membership import OrgMembership
+    om = (
+        await db.execute(
+            select(OrgMembership)
+            .where(OrgMembership.username == target_username)
+            .where(OrgMembership.organization_id == proj.organization_id)
+            .where(OrgMembership.status == "active")
+        )
+    ).scalar_one_or_none()
+    if not om and not target.is_superuser:
+        raise HTTPException(400, "該使用者不是此專案組織的成員,請先把他加進組織")
+    if role_id:
+        role = await db.get(Role, role_id)
+        if not role:
+            raise HTTPException(400, "無效的 role_id")
+    existing = (
+        await db.execute(
+            select(ProjectMember)
+            .where(ProjectMember.project_id == project_id)
+            .where(ProjectMember.username == target_username)
+        )
+    ).scalar_one_or_none()
+    if existing:
+        raise HTTPException(409, "該使用者已是此專案成員")
+    pm = ProjectMember(
+        project_id=project_id,
+        username=target_username,
+        role_id=role_id,
+        status="active",
+        invited_by=user.username,
+    )
+    db.add(pm)
+    await db.flush()
+    return {"id": pm.id, "project_id": project_id, "username": target_username}
+
+
+@router.patch("/projects/{project_id}/members/{username}", tags=["G · 專案"])
+async def update_project_member(
+    project_id: str,
+    username: str,
+    payload: dict,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """改成員的角色或狀態。body 可含 `role_id`(NULL 代表繼承 org-level)/ `status`。"""
+    proj = await db.get(Project, project_id)
+    _check_org_or_404(proj, user)
+    if not _can_manage_project_members(user, proj):
+        raise HTTPException(403, "需要組織管理員權限才能管理專案成員")
+    pm = (
+        await db.execute(
+            select(ProjectMember)
+            .where(ProjectMember.project_id == project_id)
+            .where(ProjectMember.username == username)
+        )
+    ).scalar_one_or_none()
+    if not pm:
+        raise HTTPException(404, "找不到此成員")
+    if "role_id" in (payload or {}):
+        role_id = payload["role_id"] or None
+        if role_id:
+            role = await db.get(Role, role_id)
+            if not role:
+                raise HTTPException(400, "無效的 role_id")
+        pm.role_id = role_id
+    if "status" in (payload or {}):
+        new_status = (payload["status"] or "").strip()
+        if new_status not in ("active", "invited", "disabled"):
+            raise HTTPException(400, "status 必須是 active / invited / disabled")
+        pm.status = new_status
+    await db.flush()
+    return {"ok": True, "id": pm.id, "role_id": pm.role_id, "status": pm.status}
+
+
+@router.delete("/projects/{project_id}/members/{username}", status_code=204, tags=["G · 專案"])
+async def remove_project_member(
+    project_id: str,
+    username: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """從專案移除成員(該 user 仍保留 OrgMembership,只是看不到此專案了)。"""
+    proj = await db.get(Project, project_id)
+    _check_org_or_404(proj, user)
+    if not _can_manage_project_members(user, proj):
+        raise HTTPException(403, "需要組織管理員權限才能管理專案成員")
+    pm = (
+        await db.execute(
+            select(ProjectMember)
+            .where(ProjectMember.project_id == project_id)
+            .where(ProjectMember.username == username)
+        )
+    ).scalar_one_or_none()
+    if not pm:
+        raise HTTPException(404, "找不到此成員")
+    if username == user.username and not user.is_superuser:
+        raise HTTPException(400, "不可移除自己;請其他 admin 操作")
+    await db.delete(pm)
+    await db.flush()

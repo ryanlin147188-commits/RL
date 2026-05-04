@@ -34,6 +34,7 @@ from app.rate_limit import limiter
 from app.database import get_db
 from app.models.group import GroupMembership
 from app.models.org_invite import OrgInvite
+from app.models.org_membership import OrgMembership
 from app.models.organization import Organization
 from app.models.role import Role
 from app.models.user import User
@@ -198,6 +199,16 @@ async def register(
     db.add(new_user)
     await db.flush()
 
+    # 多組織模型:同步加 OrgMembership(預設這就是該 user 的 active org)。
+    db.add(OrgMembership(
+        username=new_user.username,
+        organization_id=target_org.id,
+        role_id=target_role_id,
+        is_default=True,
+        status="active",
+        invited_by=invite.created_by if invite is not None else None,
+    ))
+
     # 起始群組
     if target_group_id:
         # 確認 group 存在 + 同 org
@@ -293,6 +304,36 @@ async def redeem_invite(
         if role:
             user.role_id = role.id
             role_assigned = role.name
+
+    # 多組織模型:把 user 也加到 target_org 的 OrgMembership(idempotent)。
+    # 不動其他既有 OrgMembership — 使用者可保留在原本的組織,日後 switch-org 切回。
+    existing_mem = (
+        await db.execute(
+            select(OrgMembership)
+            .where(OrgMembership.username == user.username)
+            .where(OrgMembership.organization_id == target_org.id)
+        )
+    ).scalar_one_or_none()
+    if existing_mem is None:
+        # 此 user 沒有任何 default → 給這個 org 設 default;否則維持原有 default
+        any_default = (
+            await db.execute(
+                select(OrgMembership)
+                .where(OrgMembership.username == user.username)
+                .where(OrgMembership.is_default.is_(True))
+            )
+        ).scalar_one_or_none()
+        db.add(OrgMembership(
+            username=user.username,
+            organization_id=target_org.id,
+            role_id=invite.role_id,
+            is_default=(any_default is None),
+            status="active",
+            invited_by=invite.created_by,
+        ))
+    elif invite.role_id and existing_mem.role_id != invite.role_id:
+        # 已是成員但邀請帶新角色 → 更新角色(常見場景:從 Viewer 升 Admin)
+        existing_mem.role_id = invite.role_id
 
     group_assigned: Optional[str] = None
     if invite.group_id:
@@ -630,6 +671,86 @@ async def me(user: User = Depends(get_current_user)):
     return user
 
 
+@router.get("/auth/me/orgs", tags=["U · 認證"])
+async def my_orgs(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """列出 current_user 屬於哪些組織。前端 org switcher 用。
+
+    每筆 row:
+    * `organization_id` / `slug` / `name`
+    * `role_id` / `role_name`(在這個 org 裡的角色;NULL = 沒指派)
+    * `is_default`(OrgMembership.is_default;同 user 最多一個 row 為 true)
+    * `is_current`(等同 organization_id == user.organization_id;標示前端當前 active org)
+    """
+    rows = (
+        await db.execute(
+            select(OrgMembership, Organization, Role)
+            .join(Organization, Organization.id == OrgMembership.organization_id)
+            .outerjoin(Role, Role.id == OrgMembership.role_id)
+            .where(OrgMembership.username == user.username)
+            .where(OrgMembership.status == "active")
+            .order_by(Organization.name)
+        )
+    ).all()
+    return [
+        {
+            "organization_id": org.id,
+            "slug": org.slug,
+            "name": org.name,
+            "role_id": role.id if role else None,
+            "role_name": role.name if role else None,
+            "is_default": bool(mem.is_default),
+            "is_current": org.id == user.organization_id,
+        }
+        for mem, org, role in rows
+    ]
+
+
+@router.post("/auth/switch-org", response_model=TokenResponse, tags=["U · 認證"])
+async def switch_org(
+    request: Request,
+    payload: dict,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """切換 active 組織。要求:
+    1. body `{"organization_id": "..."}`
+    2. current_user 在該 org 必須有 OrgMembership(active 狀態)
+    通過 → 更新 `users.organization_id` + 重新簽 access_token(payload.org_id 變更)。
+    refresh_token 不簽,沿用原本的(下次過期才重簽)。
+    """
+    target_org_id = (payload or {}).get("organization_id")
+    if not target_org_id:
+        raise HTTPException(400, "缺少 organization_id")
+    mem = (
+        await db.execute(
+            select(OrgMembership)
+            .where(OrgMembership.username == user.username)
+            .where(OrgMembership.organization_id == target_org_id)
+            .where(OrgMembership.status == "active")
+        )
+    ).scalar_one_or_none()
+    if not mem and not user.is_superuser:
+        raise HTTPException(403, "您不是該組織的成員")
+    # superuser 可切到任何 org(維持既有行為);仍需檢查 org 存在
+    if not mem:
+        org_exists = (
+            await db.execute(select(Organization).where(Organization.id == target_org_id))
+        ).scalar_one_or_none()
+        if not org_exists:
+            raise HTTPException(404, "找不到該組織")
+    user.organization_id = target_org_id
+    await db.flush()
+    extra = {"org_id": target_org_id, "is_superuser": user.is_superuser}
+    return TokenResponse(
+        access_token=create_access_token(user.username, extra=extra),
+        refresh_token=create_refresh_token(user.username),
+        expires_in=ACCESS_TOKEN_TTL_MINUTES * 60,
+    )
+
+
 @router.put("/auth/me", response_model=UserResponse, tags=["U · 認證"])
 async def update_me(
     payload: UserUpdateMeRequest,
@@ -785,6 +906,17 @@ async def create_user(
     )
     db.add(new_user)
     await db.flush()
+    # 多組織模型:同步加 OrgMembership(預設這就是該 user 的 active org)。
+    if new_user.organization_id:
+        db.add(OrgMembership(
+            username=new_user.username,
+            organization_id=new_user.organization_id,
+            role_id=new_user.role_id,
+            is_default=True,
+            status="active",
+            invited_by=user.username,
+        ))
+        await db.flush()
     await db.refresh(new_user)
     return new_user
 

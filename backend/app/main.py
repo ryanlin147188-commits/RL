@@ -36,13 +36,18 @@ from app.services.schedule_service import scheduler_loop
 
 
 async def _seed_default_roles() -> None:
-    """確保 3 個系統內建角色（Admin / QA / Viewer）存在；不存在才建立。"""
+    """確保系統內建角色存在;不存在才建立。
+    * scope=org:Admin / QA / Viewer(套用全 org)
+    * scope=project:Project-Admin / Project-Tester / Project-Reviewer / Project-Viewer
+      (套用在 ProjectMember.role_id,override OrgMembership 的角色)
+    """
     from sqlalchemy import select
     from app.database import AsyncSessionLocal
 
     DEFAULTS = [
         {
             "name": "Admin",
+            "scope": "org",
             "description": "系統管理員 — 全部權限",
             "permissions_json": [
                 "project.read", "project.write", "project.delete",
@@ -59,6 +64,7 @@ async def _seed_default_roles() -> None:
         },
         {
             "name": "QA",
+            "scope": "org",
             "description": "測試人員 — 撰寫 / 執行測試 + 缺陷管理",
             "permissions_json": [
                 "project.read",
@@ -74,11 +80,69 @@ async def _seed_default_roles() -> None:
         },
         {
             "name": "Viewer",
+            "scope": "org",
             "description": "檢視者 — 只讀全部",
             "permissions_json": [
                 "project.read", "testcase.read", "defect.read",
                 "requirement.read", "plan.read", "wbs.read",
                 "document.read", "report.read", "settings.read",
+            ],
+        },
+        # ── Phase 3 多租戶:per-project 角色 ───────────────────────────────
+        {
+            "name": "Project-Admin",
+            "scope": "project",
+            "description": "專案管理員 — 該專案內全部權限(可加減成員)",
+            "permissions_json": [
+                "project.read", "project.write",
+                "testcase.read", "testcase.write", "testcase.delete", "testcase.execute",
+                "defect.read", "defect.write", "defect.delete",
+                "requirement.read", "requirement.write",
+                "plan.read", "plan.write", "plan.approve",
+                "wbs.read", "wbs.write",
+                "document.read", "document.write",
+                "report.read",
+                "user.manage",
+            ],
+        },
+        {
+            "name": "Project-Tester",
+            "scope": "project",
+            "description": "專案測試人員 — 寫案例 + 跑測試 + 缺陷",
+            "permissions_json": [
+                "project.read",
+                "testcase.read", "testcase.write", "testcase.execute",
+                "defect.read", "defect.write",
+                "requirement.read",
+                "plan.read",
+                "wbs.read",
+                "document.read",
+                "report.read",
+            ],
+        },
+        {
+            "name": "Project-Reviewer",
+            "scope": "project",
+            "description": "專案審核者 — 讀全部 + 核准計畫",
+            "permissions_json": [
+                "project.read",
+                "testcase.read",
+                "defect.read",
+                "requirement.read",
+                "plan.read", "plan.approve",
+                "wbs.read",
+                "document.read",
+                "report.read",
+            ],
+        },
+        {
+            "name": "Project-Viewer",
+            "scope": "project",
+            "description": "專案檢視者 — 只讀",
+            "permissions_json": [
+                "project.read", "testcase.read", "defect.read",
+                "requirement.read", "plan.read", "wbs.read",
+                "document.read", "report.read",
             ],
         },
     ]
@@ -94,7 +158,11 @@ async def _seed_default_roles() -> None:
                     description=spec["description"],
                     permissions_json=spec["permissions_json"],
                     is_system=True,
+                    scope=spec["scope"],
                 ))
+            elif existing.scope != spec["scope"]:
+                # 既有 row 把 scope 補回;permissions_json 不動,避免覆蓋使用者客製
+                existing.scope = spec["scope"]
         await session.commit()
 
 
