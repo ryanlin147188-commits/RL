@@ -4,22 +4,32 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RL — 測試建構平台</title>
+    <!-- Perf A1: preconnect to CDN origins so TLS+DNS can run in parallel with HTML parse -->
+    <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <!-- 引入 Chart.js 以繪製測試報告圖表 -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Chart.js 數值標籤外掛：在長條圖每段上顯示 pass/fail 數字 -->
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
-    <!-- 匯出 PDF：直接把 DOM 轉成 PDF 檔下載（無需開列印對話框） -->
-    <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
-    <!-- 測試文件：marked 渲染 Markdown，mermaid 渲染流程圖 -->
-    <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+    <!-- Perf A2: 非 critical-path 的 CDN script 全部 defer，讓 HTML 解析不被阻塞。
+         tailwindcss 必須維持同步以避免 FOUC。defer 保證腳本仍照宣告順序在 DOMContentLoaded 之前執行，
+         所以 mermaid.initialize 改放到 DOMContentLoaded listener 內，避免在 mermaid 載入完成前提前呼叫。 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js" defer></script>
     <script>
-        if (typeof mermaid !== 'undefined') {
-            mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: 'default' });
-        }
+        document.addEventListener('DOMContentLoaded', () => {
+            if (typeof mermaid !== 'undefined') {
+                mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: 'default' });
+            }
+        });
     </script>
+    <!-- Perf A4: 三個 core module 平行 fetch,避免 module graph resolution 一個一個串列載入 -->
+    <link rel="modulepreload" href="/js/core/auth.js">
+    <link rel="modulepreload" href="/js/core/api.js">
+    <link rel="modulepreload" href="/js/core/store.js">
     <script type="module">
         import "/js/core/auth.js";
         import "/js/core/api.js";
