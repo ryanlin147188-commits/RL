@@ -745,6 +745,19 @@
                     class="hidden text-xs text-amber-700 hover:text-amber-900 px-1" title="本機模式設定說明">
                     <i class="fa-solid fa-circle-question"></i>
                 </button>
+                <!-- 組織切換器(只在使用者跨多個組織時顯示;單組織時 .hidden) -->
+                <div id="orgSwitcher" class="hidden relative">
+                    <button type="button" id="orgSwitcherBtn" onclick="toggleOrgSwitcherMenu(event)"
+                        class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-stone-200 hover:bg-stone-50 hover:border-amber-300 transition text-xs"
+                        title="切換組織" aria-label="切換組織" aria-haspopup="true" aria-expanded="false">
+                        <i class="fa-solid fa-building text-amber-600 text-[12px]"></i>
+                        <span id="orgSwitcherLabel" class="font-semibold text-stone-700 max-w-[140px] truncate">—</span>
+                        <i class="fa-solid fa-caret-down text-stone-400 text-[10px]"></i>
+                    </button>
+                    <div id="orgSwitcherMenu" class="hidden absolute right-0 top-full mt-1 w-64 bg-white rounded-lg shadow-xl border border-stone-200 py-1 z-[200] max-h-[60vh] overflow-y-auto">
+                        <!-- 動態填充 -->
+                    </div>
+                </div>
                 <!-- 通知 -->
                 <button type="button" id="notifToggleBtn" onclick="toggleNotifPanel(event)" title="通知" aria-label="通知"
                     class="w-9 h-9 flex items-center justify-center rounded-full text-stone-600 hover:bg-stone-100 hover:text-amber-600 transition relative">
@@ -828,6 +841,7 @@
                     <button type="button" onclick="closeNavDrawer(); showDbConfigView()"     class="nav-drawer-btn"><i class="fa-solid fa-database text-indigo-600"></i><span data-i18n="nav.dbConfig">DB資訊</span></button>
                     <button type="button" onclick="closeNavDrawer(); showMockView()"         class="nav-drawer-btn"><i class="fa-solid fa-plug text-amber-600"></i><span data-i18n="nav.mock">Mock</span></button>
                     <button type="button" onclick="closeNavDrawer(); showTestVersionsView()" class="nav-drawer-btn"><i class="fa-solid fa-tag text-amber-600"></i><span data-i18n="nav.testVersions">測試版號</span></button>
+                    <button type="button" onclick="closeNavDrawer(); showProjectMembersView()" class="nav-drawer-btn"><i class="fa-solid fa-users-gear text-amber-600"></i><span data-i18n="nav.projectMembers">專案成員</span></button>
                 </div>
             </section>
 
@@ -2952,6 +2966,84 @@ driver.swipe(100, 800, 100, 200, 500)"
                 </div>
             </div>
 
+            <!-- 視圖：專案成員管理(Phase 5 多租戶)─────────────────────────
+                 列出當前 currentProjectId 的所有成員與其 per-project 角色。
+                 加成員 / 改角色 / 移除三種操作;管理員(superuser 或同 org)才能操作。 -->
+            <div id="projectMembersWorkspace" class="flex-1 overflow-y-auto p-6 bg-amber-50/30 hidden">
+                <div class="max-w-5xl mx-auto">
+                    <div class="bg-white rounded-lg border border-amber-100 shadow-sm p-4 mb-4 flex flex-wrap items-center gap-3">
+                        <div class="flex-1 min-w-0">
+                            <div class="text-xs text-stone-500" data-i18n="pm.subtitle">當前專案的成員與角色</div>
+                            <div id="pmCurrentProjectName" class="text-lg font-bold text-stone-800 truncate">—</div>
+                        </div>
+                        <button onclick="pmReload()" title="重新整理"
+                            class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50 transition">
+                            <i class="fa-solid fa-rotate"></i> <span data-i18n="common.refresh">重新整理</span>
+                        </button>
+                        <button onclick="pmOpenAddModal()"
+                            class="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold shadow-sm transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-user-plus"></i> <span data-i18n="pm.add">加成員</span>
+                        </button>
+                    </div>
+
+                    <div id="pmEmptyHint" class="hidden bg-amber-50 border border-amber-200 rounded-lg p-6 text-center text-amber-800">
+                        <i class="fa-solid fa-circle-info"></i>
+                        <span data-i18n="pm.empty">請先在左側選一個專案。</span>
+                    </div>
+
+                    <div id="pmTableWrap" class="bg-white rounded-lg border border-amber-100 shadow-sm overflow-hidden">
+                        <table class="w-full text-sm">
+                            <thead class="bg-amber-50/60 border-b border-amber-100 text-stone-600 text-xs uppercase">
+                                <tr>
+                                    <th class="p-3 text-left">使用者</th>
+                                    <th class="p-3 text-left">Email</th>
+                                    <th class="p-3 text-left w-56">角色(per-project)</th>
+                                    <th class="p-3 text-left w-24">狀態</th>
+                                    <th class="p-3 text-left w-32">加入時間</th>
+                                    <th class="p-3 text-center w-20"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="pmTableBody" class="divide-y divide-amber-50">
+                                <tr><td colspan="6" class="p-4 text-center text-stone-400" data-i18n="common.loading">載入中…</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="mt-3 text-[11px] text-stone-500">
+                        <i class="fa-solid fa-circle-info text-amber-500"></i>
+                        per-project 角色為空 = 從組織層 (OrgMembership) 繼承;指定後 override 該專案內的權限。
+                    </div>
+                </div>
+            </div>
+
+            <!-- 加成員 modal -->
+            <div id="pmAddModal" class="hidden fixed inset-0 z-[170] bg-black/40 flex items-center justify-center p-4">
+                <div class="bg-white rounded-lg shadow-xl border border-stone-200 w-full max-w-md">
+                    <div class="px-5 py-3 border-b flex justify-between items-center">
+                        <div class="font-bold text-stone-800"><i class="fa-solid fa-user-plus text-amber-600"></i> 加成員到此專案</div>
+                        <button onclick="pmCloseAddModal()" class="text-stone-400 hover:text-rose-600"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <div class="p-5 space-y-3">
+                        <div>
+                            <label class="text-xs font-semibold text-stone-700">使用者(同組織)</label>
+                            <select id="pmAddUsername" class="w-full mt-1 px-3 py-2 border border-stone-300 rounded-md text-sm">
+                                <option value="">— 載入中… —</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs font-semibold text-stone-700">角色</label>
+                            <select id="pmAddRoleId" class="w-full mt-1 px-3 py-2 border border-stone-300 rounded-md text-sm">
+                                <option value="">— 繼承 OrgMembership 角色 —</option>
+                            </select>
+                            <div class="text-[11px] text-stone-500 mt-1">建議從 Project-Admin / Project-Tester / Project-Reviewer / Project-Viewer 挑。</div>
+                        </div>
+                    </div>
+                    <div class="px-5 py-3 border-t flex justify-end gap-2 bg-stone-50">
+                        <button onclick="pmCloseAddModal()" class="px-3 py-1.5 text-sm border border-stone-300 rounded hover:bg-white">取消</button>
+                        <button onclick="pmSubmitAdd()" class="px-4 py-1.5 text-sm bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold">加入</button>
+                    </div>
+                </div>
+            </div>
+
             <!-- 視圖：使用者設定 -->
             <div id="userSettingsWorkspace" class="flex-1 overflow-y-auto p-6 bg-amber-50/30 hidden">
                 <div class="max-w-5xl mx-auto">
@@ -2965,6 +3057,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                         <button id="setTabAi"       onclick="settingsSwitchTab('ai')"       class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-robot"></i> <span data-i18n="settings.tab.ai">AI Token</span></button>
                         <button id="setTabGroups"   onclick="settingsSwitchTab('groups')"   class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-people-group"></i> <span data-i18n="settings.tab.groups">群組</span></button>
                         <button id="setTabInvites"  onclick="settingsSwitchTab('invites')"  class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-at"></i> <span data-i18n="settings.tab.invites">成員歸屬</span></button>
+                        <button id="setTabOrgMembers" onclick="settingsSwitchTab('orgMembers')" class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-users"></i> <span data-i18n="settings.tab.orgmembers">組織成員</span></button>
                     </div>
 
                     <!-- ─── Pane 1: 使用者設定（保留原本內容） ─── -->
@@ -3214,6 +3307,40 @@ driver.swipe(100, 800, 100, 200, 500)"
                                 </div>
                             </form>
                             <p class="text-[10px] text-stone-500 mt-3"><i class="fa-solid fa-circle-info"></i> 密碼以明文儲存於後端 DB（生產環境建議搭配 KMS 加密；目前為簡化實作）。「寄測試信」會以目前儲存設定發信到您帳號的 Email,失敗會顯示 SMTP 錯誤訊息。</p>
+                        </section>
+                    </div>
+
+                    <!-- ─── Pane 9: 組織成員(Phase 7 多租戶)─── -->
+                    <div id="setPaneOrgMembers" class="hidden space-y-4">
+                        <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-4">
+                            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                                <h3 class="font-bold text-stone-700 text-base flex items-center gap-2"><i class="fa-solid fa-users text-amber-500"></i> 組織成員(<span id="omOrgName">—</span>)</h3>
+                                <div class="flex items-center gap-2">
+                                    <button onclick="omReload()" class="text-xs px-2.5 py-1.5 border border-stone-300 rounded hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
+                                </div>
+                            </div>
+                            <p class="text-xs text-stone-500 mb-3">列出當前組織所有成員與其組織層角色;切換組織透過上方列右側的「組織」下拉。</p>
+                            <div class="overflow-hidden border border-stone-100 rounded-md">
+                                <table class="w-full text-sm">
+                                    <thead class="bg-amber-50/60 text-stone-600 text-xs uppercase">
+                                        <tr>
+                                            <th class="p-3 text-left">使用者</th>
+                                            <th class="p-3 text-left">Email</th>
+                                            <th class="p-3 text-left w-48">Org 角色</th>
+                                            <th class="p-3 text-left w-24">狀態</th>
+                                            <th class="p-3 text-left w-28">加入時間</th>
+                                            <th class="p-3 text-center w-20"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="omTableBody" class="divide-y divide-stone-100">
+                                        <tr><td colspan="6" class="p-4 text-center text-stone-400">載入中…</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="mt-2 text-[11px] text-stone-500">
+                                <i class="fa-solid fa-circle-info text-amber-500"></i>
+                                想限縮某使用者只能看特定專案?到 nav drawer → 設定 → <b>專案成員</b> 管理;這裡只管 org 層的可見性。
+                            </div>
                         </section>
                     </div>
 
@@ -4826,6 +4953,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                     '#dbconfig':        'dbConfigWorkspace',
                     '#mock':            'mockWorkspace',
                     '#usersettings':    'userSettingsWorkspace',
+                    '#projectmembers':  'projectMembersWorkspace',
                 };
                 var hash = (window.location.hash || '#home').toLowerCase();
                 var wsId = HASH_TO_WORKSPACE[hash] || 'homeWorkspace';
@@ -7631,6 +7759,11 @@ driver.swipe(100, 800, 100, 200, 500)"
             const goHome = !opts || opts.goHome !== false;
             currentProjectId = pid;
             currentTestCase = null;
+            // Phase 6:切換專案時清掉 assignable users / groups cache,讓
+            // 下一次開指派 picker 重新從 per-project endpoint 抓。
+            _assignableUsersCache = null;
+            _assignableUsersCacheKey = null;
+            _assignableGroupsCache = null;
             if (!pid) {
                 activeTreeData = [];
                 renderAllTree();
@@ -9762,6 +9895,104 @@ driver.swipe(100, 800, 100, 200, 500)"
                 showToast('已切至 Docker 模式（無頭，容器內執行）', 'info');
             }
         }
+        // ── Phase 4 多組織切換器 ─────────────────────────────────────────
+        // 抓 /api/auth/me/orgs;只有 ≥ 2 個 org 才顯示;current org 視覺強調 + 點擊
+        // 任何其他 org 走 /api/auth/switch-org 拿新 JWT 後整頁 reload。
+        let _orgsCache = null;
+        async function renderOrgSwitcher() {
+            const wrap = document.getElementById('orgSwitcher');
+            const label = document.getElementById('orgSwitcherLabel');
+            const menu = document.getElementById('orgSwitcherMenu');
+            if (!wrap || !label || !menu) return;
+            try {
+                const r = await fetch('/api/auth/me/orgs');
+                if (!r.ok) { wrap.classList.add('hidden'); return; }
+                const orgs = await r.json();
+                _orgsCache = Array.isArray(orgs) ? orgs : [];
+                if (_orgsCache.length < 2) {
+                    wrap.classList.add('hidden');
+                    return;
+                }
+                const current = _orgsCache.find(o => o.is_current) || _orgsCache[0];
+                label.textContent = current.name || current.slug || '組織';
+                wrap.title = `當前組織:${current.name}\n你共在 ${_orgsCache.length} 個組織`;
+                menu.innerHTML = _orgsCache.map(o => {
+                    const isCur = o.is_current;
+                    const cls = isCur
+                        ? 'bg-amber-50 text-amber-800 cursor-default'
+                        : 'hover:bg-stone-50 text-stone-700 cursor-pointer';
+                    return `
+                        <button type="button" ${isCur ? '' : `onclick="switchOrg('${o.organization_id}')"`}
+                            class="w-full flex items-center gap-2.5 px-3 py-2 text-left text-sm ${cls} transition">
+                            <i class="fa-solid ${isCur ? 'fa-circle-check text-amber-600' : 'fa-circle text-stone-300'} text-[10px] mt-0.5 shrink-0"></i>
+                            <div class="flex-1 min-w-0">
+                                <div class="font-semibold truncate">${_esc(o.name)}</div>
+                                <div class="text-[11px] text-stone-500 truncate">
+                                    ${_esc(o.slug)}${o.role_name ? ` · ${_esc(o.role_name)}` : ''}
+                                    ${o.is_default ? ' · <span class="text-emerald-600 font-medium">預設</span>' : ''}
+                                </div>
+                            </div>
+                        </button>
+                    `;
+                }).join('');
+                wrap.classList.remove('hidden');
+            } catch (e) {
+                wrap.classList.add('hidden');
+            }
+        }
+        function toggleOrgSwitcherMenu(e) {
+            e.stopPropagation();
+            const menu = document.getElementById('orgSwitcherMenu');
+            const btn = document.getElementById('orgSwitcherBtn');
+            if (!menu) return;
+            const opening = menu.classList.contains('hidden');
+            menu.classList.toggle('hidden');
+            if (btn) btn.setAttribute('aria-expanded', opening ? 'true' : 'false');
+            if (opening) {
+                // click 外面關閉
+                setTimeout(() => {
+                    document.addEventListener('click', _closeOrgMenuOnce, { once: true });
+                }, 0);
+            }
+        }
+        function _closeOrgMenuOnce(e) {
+            const menu = document.getElementById('orgSwitcherMenu');
+            const btn = document.getElementById('orgSwitcherBtn');
+            if (menu && !menu.contains(e.target) && !btn.contains(e.target)) {
+                menu.classList.add('hidden');
+                if (btn) btn.setAttribute('aria-expanded', 'false');
+            }
+        }
+        async function switchOrg(orgId) {
+            try {
+                const r = await fetch('/api/auth/switch-org', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ organization_id: orgId }),
+                });
+                if (!r.ok) {
+                    const j = await r.json().catch(() => ({}));
+                    showToast('切換組織失敗:' + (j.detail || r.statusText), 'error');
+                    return;
+                }
+                const tok = await r.json();
+                // 寫入新 JWT(localStorage 沿用既有 key)
+                if (typeof _authWriteSession === 'function') {
+                    const s = _authReadSession() || {};
+                    _authWriteSession({
+                        ...s,
+                        access_token: tok.access_token,
+                        refresh_token: tok.refresh_token,
+                        access_expires_at: Date.now() + (tok.expires_in || 7200) * 1000,
+                    });
+                }
+                showToast('組織已切換,重新載入...', 'success');
+                setTimeout(() => location.reload(), 600);
+            } catch (e) {
+                showToast('切換組織失敗:' + (e.message || e), 'error');
+            }
+        }
+
         function renderExecutionModeButton() {
             const btn = document.getElementById('envToggleBtn');
             const label = document.getElementById('envToggleLabel');
@@ -9846,6 +10077,8 @@ driver.swipe(100, 800, 100, 200, 500)"
             // 通過驗證 → 正常初始化平台
             renderExecutionModeButton();
             updateUserMenuUI();
+            // Phase 4 多組織:抓使用者所屬的所有組織,只在 ≥ 2 個時才顯示切換器。
+            try { renderOrgSwitcher(); } catch (_) {}
             initProjects(projReq).then(() => {
                 // Hash-aware initial dispatch — preserves the view across
                 // reload. Falls back to showHomeView when hash is empty
@@ -10007,6 +10240,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 'showTestPlanView', 'showRequirementsView', 'showTestKanbanView',
                 'showTestProjectsView', 'showTestDataSetsView',
                 'showTestDocumentsView', 'showWbsView', 'showBacklogView',
+                'showProjectMembersView',
             ];
             const _hashToFn = {};   // '#defects' → 'showDefectsView'
             let _suppressHashChange = false;
@@ -12984,7 +13218,205 @@ driver.swipe(100, 800, 100, 200, 500)"
             currentTestCase = null;
             loadMockEndpoints();
             try { _afterViewChange(); } catch (_) {}
-        
+
+        }
+
+        // ── Phase 5 多租戶:專案成員管理頁 ───────────────────────────────
+        function showProjectMembersView() {
+            if (!confirmDiscardIfDirty()) return;
+            _hideAllWorkspaces();
+            _setViewMeta('pm.title', 'pm.title', '<i class="fa-solid fa-users-gear text-amber-500"></i>', 'Members', 'bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium');
+            document.getElementById('projectMembersWorkspace').classList.remove('hidden');
+            document.getElementById('mainHeader').classList.remove('hidden');
+            document.getElementById('mainActions').classList.add('hidden');
+            currentTestCase = null;
+            pmReload();
+            try { _afterViewChange(); } catch (_) {}
+        }
+
+        let _pmAllRoles = [];   // {id, name, scope}[];載入過後 cache 給角色下拉用
+
+        async function pmReload() {
+            const nameEl = document.getElementById('pmCurrentProjectName');
+            const tbody = document.getElementById('pmTableBody');
+            const empty = document.getElementById('pmEmptyHint');
+            const tableWrap = document.getElementById('pmTableWrap');
+            if (!currentProjectId) {
+                nameEl.textContent = '—';
+                empty.classList.remove('hidden');
+                tableWrap.classList.add('hidden');
+                return;
+            }
+            empty.classList.add('hidden');
+            tableWrap.classList.remove('hidden');
+            const proj = projectsData[currentProjectId];
+            nameEl.textContent = proj ? proj.name : currentProjectId.slice(0, 8);
+            tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-stone-400">載入中…</td></tr>';
+            try {
+                const r = await fetch(`/api/projects/${encodeURIComponent(currentProjectId)}/members`);
+                if (!r.ok) throw new Error('HTTP '+r.status);
+                const members = await r.json();
+                if (!_pmAllRoles.length) await pmLoadRoles();
+                _renderPmTable(members);
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-rose-500">載入失敗:${_esc(e.message || e)}</td></tr>`;
+            }
+        }
+
+        async function pmLoadRoles() {
+            try {
+                const r = await fetch('/api/settings/roles');
+                if (r.ok) {
+                    const all = await r.json();
+                    _pmAllRoles = (all || []).map(x => ({ id: x.id, name: x.name, scope: x.scope || 'org' }));
+                }
+            } catch (_) { _pmAllRoles = []; }
+        }
+
+        function _renderPmTable(members) {
+            const tbody = document.getElementById('pmTableBody');
+            if (!members.length) {
+                tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-stone-400">尚無成員;點右上「加成員」開始。</td></tr>';
+                return;
+            }
+            const roleOptions = (currentRoleId) => {
+                const inherit = `<option value="" ${!currentRoleId ? 'selected' : ''}>— 繼承 Org 角色 —</option>`;
+                const items = _pmAllRoles.map(r => {
+                    const tag = r.scope === 'project' ? ' (專案)' : ' (組織)';
+                    return `<option value="${_esc(r.id)}" ${currentRoleId === r.id ? 'selected' : ''}>${_esc(r.name)}${tag}</option>`;
+                }).join('');
+                return inherit + items;
+            };
+            tbody.innerHTML = members.map(m => {
+                const joined = m.joined_at ? new Date(m.joined_at).toLocaleDateString() : '—';
+                const statusBadge = m.status === 'active'
+                    ? '<span class="px-2 py-0.5 text-[11px] bg-emerald-50 text-emerald-700 rounded font-medium">active</span>'
+                    : `<span class="px-2 py-0.5 text-[11px] bg-stone-100 text-stone-600 rounded">${_esc(m.status)}</span>`;
+                return `
+                    <tr class="hover:bg-amber-50/40">
+                        <td class="p-3">
+                            <div class="font-semibold text-stone-800">${_esc(m.display_name || m.username)}</div>
+                            <div class="text-[11px] text-stone-500 font-mono">@${_esc(m.username)}</div>
+                        </td>
+                        <td class="p-3 text-stone-600">${_esc(m.email || '—')}</td>
+                        <td class="p-3">
+                            <select onchange="pmChangeRole('${_esc(m.username)}', this.value)"
+                                class="w-full px-2 py-1 border border-stone-300 rounded text-xs bg-white">
+                                ${roleOptions(m.role_id)}
+                            </select>
+                        </td>
+                        <td class="p-3">${statusBadge}</td>
+                        <td class="p-3 text-stone-500 text-[11px]">${joined}</td>
+                        <td class="p-3 text-center">
+                            <button onclick="pmRemove('${_esc(m.username)}')" title="移除"
+                                class="text-stone-400 hover:text-rose-600 transition">
+                                <i class="fa-solid fa-user-minus"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function pmChangeRole(username, roleId) {
+            if (!currentProjectId) return;
+            try {
+                const r = await fetch(`/api/projects/${encodeURIComponent(currentProjectId)}/members/${encodeURIComponent(username)}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ role_id: roleId || null }),
+                });
+                if (!r.ok) {
+                    const j = await r.json().catch(() => ({}));
+                    showToast('改角色失敗:' + (j.detail || r.statusText), 'error');
+                    pmReload();
+                } else {
+                    showToast('已更新角色', 'success');
+                }
+            } catch (e) {
+                showToast('改角色失敗:' + (e.message || e), 'error');
+            }
+        }
+
+        async function pmRemove(username) {
+            if (!currentProjectId) return;
+            if (!confirm(`確定移除「${username}」?\n他在組織中仍是成員,只是不再看得到此專案。`)) return;
+            try {
+                const r = await fetch(`/api/projects/${encodeURIComponent(currentProjectId)}/members/${encodeURIComponent(username)}`, {
+                    method: 'DELETE',
+                });
+                if (!r.ok) {
+                    const j = await r.json().catch(() => ({}));
+                    showToast('移除失敗:' + (j.detail || r.statusText), 'error');
+                    return;
+                }
+                showToast('已移除', 'success');
+                pmReload();
+            } catch (e) {
+                showToast('移除失敗:' + (e.message || e), 'error');
+            }
+        }
+
+        async function pmOpenAddModal() {
+            if (!currentProjectId) {
+                showToast('請先選擇專案', 'error');
+                return;
+            }
+            // 載入候選使用者(取 org 全 user,排除已是成員的)
+            const userSel = document.getElementById('pmAddUsername');
+            const roleSel = document.getElementById('pmAddRoleId');
+            userSel.innerHTML = '<option value="">— 載入中… —</option>';
+            try {
+                const [usersR, membersR] = await Promise.all([
+                    fetch('/api/auth/users/assignable'),
+                    fetch(`/api/projects/${encodeURIComponent(currentProjectId)}/members`),
+                ]);
+                const users = usersR.ok ? await usersR.json() : [];
+                const members = membersR.ok ? await membersR.json() : [];
+                const memberSet = new Set(members.map(m => m.username));
+                const candidates = (users || []).filter(u => !memberSet.has(u.username));
+                userSel.innerHTML = candidates.length
+                    ? '<option value="">— 選擇使用者 —</option>' + candidates.map(u =>
+                        `<option value="${_esc(u.username)}">${_esc(u.display_name || u.username)} · ${_esc(u.email || '無 email')}</option>`
+                    ).join('')
+                    : '<option value="">(全部使用者已是成員)</option>';
+                if (!_pmAllRoles.length) await pmLoadRoles();
+                roleSel.innerHTML = '<option value="">— 繼承 Org 角色 —</option>'
+                    + _pmAllRoles.map(r => {
+                        const tag = r.scope === 'project' ? ' (專案)' : ' (組織)';
+                        return `<option value="${_esc(r.id)}">${_esc(r.name)}${tag}</option>`;
+                    }).join('');
+            } catch (e) {
+                userSel.innerHTML = '<option value="">載入失敗</option>';
+            }
+            document.getElementById('pmAddModal').classList.remove('hidden');
+        }
+
+        function pmCloseAddModal() {
+            document.getElementById('pmAddModal').classList.add('hidden');
+        }
+
+        async function pmSubmitAdd() {
+            const username = document.getElementById('pmAddUsername').value;
+            const roleId = document.getElementById('pmAddRoleId').value;
+            if (!username) { showToast('請選擇使用者', 'error'); return; }
+            try {
+                const r = await fetch(`/api/projects/${encodeURIComponent(currentProjectId)}/members`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, role_id: roleId || null }),
+                });
+                if (!r.ok) {
+                    const j = await r.json().catch(() => ({}));
+                    showToast('加成員失敗:' + (j.detail || r.statusText), 'error');
+                    return;
+                }
+                showToast('成員已加入', 'success');
+                pmCloseAddModal();
+                pmReload();
+            } catch (e) {
+                showToast('加成員失敗:' + (e.message || e), 'error');
+            }
         }
 
         // 簡易 HTML attribute escape（給 oninput value 用）
@@ -17119,7 +17551,7 @@ gantt
         }
 
         // ─── 設定（Settings）── 9 個 tab
-        const _SETTINGS_TABS = ['user','perms','roles','notif','email','ai','groups','invites'];
+        const _SETTINGS_TABS = ['user','perms','roles','notif','email','ai','groups','invites','orgMembers'];
         const _SETTINGS_TAB_BTN_ON  = 'px-3 py-1.5 text-sm font-medium rounded text-amber-700 bg-amber-50 border border-amber-300';
         const _SETTINGS_TAB_BTN_OFF = 'px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50';
         function settingsSwitchTab(name) {
@@ -17143,6 +17575,7 @@ gantt
             else if (name === 'ai') renderAiTokensList();
             else if (name === 'groups') renderGroupsView();
             else if (name === 'invites') renderInvitesView();
+            else if (name === 'orgMembers') omReload();
         }
 
         // ─── 權限清單（唯讀） ─────────────────────────────────────────
@@ -17763,6 +18196,112 @@ gantt
             } else {
                 inp.value = '';
                 hint.textContent = '⚠ 無法取得當前組織(可能需要 superuser 權限)';
+            }
+        }
+
+        // ── Phase 7 多租戶:組織成員列表 ─────────────────────────────────
+        async function omReload() {
+            const tbody = document.getElementById('omTableBody');
+            const nameEl = document.getElementById('omOrgName');
+            await _loadCurrentOrg(true);
+            const org = _currentOrgCache;
+            if (!org) {
+                if (nameEl) nameEl.textContent = '—';
+                tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-rose-500">無法取得當前組織</td></tr>';
+                return;
+            }
+            if (nameEl) nameEl.textContent = org.name || org.slug || '—';
+            tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-stone-400">載入中…</td></tr>';
+            try {
+                const r = await fetch(`/api/orgs/${encodeURIComponent(org.id)}/members`);
+                if (!r.ok) throw new Error('HTTP '+r.status);
+                const members = await r.json();
+                if (!_pmAllRoles.length) await pmLoadRoles();
+                _renderOmTable(members, org.id);
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-rose-500">載入失敗:${_esc(e.message || e)}</td></tr>`;
+            }
+        }
+
+        function _renderOmTable(members, orgId) {
+            const tbody = document.getElementById('omTableBody');
+            if (!members.length) {
+                tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-stone-400">尚無成員</td></tr>';
+                return;
+            }
+            const orgRoles = (_pmAllRoles || []).filter(r => r.scope === 'org');
+            const roleOpts = (curId) => {
+                const none = `<option value="" ${!curId ? 'selected' : ''}>— 無角色 —</option>`;
+                return none + orgRoles.map(r =>
+                    `<option value="${_esc(r.id)}" ${curId === r.id ? 'selected' : ''}>${_esc(r.name)}</option>`
+                ).join('');
+            };
+            tbody.innerHTML = members.map(m => {
+                const joined = m.joined_at ? new Date(m.joined_at).toLocaleDateString() : '—';
+                const statusBadge = m.status === 'active'
+                    ? '<span class="px-2 py-0.5 text-[11px] bg-emerald-50 text-emerald-700 rounded font-medium">active</span>'
+                    : `<span class="px-2 py-0.5 text-[11px] bg-stone-100 text-stone-600 rounded">${_esc(m.status)}</span>`;
+                const isDefault = m.is_default ? ' <span class="text-[10px] text-amber-600 font-medium">★ 預設</span>' : '';
+                return `
+                    <tr class="hover:bg-amber-50/40">
+                        <td class="p-3">
+                            <div class="font-semibold text-stone-800">${_esc(m.display_name || m.username)}${isDefault}</div>
+                            <div class="text-[11px] text-stone-500 font-mono">@${_esc(m.username)}</div>
+                        </td>
+                        <td class="p-3 text-stone-600">${_esc(m.email || '—')}</td>
+                        <td class="p-3">
+                            <select onchange="omChangeRole('${_esc(orgId)}', '${_esc(m.username)}', this.value)"
+                                class="w-full px-2 py-1 border border-stone-300 rounded text-xs bg-white">
+                                ${roleOpts(m.role_id)}
+                            </select>
+                        </td>
+                        <td class="p-3">${statusBadge}</td>
+                        <td class="p-3 text-stone-500 text-[11px]">${joined}</td>
+                        <td class="p-3 text-center">
+                            <button onclick="omRemove('${_esc(orgId)}', '${_esc(m.username)}')" title="移除"
+                                class="text-stone-400 hover:text-rose-600 transition">
+                                <i class="fa-solid fa-user-minus"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function omChangeRole(orgId, username, roleId) {
+            try {
+                const r = await fetch(`/api/orgs/${encodeURIComponent(orgId)}/members/${encodeURIComponent(username)}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ role_id: roleId || null }),
+                });
+                if (!r.ok) {
+                    const j = await r.json().catch(() => ({}));
+                    showToast('改角色失敗:' + (j.detail || r.statusText), 'error');
+                    omReload();
+                } else {
+                    showToast('已更新角色', 'success');
+                }
+            } catch (e) {
+                showToast('改角色失敗:' + (e.message || e), 'error');
+            }
+        }
+
+        async function omRemove(orgId, username) {
+            if (!confirm(`確定移除「${username}」?\n他在此組織的所有 ProjectMember 也會一併刪除。`)) return;
+            try {
+                const r = await fetch(`/api/orgs/${encodeURIComponent(orgId)}/members/${encodeURIComponent(username)}`, {
+                    method: 'DELETE',
+                });
+                if (!r.ok) {
+                    const j = await r.json().catch(() => ({}));
+                    showToast('移除失敗:' + (j.detail || r.statusText), 'error');
+                    return;
+                }
+                showToast('已移除', 'success');
+                omReload();
+            } catch (e) {
+                showToast('移除失敗:' + (e.message || e), 'error');
             }
         }
 
@@ -19207,14 +19746,24 @@ gantt
         }
 
         // 同 org 可指派使用者快取(避免每次開 modal 都重抓)
+        // Phase 6 多租戶:當有 currentProjectId 時改用 per-project endpoint,
+        //   只回該專案的 ProjectMember,避免列出非成員。當沒有 project context
+        //   (例:org-level Backlog assignee picker)再 fallback 到 org-wide 端點。
+        // 兩個 cache key 分開,以免 project A 的 cache 被誤用到 project B。
         let _assignableUsersCache = null;
+        let _assignableUsersCacheKey = null;
         async function _loadAssignableUsers(force) {
-            if (!force && _assignableUsersCache) return _assignableUsersCache;
+            const key = (typeof currentProjectId !== 'undefined' && currentProjectId) ? `proj:${currentProjectId}` : 'org';
+            if (!force && _assignableUsersCache && _assignableUsersCacheKey === key) return _assignableUsersCache;
+            const url = key.startsWith('proj:')
+                ? `/api/projects/${encodeURIComponent(currentProjectId)}/assignable-users`
+                : '/api/auth/users/assignable';
             try {
-                const r = await fetch('/api/auth/users/assignable');
+                const r = await fetch(url);
                 if (!r.ok) throw new Error('HTTP '+r.status);
                 _assignableUsersCache = await r.json();
-            } catch (_) { _assignableUsersCache = []; }
+                _assignableUsersCacheKey = key;
+            } catch (_) { _assignableUsersCache = []; _assignableUsersCacheKey = key; }
             return _assignableUsersCache;
         }
 
