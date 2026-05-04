@@ -22,6 +22,17 @@ Tables WITHOUT a direct `project_id` (e.g. `execution_step_log`) traverse one
 extra hop through their parent (e.g. `execution_report.project_id`). The
 helpers here support both shapes.
 
+Phase 2.6 — per-project membership tightening
+---------------------------------------------
+Beyond the org check, every helper here now also requires an active
+:class:`ProjectMember` row for the (user, project) pair. The
+0006_multi_tenant_assignment migration grandfathered every existing user into
+every project of their org, so this is zero regression for legacy callers;
+once an admin removes a user via /api/projects/{pid}/members the
+helpers immediately stop returning that project's rows from listing endpoints
+(``scope_by_project``) and 404 on any direct entity-id lookup
+(``ensure_project_in_scope``) or 403 on writes (``ensure_project_writable``).
+
 Superusers bypass scope filtering entirely. The intent is single-tenant
 self-hosted deployments where one designated admin needs unrestricted access
 for support tasks.
@@ -56,10 +67,11 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from fastapi import HTTPException
-from sqlalchemy import Select, select
+from sqlalchemy import Select, and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.project import Project
+from app.models.project_member import ProjectMember
 from app.models.user import User
 
 
@@ -71,18 +83,48 @@ def scope_by_project(
     project_id_attr: str = "project_id",
 ) -> Select:
     """Constrain `stmt` so it only returns rows of `model` whose project belongs
-    to the user's organization.
+    to the user's organization AND in which the user is an active ProjectMember.
 
     `model.project_id_attr` is the attribute name holding the FK to projects.id.
     Default is `project_id`. Pass a different name when the FK column is named
     differently (rare).
+
+    Phase 2.6: adds the ProjectMember join so listing endpoints automatically
+    hide rows from projects the user has been removed from. Grandfather backfill
+    means existing users see no behaviour change until an admin actively removes
+    a member.
     """
     if user.is_superuser:
         return stmt
     project_fk = getattr(model, project_id_attr)
-    return stmt.join(Project, project_fk == Project.id).where(
-        Project.organization_id == user.organization_id
+    return (
+        stmt.join(Project, project_fk == Project.id)
+        .join(
+            ProjectMember,
+            and_(
+                ProjectMember.project_id == Project.id,
+                ProjectMember.username == user.username,
+                ProjectMember.status == "active",
+            ),
+        )
+        .where(Project.organization_id == user.organization_id)
     )
+
+
+async def _is_active_project_member(
+    db: AsyncSession,
+    project_id: str,
+    username: str,
+) -> bool:
+    pm = (
+        await db.execute(
+            select(ProjectMember.id)
+            .where(ProjectMember.project_id == project_id)
+            .where(ProjectMember.username == username)
+            .where(ProjectMember.status == "active")
+        )
+    ).scalar_one_or_none()
+    return pm is not None
 
 
 async def ensure_project_in_scope(
@@ -92,11 +134,16 @@ async def ensure_project_in_scope(
     *,
     not_found_detail: str = "Resource not found",
 ) -> None:
-    """Raise 404 if the given project_id is not in the user's organization.
+    """Raise 404 unless ``project_id`` is in the user's org **and** the user has
+    an active :class:`ProjectMember` row for it.
 
     Pass `None` to indicate the row itself was not found; this also raises 404,
     so the caller does not have to disambiguate "missing" vs "wrong org" before
     the response is sent (and we do not leak existence across orgs).
+
+    Phase 2.6: also enforces project membership. 404 (not 403) for the
+    non-member case so that a removed user can't probe project IDs and confirm
+    they exist somewhere else in their org.
     """
     if user.is_superuser:
         if project_id is None:
@@ -106,6 +153,8 @@ async def ensure_project_in_scope(
         raise HTTPException(status_code=404, detail=not_found_detail)
     proj = await db.get(Project, project_id)
     if proj is None or proj.organization_id != user.organization_id:
+        raise HTTPException(status_code=404, detail=not_found_detail)
+    if not await _is_active_project_member(db, project_id, user.username):
         raise HTTPException(status_code=404, detail=not_found_detail)
 
 
@@ -117,9 +166,14 @@ async def ensure_project_writable(
     """Same as `ensure_project_in_scope` but for create / update payloads where
     the caller is asserting that they may write to the supplied project.
 
-    Raises 403 (forbidden) on cross-org writes — distinct from the read-side 404
-    so API clients can tell the difference between "you tried to write to a
-    project you do not own" and "this resource just does not exist".
+    Raises:
+        404: project does not exist at all.
+        403: project exists but is in a different org, OR the user is in the
+             org but not an active member of this specific project.
+
+    Distinct status codes vs ``ensure_project_in_scope`` so API clients can
+    distinguish "the resource you're writing to does not exist" from "you tried
+    to write to a project you don't have membership in".
     """
     if user.is_superuser:
         return
@@ -130,6 +184,11 @@ async def ensure_project_writable(
         raise HTTPException(
             status_code=403,
             detail="Cannot write to a project outside your organization",
+        )
+    if not await _is_active_project_member(db, project_id, user.username):
+        raise HTTPException(
+            status_code=403,
+            detail="You are not a member of this project",
         )
 
 
