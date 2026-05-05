@@ -28,6 +28,7 @@ ALLOWED_TARGET_TYPES = {
     "test_plan",
     "test_round",
     "test_milestone",
+    "test_version",    # G-1:讓 todo 可連到「測試版號」(平台 + version_label)
     "wbs",
     "test_document",
     "project",

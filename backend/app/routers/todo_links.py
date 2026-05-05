@@ -23,6 +23,7 @@ from app.models.test_document import TestDocument
 from app.models.test_milestone import TestMilestone
 from app.models.test_plan import TestPlan
 from app.models.test_round import TestRound
+from app.models.test_version import TestVersion
 from app.models.todo_item import TodoItem
 from app.models.todo_link import ALLOWED_TARGET_TYPES, TodoLink
 from app.models.tree_node import LevelType, TreeNode
@@ -45,6 +46,7 @@ _TARGET_REGISTRY = {
     "test_plan": (TestPlan, "name", None),
     "test_round": (TestRound, "name", None),
     "test_milestone": (TestMilestone, "name", None),
+    "test_version": (TestVersion, "version_label", "platform"),  # G-1:顯示為「[WEB] v1.5-rc1」
     "wbs": (WbsItem, "name", None),
     "test_document": (TestDocument, "title", None),
     "project": (Project, "name", None),
@@ -76,6 +78,11 @@ async def _validate_target(
         raise HTTPException(404, f"找不到 {target_type}:{target_id}")
     title = getattr(obj, title_attr, None)
     code = getattr(obj, code_attr, None) if code_attr else None
+    # Enum 欄位(例如 TestVersion.platform)→ 取 .value 否則前端顯示會是 "VersionPlatform.WEB"
+    if hasattr(title, "value"):
+        title = title.value
+    if hasattr(code, "value"):
+        code = code.value
     return (title, code)
 
 

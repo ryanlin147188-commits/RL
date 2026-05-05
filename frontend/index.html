@@ -1037,12 +1037,19 @@
                             <option value="test_plan">📑 <span data-i18n="links.target.test_plan">測試計畫</span></option>
                             <option value="test_round">🔁 <span data-i18n="links.target.test_round">測試回合</span></option>
                             <option value="test_milestone">🏁 <span data-i18n="links.target.test_milestone">里程碑</span></option>
+                            <option value="test_version">🏷️ <span data-i18n="links.target.test_version">測試版號</span></option>
                             <option value="wbs">📊 <span data-i18n="links.target.wbs">WBS</span></option>
                             <option value="test_document">📄 <span data-i18n="links.target.test_document">測試文件</span></option>
                             <option value="project">📦 <span data-i18n="links.target.project">專案</span></option>
                         </select>
                         <select id="todoLinkTargetId" aria-label="連結目標" class="flex-1 min-w-0 px-2 py-1.5 border border-stone-300 rounded text-xs bg-white">
                             <option value="">— <span data-i18n="links.pick">選擇目標</span> —</option>
+                        </select>
+                        <select id="todoLinkKind" aria-label="連結類型" class="px-2 py-1.5 border border-stone-300 rounded text-xs bg-white" title="連結語意:relates_to(相關)/ verifies(驗證)/ blocks(阻擋)/ duplicates(重複)">
+                            <option value="relates_to">↔ 相關</option>
+                            <option value="verifies">✓ 驗證</option>
+                            <option value="blocks">⛔ 阻擋</option>
+                            <option value="duplicates">🔁 重複</option>
                         </select>
                         <button type="button" onclick="addTodoLink()" class="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded text-xs font-medium"><i class="fa-solid fa-plus"></i> <span data-i18n="links.add">新增連結</span></button>
                     </div>
@@ -3723,6 +3730,8 @@ driver.swipe(100, 800, 100, 200, 500)"
                             <textarea id="tvDesc" rows="4" placeholder="這個版號包含哪些功能 / 修正…" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea>
                         </div>
                         <p id="tvUsageHint" class="hidden text-[11px] text-stone-500 bg-stone-50 border border-stone-200 rounded p-2"></p>
+                        <!-- G-2:相關待辦反向視圖 -->
+                        <section id="tvLinkedTodos" class="border border-stone-200 rounded-md bg-stone-50/40 p-3 hidden"></section>
                         <div class="flex justify-between items-center pt-2">
                             <button type="button" id="tvDeleteBtn" onclick="tvDeleteCurrent()" class="hidden px-3 py-2 bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 rounded-md text-sm font-medium"><i class="fa-solid fa-trash"></i> 刪除</button>
                             <div class="flex gap-2 ml-auto">
@@ -4546,6 +4555,8 @@ driver.swipe(100, 800, 100, 200, 500)"
                                 class="w-full h-full p-4 font-mono text-sm border-r border-stone-200 focus:outline-none focus:bg-pink-50/20 resize-none" placeholder="# 從這裡開始撰寫您的測試文件…"></textarea>
                             <div id="docPreview" class="prose prose-sm max-w-none w-full h-full p-6 overflow-y-auto bg-white"></div>
                         </div>
+                        <!-- G-2:相關待辦反向視圖(編輯模式才顯示)-->
+                        <section id="docLinkedTodos" class="hidden border-t border-stone-200 bg-stone-50/40 px-6 py-3 shrink-0"></section>
                         <!-- 底部 -->
                         <div class="px-6 py-3 border-t border-stone-200 bg-stone-50 flex justify-end gap-2 shrink-0">
                             <button type="button" onclick="closeDocumentEditor()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button>
@@ -4686,6 +4697,8 @@ driver.swipe(100, 800, 100, 200, 500)"
                             </div>
                             <div id="defAttachmentList" class="mt-2 space-y-1"></div>
                         </div>
+                        <!-- G-2:相關待辦反向視圖 -->
+                        <section id="defectLinkedTodos" class="border border-stone-200 rounded-md bg-stone-50/40 p-3 hidden"></section>
                         <div class="flex justify-end gap-2 pt-2"><button type="button" onclick="closeDefectModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button><button type="submit" class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button></div>
                     </form>
                 </div>
@@ -4819,6 +4832,8 @@ driver.swipe(100, 800, 100, 200, 500)"
                             <select id="reqTestcases" multiple aria-label="關聯測試案例" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white" size="6"></select>
                             <p class="text-[10px] text-stone-500 mt-0.5">儲存時會整批替換此需求的關聯案例</p>
                         </div>
+                        <!-- G-2:相關待辦反向視圖 -->
+                        <section id="reqLinkedTodos" class="border border-stone-200 rounded-md bg-stone-50/40 p-3 hidden"></section>
                         <div class="flex justify-end gap-2 pt-2 flex-wrap">
                             <button type="button" onclick="closeRequirementModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button>
                             <button type="submit" class="px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button>
@@ -5439,6 +5454,8 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('tvDesc').value = '';
             document.getElementById('tvDeleteBtn').classList.add('hidden');
             document.getElementById('tvUsageHint').classList.add('hidden');
+            // G-2:create 模式不顯示反向視圖(還沒 id)
+            document.getElementById('tvLinkedTodos')?.classList.add('hidden');
             document.getElementById('tvModal').classList.remove('hidden');
         }
 
@@ -5459,6 +5476,12 @@ driver.swipe(100, 800, 100, 200, 500)"
                 hint.classList.remove('hidden');
             } else {
                 hint.classList.add('hidden');
+            }
+            // G-2:相關待辦反向視圖
+            const tvLinked = document.getElementById('tvLinkedTodos');
+            if (tvLinked) {
+                tvLinked.classList.remove('hidden');
+                _renderLinkedTodosBlock('tvLinkedTodos', 'test_version', id);
             }
             document.getElementById('tvModal').classList.remove('hidden');
         }
@@ -16123,6 +16146,16 @@ driver.swipe(100, 800, 100, 200, 500)"
                 hint.textContent = '需先儲存缺陷後才能上傳附件';
             }
             renderDefectAttachments();
+            // G-2:相關待辦反向視圖(只在 edit 模式才顯示,新增時還沒有 id)
+            const linkedBox = document.getElementById('defectLinkedTodos');
+            if (linkedBox) {
+                if (id) {
+                    linkedBox.classList.remove('hidden');
+                    _renderLinkedTodosBlock('defectLinkedTodos', 'defect', id);
+                } else {
+                    linkedBox.classList.add('hidden');
+                }
+            }
             document.getElementById('defectModal').classList.remove('hidden');
         }
         let _editingDefectAttachments = [];
@@ -16895,6 +16928,16 @@ gantt
             const tcs = _collectAllTestCases();
             const linked = new Set(r?.linked_testcase_ids || []);
             sel.innerHTML = tcs.map(tc => `<option value="${_esc(tc.id)}" ${linked.has(tc.id)?'selected':''}>${_esc(tc.title)} （${_esc(tc.path||'—')}）</option>`).join('');
+            // G-2:相關待辦反向視圖(僅 edit 模式)
+            const reqLinked = document.getElementById('reqLinkedTodos');
+            if (reqLinked) {
+                if (id) {
+                    reqLinked.classList.remove('hidden');
+                    _renderLinkedTodosBlock('reqLinkedTodos', 'requirement', id);
+                } else {
+                    reqLinked.classList.add('hidden');
+                }
+            }
             document.getElementById('requirementModal').classList.remove('hidden');
         }
         function closeRequirementModal() { document.getElementById('requirementModal').classList.add('hidden'); }
@@ -18085,6 +18128,16 @@ gantt
             document.getElementById('docContent').value = r?.content_md || (id ? '' : DOC_DEFAULT_TEMPLATE);
             _docDirty = false;
             updateDocDirtyHint();
+            // G-2:相關待辦反向視圖(僅 edit 模式)
+            const docLinked = document.getElementById('docLinkedTodos');
+            if (docLinked) {
+                if (id) {
+                    docLinked.classList.remove('hidden');
+                    _renderLinkedTodosBlock('docLinkedTodos', 'test_document', id);
+                } else {
+                    docLinked.classList.add('hidden');
+                }
+            }
             document.getElementById('testDocumentModal').classList.remove('hidden');
             docEditorViewMode('split');
             renderDocPreview();
@@ -21845,9 +21898,17 @@ gantt
             test_plan:      { icon:'📑', label:'測試計畫', i18n:'links.target.test_plan' },
             test_round:     { icon:'🔁', label:'測試回合', i18n:'links.target.test_round' },
             test_milestone: { icon:'🏁', label:'里程碑',   i18n:'links.target.test_milestone' },
+            test_version:   { icon:'🏷️', label:'測試版號', i18n:'links.target.test_version' },
             wbs:            { icon:'📊', label:'WBS',      i18n:'links.target.wbs' },
             test_document:  { icon:'📄', label:'測試文件', i18n:'links.target.test_document' },
             project:        { icon:'📦', label:'專案',     i18n:'links.target.project' },
+        };
+        // G-3:link_kind 顯示對應(顏色 / icon),自由字串但前端只暴露這 4 種選項
+        const TODO_LINK_KIND_LABEL = {
+            relates_to: { icon: '↔', label: '相關', cls: 'bg-stone-100 text-stone-600' },
+            verifies:   { icon: '✓', label: '驗證', cls: 'bg-emerald-100 text-emerald-700' },
+            blocks:     { icon: '⛔', label: '阻擋', cls: 'bg-rose-100 text-rose-700' },
+            duplicates: { icon: '🔁', label: '重複', cls: 'bg-amber-100 text-amber-700' },
         };
 
         async function _loadTodoLinks(todoId) {
@@ -21867,9 +21928,12 @@ gantt
             list.innerHTML = _currentTodoLinks.map(l => {
                 const meta = TODO_LINK_TYPE_LABEL[l.target_type] || { icon:'🔗', label:l.target_type };
                 const codePart = l.target_code ? `<span class="font-mono text-stone-500">${_esc(l.target_code)}</span> · ` : '';
+                const kindMeta = TODO_LINK_KIND_LABEL[l.link_kind] || { icon: '↔', label: l.link_kind || 'relates_to', cls: 'bg-stone-100 text-stone-600' };
+                const kindBadge = `<span class="text-[10px] px-1.5 py-0.5 ${kindMeta.cls} rounded shrink-0" title="連結類型:${_esc(l.link_kind || 'relates_to')}">${kindMeta.icon} ${_esc(kindMeta.label)}</span>`;
                 return `<div class="flex items-center gap-2 px-2 py-1 bg-white border border-stone-200 rounded text-xs">
                     <span class="shrink-0">${meta.icon}</span>
                     <span class="text-[10px] px-1.5 py-0.5 bg-stone-100 text-stone-600 rounded shrink-0">${_esc(meta.label)}</span>
+                    ${kindBadge}
                     <span class="flex-1 min-w-0 truncate text-stone-700">${codePart}${_esc(l.target_title || '(no title)')}</span>
                     <button type="button" onclick="removeTodoLink('${_esc(l.id)}')" class="text-stone-400 hover:text-rose-500 shrink-0" title="移除">
                         <i class="fa-solid fa-xmark"></i>
@@ -21892,6 +21956,15 @@ gantt
                 else if (t === 'test_plan')    rows = await apiFetch(`/api/plans${projQs}`);
                 else if (t === 'test_round')   rows = await apiFetch(`/api/rounds${projQs}`);
                 else if (t === 'test_milestone') rows = await apiFetch(`/api/milestones${projQs}`);
+                else if (t === 'test_version') {
+                    // G-1:reuse 既有 _tvCache(defect modal 已 cache 此 project 的版號)
+                    if (Array.isArray(_tvCache) && _tvCache.length) {
+                        rows = _tvCache;
+                    } else if (currentProjectId) {
+                        // fallback:_tvCache 還沒填(使用者沒進過 defect / version 頁面)
+                        rows = await apiFetch(`/api/test-versions${projQs}`).catch(() => []);
+                    }
+                }
                 else if (t === 'wbs')          rows = await apiFetch(`/api/wbs${projQs}`);
                 else if (t === 'test_document') rows = await apiFetch(`/api/documents${projQs}`);
                 else if (t === 'project')      rows = await apiFetch(`/api/projects`);
@@ -21902,6 +21975,13 @@ gantt
                 rows = Array.isArray(rows) ? rows : (rows?.items || []);
                 idSel.innerHTML = '<option value="">— 選擇 —</option>' + rows.map(r => {
                     const id = r.id || r.node_id || r.testcase_node_id;
+                    if (t === 'test_version') {
+                        // 顯示「[WEB] v1.5-rc1」格式;已棄用版號加標記
+                        const plat = r.platform || '?';
+                        const label = r.version_label || '(無 label)';
+                        const dep = r.status === 'deprecated' ? ' (已棄用)' : '';
+                        return `<option value="${_esc(id)}">[${_esc(plat)}] ${_esc(label)}${dep}</option>`;
+                    }
                     const code = r.code ? r.code + ' · ' : '';
                     const title = r.title || r.name || r.label || '(unnamed)';
                     return `<option value="${_esc(id)}">${_esc(code)}${_esc(title)}</option>`;
@@ -21915,12 +21995,13 @@ gantt
             if (!_editingTodoId) return;
             const t = document.getElementById('todoLinkTargetType').value;
             const id = document.getElementById('todoLinkTargetId').value;
+            const kind = document.getElementById('todoLinkKind')?.value || 'relates_to';
             if (!t || !id) { showToast('請選擇目標', 'error'); return; }
             try {
                 await apiFetch(`/api/todos/${_editingTodoId}/links`, {
                     method:'POST',
                     headers:{'Content-Type':'application/json'},
-                    body: JSON.stringify({ target_type: t, target_id: id }),
+                    body: JSON.stringify({ target_type: t, target_id: id, link_kind: kind }),
                 });
                 showToast('已連結', 'success');
                 _loadTodoLinks(_editingTodoId);
@@ -21934,6 +22015,100 @@ gantt
                 await apiFetch(`/api/todos/${_editingTodoId}/links/${linkId}`, { method:'DELETE' });
                 _loadTodoLinks(_editingTodoId);
             } catch (e) { showToast('移除失敗:'+(e.message||e), 'error'); }
+        }
+
+        // ─── Tier G-2:反向視圖 helper(各 entity detail modal 用)──────
+        // 統一 markup;呼叫 GET /api/links/by-target?target_type=&target_id=
+        // opts.cta = false 可關掉「+ 建立並連結新待辦」按鈕(某些 modal 沒登入或無 project context)
+        async function _renderLinkedTodosBlock(containerId, targetType, targetId, opts) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            opts = opts || {};
+            container.innerHTML = `<div class="text-xs text-stone-400 px-1 py-2"><i class="fa-solid fa-spinner fa-spin"></i> 載入中…</div>`;
+            try {
+                const url = `/api/links/by-target?target_type=${encodeURIComponent(targetType)}&target_id=${encodeURIComponent(targetId)}`;
+                const todos = await apiFetch(url) || [];
+                const headerHtml = `<div class="flex items-center justify-between mb-2"><h4 class="text-xs font-semibold text-stone-700"><i class="fa-solid fa-link text-amber-500"></i> 相關待辦 <span class="text-stone-400 font-mono">(${todos.length})</span></h4>${opts.cta === false ? '' : `<button type="button" onclick="createLinkedTodoFor('${_esc(targetType)}','${_esc(targetId)}')" class="text-xs px-2 py-0.5 bg-amber-500 hover:bg-amber-600 text-white rounded font-medium"><i class="fa-solid fa-plus"></i> 建立並連結新待辦</button>`}</div>`;
+                if (!todos.length) {
+                    container.innerHTML = headerHtml + `<p class="text-xs text-stone-400 italic px-1 py-2">尚無相關待辦</p>`;
+                    return;
+                }
+                const STATUS_COLOR = {Todo:'bg-blue-100 text-blue-700', InProgress:'bg-amber-100 text-amber-700', Done:'bg-emerald-100 text-emerald-700', Cancelled:'bg-stone-100 text-stone-500'};
+                const rowsHtml = todos.map(t => {
+                    const stCls = STATUS_COLOR[t.status] || 'bg-stone-100 text-stone-600';
+                    const kindMeta = TODO_LINK_KIND_LABEL[t.link_kind] || { icon: '↔', label: t.link_kind || 'relates_to', cls: 'bg-stone-100 text-stone-600' };
+                    const kindBadge = `<span class="text-[10px] px-1.5 py-0.5 ${kindMeta.cls} rounded shrink-0" title="${_esc(t.link_kind || 'relates_to')}">${kindMeta.icon} ${_esc(kindMeta.label)}</span>`;
+                    const assignee = t.assignee ? `<span class="text-[10px] text-stone-500 shrink-0">@${_esc(t.assignee)}</span>` : '';
+                    const prio = t.priority ? `<span class="text-[10px] font-mono text-stone-400 shrink-0">${_esc(t.priority)}</span>` : '';
+                    return `<div class="flex items-center gap-2 px-2 py-1 bg-white border border-stone-200 rounded text-xs hover:border-amber-300 cursor-pointer" onclick="myWorkJump('todo','${_esc(t.id)}', currentProjectId)" title="跳轉到待辦">
+                        <span class="text-[10px] px-1.5 py-0.5 rounded ${stCls} shrink-0">${_esc(t.status || '?')}</span>
+                        ${kindBadge}
+                        <span class="flex-1 min-w-0 truncate text-stone-700">${_esc(t.title || '(no title)')}</span>
+                        ${prio}
+                        ${assignee}
+                    </div>`;
+                }).join('');
+                container.innerHTML = headerHtml + `<div class="space-y-1">${rowsHtml}</div>`;
+            } catch (e) {
+                container.innerHTML = `<div class="text-xs text-rose-600 px-1 py-2">載入失敗:${_esc(e.message || e)}</div>`;
+            }
+        }
+
+        // 從 entity detail modal 觸發「建立並連結新待辦」— 開 todoModal,儲存後自動建 link
+        async function createLinkedTodoFor(targetType, targetId) {
+            // 用 openFormModal(D-7)收集最少欄位 → POST /api/todos → POST /api/todos/{id}/links
+            if (typeof openFormModal !== 'function') {
+                showToast('helper 未載入', 'error'); return;
+            }
+            const result = await openFormModal({
+                title: `建立並連結待辦 → ${TODO_LINK_TYPE_LABEL[targetType]?.label || targetType}`,
+                icon: 'fa-link',
+                intro: '建好的待辦會自動連結到這個項目。詳細欄位之後可在待辦詳情編輯。',
+                submitLabel: '建立並連結',
+                fields: [
+                    { key: 'title', label: '待辦標題', type: 'text', required: true, placeholder: '例:追蹤此缺陷修復' },
+                    { key: 'priority', label: '優先級', type: 'text', value: 'P2', placeholder: 'P0 / P1 / P2 / P3' },
+                    { key: 'due_date', label: '到期日(可空)', type: 'text', placeholder: 'YYYY-MM-DD' },
+                    { key: 'sprint_label', label: 'Sprint 標籤(可空)', type: 'text', placeholder: '留空 = Backlog' },
+                    { key: 'link_kind', label: '連結類型', type: 'text', value: 'relates_to', hint: 'relates_to / verifies / blocks / duplicates' },
+                ],
+            });
+            if (!result || !result.title) return;
+            try {
+                // 1) 建 todo
+                const todoBody = {
+                    title: result.title,
+                    project_id: currentProjectId,
+                    priority: result.priority || 'P2',
+                    due_date: result.due_date || null,
+                    sprint_label: result.sprint_label || null,
+                };
+                const todo = await apiFetch('/api/todos', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(todoBody),
+                });
+                // 2) 建 link
+                await apiFetch(`/api/todos/${todo.id}/links`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ target_type: targetType, target_id: targetId, link_kind: result.link_kind || 'relates_to' }),
+                });
+                showToast('已建立並連結', 'success');
+                // 重新整理該 modal 的反向視圖
+                // 各 modal 約定 container id = `<entity>LinkedTodos`(defect / testcase / document / requirement / version)
+                const containerByType = {
+                    defect: 'defectLinkedTodos',
+                    testcase: 'tcLinkedTodos',
+                    test_document: 'docLinkedTodos',
+                    requirement: 'reqLinkedTodos',
+                    test_version: 'tvLinkedTodos',
+                };
+                const cid = containerByType[targetType];
+                if (cid) await _renderLinkedTodosBlock(cid, targetType, targetId);
+            } catch (e) {
+                showToast('建立失敗:' + (e.message || e), 'error');
+            }
         }
 
         // ── linked-todos popover(需求清單 / 看板用)──────────────────────
