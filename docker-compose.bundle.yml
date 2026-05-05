@@ -135,9 +135,6 @@ services:
       AUTOTEST_JWT_SECRET: ${AUTOTEST_JWT_SECRET:?AUTOTEST_JWT_SECRET is required - run docker compose --profile init run --rm bootstrap}
       AUTOTEST_FERNET_KEY: ${AUTOTEST_FERNET_KEY:?AUTOTEST_FERNET_KEY is required - run docker compose --profile init run --rm bootstrap}
       DOCKER_HOST: tcp://docker-proxy:2375
-    ports:
-      - "8000:8000"
-
   celery:
     image: autotest-celery:${AUTOTEST_TAG:-1.0.0}
     container_name: autotest-celery
@@ -178,7 +175,7 @@ services:
     depends_on:
       - backend
     ports:
-      - "80:80"
+      - "127.0.0.1:80:80"
 
   apisix:
     image: apache/apisix:3.11.0-debian
@@ -189,10 +186,8 @@ services:
     volumes:
       - ./apisix/config.yaml:/usr/local/apisix/conf/config.yaml:ro
       - ./apisix/apisix.yaml:/usr/local/apisix/conf/apisix.yaml:ro
-    ports:
-      - "9080:9080"
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:9080/healthz | grep -q ok || exit 1"]
+      test: ["CMD-SHELL", "bash -ec 'exec 3<>/dev/tcp/127.0.0.1/9080; printf \"GET /healthz HTTP/1.1\\r\\nHost: 127.0.0.1\\r\\nConnection: close\\r\\n\\r\\n\" >&3; grep -q ok <&3'"]
       interval: 10s
       timeout: 5s
       retries: 10

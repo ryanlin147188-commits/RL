@@ -200,7 +200,7 @@ services:
     depends_on:
       - apisix
     ports:
-      - "80:80"
+      - "127.0.0.1:80:80"
     volumes:
       - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./frontend/index.html:/usr/share/nginx/html/index.html:ro
@@ -216,8 +216,6 @@ services:
     volumes:
       - ./apisix/config.yaml:/usr/local/apisix/conf/config.yaml:ro
       - ./apisix/apisix.yaml:/usr/local/apisix/conf/apisix.yaml:ro
-    ports:
-      - "9080:9080"   # gateway 對外 port
     healthcheck:
       # APISIX image does not include wget/curl; use bash's /dev/tcp.
       test: ["CMD-SHELL", "bash -ec 'exec 3<>/dev/tcp/127.0.0.1/9080; printf \"GET /healthz HTTP/1.1\\r\\nHost: 127.0.0.1\\r\\nConnection: close\\r\\n\\r\\n\" >&3; grep -q ok <&3'"]
@@ -262,11 +260,11 @@ services:
       - fluent_bit_state:/fluent-bit/state
 
   # ── RFC-8 觀察性堆疊(profile=obs:預設不啟動,docker compose --profile obs up)──
-  # Prometheus 抓取 /metrics(內建 /graph UI 看 metrics)、Jaeger 接 OTLP trace
-  # 並提供 trace UI。
+  # Prometheus 抓取 /metrics、Jaeger 接 OTLP trace。兩者只開在 Docker
+  # 內網,host 對外仍只暴露 frontend 的 http://localhost/。
   # 全 Apache-2.0 — 刻意不用 Grafana(AGPL-3.0)/ Tempo(AGPL-3.0)避免商用授權風險;
-  # 換成「Prometheus 內建 UI 看 metrics」+「Jaeger UI 看 trace」+「VictoriaLogs vmui 看 log」。
-  # 三套各自有 UI,沒有統一 dashboard 但完全 OSS 可商用。
+  # 換成「Prometheus 內部 UI 看 metrics」+「Jaeger 內部 UI 看 trace」
+  # +「VictoriaLogs 內部 vmui 看 log」。需要 host 直連時才另外套 dev overlay。
   prometheus:
     image: prom/prometheus:v2.55.1
     container_name: autotest-prometheus
@@ -279,8 +277,6 @@ services:
     volumes:
       - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
-    ports:
-      - "9090:9090"   # 內建 /graph UI,PromQL query 介面
 
   jaeger:
     image: jaegertracing/all-in-one:1.62.0
@@ -290,10 +286,6 @@ services:
     environment:
       COLLECTOR_OTLP_ENABLED: "true"     # 開 OTLP gRPC + HTTP receivers
       SPAN_STORAGE_TYPE: memory
-    ports:
-      - "16686:16686"   # Jaeger UI -- trace 搜尋 / span 樹
-      - "4317:4317"     # OTLP gRPC -- backend 透過 OTLP_ENDPOINT=jaeger:4317 推送
-      - "4318:4318"     # OTLP HTTP -- 給 sidecar / collector 備用
 
   # ── Spawn-time images(profile=spawnable:刻意永不啟動) ─────────────
   # 這 4 個 image 是 backend 在 runtime 動態 docker run 出來的(per-session

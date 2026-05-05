@@ -191,7 +191,9 @@ docker compose exec backend python -m app.cli create-admin
 | 停掉(保留資料) | `docker compose down` |
 | 完全重置(**會清光 DB + S3**) | `docker compose down -v` |
 | 啟用觀察性堆疊(Prometheus + Jaeger) | 任何指令加 `--profile obs` |
-| Dev 模式(暴露內部 port 給 host) | `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d` |
+| Dev 模式(DEBUG,不暴露額外 host port) | `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d` |
+
+預設啟動為 **10 個常駐容器 + `seaweedfs-init` one-shot**;加上 `--profile obs` 後為 **12 個常駐容器 + `seaweedfs-init` one-shot**。Docker Desktop 可能另把 compose app 群組算成 1 個 item,所以畫面上可能看到 12 / 14 items。
 
 > 📖 **完整教學**(從建專案 → 寫案例 → 用 AI 生案例 → 跑測試 → 看報告)請見 **[操作說明.md](操作說明.md)**
 
@@ -293,7 +295,7 @@ docker compose exec backend python -m app.cli create-admin   # 4) 建首位 admi
 | 停止(保留資料)| `docker compose down` |
 | 重置(**清空所有資料**)| `docker compose down -v` |
 | 啟用 obs(Prometheus + Jaeger)| 任何指令加 `--profile obs` |
-| Dev 暴露內部 port | `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d` |
+| Dev DEBUG 設定 | `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d` |
 
 ### 系統需求
 
@@ -303,7 +305,7 @@ docker compose exec backend python -m app.cli create-admin   # 4) 建首位 admi
 - Windows / macOS / Ubuntu / Linux
 
 > 📖 **完整部署流程**(`.env`、跨平台指令、本機開發、升級)請見 **[操作說明.md](操作說明.md)**
-> 📖 **REST API**:OpenAPI JSON 經 gateway 取得 <http://localhost/api/openapi.json>;互動 Swagger UI 需 `docker compose exec backend curl localhost:8000/docs`,或加 dev overlay(`-f docker-compose.dev.yml`)後從 <http://localhost:8000/docs> 開
+> 📖 **REST API**:OpenAPI JSON 經 gateway 取得 <http://localhost/api/openapi.json>;互動 Swagger UI 可在 backend 容器內查 `docker compose exec backend curl localhost:8000/docs`
 
 ---
 
@@ -349,9 +351,10 @@ docker compose exec backend python -m app.cli create-admin   # 4) 建首位 admi
 
        ┌─────────┐  ┌─────────────┐  ┌─────────────────────┐
        │FluentBit│  │VictoriaLogs │  │ Prometheus + Jaeger │
-       │ docker  │  │ vmui :9428  │  │ (--profile obs 才啟動)│
-       │ tail +  │  │ 含 container│  │ OTLP :4317 / UI :9090│
-       │ Lua 富化│  │ _name 富化  │  │ + :16686             │
+       │ docker  │  │ 內網 vmui   │  │ (--profile obs 才啟動)│
+       │ tail +  │  │ 內網 log UI │  │ 內網 metrics / trace │
+       │ Lua 富化│  │ 含 container│  │ UI,host 不直接暴露   │
+       │         │  │ _name 富化  │  │                     │
        └─────────┘  └─────────────┘  └─────────────────────┘
 ```
 
@@ -364,7 +367,7 @@ docker compose exec backend python -m app.cli create-admin   # 4) 建首位 admi
 - **單一前端檔 + 漸進改善**:`frontend/index.html` + Tailwind CDN + Vanilla JS,**零 build step、零 npm install**;非 critical 第三方 lib(Chart / Mermaid / html2pdf / marked)改 lazy-load,首頁省 ~800 KB transfer
 - **Fernet 加密 secret**:DB password、SMTP password、AI API Key、OIDC client secret 都在 PostgreSQL 中以密文落地
 - **AST 白名單運算式**:動態運算式不用 `eval`,改用 `ast` AST 解析 + 函式呼叫 / 屬性存取 全黑名單,杜絕 injection
-- **集中式 log + 觀察性**:Fluent Bit 用 Lua filter 從 docker config 抓 container_name → VictoriaLogs(vmui port 9428,可按容器過濾);觀察性堆疊(Prometheus + Jaeger)`--profile obs` 一鍵開啟
+- **集中式 log + 觀察性**:Fluent Bit 用 Lua filter 從 docker config 抓 container_name → VictoriaLogs 內部 vmui(可按容器過濾);觀察性堆疊(Prometheus + Jaeger)`--profile obs` 一鍵開啟,但 host 對外仍只保留 `http://localhost/`
 - **零 Copyleft**:整套 stack 全 Apache 2.0 / BSD-3 / PostgreSQL License — 商業 SaaS 上線無授權義務
 - **API-First**:所有操作都有 REST / WebSocket API,Swagger 在 `/docs`,CI/CD 直接接
 
@@ -406,7 +409,7 @@ Organization 多租戶 + email_domain 自動歸屬 + 邀請碼自助註冊 + 完
 
 - 📖 **[操作說明.md](操作說明.md)** — 從零到上線的完整教學(含 5 大使用者旅程 + AI 生案 + MCP 自動操作 + 條件分支)
 - 📜 **[LICENSES.md](LICENSES.md)** — 第三方授權與 SaaS 商業使用稽核
-- 🔌 **REST API 文件**:OpenAPI JSON `http://localhost/api/openapi.json`;Swagger UI 走容器內 `docker compose exec backend curl localhost:8000/docs` 或加 dev overlay 後 `http://localhost:8000/docs`
+- 🔌 **REST API 文件**:OpenAPI JSON `http://localhost/api/openapi.json`;Swagger UI 走容器內 `docker compose exec backend curl localhost:8000/docs`
 - 🎬 **Playwright Trace Viewer**:<https://trace.playwright.dev/> 可載入平台產出的 `trace.zip`
 - 🤖 **Model Context Protocol**:<https://modelcontextprotocol.io/> RL MCP 整合採用此規範
 

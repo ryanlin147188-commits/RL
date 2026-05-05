@@ -10,7 +10,7 @@ deployment:
 apisix:
   enable_admin: false              # standalone mode: admin API disabled
   enable_dev_mode: false
-  node_listen: 9080                # gateway public port
+  node_listen: 9080                # internal gateway port (frontend nginx proxies here)
   # RFC-7: prometheus on a side port so /apisix/prometheus/metrics is not
   # accidentally reachable from outside the LAN.
   enable_control: true

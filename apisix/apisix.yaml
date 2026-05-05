@@ -3,7 +3,7 @@
 # The trailing #END marker is required.
 #
 # RFC-7 hardening on /api/*:
-#   * cors.allow_origins is sourced from $ALLOWED_ORIGINS instead of "*"
+#   * cors.allow_origins is pinned to http://localhost instead of "*"
 #   * client-control caps body at 25 MB
 #   * api-breaker trips on 5 consecutive 5xx and serves 503 for 30s
 #   * limit-count keyed by client IP for cheap per-tenant fairness
@@ -26,7 +26,26 @@ upstreams:
     nodes:
       "frontend:80": 1
 
+  - id: apisix_control
+    type: roundrobin
+    nodes:
+      "127.0.0.1:9092": 1
+
 routes:
+  # Public OpenAPI JSON through the gateway. Backend exposes the schema at
+  # /openapi.json, while docs link to /api/openapi.json for external access.
+  - id: openapi_json
+    uri: /api/openapi.json
+    upstream_id: backend_api
+    plugins:
+      proxy-rewrite:
+        uri: /openapi.json
+      cors:
+        allow_origins: "http://localhost"
+        allow_methods: "GET,HEAD,OPTIONS"
+        allow_headers: "**"
+        allow_credential: true
+
   # /api/* -> FastAPI backend
   - id: api_routes
     uri: /api/*
@@ -41,7 +60,7 @@ routes:
         # NOTE: APISIX cors plugin refuses '*' when allow_credential=true;
         # use the literal '**' which means "wildcard with credentials,
         # caller is aware of the implications".
-        allow_origins: "http://localhost,http://localhost:9080"
+        allow_origins: "http://localhost"
         allow_methods: "GET,POST,PUT,PATCH,DELETE,HEAD,OPTIONS"
         allow_headers: "**"
         allow_credential: true
@@ -83,7 +102,7 @@ routes:
       request-id:
         include_in_response: true
       cors:
-        allow_origins: "http://localhost,http://localhost:9080"
+        allow_origins: "http://localhost"
         allow_methods: "GET,POST,HEAD,OPTIONS"
         allow_headers: "**"
         allow_credential: true
@@ -102,7 +121,7 @@ routes:
       request-id:
         include_in_response: true
       cors:
-        allow_origins: "http://localhost,http://localhost:9080"
+        allow_origins: "http://localhost"
         allow_methods: "GET,HEAD,OPTIONS"
         allow_headers: "**"
         allow_credential: true
@@ -126,7 +145,10 @@ routes:
   # Liveness: APISIX answers locally so a missing backend cannot break LB checks.
   - id: gateway_health
     uri: /healthz
+    upstream_id: apisix_control
     plugins:
+      proxy-rewrite:
+        uri: /v1/healthcheck
       response-rewrite:
         status_code: 200
         body: "ok"

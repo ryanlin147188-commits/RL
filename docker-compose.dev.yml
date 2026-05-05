@@ -4,33 +4,16 @@
 #   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 #
 # This overlay enables developer-friendly settings that MUST NOT be used in
-# production:
+# production. It deliberately does not publish extra host ports; the only
+# default host entrypoint remains http://localhost/.
 #   - DEBUG=True : verbose stack traces in API responses
-#   - ALLOWED_ORIGINS includes 127.0.0.1 with multiple ports for local front-end variants
 #   - (Future, see Layer 2.4) bind-mounts source code for hot-reload
 #
 # The base docker-compose.yml is the production-safe default; this overlay
 # only applies when explicitly chained.
 
 services:
-  postgres:
-    ports:
-      - "5432:5432"
-
-  valkey:
-    ports:
-      - "6379:6379"
-
-  seaweedfs:
-    ports:
-      - "8333:8333"
-      - "9333:9333"
-
   backend:
     environment:
       DEBUG: "True"
-      ALLOWED_ORIGINS: "http://localhost,http://localhost:80,http://localhost:8000,http://127.0.0.1,http://127.0.0.1:80,http://127.0.0.1:8000"
-
-  victoria-logs:
-    ports:
-      - "9428:9428"
+      ALLOWED_ORIGINS: "http://localhost"

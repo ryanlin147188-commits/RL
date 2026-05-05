@@ -58,7 +58,7 @@ docker compose exec backend python -m app.cli create-admin
 |---|---|
 | Web UI | <http://localhost> |
 | REST API (Swagger) | exec into backend: `docker compose exec backend curl localhost:8000/docs` (port 8000 is no longer exposed; see [SECURITY.md](SECURITY.md)) |
-| Logs (VictoriaLogs vmui) | Internal by default; chain `docker-compose.dev.yml` to expose port 9428 |
+| Logs | `docker compose logs -f`; VictoriaLogs stays internal |
 
 ### Daily ops
 
@@ -68,8 +68,8 @@ docker compose exec backend python -m app.cli create-admin
 | Tail logs | `docker compose logs -f` |
 | Stop (preserve data) | `docker compose down` |
 | Reset (DESTRUCTIVE — wipes DB + S3) | `docker compose down -v` |
-| Enable observability stack (Prometheus + Jaeger) | add `--profile obs` to up/down |
-| Expose internal ports for local dev | `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d` |
+| Enable observability stack (internal Prometheus + Jaeger) | add `--profile obs` to up/down |
+| Enable debug-only dev settings | `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d` |
 
 ---
 
@@ -180,8 +180,8 @@ After the v1.0 baseline, seven focused UX-hardening rounds shipped to `main`. Ev
 └──────────────┘ └──────────────┘ └───────────────────────────┘
 ```
 
-**Always-on**: 12 services in `docker-compose.yml` (postgres / valkey / seaweedfs / docker-proxy / backend / celery / frontend / apisix / fluent-bit / victoria-logs / seaweedfs-init one-shot).
-**Profile-gated**: 2 obs services (Prometheus + Jaeger), 4 spawn-time images (`robot-runner` / `recorder` / `recorder-api` / `mcp` — built once, run per session by backend), 1 bootstrap (one-shot `.env` generator).
+**Default compose**: 10 long-running services plus `seaweedfs-init` one-shot (postgres / valkey / seaweedfs / docker-proxy / backend / celery / frontend / apisix / fluent-bit / victoria-logs / seaweedfs-init).
+**Profile-gated**: 2 obs services (Prometheus + Jaeger), 4 spawn-time images (`robot-runner` / `recorder` / `recorder-api` / `mcp` — built once, run per session by backend), 1 bootstrap (one-shot `.env` generator). With `--profile obs`, Docker has 12 long-running containers plus `seaweedfs-init`; Docker Desktop may also count the Compose app group as one visible item.
 **Bundle**: image distribution via `docker-compose.bundle.yml` for air-gapped deployments.
 
 ---
