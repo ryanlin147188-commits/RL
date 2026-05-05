@@ -117,14 +117,34 @@ A finished trace can be enriched by any vision-capable LLM (GPT-4o / Claude 3.5 
 | **Test-case management** | Project / Feature / Platform / Page / Scenario / TestCase tree, Markdown editing, version history, RTM (requirements traceability), defect tracking, WBS, sprint planning |
 | **Authoring** | Visual recorder (Playwright), API recorder (mitmproxy), AI chat → `steps_json`, manual editor, dynamic expressions, capture steps, IF / ELSE branches |
 | **Execution** | Robot Framework 7.x + Playwright headless, isolated runner containers per execution, real-time WebSocket logs, screenshots / video / trace per step, scheduling (cron), tags, retry on flaky |
-| **Review / Approval** | Generic approval workflow for testcases / documents / scripts / reports — pending / approved / rejected tabs, audit trail, reason field per decision (`review_records` + `review_history` tables) |
+| **Review / Approval** | Generic approval workflow for testcases / documents / scripts / reports — pending / approved / rejected tabs, audit trail, reason field per decision; **bulk reassign reviewer** for triaging |
+| **Cross-entity assignment** ✨ | Unified `assigned_to` schema across 6 entity types (defect / todo / testcase / requirement / document / review). Group-typed assignees auto fan-out notifications to all members (including nested subgroups). Bulk reassign up to 200 entities per call. **"My Work" inbox** aggregates personal workload from all entities. |
+| **Multi-entity Kanban** ✨ | Tab-based view (defect / todo / testcase / requirement / document / review / All) with **"My assignments / All" toggle**. Generic 3-column status mapping (TODO / In progress / Done) for the All tab; per-entity fine-grained status columns for single-entity tabs. Cards show assignee, overdue ring, and a one-click reassign button. |
+| **Backlog with cross-entity links** ✨ | TodoLink supports linking a backlog item to any of **10 target types** including TestVersion. Link kinds (`verifies` / `blocks` / `duplicates` / `relates_to`) carry RTM semantics. Reverse-view (linked todos) is rendered inside every entity's detail modal. **Bulk-from-targets** creates one tracking todo per selected target in a single call. |
+| **Settings — RBAC, members, groups, invites** ✨ | All 6 management panes (permissions / roles / groups / member-binding / org members / project members) ship search, sort, pagination params, and bulk operations. Role clone (with permission diff), permission reverse-lookup ("who has this perm"), group→project bridge (add a whole group as project members in one call), and full invite lifecycle (send / resend / extend / revoke / bulk). |
 | **Observability** | Live console, Allure-style reports, defect linking, history charts (Chart.js), audit log middleware (SOC 2 baseline), Fluent Bit + VictoriaLogs (per-container streams), opt-in Prometheus + Jaeger via `--profile obs` |
 | **API gateway** | nginx → APISIX → backend (single internal entry); request-id, CORS, per-IP rate-limit, circuit breaker; backend port never exposed to host |
 | **Storage** | All uploads land in SeaweedFS via S3-compatible API (`STORAGE_BACKEND=s3` enforced at startup; container-local fallback removed) |
 | **Integration** | REST API + Swagger, OIDC SSO, slowapi rate limiting, Fernet field encryption (SMTP / AI keys), webhook on execution events |
-| **Multi-tenant** | Organization model, JWT carries `org_id`, RBAC scaffold (24 permission keys); single-tenant stop-gap guards in v1.0 (see [SECURITY.md](SECURITY.md)) |
+| **Multi-tenant** | Organization model, JWT carries `org_id` + proactive refresh, RBAC scaffold (22 permission keys), email-domain auto-binding with **preview** before adopt, single-tenant stop-gap guards in v1.0 (see [SECURITY.md](SECURITY.md)) |
 
 See [操作說明.md](操作說明.md) (Chinese) for an end-to-end user guide. English walkthroughs are tracked in [issue tracker](../../issues) — contributions welcome.
+
+---
+
+## 🆕 What changed since v1.0 (7 consecutive UX rounds, A → G)
+
+After the v1.0 baseline, seven focused UX-hardening rounds shipped to `main`. Every round is backend-additive (no breaking schema changes — the one column rename in tier D ships behind a reversible Alembic migration):
+
+| Tier | Theme | Highlights |
+|---|---|---|
+| **A** | Settings panes baseline | search / sort / unified loading-empty-error states / cascade-aware delete confirms across 6 panes |
+| **B** | Pagination + bulk operations | server-side pagination params, role usage stats, role clone, bulk role assignment |
+| **C** | Cross-pane collaboration | permission reverse-lookup drawer, email-domain preview validator, full invite lifecycle UI, group→project bridge, multi-select add-member modal |
+| **D** | Assignment system overhaul | TodoItem schema unified with the rest of the Assignable mixin; group fan-out completed for all 5 generic entity types; bulk reassign + stale assignment endpoints; **"My Work" inbox**; assignee picker with search + group fan-out preview + audit metadata + stale-cleanup CTA; 4 native `prompt()` chains replaced by a generic form-modal helper |
+| **E** | Coverage close-out | bulk reassign rolled into testcase / review lists; `/api/assignments/me?entity_type=todo` enum fix |
+| **F** | Multi-entity kanban | kanban shifts from defect-only to a 6-entity workspace, plugged into the new assignment system |
+| **G** | Todo linking finalised | TodoLink supports TestVersion; `link_kind` semantics surfaced in UI (verifies / blocks / duplicates); reverse-view block in 5 detail modals; `POST /api/todos/bulk-from-targets`; link-creation notifications to entity assignees |
 
 ---
 

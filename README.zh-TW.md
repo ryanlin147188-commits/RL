@@ -127,13 +127,34 @@ RL 鎖定 **15–500 人規模、有自動化測試需求但被工具鏈拖累**
 | 🌐 **跨 5 平台單一體驗** | WEB UI / HTTP API / 手機 App / SQL DB(7 種)/ E2E,**一份案例、一份報告** |
 | 📱 **API / APP 錄製** | mitmproxy Docker mode 抓 HTTP,Appium script 解析自動轉步驟 |
 | 🔁 **DDT 資料驅動** | 同案例跑多組資料、每列獨立錄影 + Trace |
-| 📊 **完整 RTM 追溯鏈** | User Story → AC → TestCase → Defect 一頁看穿;**Backlog Task 可橫向連結 9 種實體** |
-| 🏢 **多租戶 + 自助註冊** ✨ | Organization 隔離、**email_domain 自動歸屬**、**邀請碼 (OrgInvite)** 控管自助註冊、群組可巢狀 + 可當 Todo assignee |
-| 🏷 **測試版號追蹤** ✨ | WEB / API / APP 版號獨立管理,測試報告 / 缺陷 / 回合反向 FK 連動,清楚「這 bug 是哪個版本爆的」 |
+| 📊 **完整 RTM 追溯鏈** ✨ | User Story → AC → TestCase → Defect 一頁看穿;**Backlog Task 可橫向連結 10 種實體**(含測試版號)+ link_kind 語意(verifies / blocks / duplicates)+ 反向視圖在每個 entity detail modal |
+| 🎯 **跨 entity 指派系統** ✨ | 統一 schema 涵蓋 6 種 entity(defect / todo / testcase / requirement / document / review),群組指派自動 fan-out 通知,bulk reassign(≤200/call),「我的工作」inbox 個人視圖 |
+| 📋 **多 entity 測試看版** ✨ | 從 defect-only 升級到全 ALM 看板:6 個 entity tab + 「我的指派 / 全部」 toggle,「全部」 mode 用 generic 3 欄(待處理 / 進行中 / 已完成),單一 entity tab 用該 entity 細分 status,卡片直接重新指派 |
+| 🏢 **多租戶 + 自助註冊** ✨ | Organization 隔離、**email_domain 自動歸屬 + 預覽器**(設定前先看會 catch 哪些既有 user)、**完整邀請 lifecycle**(寄 / 重寄 / 延期 / 撤銷 / 批次)、群組可巢狀 + 可當 Todo assignee + **群組 → 專案橋接**(整個群組一鍵加入專案) |
+| 🛡 **權限與角色管理** ✨ | 設定頁 6 個分頁全 search/sort/pagination/bulk operations、角色 clone(含 permissions diff)、反向查詢「哪些角色含此權限 / 誰使用此角色」、cascade-aware delete(刪角色/群組前看影響面) |
+| 🏷 **測試版號追蹤** ✨ | WEB / API / APP 版號獨立管理,測試報告 / 缺陷 / 回合反向 FK 連動,**待辦可連結到版號**,清楚「這 bug 是哪個版本爆的、哪些 todo 在追蹤」 |
 | 🎯 **多方法論支援** | ATDD / BDD / KDT / DDT / TDD / SBE / FDD 都能在平台內自然表達 |
 | 🏗 **完整 ALM** | 測試計畫(ISTQB 8 區塊)/ 需求 / 缺陷 / 里程碑 / WBS / 文件 / Backlog / 排程 / 通知 |
-| 🔐 **企業級 Auth** | JWT 雙 token、bcrypt 密碼、Fernet 加密 secret(含 AI key / DB pwd / SMTP pwd)、大頭貼上傳、角色權限矩陣、OIDC 整合 |
+| 🔐 **企業級 Auth** | JWT 雙 token + 主動換發、bcrypt 密碼、Fernet 加密 secret(含 AI key / DB pwd / SMTP pwd)、大頭貼上傳、角色權限矩陣、OIDC 整合 |
 | 🌍 **雙語雙主題** | 繁體中文 / English 一鍵切換、亮 / 暗主題自動記憶 |
+
+---
+
+## 🆕 v1.0 連續 7 輪 UX 強化(A → G)
+
+進入 v1.0 後針對「使用者每天會碰到的痛點」做 7 輪密集打磨,全部已 ship 到 main:
+
+| Tier | 主軸 | 重點 |
+|---|---|---|
+| **A** | 6 個設定分頁 baseline | search / sort / unified loading-empty-error states / cascade-aware delete confirms |
+| **B** | 進階清單 + 批次操作 | pagination 後端參數、role usage 統計、role clone、bulk role assignment |
+| **C** | 跨分頁協同新功能 | 權限反向查詢 drawer、Email domain 預覽器、完整邀請 lifecycle UI、群組 → 專案橋接、加成員多選 + search |
+| **D** | 指派系統翻新 | TodoItem schema 對齊、群組 fan-out 補完、bulk reassign + stale 偵測、「我的工作」 inbox、picker 改造、4 個 native prompt 全換成 form modal |
+| **E** | 收尾完整覆蓋 | bulk reassign 推到 testcase / review 清單、`/me?entity_type=todo` API 修 |
+| **F** | 多 entity 看板 | 看板從只看 defect 變成跨 6 種 entity,接到 Tier D 指派系統 |
+| **G** | 待辦連結機制完善 | TodoLink 支援測試版號、link_kind 語意、5 個 detail modal 加反向視圖、bulk-from-targets(從 N 個 entity 一鍵建追蹤待辦)、連結通知 |
+
+每輪都是 backend additive(不破壞既有 API)+ 前端漸進升級,**沒有 schema breaking change**(D-1 唯一一次 column rename 以 alembic migration 可逆處理)。
 
 ---
 
@@ -211,20 +232,23 @@ docker compose -f docker-compose.bundle.yml up -d
 
 | 模組 | 功能 |
 |---|---|
-| **Backlog 待辦** | Feature → Task / Bug / Spike 階層 + Sprint label;**可連結 9 種實體**(需求 / 案例 / 缺陷 / WBS / 計畫 / 回合 / 里程碑 / 文件 / 專案);**指派可指向使用者或群組** ✨ |
-| **群組管理** ✨ | 設定頁分頁,可巢狀(parent_id),Todo assignee 可選群組;群組成員透過 GroupMembership 表維護 |
+| **Backlog 待辦** ✨ | Feature → Task / Bug / Spike 階層 + Sprint label;**可連結 10 種實體**(需求 / 案例 / 缺陷 / 文件 / **測試版號** / WBS / 計畫 / 回合 / 里程碑 / 專案)+ **link_kind 語意**(verifies / blocks / duplicates / relates_to);指派可指向使用者或群組;**從 N 個 entity 一鍵 bulk 建追蹤待辦** |
+| **「我的工作」 inbox** ✨ | 個人視圖,跨 6 種 entity 列出所有指派給我的工作;KPI(過期 / 今日到期 / 全部)+ entity-type tab 切換 + 點擊跳到對應詳情頁 |
+| **群組管理** ✨ | 設定頁分頁,可巢狀(parent_id),Todo / 缺陷 / 案例 / 需求 / 文件 / 審核 都可選群組為 assignee → 自動 fan-out 通知所有成員(含子群組去重);**群組 → 專案橋接**:整個群組一鍵加入專案成員 |
 | **需求 + RTM** | User Story → AC 階層,**RTM 追溯鏈** 在每個節點顯示 linked Backlog,完整可視化 |
-| **缺陷管理** | 8 種狀態工作流 + 嚴重性 + 附件 + 「關聯測試案例」下拉,自動納入 RTM 鏈;**可標記發生於哪個測試版號** ✨ |
-| **測試版號** ✨ | 設定頁分頁,WEB / API / APP 三軌獨立管理;版號連動測試報告 / 缺陷 / 回合 |
+| **缺陷管理** ✨ | 8 種狀態工作流 + 嚴重性 + 附件 + 「關聯測試案例」下拉,自動納入 RTM 鏈;**可標記發生於哪個測試版號**;清單支援 bulk reassign + bulk 建立追蹤待辦;detail modal 顯示「相關待辦」 |
+| **測試版號** ✨ | 設定頁分頁,WEB / API / APP 三軌獨立管理;版號連動測試報告 / 缺陷 / 回合;**待辦可連結回版號**,detail modal 顯示「相關待辦」 |
 | **WBS** | 工作分解結構 + 進度百分比 + 依負責人篩選 |
 | **測試計畫** | ISTQB 8 區塊格式(Scope / 策略 / 資源 / 時程 / 風險 / 入出條件 / 簽核)|
 | **測試時程** | 里程碑 + Gantt 風格時間軸 |
 | **測試回合** | 命名集合彙總執行,單一報告 |
-| **測試看版 (Kanban)** | 缺陷狀態看板 + 拖拉變更狀態 + Backlog 連結徽章 |
+| **測試看版 (Kanban)** ✨ | 從 defect-only 升級到**多 entity 看板**:全部 / 缺陷 / 待辦 / 案例 / 需求 / 文件 / 審核 7 個 tab + 「我的指派 / 全部」 toggle;「全部」mode 用 generic 3 欄,單一 entity 用該 entity 細分 status;卡片直接顯示 assigned_to / 過期紅標 / 「重新指派」按鈕 |
+| **審核中心** ✨ | 4 種類型(testcase / document / script / report)的送審 → approved / rejected workflow;清單支援 bulk reassign |
 | **通知中心** | 站內紅點 badge + Email(per-event channel)+ toast 訊息歷史 |
-| **多租戶 + 自助註冊** ✨ | Organization 隔離 + email_domain 自動歸屬 + 邀請碼(`OrgInvite`,可設過期 / 用量上限 / 預設角色) |
+| **多租戶 + 自助註冊** ✨ | Organization 隔離 + email_domain 自動歸屬 + **預覽器**(adopt 前看誰會被 catch)+ 完整邀請 lifecycle(`POST /invites` / `/resend` / `/extend` / `/bulk` / `DELETE`)|
+| **權限 / 角色管理** ✨ | 設定頁 6 個分頁全 search/sort/pagination/bulk;角色 clone(複製 22 個權限)、反向查詢「哪些角色含此權限 / 誰使用此角色」、cascade-aware delete confirms |
 | **AI 助理 + AI Token** ✨ | 11 家 provider 切換、用 token 拉模型清單、推理模型思考程度自動偵測;Fernet 加密落地 |
-| **使用者帳戶** | 大頭貼上傳(SeaweedFS,5 MB 內)、改顯示名稱 / Email / 角色;JWT 雙 token、bcrypt 密碼、Fernet 加密 secret |
+| **使用者帳戶** | 大頭貼上傳(SeaweedFS,5 MB 內)、改顯示名稱 / Email / 角色;JWT 雙 token + 主動換發、bcrypt 密碼、Fernet 加密 secret |
 
 ---
 
