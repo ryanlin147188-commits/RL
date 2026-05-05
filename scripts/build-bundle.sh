@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # AutoTest v1.0 -- offline bundle builder (RFC-13).
 #
-# Produces a tarball customers can `docker load` and run via
-# `docker compose -f docker-compose.bundle.yml up`. Each release ships:
+# Produces a tarball customers can `docker load` and run via the single
+# compose file with `docker compose up -d --no-build`. Each release ships:
 #
 #   bundle/
 #     autotest-images-<VERSION>.tar.gz      (docker save | gzip)

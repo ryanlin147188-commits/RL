@@ -1,3 +1,9 @@
+#
+# Single Compose entrypoint.
+# - Source build: docker compose up -d --build
+# - Preloaded image bundle: docker compose up -d --no-build
+# - Backend debug: AUTOTEST_DEBUG=True docker compose up -d --force-recreate backend
+#
 services:
   # ── PostgreSQL：原 MySQL，改為 PostgreSQL（PostgreSQL License，類 MIT）─────────
   postgres:
@@ -99,6 +105,7 @@ services:
     restart: "no"
 
   backend:
+    image: autotest-backend:${AUTOTEST_TAG:-1.0.0}
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -133,7 +140,7 @@ services:
       S3_SECRET_KEY: ${S3_ROOT_PASSWORD:?S3_ROOT_PASSWORD is required - run docker compose --profile init run --rm bootstrap}
       APP_HOST: 0.0.0.0
       APP_PORT: 8000
-      DEBUG: "False"
+      DEBUG: ${AUTOTEST_DEBUG:-False}
       # CORS 白名單(逗號分隔);公開部署請改為實際前端 origin。
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost}
       # 應用層 secret(必填):JWT 簽章 + Fernet 對稱加密金鑰
@@ -156,6 +163,7 @@ services:
     # 動態錄製容器會 publish 到 host 的 6080-6200 區段 port,不在 backend 區塊另外 expose。
 
   celery:
+    image: autotest-celery:${AUTOTEST_TAG:-1.0.0}
     build:
       context: ./backend
       dockerfile: Dockerfile.celery
@@ -194,7 +202,10 @@ services:
       DOCKER_HOST: tcp://docker-proxy:2375
 
   frontend:
-    image: nginx:1.27-alpine
+    image: autotest-frontend:${AUTOTEST_TAG:-1.0.0}
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
     container_name: autotest-frontend
     restart: unless-stopped
     depends_on:
@@ -264,7 +275,7 @@ services:
   # 內網,host 對外仍只暴露 frontend 的 http://localhost/。
   # 全 Apache-2.0 — 刻意不用 Grafana(AGPL-3.0)/ Tempo(AGPL-3.0)避免商用授權風險;
   # 換成「Prometheus 內部 UI 看 metrics」+「Jaeger 內部 UI 看 trace」
-  # +「VictoriaLogs 內部 vmui 看 log」。需要 host 直連時才另外套 dev overlay。
+  # +「VictoriaLogs 內部 vmui 看 log」。host 對外入口固定只保留 http://localhost/。
   prometheus:
     image: prom/prometheus:v2.55.1
     container_name: autotest-prometheus

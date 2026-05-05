@@ -33,7 +33,8 @@ class Settings(BaseSettings):
     APP_HOST: str = "0.0.0.0"
     APP_PORT: int = 8000
     # 預設關閉:DEBUG=True 會在 stack trace 洩漏檔案路徑與 env 內容。
-    # 開發時用 docker-compose.dev.yml overlay 啟用,或在本機 .env 設 DEBUG=True。
+    # 開發時用 `AUTOTEST_DEBUG=True docker compose up -d --force-recreate backend`
+    # 啟用,或在本機 .env 設 DEBUG=True。
     DEBUG: bool = False
 
     # ─── Docker 模式錄製(Phase 1) ────────────────────────────────────

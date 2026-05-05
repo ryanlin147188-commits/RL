@@ -43,7 +43,7 @@ The following are generally **not** considered security vulnerabilities:
 - Vulnerabilities in third-party dependencies that are already publicly disclosed (please report upstream first)
 - Self-XSS that requires the victim to paste attacker-controlled content into the browser console
 - Missing security headers without a demonstrated impact
-- Default credentials in `docker-compose.dev.yml` or local development configurations (production deployments are expected to override these — see [README](README.md#deployment))
+- Default credentials or local development configurations (production deployments are expected to override these — see [README](README.md#deployment))
 
 ## Hardening Recommendations for Self-Hosted Deployments
 

@@ -191,7 +191,7 @@ docker compose exec backend python -m app.cli create-admin
 | 停掉(保留資料) | `docker compose down` |
 | 完全重置(**會清光 DB + S3**) | `docker compose down -v` |
 | 啟用觀察性堆疊(Prometheus + Jaeger) | 任何指令加 `--profile obs` |
-| Dev 模式(DEBUG,不暴露額外 host port) | `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d` |
+| Dev 模式(DEBUG,不暴露額外 host port) | `AUTOTEST_DEBUG=True docker compose up -d --force-recreate backend` |
 
 預設啟動為 **10 個常駐容器 + `seaweedfs-init` one-shot**;加上 `--profile obs` 後為 **12 個常駐容器 + `seaweedfs-init` one-shot**。Docker Desktop 可能另把 compose app 群組算成 1 個 item,所以畫面上可能看到 12 / 14 items。
 
@@ -205,11 +205,11 @@ docker compose exec backend python -m app.cli create-admin
 # 1) 載入 image(2.6 GB,需要幾分鐘)
 docker load -i autotest-images-1.0.0.tar
 
-# 2) 取得 docker-compose.bundle.yml + apisix/、fluent-bit/ 設定檔(repo 根目錄裡都有)
+# 2) 取得單一 docker-compose.yml + apisix/、fluent-bit/ 設定檔(repo 根目錄裡都有)
 git clone https://github.com/ryanlin147188-commits/RL_TMP.git && cd RL_TMP
 
-# 3) 啟動
-docker compose -f docker-compose.bundle.yml up -d
+# 3) 啟動(使用已載入 image,不做本機 build)
+docker compose up -d --no-build
 ```
 
 `docker compose ps` 應全綠。瀏覽器到 VM IP 即看到登入頁。
@@ -295,7 +295,7 @@ docker compose exec backend python -m app.cli create-admin   # 4) 建首位 admi
 | 停止(保留資料)| `docker compose down` |
 | 重置(**清空所有資料**)| `docker compose down -v` |
 | 啟用 obs(Prometheus + Jaeger)| 任何指令加 `--profile obs` |
-| Dev DEBUG 設定 | `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d` |
+| Dev DEBUG 設定 | `AUTOTEST_DEBUG=True docker compose up -d --force-recreate backend` |
 
 ### 系統需求
 
