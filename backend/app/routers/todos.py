@@ -12,7 +12,7 @@ from app.auth.dependencies import get_current_user
 from app.auth.project_membership import ensure_project_member
 from app.common import Pagination
 from app.database import get_db
-from app.models.group import Group, GroupMembership
+from app.models.group import Group
 from app.models.notification import Notification
 from app.models.todo_item import TodoItem, TodoItemType, TodoPriority, TodoStatus
 from app.models.user import User
@@ -22,6 +22,7 @@ from app.schemas.settings import (
     TodoItemResponse,
     TodoItemUpdate,
 )
+from app.services.group_resolver import resolve_group_members
 
 router = APIRouter()
 
@@ -41,33 +42,6 @@ def _check_todo_scope(t: Optional[TodoItem], user: User) -> TodoItem:
     return t
 
 
-async def _resolve_group_members(db: AsyncSession, group_id: str) -> set[str]:
-    """遞迴展開 group_id 下所有(含巢狀子群組)成員的 username 集合。"""
-    visited: set[str] = set()
-    result: set[str] = set()
-    queue = [group_id]
-    while queue:
-        gid = queue.pop()
-        if gid in visited:
-            continue
-        visited.add(gid)
-        # 直屬成員
-        rows = (
-            await db.execute(
-                select(GroupMembership.username).where(GroupMembership.group_id == gid)
-            )
-        ).scalars().all()
-        result.update(rows)
-        # 子群組
-        children = (
-            await db.execute(
-                select(Group.id).where(Group.parent_id == gid)
-            )
-        ).scalars().all()
-        queue.extend(children)
-    return result
-
-
 async def _notify_assignment(
     db: AsyncSession,
     todo: TodoItem,
@@ -75,22 +49,22 @@ async def _notify_assignment(
 ) -> None:
     """指派 / 轉派時推站內通知。
 
-    - assignee_type='user' → 推給該 username(自己指派自己時跳過)
-    - assignee_type='group' → 遞迴展開群組所有成員(含巢狀子群組);發送者自己跳過
-    取消指派(assignee=None)在呼叫端就 return,不會走到這裡。
+    - assigned_to_type='user' → 推給該 username(自己指派自己時跳過)
+    - assigned_to_type='group' → 遞迴展開群組所有成員(含巢狀子群組);發送者自己跳過
+    取消指派(assigned_to=None)在呼叫端就 return,不會走到這裡。
     """
-    if not todo.assignee:
+    if not todo.assigned_to:
         return
     targets: set[str] = set()
     body_who = ""
-    if todo.assignee_type == "group":
-        g = await db.get(Group, todo.assignee)
+    if todo.assigned_to_type == "group":
+        g = await db.get(Group, todo.assigned_to)
         if g is None:
             return
-        targets = await _resolve_group_members(db, g.id)
+        targets = await resolve_group_members(db, g.id)
         body_who = f"群組「{g.name}」"
     else:
-        targets = {todo.assignee}
+        targets = {todo.assigned_to}
         body_who = "你"
     targets.discard(actor.username)  # 不打擾自己
     if not targets:
@@ -160,8 +134,9 @@ def _enrich(t: TodoItem) -> dict:
         "due_date": t.due_date,
         "status": t.status.value if hasattr(t.status, "value") else str(t.status),
         "priority": t.priority.value if hasattr(t.priority, "value") else str(t.priority),
-        "assignee": t.assignee,
-        "assignee_type": t.assignee_type or "user",
+        # API 對外保留 assignee/assignee_type 命名(避免 break 已有 client)
+        "assignee": t.assigned_to,
+        "assignee_type": t.assigned_to_type or "user",
         "assigned_by": t.assigned_by,
         "assigned_at": t.assigned_at,
         "related_entity_type": t.related_entity_type,
@@ -202,7 +177,7 @@ async def list_todos(
     if project_id:
         stmt = stmt.where(TodoItem.project_id == project_id)
     if assignee:
-        stmt = stmt.where(TodoItem.assignee == assignee)
+        stmt = stmt.where(TodoItem.assigned_to == assignee)
     if status:
         stmt = stmt.where(TodoItem.status == TodoStatus(status))
     if item_type:
@@ -258,7 +233,7 @@ async def todo_summary(
     if project_id:
         stmt = stmt.where(TodoItem.project_id == project_id)
     if assignee:
-        stmt = stmt.where(TodoItem.assignee == assignee)
+        stmt = stmt.where(TodoItem.assigned_to == assignee)
     rows = (await db.execute(stmt)).scalars().all()
     enriched = [_enrich(t) for t in rows]
     overdue = sum(1 for e in enriched if e["is_overdue"])
@@ -311,7 +286,7 @@ async def todo_tree(
     if project_id:
         stmt = stmt.where(TodoItem.project_id == project_id)
     if assignee:
-        stmt = stmt.where(TodoItem.assignee == assignee)
+        stmt = stmt.where(TodoItem.assigned_to == assignee)
     if sprint_label:
         if sprint_label == "__backlog__":
             stmt = stmt.where(TodoItem.sprint_label.is_(None))
@@ -357,8 +332,8 @@ async def create_todo(
         due_date=payload.due_date,
         status=_resolve_status(payload.status, TodoStatus.TODO),
         priority=_resolve_priority(payload.priority, TodoPriority.P2),
-        assignee=payload.assignee,
-        assignee_type=(payload.assignee_type or "user") if payload.assignee else "user",
+        assigned_to=payload.assignee,
+        assigned_to_type=(payload.assignee_type or "user") if payload.assignee else "user",
         assigned_by=user.username if payload.assignee else None,
         assigned_at=now,
         related_entity_type=payload.related_entity_type,
@@ -397,9 +372,12 @@ async def update_todo(
     t = await db.get(TodoItem, todo_id)
     _check_todo_scope(t, user)
     data = payload.model_dump(exclude_unset=True)
+    # API 對外保留 assignee/assignee_type 欄位名,內部欄位是 assigned_to/_type
+    # (D-1 重命名後保持向後相容)
+    _PAYLOAD_KEY_MAP = {"assignee": "assigned_to", "assignee_type": "assigned_to_type"}
     # 偵測指派變更:assignee 或 assignee_type 任一變動就重設 audit + 推通知
-    prev_assignee = t.assignee
-    prev_type = t.assignee_type or "user"
+    prev_assignee = t.assigned_to
+    prev_type = t.assigned_to_type or "user"
     assignment_changed = False
     for key, val in data.items():
         if key == "status" and val is not None:
@@ -414,9 +392,9 @@ async def update_todo(
         elif key == "item_type" and val is not None:
             t.item_type = _resolve_type(val, t.item_type)
         else:
-            setattr(t, key, val)
-    new_assignee = t.assignee
-    new_type = t.assignee_type or "user"
+            setattr(t, _PAYLOAD_KEY_MAP.get(key, key), val)
+    new_assignee = t.assigned_to
+    new_type = t.assigned_to_type or "user"
     if (new_assignee or "") != (prev_assignee or "") or new_type != prev_type:
         assignment_changed = True
         if new_assignee:
@@ -441,16 +419,16 @@ async def assign_todo(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """專責指派端點:單一動作改 assignee + 寫 audit + 推通知。
-    不傳 assignee 或傳空字串 = 取消指派。"""
+    """專責指派端點:單一動作改 assigned_to + 寫 audit + 推通知。
+    不傳 assignee 或傳空字串 = 取消指派(API 對外仍叫 assignee)。"""
     t = await db.get(TodoItem, todo_id)
     _check_todo_scope(t, user)
     if payload.assignee_type not in ("user", "group"):
         raise HTTPException(400, "assignee_type 必須是 user 或 group")
     new_assignee = (payload.assignee or "").strip() or None
-    prev = (t.assignee or "", t.assignee_type or "user")
-    t.assignee = new_assignee
-    t.assignee_type = payload.assignee_type if new_assignee else "user"
+    prev = (t.assigned_to or "", t.assigned_to_type or "user")
+    t.assigned_to = new_assignee
+    t.assigned_to_type = payload.assignee_type if new_assignee else "user"
     if new_assignee:
         t.assigned_by = user.username
         t.assigned_at = datetime.utcnow()
@@ -458,7 +436,7 @@ async def assign_todo(
         t.assigned_by = None
         t.assigned_at = None
     await db.flush()
-    if (new_assignee or "", t.assignee_type) != prev and new_assignee:
+    if (new_assignee or "", t.assigned_to_type) != prev and new_assignee:
         await _notify_assignment(db, t, user)
         await db.flush()
     await db.refresh(t)

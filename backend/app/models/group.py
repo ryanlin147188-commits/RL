@@ -2,7 +2,7 @@
 
 設計重點:
 - 群組可巢狀(parent_id self-FK);通知 fan-out 時遞迴展開子群組成員。
-- 群組可以被當成 todo.assignee(assignee_type='group',assignee=group_id)。
+- 群組可以被當成 todo.assigned_to(assigned_to_type='group',assigned_to=group_id)。
 - 同一 organization_id 內 name 唯一;不同 org 內可重名。
 - group_type 是純文字 label('team' / 'squad' / 'dept' / 'project'),沒列舉硬約束,
   之後想加新分類不用 migration。

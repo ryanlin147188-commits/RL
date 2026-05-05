@@ -397,7 +397,7 @@ async def rtm_chain(
                 "item_type": _enum_str(t.item_type),
                 "status": _enum_str(t.status),
                 "priority": _enum_str(t.priority),
-                "assignee": t.assignee,
+                "assignee": t.assigned_to,
                 "link_kind": tl.link_kind,
             })
         return out

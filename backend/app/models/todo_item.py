@@ -70,10 +70,12 @@ class TodoItem(Base):
     priority: Mapped[TodoPriority] = mapped_column(
         Enum(TodoPriority), default=TodoPriority.P2, nullable=False
     )
-    # assignee 可以是 user(username)或 group(group_id);用 assignee_type 區分
-    # 'user' → assignee 存 users.username;'group' → assignee 存 groups.id
-    assignee: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    assignee_type: Mapped[str] = mapped_column(String(10), nullable=False, default="user")
+    # assigned_to 可以是 user(username)或 group(group_id);用 assigned_to_type 區分
+    # 'user' → assigned_to 存 users.username;'group' → assigned_to 存 groups.id
+    # (Tier D-1 與 Defect/Review/Requirement/TestDocument/TreeNode 對齊命名,
+    #  讓 generic /api/assignments router 與 group fan-out 走同一條程式)
+    assigned_to: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    assigned_to_type: Mapped[str] = mapped_column(String(10), nullable=False, default="user")
     # 指派時的 audit 欄位:誰在何時指派的
     assigned_by: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
     assigned_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)

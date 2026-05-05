@@ -240,7 +240,7 @@ async def get_group_usage(
     """回傳群組使用情況:
     * `members_count` — 直屬成員數
     * `child_groups_count` — 直屬子群組數(刪除後它們會 SET NULL 升頂)
-    * `linked_todos_count` — 多少 TodoItem 把 assignee_type='group' assignee=this
+    * `linked_todos_count` — 多少 TodoItem 把 assigned_to_type='group' assigned_to=this
     * `linked_assignments_count` — 各 Assignable entity(Defect / TreeNode /
       Requirement / TestDocument / ReviewRecord)指派為此群組的數量
     """
@@ -261,11 +261,11 @@ async def get_group_usage(
         select(func.count()).select_from(Group).where(Group.parent_id == group_id)
     )).scalar_one() or 0
 
-    # TodoItem 用 assignee_id (group_id 字串) + assignee_type='group'
+    # TodoItem 跟其他 Assignable 一致,用 assigned_to + assigned_to_type='group'
     todos_count = (await db.execute(
         select(func.count()).select_from(TodoItem)
-        .where(TodoItem.assignee == group_id)
-        .where(TodoItem.assignee_type == "group")
+        .where(TodoItem.assigned_to == group_id)
+        .where(TodoItem.assigned_to_type == "group")
     )).scalar_one() or 0
 
     # 其他 Assignable entity(都用 assigned_to + assigned_to_type)

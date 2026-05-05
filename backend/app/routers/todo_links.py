@@ -227,7 +227,7 @@ async def list_todos_by_target(
             item_type=t.item_type.value if hasattr(t.item_type, "value") else str(t.item_type),
             status=t.status.value if hasattr(t.status, "value") else str(t.status),
             priority=t.priority.value if hasattr(t.priority, "value") else str(t.priority),
-            assignee=t.assignee,
+            assignee=t.assigned_to,
             link_kind=l.link_kind,
         )
         for (l, t) in rows
@@ -270,7 +270,7 @@ async def batch_links_by_target(
             "item_type": t.item_type.value if hasattr(t.item_type, "value") else str(t.item_type),
             "status": t.status.value if hasattr(t.status, "value") else str(t.status),
             "priority": t.priority.value if hasattr(t.priority, "value") else str(t.priority),
-            "assignee": t.assignee,
+            "assignee": t.assigned_to,
             "link_kind": l.link_kind,
         })
     return grouped

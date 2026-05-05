@@ -825,6 +825,7 @@
                     <button type="button" onclick="closeNavDrawer(); showTestCasesView()"    class="nav-drawer-btn"><i class="fa-solid fa-list-check text-blue-600"></i><span data-i18n="nav.testCases">測試案例</span></button>
                     <button type="button" onclick="closeNavDrawer(); showTestDataSetsView()" class="nav-drawer-btn"><i class="fa-solid fa-table text-violet-600"></i><span data-i18n="nav.dataSets">測試資料集</span></button>
                     <button type="button" onclick="closeNavDrawer(); showTestDocumentsView()" class="nav-drawer-btn"><i class="fa-solid fa-file-lines text-pink-600"></i><span data-i18n="nav.documents">測試文件</span></button>
+                    <button type="button" onclick="closeNavDrawer(); showMyWorkView()" class="nav-drawer-btn"><i class="fa-solid fa-inbox text-amber-700"></i><span data-i18n="nav.myWork">我的工作</span></button>
                     <button type="button" onclick="closeNavDrawer(); showBacklogView()" class="nav-drawer-btn"><i class="fa-solid fa-list-check text-amber-600"></i><span data-i18n="nav.backlog">待辦清單</span></button>
                 </div>
             </section>
@@ -3780,20 +3781,36 @@ driver.swipe(100, 800, 100, 200, 500)"
                  每個 workspace 都是 hidden 預設；由 show*View() 切換顯示。
                  ════════════════════════════════════════════════════════════════ -->
 
-            <!-- 通用指派對話框(Phase 5)— Review/Defect/TestCase/Requirement/Document 共用 -->
+            <!-- 通用指派對話框 — Tier D-5 改造:加搜尋 / 群組 fan-out 預覽 / audit 後設 / stale CTA -->
             <div id="assignPickerModal" class="hidden fixed inset-0 z-[170] bg-black/40 flex items-center justify-center p-4">
-                <div class="bg-white rounded-xl shadow-2xl w-full max-w-md border border-amber-200 overflow-hidden">
-                    <div class="px-6 py-4 border-b border-stone-200 bg-amber-50/60 flex items-center justify-between">
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-md border border-amber-200 overflow-hidden flex flex-col max-h-[85vh]">
+                    <div class="px-6 py-4 border-b border-stone-200 bg-amber-50/60 flex items-center justify-between flex-shrink-0">
                         <h3 class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-user-tag text-amber-500"></i> 指派</h3>
                         <button type="button" onclick="closeAssignPicker()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
                     </div>
-                    <form onsubmit="return assignPickerSubmit(event)" class="p-6 space-y-4">
+                    <form onsubmit="return assignPickerSubmit(event)" class="p-6 space-y-3 overflow-y-auto">
                         <p id="assignPickerSubtitle" class="text-xs text-stone-500"></p>
+                        <!-- 既有指派(audit metadata)-->
+                        <div id="assignPickerCurrent" class="hidden bg-stone-50 border border-stone-200 rounded p-2 text-[11px] text-stone-600"></div>
+                        <!-- Stale 警示 -->
+                        <div id="assignPickerStale" class="hidden bg-rose-50 border border-rose-200 rounded p-2 flex items-center justify-between text-[11px] text-rose-700">
+                            <span><i class="fa-solid fa-triangle-exclamation"></i> 舊指派對象已不存在</span>
+                            <button type="button" onclick="assignPickerClearStale()" class="px-2 py-0.5 bg-rose-100 hover:bg-rose-200 rounded text-rose-700 font-semibold">清除指派</button>
+                        </div>
+                        <!-- 搜尋 -->
+                        <div class="relative">
+                            <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-xs"></i>
+                            <input type="search" id="assignPickerSearch" oninput="assignPickerOnSearch(this.value)" placeholder="搜尋使用者 / 群組…"
+                                class="w-full pl-8 pr-3 py-2 border border-stone-300 rounded-md text-sm">
+                        </div>
+                        <!-- 候選清單 -->
                         <div>
                             <label for="assignPickerSelect" class="block text-xs font-semibold text-stone-600 mb-1">指派給</label>
-                            <select id="assignPickerSelect" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"></select>
-                            <p class="text-[10px] text-stone-500 mt-1">選擇使用者或群組;群組會通知所有成員。清空 = 解除指派。</p>
+                            <select id="assignPickerSelect" size="6" onchange="assignPickerOnChange()" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"></select>
                         </div>
+                        <!-- 群組 fan-out 預覽 -->
+                        <div id="assignPickerFanout" class="hidden bg-amber-50 border border-amber-200 rounded p-2 text-[11px] text-amber-800"></div>
+                        <p class="text-[10px] text-stone-500">選擇使用者或群組;群組會通知所有成員(含巢狀子群組)。清空 = 解除指派。</p>
                         <div class="flex justify-end gap-2 pt-2">
                             <button type="button" onclick="closeAssignPicker()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button>
                             <button type="submit" id="assignPickerSubmitBtn" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button>
@@ -3829,10 +3846,15 @@ driver.swipe(100, 800, 100, 200, 500)"
                             <div class="text-xs text-stone-500 ml-auto">共 <span id="defListCount" class="font-bold text-stone-700">0</span> 筆</div>
                         </div>
                     </div>
+                    <div id="defectsBulkBar" class="hidden mb-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded flex items-center gap-3 text-xs">
+                        <span class="font-semibold text-amber-700">已選 <span id="defectsBulkCount">0</span> 筆</span>
+                        <button onclick="defectsBulkReassign()" class="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold"><i class="fa-solid fa-user-tag"></i> 重新指派</button>
+                        <button onclick="defectsBulkClear()" class="text-stone-500 hover:text-stone-700 ml-auto"><i class="fa-solid fa-xmark"></i> 取消選取</button>
+                    </div>
                     <div class="bg-white rounded-lg border border-red-100 shadow-sm overflow-hidden">
                         <table class="w-full text-sm">
                             <thead class="bg-red-50/60 border-b border-red-100 text-stone-600 text-xs uppercase">
-                                <tr><th class="p-3 text-left w-24">代號</th><th class="p-3 text-left">標題</th><th class="p-3 w-28">嚴重性</th><th class="p-3 w-20">優先</th><th class="p-3 w-32">狀態</th><th class="p-3 w-28">指派</th><th class="p-3 w-32">建立時間</th><th class="p-3 w-32 text-center">操作</th></tr>
+                                <tr><th class="p-3 w-8 text-center"><input type="checkbox" id="defectsSelectAll" onchange="defectsToggleSelectAll(this.checked)" class="rounded border-stone-300 text-amber-500 focus:ring-amber-400"></th><th class="p-3 text-left w-24">代號</th><th class="p-3 text-left">標題</th><th class="p-3 w-28">嚴重性</th><th class="p-3 w-20">優先</th><th class="p-3 w-32">狀態</th><th class="p-3 w-28">指派</th><th class="p-3 w-32">建立時間</th><th class="p-3 w-32 text-center">操作</th></tr>
                             </thead>
                             <tbody id="defListBody" class="divide-y divide-stone-100"></tbody>
                         </table>
@@ -3983,6 +4005,55 @@ driver.swipe(100, 800, 100, 200, 500)"
                     <!-- 主內容:依 Sprint 分群,Feature → 子項階層 -->
                     <div id="backlogList" class="space-y-4">
                         <div class="bg-white rounded-lg border border-amber-100 shadow-sm p-12 text-center text-stone-400 text-sm" data-i18n="backlog.empty">沒有指派給我的待辦</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Tier D-4:我的工作(My Work inbox)— /api/assignments/me 全 entity 集成 ── -->
+            <div id="myWorkWorkspace" class="flex-1 overflow-y-auto p-6 bg-amber-50/30 hidden">
+                <div class="max-w-6xl mx-auto">
+                    <div class="bg-white rounded-lg border border-amber-100 shadow-sm p-4 mb-4 flex items-center justify-between flex-wrap gap-3">
+                        <div class="flex items-center gap-3">
+                            <i class="fa-solid fa-inbox text-2xl text-amber-600"></i>
+                            <div>
+                                <h2 class="font-bold text-stone-800 text-lg">我的工作</h2>
+                                <p class="text-xs text-stone-500">所有指派給您的工作項目(待辦 / 缺陷 / 案例 / 需求 / 文件 / 審核)</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button onclick="myWorkReload()" class="text-xs px-2.5 py-1.5 border border-stone-300 rounded hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
+                        </div>
+                    </div>
+
+                    <!-- KPI 3 卡 -->
+                    <div class="grid grid-cols-3 gap-3 mb-4">
+                        <button onclick="setMyWorkFilter('overdue')" id="myWorkKpiOverdue" class="text-left bg-white rounded-lg border border-rose-200 hover:border-rose-400 shadow-sm p-3 transition">
+                            <div class="text-xs text-rose-600 flex items-center gap-1.5"><i class="fa-solid fa-clock-rotate-left"></i> 過期</div>
+                            <div class="text-2xl font-bold text-rose-700" id="myWorkKpiOverdueCount">—</div>
+                        </button>
+                        <button onclick="setMyWorkFilter('today')" id="myWorkKpiToday" class="text-left bg-white rounded-lg border border-amber-200 hover:border-amber-400 shadow-sm p-3 transition">
+                            <div class="text-xs text-amber-700 flex items-center gap-1.5"><i class="fa-solid fa-calendar-day"></i> 今日到期</div>
+                            <div class="text-2xl font-bold text-amber-700" id="myWorkKpiTodayCount">—</div>
+                        </button>
+                        <button onclick="setMyWorkFilter('all')" id="myWorkKpiAll" class="text-left bg-white rounded-lg border border-blue-200 hover:border-blue-400 shadow-sm p-3 transition">
+                            <div class="text-xs text-blue-700 flex items-center gap-1.5"><i class="fa-solid fa-list"></i> 全部指派</div>
+                            <div class="text-2xl font-bold text-blue-700" id="myWorkKpiAllCount">—</div>
+                        </button>
+                    </div>
+
+                    <!-- Entity-type tabs -->
+                    <div class="bg-white rounded-lg border border-amber-100 shadow-sm p-1 mb-4 flex gap-1 flex-wrap">
+                        <button id="myWorkTabAll" onclick="setMyWorkType('')" class="px-3 py-1.5 text-sm font-medium rounded text-amber-700 bg-amber-50 border border-amber-300">全部</button>
+                        <button id="myWorkTabTodo" onclick="setMyWorkType('todo')" class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50 border border-transparent">待辦</button>
+                        <button id="myWorkTabDefect" onclick="setMyWorkType('defect')" class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50 border border-transparent">缺陷</button>
+                        <button id="myWorkTabTestcase" onclick="setMyWorkType('testcase')" class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50 border border-transparent">案例</button>
+                        <button id="myWorkTabRequirement" onclick="setMyWorkType('requirement')" class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50 border border-transparent">需求</button>
+                        <button id="myWorkTabDocument" onclick="setMyWorkType('document')" class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50 border border-transparent">文件</button>
+                        <button id="myWorkTabReview" onclick="setMyWorkType('review')" class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50 border border-transparent">審核</button>
+                    </div>
+
+                    <div id="myWorkList" class="bg-white rounded-lg border border-stone-100 shadow-sm divide-y divide-stone-100">
+                        <div class="p-12 text-center text-stone-400 text-sm">載入中…</div>
                     </div>
                 </div>
             </div>
@@ -11006,6 +11077,7 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('wbsWorkspace')?.classList.add('hidden');
             document.getElementById('backlogWorkspace')?.classList.add('hidden');
             document.getElementById('reviewWorkspace')?.classList.add('hidden');
+            document.getElementById('myWorkWorkspace')?.classList.add('hidden');
         }
 
         // ================== 審核中心 (Review Center) =====================
@@ -15797,13 +15869,61 @@ driver.swipe(100, 800, 100, 200, 500)"
                 { titleKey: 'view.defects.title', filenameKey: 'view.defects.title' })) return;
             renderDefectsList();
         }
+        // Tier D-6:bulk reassign 選取狀態
+        let _defectsSelected = new Set();
+        function defectsToggleSelectAll(checked) {
+            const cbs = document.querySelectorAll('#defListBody input.def-row-cb');
+            cbs.forEach(cb => { cb.checked = checked; });
+            _defectsSelected.clear();
+            if (checked) cbs.forEach(cb => _defectsSelected.add(cb.dataset.id));
+            _defectsRefreshBulkBar();
+        }
+        function defectsToggleRow(id, checked) {
+            if (checked) _defectsSelected.add(id); else _defectsSelected.delete(id);
+            _defectsRefreshBulkBar();
+        }
+        function defectsBulkClear() {
+            _defectsSelected.clear();
+            const cbs = document.querySelectorAll('#defListBody input.def-row-cb');
+            cbs.forEach(cb => { cb.checked = false; });
+            const sa = document.getElementById('defectsSelectAll'); if (sa) sa.checked = false;
+            _defectsRefreshBulkBar();
+        }
+        function _defectsRefreshBulkBar() {
+            const bar = document.getElementById('defectsBulkBar');
+            const cnt = document.getElementById('defectsBulkCount');
+            if (!bar) return;
+            if (_defectsSelected.size === 0) { bar.classList.add('hidden'); return; }
+            bar.classList.remove('hidden');
+            if (cnt) cnt.textContent = String(_defectsSelected.size);
+        }
+        function defectsBulkReassign() {
+            if (_defectsSelected.size === 0) return;
+            const ids = Array.from(_defectsSelected);
+            // 借用 picker UI;submit 後改走 /assignments/bulk
+            openAssignPicker({
+                entityType: 'defect',
+                entityId: '__bulk__',
+                label: `批次 ${ids.length} 筆缺陷`,
+                currentAssignee: null,
+                currentAssigneeType: null,
+                onSaved: async () => {
+                    _defectsSelected.clear();
+                    _defectsRefreshBulkBar();
+                    await renderDefectsList();
+                },
+            });
+            // 把 picker 設成 bulk 模式 — submit 時偵測 entityId='__bulk__' 走 /bulk
+            window._assignPickerBulkIds = ids;
+        }
+
         async function renderDefectsList() {
             const tbody = document.getElementById('defListBody');
             const cntEl = document.getElementById('defListCount');
             if (!tbody) return;
             const pid = currentProjectId;
-            if (!pid) { tbody.innerHTML = '<tr><td colspan="8" class="p-6 text-center text-stone-400">請先選擇專案</td></tr>'; cntEl.textContent='0'; return; }
-            tbody.innerHTML = '<tr><td colspan="8" class="p-6 text-center text-stone-400">載入中…</td></tr>';
+            if (!pid) { tbody.innerHTML = '<tr><td colspan="9" class="p-6 text-center text-stone-400">請先選擇專案</td></tr>'; cntEl.textContent='0'; return; }
+            tbody.innerHTML = '<tr><td colspan="9" class="p-6 text-center text-stone-400">載入中…</td></tr>';
             try {
                 const params = new URLSearchParams({project_id: pid});
                 const st = document.getElementById('defStatusFilter')?.value;
@@ -15818,16 +15938,17 @@ driver.swipe(100, 800, 100, 200, 500)"
                 let rows = _defectsCache;
                 if (kw) rows = rows.filter(r => (r.title||'').toLowerCase().includes(kw) || (r.code||'').toLowerCase().includes(kw));
                 cntEl.textContent = rows.length;
-                if (!rows.length) { tbody.innerHTML = '<tr><td colspan="8" class="p-6 text-center text-stone-400">尚無缺陷</td></tr>'; return; }
+                if (!rows.length) { tbody.innerHTML = '<tr><td colspan="9" class="p-6 text-center text-stone-400">尚無缺陷</td></tr>'; return; }
                 const sevColor = {Critical:'bg-red-100 text-red-700 border-red-200', Major:'bg-orange-100 text-orange-700 border-orange-200', Minor:'bg-amber-100 text-amber-700 border-amber-200', Trivial:'bg-stone-100 text-stone-600 border-stone-200'};
                 const stColor = {New:'bg-blue-100 text-blue-700', Assigned:'bg-purple-100 text-purple-700', InProgress:'bg-amber-100 text-amber-700', Fixed:'bg-emerald-100 text-emerald-700', Verified:'bg-green-100 text-green-700', Closed:'bg-stone-200 text-stone-700', Reopened:'bg-rose-100 text-rose-700', WontFix:'bg-stone-100 text-stone-500'};
                 tbody.innerHTML = rows.map(r => `<tr class="hover:bg-amber-50/30">
+                    <td class="p-3 text-center"><input type="checkbox" class="def-row-cb rounded border-stone-300 text-amber-500 focus:ring-amber-400" data-id="${_esc(r.id)}" ${_defectsSelected.has(r.id) ? 'checked' : ''} onchange="defectsToggleRow('${_esc(r.id)}', this.checked)"></td>
                     <td class="p-3 font-mono text-xs text-stone-500">${_esc(r.code)}</td>
                     <td class="p-3 font-semibold text-stone-800 break-all">${_esc(r.title)}</td>
                     <td class="p-3"><span class="text-xs px-2 py-0.5 rounded font-medium border ${sevColor[r.severity]||''}">${_esc(_zh('defSeverity', r.severity))}</span></td>
                     <td class="p-3 font-mono text-xs">${_esc(r.priority)}</td>
                     <td class="p-3"><span class="text-xs px-2 py-0.5 rounded font-medium ${stColor[r.status]||'bg-stone-100'}">${_esc(_zh('defStatus', r.status))}</span></td>
-                    <td class="p-3 text-xs text-stone-600">${_esc(r.assignee||'—')}</td>
+                    <td class="p-3 text-xs text-stone-600">${_esc(r.assigned_to || r.assignee || '—')}</td>
                     <td class="p-3 text-xs text-stone-500 font-mono">${(r.created_at||'').slice(0,10)}</td>
                     <td class="p-3 text-center whitespace-nowrap space-x-1">
                         <button onclick="openDefectModal('${_esc(r.id)}')" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded"><i class="fa-solid fa-pen"></i></button>
@@ -15836,7 +15957,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                     </td>
                 </tr>`).join('');
             } catch(e) {
-                tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-red-500">載入失敗：${_esc(e.message)}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="9" class="p-6 text-center text-red-500">載入失敗：${_esc(e.message)}</td></tr>`;
             }
         }
         function openDefectModal(id) {
@@ -18240,21 +18361,113 @@ gantt
         }
 
         // ─── B4:角色 clone prompt ──────────────────
+        // ─── Tier D-7:通用表單 modal helper(取代 native prompt 鏈)───
+        // 用法:
+        //   const result = await openFormModal({
+        //       title: '...', icon: 'fa-...',
+        //       fields: [{key:'foo', label:'..', type:'text|number|email|textarea|checkbox', value:'..', placeholder:'..', required:true}],
+        //       submitLabel: '...',
+        //   });
+        //   result === null 表示使用者取消;否則是 {key: value, ...}
+        function openFormModal(cfg) {
+            return new Promise((resolve) => {
+                const id = '_formModal_' + Math.random().toString(36).slice(2, 8);
+                const fieldsHtml = (cfg.fields || []).map((f, i) => {
+                    const required = f.required ? 'required' : '';
+                    const placeholder = f.placeholder ? `placeholder="${_esc(f.placeholder)}"` : '';
+                    const baseCls = 'w-full px-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-400';
+                    let input;
+                    if (f.type === 'textarea') {
+                        input = `<textarea name="${_esc(f.key)}" rows="${f.rows || 5}" class="${baseCls}" ${placeholder} ${required}>${_esc(f.value || '')}</textarea>`;
+                    } else if (f.type === 'checkbox') {
+                        input = `<label class="flex items-center gap-2 text-sm text-stone-700"><input type="checkbox" name="${_esc(f.key)}" ${f.value ? 'checked' : ''} class="rounded border-stone-300 text-amber-500 focus:ring-amber-400"> ${_esc(f.checkboxLabel || f.label)}</label>`;
+                    } else if (f.type === 'number') {
+                        input = `<input type="number" name="${_esc(f.key)}" value="${_esc(f.value ?? '')}" min="${f.min ?? ''}" max="${f.max ?? ''}" step="${f.step || 1}" class="${baseCls}" ${placeholder} ${required}>`;
+                    } else {
+                        input = `<input type="${f.type || 'text'}" name="${_esc(f.key)}" value="${_esc(f.value || '')}" class="${baseCls}" ${placeholder} ${required}>`;
+                    }
+                    const labelHtml = (f.type === 'checkbox')
+                        ? input
+                        : `<label class="block text-xs font-semibold text-stone-600 mb-1">${_esc(f.label)}${f.required ? ' *' : ''}</label>${input}${f.hint ? `<p class="text-[10px] text-stone-500 mt-1">${_esc(f.hint)}</p>` : ''}`;
+                    return `<div${i > 0 ? ' class="mt-3"' : ''}>${labelHtml}</div>`;
+                }).join('');
+                const wrap = document.createElement('div');
+                wrap.id = id;
+                wrap.innerHTML = `
+                    <div class="fixed inset-0 z-[200] bg-black/40 flex items-center justify-center p-4" onclick="if(event.target===this)document.getElementById('${id}').dispatchEvent(new CustomEvent('formModalCancel'))">
+                        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md border border-amber-200 overflow-hidden">
+                            <div class="px-5 py-3 border-b border-stone-200 bg-amber-50/60 flex items-center justify-between">
+                                <h3 class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid ${_esc(cfg.icon || 'fa-pen')} text-amber-500"></i> ${_esc(cfg.title || '')}</h3>
+                                <button type="button" data-cancel class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+                            </div>
+                            <form class="p-5" novalidate>
+                                ${cfg.intro ? `<p class="text-xs text-stone-500 mb-3">${_esc(cfg.intro)}</p>` : ''}
+                                ${fieldsHtml}
+                                <div class="flex justify-end gap-2 mt-4">
+                                    <button type="button" data-cancel class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button>
+                                    <button type="submit" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold">${_esc(cfg.submitLabel || '送出')}</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>`;
+                document.body.appendChild(wrap);
+                const cleanup = () => { wrap.remove(); document.removeEventListener('keydown', onKey); };
+                const onKey = (e) => { if (e.key === 'Escape') { cleanup(); resolve(null); } };
+                document.addEventListener('keydown', onKey);
+                wrap.addEventListener('formModalCancel', () => { cleanup(); resolve(null); });
+                wrap.querySelectorAll('[data-cancel]').forEach(b => b.addEventListener('click', () => { cleanup(); resolve(null); }));
+                const form = wrap.querySelector('form');
+                form.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    const fd = new FormData(form);
+                    const out = {};
+                    (cfg.fields || []).forEach(f => {
+                        if (f.type === 'checkbox') {
+                            out[f.key] = !!form.querySelector(`[name="${f.key}"]`).checked;
+                        } else if (f.type === 'number') {
+                            const v = fd.get(f.key);
+                            out[f.key] = v === '' || v == null ? null : Number(v);
+                        } else {
+                            out[f.key] = (fd.get(f.key) || '').toString().trim();
+                        }
+                    });
+                    cleanup();
+                    resolve(out);
+                });
+                // Autofocus first input
+                setTimeout(() => {
+                    const firstInput = form.querySelector('input:not([type=checkbox]), textarea');
+                    if (firstInput) firstInput.focus();
+                }, 50);
+            });
+        }
+
         async function cloneRolePrompt(id, name) {
-            const newName = prompt(`複製角色「${name}」 — 新角色名稱:`, `${name} (副本)`);
-            if (!newName || !newName.trim()) return;
+            const result = await openFormModal({
+                title: `複製角色「${name}」`,
+                icon: 'fa-clone',
+                intro: '會把原角色的所有權限複製到新角色,新角色預設為自訂(非系統角色)。',
+                submitLabel: '建立副本',
+                fields: [
+                    { key: 'new_name', label: '新角色名稱', type: 'text', value: `${name} (副本)`, required: true, placeholder: '例如:Senior QA' },
+                    { key: 'description', label: '說明(選填)', type: 'text', placeholder: '可空,稍後到角色管理編輯' },
+                ],
+            });
+            if (!result || !result.new_name) return;
             try {
+                const body = { new_name: result.new_name };
+                if (result.description) body.description = result.description;
                 const r = await fetch(`/api/settings/roles/${encodeURIComponent(id)}/clone`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ new_name: newName.trim() }),
+                    body: JSON.stringify(body),
                 });
                 if (!r.ok) {
                     const err = await r.json().catch(() => ({}));
                     throw new Error(err.detail || `HTTP ${r.status}`);
                 }
                 showToast('角色已複製', 'success');
-                _roleUsageMap = {};    // 失效 cache(新角色 usage_total = 0)
+                _roleUsageMap = {};
                 renderRolesList();
             } catch (e) {
                 showToast('複製失敗:' + (e.message || e), 'error');
@@ -19053,9 +19266,17 @@ gantt
             }
         }
         async function invExtend(id) {
-            const days = prompt('延長幾天?(預設 7)', '7');
-            if (days === null) return;
-            const n = parseInt(days, 10);
+            const result = await openFormModal({
+                title: '延長邀請有效期',
+                icon: 'fa-clock-rotate-left',
+                intro: '從現在起再加 N 天(不是從原 expires_at);範圍 1-365。',
+                submitLabel: '延長',
+                fields: [
+                    { key: 'days', label: '延長天數', type: 'number', value: 7, min: 1, max: 365, required: true },
+                ],
+            });
+            if (!result) return;
+            const n = parseInt(result.days, 10);
             if (!Number.isFinite(n) || n < 1) { showToast('請輸入有效天數', 'error'); return; }
             try {
                 const r = await fetch(`/api/invites/${encodeURIComponent(id)}/extend?days=${n}`, { method: 'PATCH' });
@@ -19084,38 +19305,58 @@ gantt
             }
         }
         async function invOpenSingleModal() {
-            const email = prompt('要邀請的 email:');
-            if (!email || !email.trim()) return;
-            const days = parseInt(prompt('有效天數(預設 7)', '7') || '7', 10);
+            const result = await openFormModal({
+                title: '寄出邀請信',
+                icon: 'fa-paper-plane',
+                intro: '對方點開信中的 token 連結後,會直接成為本組織成員。',
+                submitLabel: '寄出',
+                fields: [
+                    { key: 'email', label: '收件人 Email', type: 'email', required: true, placeholder: 'alice@example.com' },
+                    { key: 'days', label: '有效天數', type: 'number', value: 7, min: 1, max: 365, required: true },
+                    { key: 'send_email', type: 'checkbox', value: true, checkboxLabel: '建立邀請後立刻寄信(取消勾選 = 只建 token,不寄信)' },
+                ],
+            });
+            if (!result) return;
+            if (!result.email) { showToast('請輸入 email', 'error'); return; }
+            const days = parseInt(result.days, 10) || 7;
             try {
                 const r = await fetch('/api/invites', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ email: email.trim(), expires_in_days: days, send_email: true }),
+                    body: JSON.stringify({ email: result.email, expires_in_days: days, send_email: !!result.send_email }),
                 });
                 if (!r.ok) {
                     const j = await r.json().catch(() => ({}));
                     throw new Error(j.detail || `HTTP ${r.status}`);
                 }
-                showToast('已寄出邀請信', 'success');
+                showToast(result.send_email ? '已寄出邀請信' : '已建立邀請(未寄信)', 'success');
                 invReload();
             } catch (e) {
                 showToast('寄送失敗:' + (e.message || e), 'error');
             }
         }
         async function invOpenBulkModal() {
-            const raw = prompt('貼上多個 email,逗號或換行分隔(最多 200 筆):');
-            if (!raw) return;
-            const emails = raw.split(/[\s,;]+/).map(s => s.trim()).filter(Boolean);
+            const result = await openFormModal({
+                title: '批次寄邀請',
+                icon: 'fa-list',
+                intro: '貼上多個 email(逗號 / 換行 / 分號分隔),最多 200 筆。格式錯誤的會被跳過。',
+                submitLabel: '寄出全部',
+                fields: [
+                    { key: 'emails', label: 'Email 清單', type: 'textarea', rows: 6, required: true, placeholder: 'alice@example.com\nbob@example.com\n…' },
+                    { key: 'days', label: '有效天數', type: 'number', value: 7, min: 1, max: 365, required: true },
+                    { key: 'send_email', type: 'checkbox', value: true, checkboxLabel: '建立邀請後立刻寄信' },
+                ],
+            });
+            if (!result) return;
+            const emails = (result.emails || '').split(/[\s,;]+/).map(s => s.trim()).filter(Boolean);
             if (!emails.length) { showToast('沒有解析到任何 email', 'error'); return; }
             if (emails.length > 200) { showToast('一次最多 200 筆', 'error'); return; }
-            const days = parseInt(prompt('有效天數(預設 7)', '7') || '7', 10);
-            if (!confirm(`將寄 ${emails.length} 封邀請信(有效期 ${days} 天)。確定?`)) return;
+            const days = parseInt(result.days, 10) || 7;
             try {
                 const r = await fetch('/api/invites/bulk', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ emails, expires_in_days: days, send_email: true }),
+                    body: JSON.stringify({ emails, expires_in_days: days, send_email: !!result.send_email }),
                 });
                 if (!r.ok) {
                     const j = await r.json().catch(() => ({}));
@@ -20839,58 +21080,138 @@ gantt
             return _assignableGroupsCache;
         }
 
-        // ─── Generic assignment picker (Phase 5) ─────────────────────────
+        // ─── Generic assignment picker(Phase 5,Tier D-5 改造)──────
         // Reusable across Review / Defect / TestCase / Requirement / Document.
         // Driver: openAssignPicker({entityType, entityId, label, currentAssignee,
-        //                          currentAssigneeType, onSaved})
-        // Backend: POST /api/assignments  (or DELETE if value is cleared)
+        //                          currentAssigneeType, assignedBy, assignedAt, onSaved})
+        // Backend: POST /api/assignments  (或 DELETE 解除)
         let _assignPickerCtx = null;
+        let _assignPickerSearchQ = '';
 
-        async function openAssignPicker({ entityType, entityId, label, currentAssignee, currentAssigneeType, onSaved }) {
-            _assignPickerCtx = { entityType, entityId, onSaved };
+        async function openAssignPicker({ entityType, entityId, label, currentAssignee, currentAssigneeType, assignedBy, assignedAt, onSaved }) {
+            _assignPickerCtx = { entityType, entityId, onSaved, currentAssignee, currentAssigneeType };
+            _assignPickerSearchQ = '';
+            const searchInp = document.getElementById('assignPickerSearch'); if (searchInp) searchInp.value = '';
             const sub = document.getElementById('assignPickerSubtitle');
             if (sub) sub.textContent = `${entityType} · ${label || entityId}`;
-            const sel = document.getElementById('assignPickerSelect');
-            sel.innerHTML = '<option value="">— 載入中… —</option>';
+            // 預設清掉 fan-out 預覽 / audit / stale 區塊
+            document.getElementById('assignPickerFanout').classList.add('hidden');
             await Promise.all([_loadAssignableUsers(), _loadAssignableGroups()]);
+            _renderAssignPickerOptions();
+            // audit metadata
+            const cur = document.getElementById('assignPickerCurrent');
+            if (currentAssignee && (assignedBy || assignedAt)) {
+                const flag = currentAssigneeType === 'group' ? '群組' : '使用者';
+                const when = assignedAt ? new Date(assignedAt).toLocaleString() : '?';
+                cur.textContent = `目前指派 ${flag}「${currentAssignee}」 — 由 ${assignedBy || '?'} 於 ${when} 設定`;
+                cur.classList.remove('hidden');
+            } else if (currentAssignee) {
+                const flag = currentAssigneeType === 'group' ? '群組' : '使用者';
+                cur.textContent = `目前指派 ${flag}「${currentAssignee}」`;
+                cur.classList.remove('hidden');
+            } else {
+                cur.classList.add('hidden');
+            }
+            // stale check
+            const known = new Set();
+            (_assignableUsersCache || []).forEach(u => known.add('user:' + u.username));
+            (_assignableGroupsCache || []).forEach(g => known.add('group:' + g.id));
+            const composite = currentAssignee ? `${currentAssigneeType || 'user'}:${currentAssignee}` : '';
+            const isStale = composite && !known.has(composite);
+            const staleEl = document.getElementById('assignPickerStale');
+            staleEl.classList.toggle('hidden', !isStale);
+            // pre-select
+            const sel = document.getElementById('assignPickerSelect');
+            sel.value = composite;
+            assignPickerOnChange();
+            document.getElementById('assignPickerModal').classList.remove('hidden');
+            setTimeout(() => searchInp && searchInp.focus(), 50);
+        }
+        function _renderAssignPickerOptions() {
+            const sel = document.getElementById('assignPickerSelect');
             const users = _assignableUsersCache || [];
             const groups = _assignableGroupsCache || [];
+            const q = (_assignPickerSearchQ || '').toLowerCase().trim();
+            const matchU = u => !q || (u.username||'').toLowerCase().includes(q) || (u.display_name||'').toLowerCase().includes(q) || (u.email||'').toLowerCase().includes(q);
+            const matchG = g => !q || (g.name||'').toLowerCase().includes(q);
+            const fu = users.filter(matchU);
+            const fg = groups.filter(matchG);
             const opts = ['<option value="">— 不指派 / 解除指派 —</option>'];
-            if (users.length) {
+            if (fu.length) {
                 opts.push('<optgroup label="使用者">');
-                users.forEach(u => {
+                fu.forEach(u => {
                     const lab = u.display_name ? `${_esc(u.display_name)} (${_esc(u.username)})` : _esc(u.username);
                     opts.push(`<option value="user:${_esc(u.username)}">${lab}</option>`);
                 });
                 opts.push('</optgroup>');
             }
-            if (groups.length) {
+            if (fg.length) {
                 opts.push('<optgroup label="群組(會通知所有成員)">');
-                groups.forEach(g => {
+                fg.forEach(g => {
                     opts.push(`<option value="group:${_esc(g.id)}">👥 ${_esc(g.name)} (${g.member_count || 0} 人)</option>`);
                 });
                 opts.push('</optgroup>');
             }
-            sel.innerHTML = opts.join('');
-            const composite = currentAssignee ? `${currentAssigneeType || 'user'}:${currentAssignee}` : '';
-            const known = new Set();
-            users.forEach(u => known.add('user:' + u.username));
-            groups.forEach(g => known.add('group:' + g.id));
-            if (composite && !known.has(composite)) {
-                const flag = currentAssigneeType === 'group' ? '群組' : '使用者';
-                const fallback = document.createElement('option');
-                fallback.value = composite;
-                fallback.textContent = `⚠ 舊指派(${flag} ${currentAssignee})`;
-                sel.appendChild(fallback);
+            // 舊指派 fallback option
+            const ctx = _assignPickerCtx || {};
+            if (ctx.currentAssignee) {
+                const composite = `${ctx.currentAssigneeType || 'user'}:${ctx.currentAssignee}`;
+                const known = new Set();
+                users.forEach(u => known.add('user:' + u.username));
+                groups.forEach(g => known.add('group:' + g.id));
+                if (!known.has(composite)) {
+                    const flag = ctx.currentAssigneeType === 'group' ? '群組' : '使用者';
+                    opts.push(`<option value="${_esc(composite)}">⚠ 舊指派(${flag} ${_esc(ctx.currentAssignee)})</option>`);
+                }
             }
-            sel.value = composite;
-            document.getElementById('assignPickerModal').classList.remove('hidden');
-            setTimeout(() => sel.focus(), 50);
+            sel.innerHTML = opts.join('');
+        }
+        function assignPickerOnSearch(v) {
+            _assignPickerSearchQ = v || '';
+            _renderAssignPickerOptions();
+        }
+        function assignPickerOnChange() {
+            // 群組選擇 → 顯示 fan-out 預覽
+            const sel = document.getElementById('assignPickerSelect');
+            const fanout = document.getElementById('assignPickerFanout');
+            const v = sel.value || '';
+            if (!v.startsWith('group:')) { fanout.classList.add('hidden'); return; }
+            const gid = v.slice(6);
+            const g = (_assignableGroupsCache || []).find(x => x.id === gid);
+            if (!g) { fanout.classList.add('hidden'); return; }
+            // 透過 /api/settings/groups/{id}/usage(D-3 既有)拿 members_count + child_groups_count
+            fanout.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> 計算 fan-out…`;
+            fanout.classList.remove('hidden');
+            fetch(`/api/settings/groups/${encodeURIComponent(gid)}/usage`)
+                .then(r => r.ok ? r.json() : null)
+                .then(u => {
+                    if (!u) return;
+                    const directly = u.members_count || 0;
+                    const children = u.child_groups_count || 0;
+                    fanout.innerHTML = `<i class="fa-solid fa-bullhorn"></i> 將通知 <b>${directly}</b> 名直屬成員${children ? ` + ${children} 個子群組(展開後成員會去重後一起收到通知)` : ''}。`;
+                })
+                .catch(() => fanout.classList.add('hidden'));
+        }
+        async function assignPickerClearStale() {
+            // 清除 stale 指派(直接送 DELETE,跳過 select)
+            if (!_assignPickerCtx) return;
+            const { entityType, entityId, onSaved } = _assignPickerCtx;
+            try {
+                const url = `/api/assignments?entity_type=${encodeURIComponent(entityType)}&entity_id=${encodeURIComponent(entityId)}`;
+                const r = await fetch(url, { method: 'DELETE' });
+                if (!r.ok && r.status !== 204) throw new Error('HTTP ' + r.status);
+                showToast('已清除舊指派', 'success');
+                closeAssignPicker();
+                if (typeof onSaved === 'function') { try { await onSaved(); } catch (_) {} }
+            } catch (e) {
+                showToast('清除失敗:' + (e.message || e), 'error');
+            }
         }
 
         function closeAssignPicker() {
             document.getElementById('assignPickerModal').classList.add('hidden');
             _assignPickerCtx = null;
+            _assignPickerSearchQ = '';
         }
 
         async function assignPickerSubmit(ev) {
@@ -20900,8 +21221,30 @@ gantt
             const raw = document.getElementById('assignPickerSelect').value || '';
             const btn = document.getElementById('assignPickerSubmitBtn');
             if (btn) btn.disabled = true;
+            const bulkIds = (entityId === '__bulk__') ? (window._assignPickerBulkIds || []) : null;
             try {
-                if (!raw) {
+                if (bulkIds && bulkIds.length) {
+                    // Tier D-6:bulk reassign 走 /api/assignments/bulk
+                    const [type, val] = raw ? raw.split(':', 2) : [null, null];
+                    const r = await fetch('/api/assignments/bulk', {
+                        method: 'PATCH',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            entity_type: entityType,
+                            entity_ids: bulkIds,
+                            assignee: val || null,
+                            assignee_type: type || 'user',
+                        }),
+                    });
+                    if (!r.ok) {
+                        const detail = (await r.json().catch(() => ({}))).detail || ('HTTP ' + r.status);
+                        throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
+                    }
+                    const j = await r.json();
+                    const skipMsg = (j.skipped && j.skipped.length) ? ` · 跳過 ${j.skipped.length}` : '';
+                    showToast(`已重新指派 ${j.updated} 筆${skipMsg}`, 'success');
+                    window._assignPickerBulkIds = null;
+                } else if (!raw) {
                     // Clear assignment
                     const url = `/api/assignments?entity_type=${encodeURIComponent(entityType)}&entity_id=${encodeURIComponent(entityId)}`;
                     const r = await fetch(url, { method: 'DELETE' });
@@ -21243,6 +21586,127 @@ gantt
             const assigneeSel = document.getElementById('backlogAssigneeFilter');
             if (assigneeSel && !assigneeSel.dataset.userInteracted) assigneeSel.value = '__me__';
             reloadBacklogView();
+        }
+
+        // ─── Tier D-4:我的工作(My Work inbox)──────────────────
+        let _myWorkAll = [];                 // raw items from /api/assignments/me
+        let _myWorkFilter = 'all';           // 'all' | 'overdue' | 'today'
+        let _myWorkTypeFilter = '';          // '' | 'todo' | 'defect' | ...
+        const _MYWORK_TYPE_META = {
+            todo:        { icon: 'fa-list-check', cls: 'text-amber-600', label: '待辦' },
+            defect:      { icon: 'fa-bug', cls: 'text-rose-600', label: '缺陷' },
+            testcase:    { icon: 'fa-flask-vial', cls: 'text-blue-600', label: '案例' },
+            requirement: { icon: 'fa-diagram-project', cls: 'text-cyan-600', label: '需求' },
+            document:    { icon: 'fa-file-lines', cls: 'text-pink-600', label: '文件' },
+            review:      { icon: 'fa-clipboard-check', cls: 'text-emerald-600', label: '審核' },
+        };
+        function showMyWorkView() {
+            if (!_setView('myWorkWorkspace',
+                '<i class="fa-solid fa-inbox text-amber-600"></i>',
+                'My Work',
+                'bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium',
+                '我的工作',
+                { titleKey: 'view.myWork.title', filenameKey: 'view.myWork.title' })) return;
+            myWorkReload();
+        }
+        async function myWorkReload() {
+            const list = document.getElementById('myWorkList');
+            list.innerHTML = '<div class="p-12 text-center text-stone-400 text-sm"><i class="fa-solid fa-spinner fa-spin"></i> 載入中…</div>';
+            try {
+                const r = await fetch('/api/assignments/me');
+                if (!r.ok) throw new Error('HTTP '+r.status);
+                _myWorkAll = await r.json();
+                _renderMyWork();
+            } catch (e) {
+                list.innerHTML = `<div class="p-12 text-center text-rose-600 text-sm">載入失敗:${_esc(e.message || String(e))}</div>`;
+            }
+        }
+        function setMyWorkFilter(f) { _myWorkFilter = f; _renderMyWork(); }
+        function setMyWorkType(t) {
+            _myWorkTypeFilter = t || '';
+            // tab UI
+            const tabs = ['', 'todo', 'defect', 'testcase', 'requirement', 'document', 'review'];
+            tabs.forEach(x => {
+                const id = 'myWorkTab' + (x ? x.charAt(0).toUpperCase() + x.slice(1) : 'All');
+                const el = document.getElementById(id);
+                if (!el) return;
+                if (x === _myWorkTypeFilter) {
+                    el.classList.add('bg-amber-50', 'text-amber-700', 'border-amber-300');
+                    el.classList.remove('text-stone-600', 'border-transparent', 'hover:bg-stone-50');
+                } else {
+                    el.classList.remove('bg-amber-50', 'text-amber-700', 'border-amber-300');
+                    el.classList.add('text-stone-600', 'border-transparent', 'hover:bg-stone-50');
+                }
+            });
+            _renderMyWork();
+        }
+        function _renderMyWork() {
+            const today = new Date().toISOString().slice(0, 10);
+            const all = _myWorkAll || [];
+            const overdue = all.filter(x => x.due_date && x.due_date < today);
+            const todayDue = all.filter(x => x.due_date === today);
+            // KPI
+            const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = String(v); };
+            set('myWorkKpiOverdueCount', overdue.length);
+            set('myWorkKpiTodayCount', todayDue.length);
+            set('myWorkKpiAllCount', all.length);
+
+            let pool = all;
+            if (_myWorkFilter === 'overdue') pool = overdue;
+            else if (_myWorkFilter === 'today') pool = todayDue;
+            if (_myWorkTypeFilter) pool = pool.filter(x => x.entity_type === _myWorkTypeFilter);
+
+            const list = document.getElementById('myWorkList');
+            if (!pool.length) {
+                list.innerHTML = `<div class="p-12 text-center text-stone-400 text-sm">沒有符合條件的指派 🎉</div>`;
+                return;
+            }
+            list.innerHTML = pool.map(x => {
+                const meta = _MYWORK_TYPE_META[x.entity_type] || { icon: 'fa-circle', cls: 'text-stone-500', label: x.entity_type };
+                const isOverdue = x.due_date && x.due_date < today;
+                const dueBadge = x.due_date
+                    ? `<span class="text-[11px] ${isOverdue ? 'text-rose-700 font-semibold' : 'text-stone-500'}"><i class="fa-regular fa-clock"></i> ${_esc(x.due_date)}${isOverdue ? ' (過期)' : ''}</span>`
+                    : '';
+                const auditMeta = x.assigned_by
+                    ? `<span class="text-[10px] text-stone-400">${_esc(x.assigned_by)} · ${_esc((x.assigned_at || '').slice(0, 10))}</span>`
+                    : '';
+                const status = x.status ? `<span class="text-[10px] px-1.5 py-0.5 bg-stone-100 text-stone-600 rounded">${_esc(x.status)}</span>` : '';
+                return `<div class="p-3 hover:bg-amber-50/40 flex items-center gap-3">
+                    <i class="fa-solid ${meta.icon} ${meta.cls} text-lg w-6 text-center"></i>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="font-semibold text-stone-800 truncate">${_esc(x.label || x.entity_id)}</span>
+                            <span class="text-[10px] px-1.5 py-0.5 bg-stone-100 text-stone-500 rounded">${meta.label}</span>
+                            ${status}
+                            ${dueBadge}
+                        </div>
+                        <div class="text-[11px] text-stone-500 mt-0.5">${auditMeta}</div>
+                    </div>
+                    <button onclick="myWorkJump('${_esc(x.entity_type)}','${_esc(x.entity_id)}','${_esc(x.project_id || '')}')" class="text-xs px-2.5 py-1 border border-stone-300 rounded hover:bg-amber-50">跳轉 <i class="fa-solid fa-arrow-right"></i></button>
+                </div>`;
+            }).join('');
+        }
+        function myWorkJump(et, id, projId) {
+            // 切到對應 view + 嘗試開 detail modal(每種 entity 各有不同入口)
+            try {
+                if (et === 'todo') {
+                    showBacklogView();
+                    setTimeout(() => { if (typeof openTodoModal === 'function') openTodoModal(id); }, 150);
+                } else if (et === 'defect') {
+                    if (typeof showDefectsView === 'function') {
+                        showDefectsView();
+                        setTimeout(() => { if (typeof openDefectModal === 'function') openDefectModal(id); }, 150);
+                    }
+                } else if (et === 'testcase') {
+                    if (typeof showTestCasesView === 'function') showTestCasesView();
+                } else if (et === 'requirement') {
+                    if (typeof showRequirementsView === 'function') showRequirementsView();
+                } else if (et === 'document') {
+                    if (typeof showTestDocumentsView === 'function') showTestDocumentsView();
+                } else if (et === 'review') {
+                    if (typeof showReviewView === 'function') showReviewView();
+                }
+            } catch (e) { console.warn('myWorkJump failed', e); }
         }
 
         async function reloadBacklogView() {
