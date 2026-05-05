@@ -4216,12 +4216,37 @@ driver.swipe(100, 800, 100, 200, 500)"
                         <div class="bg-white rounded-xl p-3 border border-orange-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-solid fa-diagram-project text-cyan-500"></i> 需求總數</div><div class="text-2xl font-bold text-cyan-600" id="kpi_requirements">—</div></div>
                         <div class="bg-white rounded-xl p-3 border border-orange-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-solid fa-list-check text-amber-500"></i> Backlog 活躍</div><div class="text-2xl font-bold text-amber-600" id="kpi_active_backlog">—</div></div>
                     </section>
-                    <!-- Kanban 板（缺陷狀態欄）-->
+                    <!-- Tier F:多 entity 看板 — 工具列(entity tab + 我的/全部 toggle)-->
+                    <div class="bg-white rounded-lg border border-orange-100 shadow-sm p-2 mb-3 flex items-center gap-3 flex-wrap">
+                        <!-- entity-type tabs -->
+                        <div class="flex gap-1 flex-wrap">
+                            <button id="kanbanTabAll" onclick="kanbanSetEntity('')" class="px-3 py-1.5 text-xs font-medium rounded text-amber-700 bg-amber-50 border border-amber-300">全部</button>
+                            <button id="kanbanTabDefect" onclick="kanbanSetEntity('defect')" class="px-3 py-1.5 text-xs font-medium rounded text-stone-600 hover:bg-stone-50 border border-transparent">缺陷</button>
+                            <button id="kanbanTabTodo" onclick="kanbanSetEntity('todo')" class="px-3 py-1.5 text-xs font-medium rounded text-stone-600 hover:bg-stone-50 border border-transparent">待辦</button>
+                            <button id="kanbanTabTestcase" onclick="kanbanSetEntity('testcase')" class="px-3 py-1.5 text-xs font-medium rounded text-stone-600 hover:bg-stone-50 border border-transparent">案例</button>
+                            <button id="kanbanTabRequirement" onclick="kanbanSetEntity('requirement')" class="px-3 py-1.5 text-xs font-medium rounded text-stone-600 hover:bg-stone-50 border border-transparent">需求</button>
+                            <button id="kanbanTabDocument" onclick="kanbanSetEntity('document')" class="px-3 py-1.5 text-xs font-medium rounded text-stone-600 hover:bg-stone-50 border border-transparent">文件</button>
+                            <button id="kanbanTabReview" onclick="kanbanSetEntity('review')" class="px-3 py-1.5 text-xs font-medium rounded text-stone-600 hover:bg-stone-50 border border-transparent">審核</button>
+                        </div>
+                        <span class="text-stone-300">|</span>
+                        <!-- 我的 / 全部 toggle -->
+                        <div class="flex gap-1 bg-stone-100 rounded p-1">
+                            <button id="kanbanScopeMine" onclick="kanbanSetScope('mine')" class="px-3 py-1 text-xs font-semibold rounded text-amber-700 bg-white shadow-sm">我的指派</button>
+                            <button id="kanbanScopeAll" onclick="kanbanSetScope('all')" class="px-3 py-1 text-xs font-semibold rounded text-stone-600 hover:bg-white">全部</button>
+                        </div>
+                        <span class="text-stone-300">|</span>
+                        <label class="flex items-center gap-1.5 text-xs text-stone-700 cursor-pointer">
+                            <input type="checkbox" id="kanbanOverdueOnly" onchange="renderTestKanban()" class="rounded border-stone-300 text-amber-500 focus:ring-amber-400">
+                            僅看過期
+                        </label>
+                        <button onclick="renderTestKanban()" class="ml-auto text-xs px-2 py-1 border border-stone-300 rounded hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
+                    </div>
                     <h3 class="text-sm font-bold text-stone-500 uppercase tracking-wider mb-2 flex items-center gap-2">
-                        <i class="fa-solid fa-columns text-orange-500"></i> 缺陷看版（依狀態分欄；顯示截至最近建立的 30 筆）
+                        <i class="fa-solid fa-columns text-orange-500"></i>
+                        <span id="kanbanTitleHint">看板（依狀態分欄,每欄上限 50 筆）</span>
                     </h3>
                     <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-3" id="kanbanColumns">
-                        <!-- 動態渲染：6 個 column = New / Assigned / InProgress / Fixed / Verified / Closed -->
+                        <!-- 動態渲染:全部 mode = 3 generic 欄;單一 entity mode = 該 entity 的細分 status 欄 -->
                     </div>
                 </div>
             </div>
@@ -17183,82 +17208,415 @@ gantt
                 { titleKey: 'view.kanban.title', filenameKey: 'view.kanban.title' })) return;
             renderTestKanban();
         }
-        const _KANBAN_COL_DEFS = [
-            {key:'New', label:'新建立', color:'border-blue-300 bg-blue-50'},
-            {key:'Assigned', label:'已指派', color:'border-purple-300 bg-purple-50'},
-            {key:'InProgress', label:'處理中', color:'border-amber-300 bg-amber-50'},
-            {key:'Fixed', label:'已修復', color:'border-emerald-300 bg-emerald-50'},
-            {key:'Verified', label:'已驗證', color:'border-green-300 bg-green-50'},
-            {key:'Closed', label:'已關閉', color:'border-stone-300 bg-stone-50'},
+        // ─── Tier F:多 entity 看板 ────────────────────────────────────
+        // 狀態:entity tab(空字串=全部)+ scope ('mine' | 'all')
+        let _kanbanEntity = '';        // '' | 'defect' | 'todo' | 'testcase' | 'requirement' | 'document' | 'review'
+        let _kanbanScope = 'mine';     // 'mine' | 'all'
+        let _kanbanItems = [];         // 統一 shape: {entity_type, id, label, status, project_id, due_date, assigned_to, assigned_to_type, assigned_by, assigned_at, severity?, code?}
+
+        // entity → meta(icon / color / 細分欄定義)
+        const _KANBAN_ENTITY_META = {
+            defect:      { icon: 'fa-bug', color: 'text-rose-600', label: '缺陷' },
+            todo:        { icon: 'fa-list-check', color: 'text-amber-600', label: '待辦' },
+            testcase:    { icon: 'fa-flask-vial', color: 'text-blue-600', label: '案例' },
+            requirement: { icon: 'fa-diagram-project', color: 'text-cyan-600', label: '需求' },
+            document:    { icon: 'fa-file-lines', color: 'text-pink-600', label: '文件' },
+            review:      { icon: 'fa-clipboard-check', color: 'text-emerald-600', label: '審核' },
+        };
+        // generic 3-bucket(全部 mode)
+        const _KANBAN_GENERIC_BUCKETS = {
+            todo:        { Todo: 'todo', InProgress: 'doing', Done: 'done', Cancelled: 'done' },
+            defect:      { New: 'todo', Assigned: 'todo', Reopened: 'todo', InProgress: 'doing', Fixed: 'done', Verified: 'done', Closed: 'done', WontFix: 'done' },
+            requirement: { Draft: 'todo', Approved: 'doing', Implemented: 'doing', Verified: 'done', Deprecated: 'done' },
+            review:      { pending: 'todo', approved: 'done', rejected: 'done' },
+            // testcase / document 沒 status,一律當 'todo'
+        };
+        const _KANBAN_GENERIC_COLS = [
+            { key: 'todo',  label: '待處理', color: 'border-blue-300 bg-blue-50' },
+            { key: 'doing', label: '進行中', color: 'border-amber-300 bg-amber-50' },
+            { key: 'done',  label: '已完成', color: 'border-emerald-300 bg-emerald-50' },
         ];
+        // entity-specific 細分 status 欄(各 entity tab 用)
+        const _KANBAN_ENTITY_COLS = {
+            defect: [
+                {key:'New', label:'新建立', color:'border-blue-300 bg-blue-50'},
+                {key:'Assigned', label:'已指派', color:'border-purple-300 bg-purple-50'},
+                {key:'InProgress', label:'處理中', color:'border-amber-300 bg-amber-50'},
+                {key:'Fixed', label:'已修復', color:'border-emerald-300 bg-emerald-50'},
+                {key:'Verified', label:'已驗證', color:'border-green-300 bg-green-50'},
+                {key:'Closed', label:'已關閉', color:'border-stone-300 bg-stone-50'},
+            ],
+            todo: [
+                {key:'Todo', label:'待辦', color:'border-blue-300 bg-blue-50'},
+                {key:'InProgress', label:'處理中', color:'border-amber-300 bg-amber-50'},
+                {key:'Done', label:'已完成', color:'border-emerald-300 bg-emerald-50'},
+                {key:'Cancelled', label:'已取消', color:'border-stone-300 bg-stone-50'},
+            ],
+            requirement: [
+                {key:'Draft', label:'草稿', color:'border-blue-300 bg-blue-50'},
+                {key:'Approved', label:'已核准', color:'border-purple-300 bg-purple-50'},
+                {key:'Implemented', label:'已實作', color:'border-amber-300 bg-amber-50'},
+                {key:'Verified', label:'已驗證', color:'border-emerald-300 bg-emerald-50'},
+                {key:'Deprecated', label:'已棄用', color:'border-stone-300 bg-stone-50'},
+            ],
+            review: [
+                {key:'pending', label:'待審核', color:'border-amber-300 bg-amber-50'},
+                {key:'approved', label:'已通過', color:'border-emerald-300 bg-emerald-50'},
+                {key:'rejected', label:'已拒絕', color:'border-rose-300 bg-rose-50'},
+            ],
+            // testcase / document 沒 status,只給一個 catch-all 欄
+            testcase: [{key:'__all', label:'測試案例', color:'border-blue-300 bg-blue-50'}],
+            document: [{key:'__all', label:'測試文件', color:'border-pink-300 bg-pink-50'}],
+        };
         const _KANBAN_SEV_BADGE = {Critical:'bg-red-100 text-red-700', Major:'bg-orange-100 text-orange-700', Minor:'bg-amber-100 text-amber-700', Trivial:'bg-stone-100 text-stone-500'};
 
         // 缺陷 -> linked todos 的 batch 查詢結果(看板渲染前一次拉到位)
         let _kanbanLinkedTodosByDefect = {};
 
-        function renderKanbanColumns(colsEl, defs) {
-            colsEl.innerHTML = _KANBAN_COL_DEFS.map(c => {
-                const items = defs.filter(d => d.status === c.key).slice(0, 30);
-                return `<div class="bg-white rounded-lg border ${c.color} p-2 min-h-[200px] kanban-col" data-col-status="${c.key}" ondragover="kanbanDragOver(event)" ondragleave="kanbanDragLeave(event)" ondrop="kanbanDrop(event)">
-                    <div class="text-xs font-bold text-stone-700 px-1 pb-2 flex items-center justify-between">
-                        <span>${_esc(c.label)}</span>
-                        <span class="text-stone-400 font-mono">${items.length}</span>
-                    </div>
-                    <div class="space-y-2">${items.map(d => {
-                        const linkedTodos = _kanbanLinkedTodosByDefect[d.id] || [];
-                        const linkBadge = linkedTodos.length
-                            ? `<span class="text-[9px] px-1 rounded bg-amber-100 text-amber-700 ml-1" title="${_esc(linkedTodos.length)} 條 Backlog 連結"><i class="fa-solid fa-link"></i> ${linkedTodos.length}</span>`
-                            : '';
-                        return `<div class="bg-white border border-stone-200 rounded p-2 cursor-move hover:border-blue-300 shadow-sm kanban-card" draggable="true" data-defect-id="${_esc(d.id)}" data-defect-status="${_esc(d.status)}" ondragstart="kanbanDragStart(event)" ondragend="kanbanDragEnd(event)" onclick="kanbanCardClick(event, '${_esc(d.id)}')" title="拖移到其他欄變更狀態;點擊編輯">
-                        <div class="flex items-center justify-between">
-                            <div class="text-[10px] font-mono text-stone-400">${_esc(d.code)}</div>
-                            <span class="text-[9px] px-1 rounded bg-stone-100 text-stone-500">${_esc(_zh('defStatus', d.status))}${linkBadge}</span>
-                        </div>
-                        <div class="text-xs font-semibold text-stone-800 line-clamp-2 mt-0.5">${_esc(d.title)}</div>
-                        <div class="flex items-center justify-between mt-1">
-                            <span class="text-[10px] px-1.5 py-0.5 rounded ${_KANBAN_SEV_BADGE[d.severity]||''}">${_esc(_zh('defSeverity', d.severity))}</span>
-                            <span class="text-[10px] text-stone-400">${_esc(d.assignee||'未指派')}</span>
-                        </div>
-                    </div>`;}).join('')||'<div class="text-xs text-stone-400 text-center py-2">無</div>'}</div>
-                </div>`;
-            }).join('');
+        function kanbanSetEntity(et) {
+            _kanbanEntity = et || '';
+            const tabs = ['', 'defect', 'todo', 'testcase', 'requirement', 'document', 'review'];
+            tabs.forEach(t => {
+                const id = 'kanbanTab' + (t ? t.charAt(0).toUpperCase() + t.slice(1) : 'All');
+                const el = document.getElementById(id);
+                if (!el) return;
+                if (t === _kanbanEntity) {
+                    el.classList.add('bg-amber-50', 'text-amber-700', 'border-amber-300');
+                    el.classList.remove('text-stone-600', 'border-transparent', 'hover:bg-stone-50');
+                } else {
+                    el.classList.remove('bg-amber-50', 'text-amber-700', 'border-amber-300');
+                    el.classList.add('text-stone-600', 'border-transparent', 'hover:bg-stone-50');
+                }
+            });
+            renderTestKanban();
+        }
+        function kanbanSetScope(scope) {
+            _kanbanScope = scope;
+            ['mine', 'all'].forEach(s => {
+                const el = document.getElementById('kanbanScope' + s.charAt(0).toUpperCase() + s.slice(1));
+                if (!el) return;
+                if (s === scope) {
+                    el.classList.add('text-amber-700', 'bg-white', 'shadow-sm');
+                    el.classList.remove('text-stone-600', 'hover:bg-white');
+                } else {
+                    el.classList.remove('text-amber-700', 'bg-white', 'shadow-sm');
+                    el.classList.add('text-stone-600', 'hover:bg-white');
+                }
+            });
+            renderTestKanban();
+        }
+
+        // 把不同 entity 的 list 結果統一成 kanban item shape
+        function _kanbanNormalizeDefect(d, projectId) {
+            return {
+                entity_type: 'defect',
+                id: d.id,
+                label: d.title,
+                code: d.code,
+                severity: d.severity,
+                status: d.status,
+                project_id: d.project_id || projectId,
+                due_date: null,
+                assigned_to: d.assigned_to || d.assignee || null,
+                assigned_to_type: d.assigned_to_type || 'user',
+                assigned_by: d.assigned_by || null,
+                assigned_at: d.assigned_at || null,
+            };
+        }
+        function _kanbanNormalizeTodo(t, projectId) {
+            return {
+                entity_type: 'todo',
+                id: t.id,
+                label: t.title,
+                status: t.status,
+                priority: t.priority,
+                project_id: t.project_id || projectId,
+                due_date: t.due_date,
+                assigned_to: t.assignee,         // API 回 assignee key(D-1 後仍對外)
+                assigned_to_type: t.assignee_type || 'user',
+                assigned_by: t.assigned_by,
+                assigned_at: t.assigned_at,
+            };
+        }
+        function _kanbanNormalizeRequirement(r, projectId) {
+            return {
+                entity_type: 'requirement',
+                id: r.id,
+                label: r.name || r.title || r.id,
+                status: r.status,
+                project_id: r.project_id || projectId,
+                due_date: null,
+                assigned_to: r.assigned_to || null,
+                assigned_to_type: r.assigned_to_type || 'user',
+                assigned_by: r.assigned_by || null,
+                assigned_at: r.assigned_at || null,
+            };
+        }
+        function _kanbanNormalizeReview(r, projectId) {
+            return {
+                entity_type: 'review',
+                id: r.id,
+                label: r.entity_name || r.entity_id,
+                status: r.status,
+                project_id: r.project_id || projectId,
+                due_date: null,
+                assigned_to: r.assigned_to || null,
+                assigned_to_type: r.assigned_to_type || 'user',
+                assigned_by: r.assigned_by || null,
+                assigned_at: r.assigned_at || null,
+            };
+        }
+        function _kanbanNormalizeFromMe(it) {
+            // /api/assignments/me 已經是 enriched dict
+            return {
+                entity_type: it.entity_type,
+                id: it.entity_id,
+                label: it.label,
+                status: it.status || (it.entity_type === 'testcase' || it.entity_type === 'document' ? '__all' : null),
+                project_id: it.project_id,
+                due_date: it.due_date,
+                assigned_to: it.assigned_to,
+                assigned_to_type: it.assigned_to_type,
+                assigned_by: it.assigned_by,
+                assigned_at: it.assigned_at,
+            };
         }
 
         async function renderTestKanban() {
             const pid = currentProjectId;
             const cols = document.getElementById('kanbanColumns');
+            const titleHint = document.getElementById('kanbanTitleHint');
             if (!pid) {
                 cols.innerHTML = '<div class="col-span-6 p-6 text-center text-stone-400">請先選擇專案</div>';
                 ['kpi_open_defects','kpi_critical_defects','kpi_active_milestones','kpi_active_plans','kpi_requirements','kpi_active_backlog'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '—'; });
                 return;
             }
+            // 顯示 loading
+            cols.innerHTML = '<div class="col-span-6 p-6 text-center text-stone-400"><i class="fa-solid fa-spinner fa-spin"></i> 載入中…</div>';
             try {
-                const [defs, ms, plans, reqs, todoSummary, linkedByDefect] = await Promise.all([
-                    fetch('/api/defects?project_id='+pid).then(r => r.json()),
-                    fetch('/api/milestones?project_id='+pid).then(r => r.json()),
-                    fetch('/api/plans?project_id='+pid).then(r => r.json()),
-                    fetch('/api/requirements?project_id='+pid).then(r => r.json()),
+                // 1) 載入 KPI(維持原 5 張)+ 拉資料
+                const kpisP = Promise.all([
+                    fetch('/api/milestones?project_id='+pid).then(r => r.json()).catch(() => []),
+                    fetch('/api/plans?project_id='+pid).then(r => r.json()).catch(() => []),
                     fetch('/api/todos/summary?project_id='+pid).then(r => r.json()).catch(() => ({})),
                     fetch('/api/links/by-target/batch?target_type=defect&project_id='+pid).then(r => r.json()).catch(() => ({})),
                 ]);
-                _defectsCache = defs;
-                _kanbanLastDefects = defs;
+
+                // 2) 拉 items
+                let items = [];
+                if (_kanbanScope === 'mine') {
+                    // 我的指派 — 一次撈 /me,可選 entity_type filter,有 project_id 一併送
+                    const params = new URLSearchParams({ project_id: pid });
+                    if (_kanbanEntity) params.set('entity_type', _kanbanEntity);
+                    const rows = await fetch('/api/assignments/me?' + params).then(r => r.json());
+                    items = (rows || []).map(_kanbanNormalizeFromMe);
+                } else {
+                    // 全部 — 視 entity tab 各別 fetch
+                    const wants = _kanbanEntity ? [_kanbanEntity] : ['defect', 'todo', 'requirement', 'review'];
+                    // testcase / document 走全部時不顯示(資料太多 + 沒 status,意義不大);使用者要看就切到「我的」
+                    const fetchers = [];
+                    if (wants.includes('defect')) fetchers.push(
+                        fetch('/api/defects?project_id='+pid).then(r => r.json()).then(arr => arr.map(d => _kanbanNormalizeDefect(d, pid))).catch(() => [])
+                    );
+                    if (wants.includes('todo')) fetchers.push(
+                        fetch('/api/todos?project_id='+pid).then(r => r.json()).then(arr => arr.map(t => _kanbanNormalizeTodo(t, pid))).catch(() => [])
+                    );
+                    if (wants.includes('requirement')) fetchers.push(
+                        fetch('/api/requirements?project_id='+pid).then(r => r.json()).then(arr => arr.map(rq => _kanbanNormalizeRequirement(rq, pid))).catch(() => [])
+                    );
+                    if (wants.includes('review')) fetchers.push(
+                        fetch('/api/reviews?project_id='+pid).then(r => r.json()).then(arr => arr.map(rv => _kanbanNormalizeReview(rv, pid))).catch(() => [])
+                    );
+                    if (wants.includes('testcase') && _kanbanEntity === 'testcase') {
+                        // 只有切到 testcase tab 才拉(全部 mode 不撈)
+                        fetchers.push(
+                            fetch('/api/projects/'+encodeURIComponent(pid)+'/tree').then(r => r.json()).then(tree => {
+                                const out = [];
+                                const walk = (nodes) => (nodes || []).forEach(n => {
+                                    if (n.level_type === 'TESTCASE') {
+                                        out.push({
+                                            entity_type: 'testcase', id: n.id, label: n.name || n.title,
+                                            status: '__all', project_id: pid, due_date: null,
+                                            assigned_to: n.assigned_to, assigned_to_type: n.assigned_to_type || 'user',
+                                            assigned_by: n.assigned_by, assigned_at: n.assigned_at,
+                                        });
+                                    }
+                                    walk(n.children);
+                                });
+                                walk(tree);
+                                return out;
+                            }).catch(() => [])
+                        );
+                    }
+                    const arrs = await Promise.all(fetchers);
+                    items = arrs.flat();
+                }
+
+                // overdue 過濾
+                if (document.getElementById('kanbanOverdueOnly')?.checked) {
+                    const today = new Date().toISOString().slice(0, 10);
+                    items = items.filter(x => x.due_date && x.due_date < today);
+                }
+
+                _kanbanItems = items;
+
+                // 3) 渲染
+                const colsEl = cols;
+                const useGeneric = !_kanbanEntity;     // 全部 → 3 generic 欄;單一 entity → 細分欄
+                const colDefs = useGeneric ? _KANBAN_GENERIC_COLS : (_KANBAN_ENTITY_COLS[_kanbanEntity] || _KANBAN_GENERIC_COLS);
+                if (titleHint) {
+                    const scopeLbl = _kanbanScope === 'mine' ? '我的指派' : '全部';
+                    const entLbl = _kanbanEntity ? _KANBAN_ENTITY_META[_kanbanEntity].label : '全部 entity';
+                    titleHint.textContent = `${scopeLbl} · ${entLbl}(${items.length} 筆)`;
+                }
+                renderKanbanColumns(colsEl, items, colDefs, useGeneric);
+
+                // 4) KPI(用既有 5 張 + 補 backlog active)
+                const [ms, plans, todoSummary, linkedByDefect] = await kpisP;
                 _kanbanLinkedTodosByDefect = linkedByDefect || {};
-                // KPIs
-                const openStatuses = ['New','Assigned','InProgress','Reopened'];
-                const openDefects = defs.filter(d => openStatuses.includes(d.status)).length;
-                const criticalDefects = defs.filter(d => ['Critical','Major'].includes(d.severity) && openStatuses.includes(d.status)).length;
-                document.getElementById('kpi_open_defects').textContent = openDefects;
-                document.getElementById('kpi_critical_defects').textContent = criticalDefects;
+                // 缺陷 KPI 走 _kanbanItems 內 defect 部分(若 mine 模式撈不到全部 defect 就顯示「我的指派」相關;簡化先按既有方式重撈一次)
+                fetch('/api/defects?project_id='+pid).then(r => r.json()).then(defs => {
+                    _defectsCache = defs;
+                    _kanbanLastDefects = defs;
+                    const openStatuses = ['New','Assigned','InProgress','Reopened'];
+                    const openDefects = defs.filter(d => openStatuses.includes(d.status)).length;
+                    const criticalDefects = defs.filter(d => ['Critical','Major'].includes(d.severity) && openStatuses.includes(d.status)).length;
+                    document.getElementById('kpi_open_defects').textContent = openDefects;
+                    document.getElementById('kpi_critical_defects').textContent = criticalDefects;
+                }).catch(() => {});
                 document.getElementById('kpi_active_milestones').textContent = ms.filter(m => m.status === 'InProgress').length;
                 document.getElementById('kpi_active_plans').textContent = plans.filter(p => ['Active','Approved'].includes(p.status)).length;
-                document.getElementById('kpi_requirements').textContent = reqs.length;
-                // Backlog active count(若 KPI 區有對應 tile)
+                fetch('/api/requirements?project_id='+pid).then(r => r.json()).then(reqs => {
+                    document.getElementById('kpi_requirements').textContent = reqs.length;
+                }).catch(() => {});
                 const todoActiveEl = document.getElementById('kpi_active_backlog');
                 if (todoActiveEl) todoActiveEl.textContent = todoSummary?.total_active ?? 0;
-                renderKanbanColumns(cols, defs);
             } catch(e) {
-                cols.innerHTML = `<div class="col-span-6 p-6 text-center text-red-500">載入失敗：${_esc(e.message)}</div>`;
+                cols.innerHTML = `<div class="col-span-6 p-6 text-center text-red-500">載入失敗:${_esc(e.message)}</div>`;
+            }
+        }
+
+        function renderKanbanColumns(colsEl, items, colDefs, useGeneric) {
+            const today = new Date().toISOString().slice(0, 10);
+            // 把 items 分配到欄
+            const buckets = {};
+            colDefs.forEach(c => buckets[c.key] = []);
+            items.forEach(it => {
+                let colKey;
+                if (useGeneric) {
+                    const map = _KANBAN_GENERIC_BUCKETS[it.entity_type];
+                    colKey = (map && it.status && map[it.status]) ? map[it.status] : 'todo';
+                } else {
+                    if (_kanbanEntity === 'testcase' || _kanbanEntity === 'document') {
+                        colKey = '__all';
+                    } else {
+                        colKey = it.status;
+                    }
+                }
+                if (buckets[colKey] !== undefined) buckets[colKey].push(it);
+                else if (useGeneric) buckets['todo'].push(it);    // unknown status 落到「待處理」
+            });
+
+            // 動態 grid 欄數
+            const gridCls = colDefs.length === 3 ? 'lg:grid-cols-3' : (colDefs.length <= 4 ? 'lg:grid-cols-4' : (colDefs.length === 5 ? 'lg:grid-cols-5' : 'lg:grid-cols-6'));
+            colsEl.className = `grid grid-cols-1 md:grid-cols-3 ${gridCls} gap-3`;
+
+            colsEl.innerHTML = colDefs.map(c => {
+                const colItems = (buckets[c.key] || []).slice(0, 50);
+                const overflow = (buckets[c.key] || []).length > 50;
+                // drop target 只在 defect-only tab 啟用
+                const dropAttr = (_kanbanEntity === 'defect')
+                    ? `data-col-status="${c.key}" ondragover="kanbanDragOver(event)" ondragleave="kanbanDragLeave(event)" ondrop="kanbanDrop(event)"`
+                    : '';
+                return `<div class="bg-white rounded-lg border ${c.color} p-2 min-h-[200px] kanban-col" ${dropAttr}>
+                    <div class="text-xs font-bold text-stone-700 px-1 pb-2 flex items-center justify-between">
+                        <span>${_esc(c.label)}</span>
+                        <span class="text-stone-400 font-mono">${(buckets[c.key] || []).length}</span>
+                    </div>
+                    <div class="space-y-2">${colItems.map(_kanbanCardHtml).join('') || '<div class="text-xs text-stone-400 text-center py-2">無</div>'}${overflow ? '<div class="text-[10px] text-stone-400 text-center py-1">… (僅顯示前 50 筆)</div>' : ''}</div>
+                </div>`;
+            }).join('');
+        }
+
+        function _kanbanCardHtml(it) {
+            const meta = _KANBAN_ENTITY_META[it.entity_type] || { icon: 'fa-circle', color: 'text-stone-500', label: it.entity_type };
+            const today = new Date().toISOString().slice(0, 10);
+            const isOverdue = it.due_date && it.due_date < today;
+            // 指派顯示(group → 帶 icon)
+            let assigneeHtml;
+            if (!it.assigned_to) {
+                assigneeHtml = '<span class="text-[10px] text-stone-400">未指派</span>';
+            } else if (it.assigned_to_type === 'group') {
+                assigneeHtml = `<span class="text-[10px] text-amber-700" title="群組指派"><i class="fa-solid fa-people-group"></i> ${_esc(it.assigned_to)}</span>`;
+            } else {
+                assigneeHtml = `<span class="text-[10px] text-stone-500">${_esc(it.assigned_to)}</span>`;
+            }
+            // 缺陷專屬:嚴重性 badge + linked todos
+            let extraTop = '';
+            if (it.entity_type === 'defect') {
+                const sevCls = _KANBAN_SEV_BADGE[it.severity] || '';
+                extraTop = `<span class="text-[10px] px-1.5 py-0.5 rounded ${sevCls}">${_esc(_zh ? _zh('defSeverity', it.severity) : it.severity)}</span>`;
+                const linkedTodos = _kanbanLinkedTodosByDefect[it.id] || [];
+                if (linkedTodos.length) extraTop += ` <span class="text-[9px] px-1 rounded bg-amber-100 text-amber-700"><i class="fa-solid fa-link"></i> ${linkedTodos.length}</span>`;
+            }
+            // todo 專屬:priority
+            if (it.entity_type === 'todo' && it.priority) {
+                const prioCls = it.priority === 'P0' ? 'bg-rose-100 text-rose-700' : it.priority === 'P1' ? 'bg-orange-100 text-orange-700' : 'bg-stone-100 text-stone-500';
+                extraTop = `<span class="text-[10px] px-1.5 py-0.5 rounded ${prioCls} font-mono">${_esc(it.priority)}</span>`;
+            }
+            const dueBadge = it.due_date
+                ? `<span class="text-[10px] ${isOverdue ? 'text-rose-700 font-semibold' : 'text-stone-500'}" title="${isOverdue ? '已過期' : '到期日'}"><i class="fa-regular fa-clock"></i> ${_esc(it.due_date)}</span>`
+                : '';
+            const dragAttr = (it.entity_type === 'defect' && _kanbanEntity === 'defect')
+                ? `draggable="true" data-defect-id="${_esc(it.id)}" data-defect-status="${_esc(it.status || '')}" ondragstart="kanbanDragStart(event)" ondragend="kanbanDragEnd(event)"`
+                : '';
+            const cursorCls = (it.entity_type === 'defect' && _kanbanEntity === 'defect') ? 'cursor-move' : 'cursor-pointer';
+            const overdueRing = isOverdue ? 'ring-1 ring-rose-300' : '';
+            return `<div class="bg-white border border-stone-200 ${overdueRing} rounded p-2 ${cursorCls} hover:border-amber-300 shadow-sm kanban-card" ${dragAttr} onclick="kanbanCardClick(event, '${_esc(it.entity_type)}', '${_esc(it.id)}')">
+                <div class="flex items-center justify-between gap-1">
+                    <div class="flex items-center gap-1 min-w-0">
+                        <i class="fa-solid ${meta.icon} ${meta.color} text-[11px]"></i>
+                        ${it.code ? `<span class="text-[10px] font-mono text-stone-400 flex-shrink-0">${_esc(it.code)}</span>` : ''}
+                    </div>
+                    ${extraTop}
+                </div>
+                <div class="text-xs font-semibold text-stone-800 line-clamp-2 mt-0.5">${_esc(it.label)}</div>
+                <div class="flex items-center justify-between mt-1 gap-1">
+                    <div class="flex items-center gap-1 min-w-0">${assigneeHtml}</div>
+                    <div class="flex items-center gap-1.5">
+                        ${dueBadge}
+                        <button onclick="event.stopPropagation(); kanbanCardReassign('${_esc(it.entity_type)}', '${_esc(it.id)}', '${_esc(it.label || '')}', ${JSON.stringify(it.assigned_to || null)}, '${_esc(it.assigned_to_type || 'user')}')" title="重新指派" class="text-stone-400 hover:text-amber-600 text-[11px]"><i class="fa-solid fa-user-tag"></i></button>
+                    </div>
+                </div>
+            </div>`;
+        }
+
+        // 卡片點擊:跳到對應 entity 的詳情
+        function kanbanCardClick(ev, entityType, id) {
+            if (_kanbanDidDrag) { ev.preventDefault(); return; }
+            try {
+                if (entityType === 'defect' && typeof openDefectModal === 'function') openDefectModal(id);
+                else if (entityType === 'todo' && typeof openTodoModal === 'function') openTodoModal(id);
+                else if (entityType === 'review' && typeof reviewOpenHistory === 'function') reviewOpenHistory(id);
+                else if (typeof myWorkJump === 'function') myWorkJump(entityType, id, currentProjectId);
+            } catch (e) { console.warn('kanbanCardClick fail', e); }
+        }
+        function kanbanCardReassign(entityType, id, label, currentAssignee, currentAssigneeType) {
+            if (typeof openAssignPicker !== 'function') return;
+            // 注意:testcase 在 generic /api/assignments router 是 entity_type=testcase(對應 TreeNode 的 TESTCASE node)
+            // todo 不在 generic enum 裡 — picker submit 時改打 /api/todos/{id}/assign
+            const supportedGeneric = ['defect', 'testcase', 'requirement', 'document', 'review'];
+            if (supportedGeneric.includes(entityType)) {
+                openAssignPicker({
+                    entityType, entityId: id, label,
+                    currentAssignee: currentAssignee || null,
+                    currentAssigneeType: currentAssigneeType || 'user',
+                    onSaved: async () => { await renderTestKanban(); },
+                });
+            } else if (entityType === 'todo') {
+                // todo 走自己的 endpoint(picker 還是同一個,但 submit 路徑不同 — 先簡化:跳到 todo modal)
+                showToast('待辦的指派請從待辦詳情編輯', 'info');
+                if (typeof openTodoModal === 'function') openTodoModal(id);
             }
         }
 
@@ -17297,12 +17655,6 @@ gantt
             const col = ev.currentTarget;
             const to = ev.relatedTarget;
             if (!to || !col.contains(to)) col.classList.remove('drag-over');
-        }
-        function kanbanCardClick(ev, defectId) {
-            // 拖移過程中，瀏覽器在某些瀏覽器會在 dragend 後丟一個 click，
-            // 避免「拖完就誤開編輯彈窗」
-            if (_kanbanDidDrag) { ev.preventDefault(); return; }
-            openDefectModal(defectId);
         }
         async function kanbanDrop(ev) {
             ev.preventDefault();
@@ -17347,14 +17699,15 @@ gantt
             }
         }
 
-        // 用目前的 _defectsCache 即時重畫看板（不打 API） — 樂觀更新用
+        // 用目前的 _defectsCache 即時重畫看板(不打 API) — drag-drop 樂觀更新用。
+        // 只在「缺陷」tab 有意義,所以直接用 defect entity colDefs 重畫。
         let _kanbanLastDefects = [];
         function renderTestKanbanFromCache() {
             const cols = document.getElementById('kanbanColumns');
             if (!cols || !Array.isArray(_kanbanLastDefects)) return;
-            // 用最新的 _defectsCache 覆蓋（若存在），否則用 _kanbanLastDefects
             const defs = (Array.isArray(_defectsCache) && _defectsCache.length) ? _defectsCache : _kanbanLastDefects;
-            renderKanbanColumns(cols, defs);
+            const items = defs.map(d => _kanbanNormalizeDefect(d, currentProjectId));
+            renderKanbanColumns(cols, items, _KANBAN_ENTITY_COLS.defect, false);
         }
 
         // ─── 測試專案 (Test Projects) ────────────────────────────────────
