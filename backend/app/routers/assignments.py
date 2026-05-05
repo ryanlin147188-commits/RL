@@ -184,12 +184,18 @@ async def unassign(
     await db.flush()
 
 
+_ME_ENTITY_TYPES = [t.value for t in AssignableEntityType] + ["todo"]
+
+
 @router.get(
     "/assignments/me",
     tags=["AC · 指派"],
 )
 async def list_my_assignments(
-    entity_type: Optional[AssignableEntityType] = Query(None),
+    entity_type: Optional[str] = Query(
+        None,
+        description="篩選單一 entity_type;接受 review / defect / testcase / requirement / document / todo",
+    ),
     project_id: Optional[str] = Query(None),
     overdue: bool = Query(False, description="僅列 due_date < 今日"),
     user: User = Depends(get_current_user),
@@ -197,11 +203,32 @@ async def list_my_assignments(
 ):
     """D-4 inbox 用 — 列出指派給我的 entity(可選 entity_type / project_id /
     overdue 過濾)。回傳已 enrich 過的 dict(含 title / due_date / 路由提示),
-    比 AssignmentResponse 多了 UI 需要的欄位。"""
+    比 AssignmentResponse 多了 UI 需要的欄位。
+
+    `entity_type` 接受 raw string(讓 'todo' 也通過,而不是只接受 generic
+    AssignableEntityType enum;TodoItem 雖在另一條 router 但 D-1 已對齊欄位
+    名,所以一起在這個 endpoint 服務 inbox)。
+    """
     from app.models.todo_item import TodoItem
     today = date.today().isoformat()
 
-    types = [entity_type] if entity_type else list(AssignableEntityType)
+    if entity_type is not None and entity_type not in _ME_ENTITY_TYPES:
+        raise HTTPException(
+            400,
+            f"未支援的 entity_type:{entity_type}(支援:{', '.join(_ME_ENTITY_TYPES)})",
+        )
+
+    # 把 raw string 收攏:None / 'todo' / 五種 generic 之一 → (generic enum list, include_todo)
+    if entity_type is None:
+        types = list(AssignableEntityType)
+        include_todo = True
+    elif entity_type == "todo":
+        types = []
+        include_todo = True
+    else:
+        types = [AssignableEntityType(entity_type)]
+        include_todo = False
+
     out: list[dict] = []
 
     def _pick_label(et, r) -> str:
@@ -239,9 +266,7 @@ async def list_my_assignments(
                     continue
             out.append(d)
 
-    # TodoItem 也納入(雖然不在 AssignableEntityType 列舉裡;它是另一條 router
-    # 但 D-1 schema 統一後可以用同樣的方式撈)
-    if entity_type is None:    # 沒指定 entity_type 才一起撈 todo
+    if include_todo:
         tstmt = select(TodoItem).where(TodoItem.assigned_to == user.username).where(TodoItem.assigned_to_type == "user")
         if not user.is_superuser:
             tstmt = tstmt.where(TodoItem.organization_id == user.organization_id)

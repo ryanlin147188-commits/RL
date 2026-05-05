@@ -2865,6 +2865,10 @@ driver.swipe(100, 800, 100, 200, 500)"
                             <button onclick="renderTestCasesList()" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50 transition" title="同步左側目錄樹">
                                 <i class="fa-solid fa-rotate"></i> 重新整理
                             </button>
+                            <button id="tcBulkReassignBtn" onclick="tcBulkReassignSelected()" disabled
+                                class="px-3 py-2 bg-amber-500 hover:bg-amber-600 disabled:bg-stone-300 disabled:cursor-not-allowed text-white rounded-md text-sm font-semibold shadow-sm transition flex items-center gap-1.5" title="重新指派已勾選的測試案例">
+                                <i class="fa-solid fa-user-tag"></i> 重新指派 <span id="tcBulkReassignCount">(0)</span>
+                            </button>
                             <button id="tcBulkDeleteBtn" onclick="tcBulkDeleteSelected()" disabled
                                 class="px-3 py-2 bg-rose-500 hover:bg-rose-600 disabled:bg-stone-300 disabled:cursor-not-allowed text-white rounded-md text-sm font-semibold shadow-sm transition flex items-center gap-1.5" title="刪除已勾選的測試案例">
                                 <i class="fa-solid fa-trash"></i> 刪除 <span id="tcBulkDeleteCount">(0)</span>
@@ -3896,11 +3900,19 @@ driver.swipe(100, 800, 100, 200, 500)"
                         </div>
                     </div>
 
+                    <!-- Tier E-2:bulk reassign 工具列 -->
+                    <div id="reviewBulkBar" class="hidden mb-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded flex items-center gap-3 text-xs">
+                        <span class="font-semibold text-amber-700">已選 <span id="reviewBulkCount">0</span> 筆</span>
+                        <button onclick="reviewBulkReassign()" class="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold"><i class="fa-solid fa-user-tag"></i> 重新指派</button>
+                        <button onclick="reviewBulkClear()" class="text-stone-500 hover:text-stone-700 ml-auto"><i class="fa-solid fa-xmark"></i> 取消選取</button>
+                    </div>
+
                     <!-- 列表 -->
                     <div class="bg-white rounded-lg border border-violet-100 shadow-sm overflow-hidden">
                         <table id="reviewTable" class="w-full text-sm" data-active-tab="pending">
                             <thead class="bg-violet-50/60 border-b border-violet-100 text-stone-600 text-xs uppercase">
                                 <tr>
+                                    <th class="p-3 w-8 text-center"><input type="checkbox" id="reviewSelectAll" onchange="reviewToggleSelectAll(this.checked)" class="rounded border-stone-300 text-amber-500 focus:ring-amber-400"></th>
                                     <th class="p-3 text-left w-32" data-i18n="review.col.type">類型</th>
                                     <th class="p-3 text-left" data-i18n="review.col.entity">名稱</th>
                                     <th class="p-3 text-left w-28" data-i18n="review.col.status">狀態</th>
@@ -11153,12 +11165,60 @@ driver.swipe(100, 800, 100, 200, 500)"
         // Cache so action handlers (assign, revert, ...) can look up the row's
         // entity_type / entity_id without an extra round trip.
         let _reviewRowsCache = [];
+        // Tier E-2:bulk reassign 選取狀態
+        let _reviewSelected = new Set();
+        function reviewToggleSelectAll(checked) {
+            const cbs = document.querySelectorAll('#reviewListBody input.review-row-cb');
+            cbs.forEach(cb => { cb.checked = checked; });
+            _reviewSelected.clear();
+            if (checked) cbs.forEach(cb => _reviewSelected.add(cb.dataset.id));
+            _reviewRefreshBulkBar();
+        }
+        function reviewToggleRow(id, checked) {
+            if (checked) _reviewSelected.add(id); else _reviewSelected.delete(id);
+            _reviewRefreshBulkBar();
+        }
+        function reviewBulkClear() {
+            _reviewSelected.clear();
+            const cbs = document.querySelectorAll('#reviewListBody input.review-row-cb');
+            cbs.forEach(cb => { cb.checked = false; });
+            const sa = document.getElementById('reviewSelectAll'); if (sa) sa.checked = false;
+            _reviewRefreshBulkBar();
+        }
+        function _reviewRefreshBulkBar() {
+            const bar = document.getElementById('reviewBulkBar');
+            const cnt = document.getElementById('reviewBulkCount');
+            if (!bar) return;
+            if (_reviewSelected.size === 0) { bar.classList.add('hidden'); return; }
+            bar.classList.remove('hidden');
+            if (cnt) cnt.textContent = String(_reviewSelected.size);
+        }
+        function reviewBulkReassign() {
+            const ids = Array.from(_reviewSelected || []);
+            if (!ids.length) return;
+            openAssignPicker({
+                entityType: 'review',
+                entityId: '__bulk__',
+                label: `批次 ${ids.length} 筆審核`,
+                currentAssignee: null,
+                currentAssigneeType: null,
+                onSaved: async () => {
+                    _reviewSelected.clear();
+                    _reviewRefreshBulkBar();
+                    await reviewLoad();
+                },
+            });
+            window._assignPickerBulkIds = ids;
+        }
 
         async function reviewLoad() {
             const tbody = document.getElementById('reviewListBody');
             const cnt = document.getElementById('reviewCount');
             if (!tbody) return;
-            tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-stone-400">${_reviewLocale()==='en'?'Loading…':'載入中…'}</td></tr>`;
+            // 切 tab / reload 時清掉選取
+            _reviewSelected.clear(); _reviewRefreshBulkBar();
+            const sa = document.getElementById('reviewSelectAll'); if (sa) sa.checked = false;
+            tbody.innerHTML = `<tr><td colspan="9" class="p-6 text-center text-stone-400">${_reviewLocale()==='en'?'Loading…':'載入中…'}</td></tr>`;
             try {
                 const params = new URLSearchParams({status: _reviewActiveTab});
                 const t = document.getElementById('reviewTypeFilter')?.value;
@@ -11168,13 +11228,13 @@ driver.swipe(100, 800, 100, 200, 500)"
                 cnt.textContent = rows.length;
                 if (!rows.length) {
                     const empty = _reviewLocale()==='en' ? 'No reviews in this state.' : '此狀態下沒有審核紀錄';
-                    tbody.innerHTML = `<tr><td colspan="8" class="p-10 text-center text-stone-400 text-sm"><i class="fa-regular fa-folder-open text-2xl mb-2 block opacity-60"></i>${empty}</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="9" class="p-10 text-center text-stone-400 text-sm"><i class="fa-regular fa-folder-open text-2xl mb-2 block opacity-60"></i>${empty}</td></tr>`;
                 } else {
                     tbody.innerHTML = rows.map(_reviewRowHtml).join('');
                 }
                 _reviewUpdatePendingBadge();
             } catch (e) {
-                tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-rose-500">${e.message || e}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="9" class="p-6 text-center text-rose-500">${e.message || e}</td></tr>`;
             }
         }
 
@@ -11190,7 +11250,9 @@ driver.swipe(100, 800, 100, 200, 500)"
             const nameHtml = r.entity_name
                 ? `<div class="text-stone-800 font-medium text-sm" title="${_esc(r.entity_id)}">${_esc(r.entity_name)}</div>`
                 : `<div class="text-stone-400 italic text-xs" title="${_esc(r.entity_id)}">${lc==='en' ? 'entity deleted' : '實體已刪除'}</div>`;
+            const checked = _reviewSelected.has(r.id) ? 'checked' : '';
             return `<tr class="hover:bg-violet-50/40 align-top">
+                <td class="p-3 text-center"><input type="checkbox" class="review-row-cb rounded border-stone-300 text-amber-500 focus:ring-amber-400" data-id="${_esc(r.id)}" ${checked} onchange="reviewToggleRow('${_esc(r.id)}', this.checked)"></td>
                 <td class="p-3">
                     <span class="inline-block px-2 py-0.5 rounded text-[11px] font-semibold border ${tlbl.cls}">${tlbl[lc]}</span>
                 </td>
@@ -11741,11 +11803,16 @@ driver.swipe(100, 800, 100, 200, 500)"
             tcUpdateBulkDeleteUI();
         }
         function tcUpdateBulkDeleteUI() {
-            const btn = document.getElementById('tcBulkDeleteBtn');
-            const lbl = document.getElementById('tcBulkDeleteCount');
             const n = tcListState.selected.size;
-            if (btn) btn.disabled = n === 0;
-            if (lbl) lbl.textContent = `(${n})`;
+            const delBtn = document.getElementById('tcBulkDeleteBtn');
+            const delLbl = document.getElementById('tcBulkDeleteCount');
+            if (delBtn) delBtn.disabled = n === 0;
+            if (delLbl) delLbl.textContent = `(${n})`;
+            // Tier E:bulk reassign 按鈕同步
+            const reBtn = document.getElementById('tcBulkReassignBtn');
+            const reLbl = document.getElementById('tcBulkReassignCount');
+            if (reBtn) reBtn.disabled = n === 0;
+            if (reLbl) reLbl.textContent = `(${n})`;
             // 同步全選 checkbox 的 indeterminate / checked
             const selAll = document.getElementById('tcSelectAll');
             if (selAll) {
@@ -11755,6 +11822,24 @@ driver.swipe(100, 800, 100, 200, 500)"
                 selAll.checked = visible > 0 && checkedVisible === visible;
                 selAll.indeterminate = checkedVisible > 0 && checkedVisible < visible;
             }
+        }
+        // Tier E-1:測試案例 bulk reassign — 借用 picker(走 __bulk__ sentinel)
+        function tcBulkReassignSelected() {
+            const ids = Array.from(tcListState.selected || []);
+            if (!ids.length) return;
+            openAssignPicker({
+                entityType: 'testcase',
+                entityId: '__bulk__',
+                label: `批次 ${ids.length} 筆測試案例`,
+                currentAssignee: null,
+                currentAssigneeType: null,
+                onSaved: async () => {
+                    tcListState.selected.clear();
+                    tcUpdateBulkDeleteUI();
+                    await renderTestCasesList();
+                },
+            });
+            window._assignPickerBulkIds = ids;
         }
         async function tcBulkDeleteSelected() {
             const ids = Array.from(tcListState.selected);
