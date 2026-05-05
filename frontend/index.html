@@ -2144,6 +2144,8 @@ driver.swipe(100, 800, 100, 200, 500)"
 
             <!-- 視圖 1: 可滾動的編輯區 -->
             <div id="editorWorkspace" class="flex-1 overflow-y-auto p-6 space-y-8 bg-slate-50/50 hidden">
+                <!-- G-2:相關待辦反向視圖(切換 testcase 時動態填入)-->
+                <section id="tcLinkedTodos" class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm hidden"></section>
                 <section class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
                     <div class="flex items-center justify-between mb-3">
                         <h3 class="font-bold text-slate-700 flex items-center gap-2"><i class="fa-solid fa-check-double text-green-500"></i> 驗收準則 (Acceptance Criteria)</h3>
@@ -2875,6 +2877,10 @@ driver.swipe(100, 800, 100, 200, 500)"
                             <button id="tcBulkReassignBtn" onclick="tcBulkReassignSelected()" disabled
                                 class="px-3 py-2 bg-amber-500 hover:bg-amber-600 disabled:bg-stone-300 disabled:cursor-not-allowed text-white rounded-md text-sm font-semibold shadow-sm transition flex items-center gap-1.5" title="重新指派已勾選的測試案例">
                                 <i class="fa-solid fa-user-tag"></i> 重新指派 <span id="tcBulkReassignCount">(0)</span>
+                            </button>
+                            <button id="tcBulkTodoBtn" onclick="tcBulkCreateTodos()" disabled
+                                class="px-3 py-2 bg-cyan-500 hover:bg-cyan-600 disabled:bg-stone-300 disabled:cursor-not-allowed text-white rounded-md text-sm font-semibold shadow-sm transition flex items-center gap-1.5" title="為已勾選的測試案例各建一筆追蹤待辦">
+                                <i class="fa-solid fa-list-check"></i> 建立追蹤待辦 <span id="tcBulkTodoCount">(0)</span>
                             </button>
                             <button id="tcBulkDeleteBtn" onclick="tcBulkDeleteSelected()" disabled
                                 class="px-3 py-2 bg-rose-500 hover:bg-rose-600 disabled:bg-stone-300 disabled:cursor-not-allowed text-white rounded-md text-sm font-semibold shadow-sm transition flex items-center gap-1.5" title="刪除已勾選的測試案例">
@@ -3862,6 +3868,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                     <div id="defectsBulkBar" class="hidden mb-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded flex items-center gap-3 text-xs">
                         <span class="font-semibold text-amber-700">已選 <span id="defectsBulkCount">0</span> 筆</span>
                         <button onclick="defectsBulkReassign()" class="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold"><i class="fa-solid fa-user-tag"></i> 重新指派</button>
+                        <button onclick="defectsBulkCreateTodos()" class="px-3 py-1 bg-cyan-500 hover:bg-cyan-600 text-white rounded font-semibold"><i class="fa-solid fa-list-check"></i> 建立追蹤待辦</button>
                         <button onclick="defectsBulkClear()" class="text-stone-500 hover:text-stone-700 ml-auto"><i class="fa-solid fa-xmark"></i> 取消選取</button>
                     </div>
                     <div class="bg-white rounded-lg border border-red-100 shadow-sm overflow-hidden">
@@ -9840,6 +9847,12 @@ driver.swipe(100, 800, 100, 200, 500)"
                 document.getElementById('mainActions').classList.remove('hidden');
                 renderEditor();
                 renderAllTree();
+                // G-2:相關待辦反向視圖(切換 testcase 後動態載入)
+                const tcLinked = document.getElementById('tcLinkedTodos');
+                if (tcLinked) {
+                    tcLinked.classList.remove('hidden');
+                    _renderLinkedTodosBlock('tcLinkedTodos', 'testcase', id);
+                }
             } catch (e) {
                 showToast(`載入測試案例失敗：${e.message}`, 'error');
             }
@@ -11861,6 +11874,11 @@ driver.swipe(100, 800, 100, 200, 500)"
             const reLbl = document.getElementById('tcBulkReassignCount');
             if (reBtn) reBtn.disabled = n === 0;
             if (reLbl) reLbl.textContent = `(${n})`;
+            // Tier G-4:bulk create 追蹤 todo 按鈕
+            const todoBtn = document.getElementById('tcBulkTodoBtn');
+            const todoLbl = document.getElementById('tcBulkTodoCount');
+            if (todoBtn) todoBtn.disabled = n === 0;
+            if (todoLbl) todoLbl.textContent = `(${n})`;
             // 同步全選 checkbox 的 indeterminate / checked
             const selAll = document.getElementById('tcSelectAll');
             if (selAll) {
@@ -11871,6 +11889,51 @@ driver.swipe(100, 800, 100, 200, 500)"
                 selAll.indeterminate = checkedVisible > 0 && checkedVisible < visible;
             }
         }
+        // Tier G-4 共用:從 N 個 target entity 一次建立 N 筆追蹤 todo + 自動連結
+        async function _bulkCreateTodosForTargets(targetType, ids, onDone) {
+            if (!ids.length) return;
+            if (typeof openFormModal !== 'function') {
+                showToast('helper 未載入', 'error'); return;
+            }
+            const result = await openFormModal({
+                title: `為 ${ids.length} 筆 ${TODO_LINK_TYPE_LABEL[targetType]?.label || targetType} 建立追蹤待辦`,
+                icon: 'fa-list-check',
+                intro: '每筆會建立一個 Todo 並自動連結回原項目。{code} / {title} 變數會自動帶入。',
+                submitLabel: `建立 ${ids.length} 筆`,
+                fields: [
+                    { key: 'title_template', label: '標題模板', type: 'text', value: '追蹤 {code} {title}', required: true, hint: '可用變數:{code} / {title} / {name}' },
+                    { key: 'priority', label: '優先級', type: 'text', value: 'P2', placeholder: 'P0 / P1 / P2 / P3' },
+                    { key: 'due_date', label: '到期日(可空)', type: 'text', placeholder: 'YYYY-MM-DD' },
+                    { key: 'sprint_label', label: 'Sprint(可空)', type: 'text', placeholder: '留空 = Backlog' },
+                    { key: 'link_kind', label: '連結類型', type: 'text', value: 'verifies', hint: 'relates_to / verifies / blocks / duplicates' },
+                ],
+            });
+            if (!result || !result.title_template) return;
+            try {
+                const r = await apiFetch('/api/todos/bulk-from-targets', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        target_type: targetType,
+                        target_ids: ids,
+                        project_id: currentProjectId,
+                        title_template: result.title_template,
+                        link_kind: result.link_kind || 'relates_to',
+                        priority: result.priority || 'P2',
+                        due_date: result.due_date || null,
+                        sprint_label: result.sprint_label || null,
+                    }),
+                });
+                const created = (r.created || []).length;
+                const skipped = (r.skipped || []).length;
+                const skipMsg = skipped ? ` · 跳過 ${skipped}` : '';
+                showToast(`已建立 ${created} 筆追蹤待辦${skipMsg}`, 'success');
+                if (typeof onDone === 'function') await onDone();
+            } catch (e) {
+                showToast('建立失敗:' + (e.message || e), 'error');
+            }
+        }
+
         // Tier E-1:測試案例 bulk reassign — 借用 picker(走 __bulk__ sentinel)
         function tcBulkReassignSelected() {
             const ids = Array.from(tcListState.selected || []);
@@ -11888,6 +11951,17 @@ driver.swipe(100, 800, 100, 200, 500)"
                 },
             });
             window._assignPickerBulkIds = ids;
+        }
+
+        // Tier G-4:從 testcase list 為勾選的案例各建一筆追蹤 todo
+        async function tcBulkCreateTodos() {
+            const ids = Array.from(tcListState.selected || []);
+            if (!ids.length) return;
+            await _bulkCreateTodosForTargets('testcase', ids, async () => {
+                tcListState.selected.clear();
+                tcUpdateBulkDeleteUI();
+                await renderTestCasesList();
+            });
         }
         async function tcBulkDeleteSelected() {
             const ids = Array.from(tcListState.selected);
@@ -16048,6 +16122,17 @@ driver.swipe(100, 800, 100, 200, 500)"
             });
             // 把 picker 設成 bulk 模式 — submit 時偵測 entityId='__bulk__' 走 /bulk
             window._assignPickerBulkIds = ids;
+        }
+
+        // Tier G-4:從 defect list 為勾選的 defect 各建一筆追蹤 todo
+        async function defectsBulkCreateTodos() {
+            if (_defectsSelected.size === 0) return;
+            const ids = Array.from(_defectsSelected);
+            await _bulkCreateTodosForTargets('defect', ids, async () => {
+                _defectsSelected.clear();
+                _defectsRefreshBulkBar();
+                await renderDefectsList();
+            });
         }
 
         async function renderDefectsList() {
@@ -22028,6 +22113,8 @@ gantt
             try {
                 const url = `/api/links/by-target?target_type=${encodeURIComponent(targetType)}&target_id=${encodeURIComponent(targetId)}`;
                 const todos = await apiFetch(url) || [];
+                // 注意:button 在 detail modal 的 form 內 → 必須 type="button"
+                // 否則會觸發 form submit(已是這樣,但留註解警示)
                 const headerHtml = `<div class="flex items-center justify-between mb-2"><h4 class="text-xs font-semibold text-stone-700"><i class="fa-solid fa-link text-amber-500"></i> 相關待辦 <span class="text-stone-400 font-mono">(${todos.length})</span></h4>${opts.cta === false ? '' : `<button type="button" onclick="createLinkedTodoFor('${_esc(targetType)}','${_esc(targetId)}')" class="text-xs px-2 py-0.5 bg-amber-500 hover:bg-amber-600 text-white rounded font-medium"><i class="fa-solid fa-plus"></i> 建立並連結新待辦</button>`}</div>`;
                 if (!todos.length) {
                     container.innerHTML = headerHtml + `<p class="text-xs text-stone-400 italic px-1 py-2">尚無相關待辦</p>`;

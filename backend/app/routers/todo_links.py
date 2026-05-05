@@ -7,6 +7,7 @@
 """
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -148,7 +149,7 @@ async def create_todo_link(
         raise HTTPException(404, "Todo not found")
 
     # 驗證目標
-    await _validate_target(db, payload.target_type, payload.target_id)
+    target_title, _ = await _validate_target(db, payload.target_type, payload.target_id)
 
     # 重複檢查
     dup = (
@@ -176,7 +177,57 @@ async def create_todo_link(
     db.add(link)
     await db.flush()
     await db.refresh(link)
+    # G-5:通知 target 的 user-type assignee(若存在 + 非 actor 自己)。
+    # 群組指派不 fan-out(避免噪音);testcase / test_version 等 entity 沒
+    # assignee 欄位 → 自動跳過。
+    await _notify_link_target(db, todo, link, target_title, user)
     return await _enrich_link(db, link)
+
+
+async def _notify_link_target(
+    db: AsyncSession,
+    todo: TodoItem,
+    link: TodoLink,
+    target_title: Optional[str],
+    actor: User,
+) -> None:
+    """G-5:把 todo 連到某個 entity 時,通知該 entity 的 user 類型 assignee。
+    若 entity 沒 assigned_to / assigned_to 是 group / 對象就是 actor 自己 → 跳過。"""
+    spec = _TARGET_REGISTRY.get(link.target_type)
+    if not spec:
+        return    # testcase / 其他特殊 type 不通知
+    Model, _, _ = spec
+    obj = await db.get(Model, link.target_id)
+    if obj is None:
+        return
+    recipient = getattr(obj, "assigned_to", None)
+    rcp_type = getattr(obj, "assigned_to_type", None) or "user"
+    if not recipient or rcp_type != "user" or recipient == actor.username:
+        return
+    try:
+        from app.services.notification_dispatch import notify
+        kind_label = {
+            "relates_to": "相關", "verifies": "驗證",
+            "blocks": "阻擋", "duplicates": "重複",
+        }.get(link.link_kind or "relates_to", link.link_kind or "relates_to")
+        await notify(
+            db=db,
+            event_key="assignment.received",
+            recipient=recipient,
+            title=f"待辦連結到您負責的 {link.target_type}",
+            body=f"{actor.username} 在待辦「{todo.title}」加入指向 {link.target_type}「{target_title or link.target_id}」 的連結 ({kind_label})。",
+            level="info",
+            link=None,
+            related_entity_type=link.target_type,
+            related_entity_id=link.target_id,
+            organization_id=todo.organization_id,
+        )
+    except Exception:    # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception(
+            "_notify_link_target failed for link=%s target=%s",
+            link.id, link.target_id,
+        )
 
 
 # ── 3) 刪除連結 ────────────────────────────────────────────────────
@@ -281,3 +332,156 @@ async def batch_links_by_target(
             "link_kind": l.link_kind,
         })
     return grouped
+
+
+# ── G-4:bulk 建立 todo + 自動連結到一批 target ────────────────
+@router.post("/todos/bulk-from-targets", tags=["T · 待辦"])
+async def bulk_create_todos_from_targets(
+    payload: dict,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """G-4 — 從一批 target entity 一次建立 N 筆「追蹤待辦」並自動連結。
+    主要 use case:Sprint planning / triage 時從 defect 或 testcase list
+    勾選 N 筆 → 一鍵幫每個建一筆 todo。
+
+    body:
+    ```
+    {
+      "target_type": "defect",                # 必填,白名單同 ALLOWED_TARGET_TYPES
+      "target_ids": ["...", "..."],           # 必填,1-200
+      "project_id": "...",                    # 可選(不傳 = 從第一筆 target 推導)
+      "title_template": "追蹤 {code} {title}", # 可空,預設 "追蹤 {code} {title}"
+      "link_kind": "relates_to",              # 可選,預設 relates_to
+      "due_date": "2026-05-15",               # 可選
+      "priority": "P2",                       # 可選
+      "sprint_label": null,                   # 可選
+      "assignee": null,                       # 可選,預設不指派
+    }
+    ```
+    回:`{created: [{todo_id, target_id, link_id}, ...], skipped: [{target_id, reason}]}`。
+    通知策略(G-5 整合):合併成一封「{actor} 從 N 筆 {target_type} 批次建立追蹤待辦」
+    給每個 unique recipient(去重 actor),避免轟炸。
+    """
+    target_type = (payload or {}).get("target_type")
+    target_ids = (payload or {}).get("target_ids") or []
+    if not target_type:
+        raise HTTPException(400, "缺少 target_type")
+    if target_type not in ALLOWED_TARGET_TYPES:
+        raise HTTPException(400, f"target_type 不支援:{target_type}")
+    if not isinstance(target_ids, list) or not target_ids:
+        raise HTTPException(400, "缺少 target_ids(非空陣列)")
+    if len(target_ids) > 200:
+        raise HTTPException(400, "一次最多 200 筆")
+
+    title_template = (payload or {}).get("title_template") or "追蹤 {code} {title}"
+    link_kind = (payload or {}).get("link_kind") or "relates_to"
+    due_date = (payload or {}).get("due_date")
+    priority_str = (payload or {}).get("priority") or "P2"
+    sprint_label = (payload or {}).get("sprint_label")
+    assignee = (payload or {}).get("assignee")
+    project_id_in = (payload or {}).get("project_id")
+
+    from app.models.todo_item import TodoItem, TodoItemType, TodoPriority, TodoStatus
+    try:
+        prio_enum = TodoPriority(priority_str)
+    except ValueError:
+        prio_enum = TodoPriority.P2
+
+    created: list[dict] = []
+    skipped: list[dict] = []
+    notify_recipients: dict[str, str] = {}    # username → label(去重)
+
+    spec = _TARGET_REGISTRY.get(target_type)
+    Model = spec[0] if spec else None    # testcase 走 TreeNode 特例
+
+    for tid in target_ids:
+        # 1) 驗證 target + 拿到 title/code
+        try:
+            tt, tc = await _validate_target(db, target_type, tid)
+        except HTTPException as e:
+            skipped.append({"target_id": tid, "reason": str(e.detail)}); continue
+
+        # 2) 取 entity 用於推導 project_id / assignee 通知對象
+        if target_type == "testcase":
+            from app.models.tree_node import TreeNode
+            target_obj = await db.get(TreeNode, tid)
+        else:
+            target_obj = await db.get(Model, tid) if Model else None
+
+        # 3) project_id:優先用 payload,其次推導
+        pid = project_id_in or getattr(target_obj, "project_id", None) or user.organization_id
+
+        # 4) 套 title_template
+        try:
+            todo_title = title_template.format(
+                code=tc or "",
+                title=tt or "",
+                name=tt or "",
+            ).strip()
+            if not todo_title:
+                todo_title = f"追蹤 {target_type} {tid[:8]}"
+        except (KeyError, IndexError):
+            todo_title = f"追蹤 {tt or tid[:8]}"
+
+        # 5) 建 todo
+        now = datetime.utcnow() if assignee else None
+        todo = TodoItem(
+            project_id=pid,
+            organization_id=user.organization_id,
+            title=todo_title,
+            status=TodoStatus.TODO,
+            priority=prio_enum,
+            due_date=due_date,
+            sprint_label=sprint_label,
+            assigned_to=assignee,
+            assigned_to_type="user" if assignee else "user",
+            assigned_by=user.username if assignee else None,
+            assigned_at=now,
+            item_type=TodoItemType.TASK,
+        )
+        db.add(todo)
+        await db.flush()
+
+        # 6) 建 link
+        link = TodoLink(
+            organization_id=user.organization_id or todo.organization_id,
+            todo_id=todo.id,
+            target_type=target_type,
+            target_id=tid,
+            link_kind=link_kind,
+            created_by=user.username,
+        )
+        db.add(link)
+        await db.flush()
+
+        created.append({"todo_id": todo.id, "target_id": tid, "link_id": link.id})
+
+        # 7) 收集通知對象(target 的 user-type assignee,排除 actor)
+        rcp = getattr(target_obj, "assigned_to", None) if target_obj else None
+        rcp_type = (getattr(target_obj, "assigned_to_type", None) or "user") if target_obj else "user"
+        if rcp and rcp_type == "user" and rcp != user.username:
+            notify_recipients.setdefault(rcp, target_type)
+
+    # 8) 合併通知:每個 unique recipient 一封「您負責的 N 筆 {target_type} 被連到追蹤待辦」
+    if created and notify_recipients:
+        try:
+            from app.services.notification_dispatch import notify
+            for recipient, ttype in notify_recipients.items():
+                await notify(
+                    db=db,
+                    event_key="assignment.received",
+                    recipient=recipient,
+                    title=f"您負責的 {ttype} 被連到追蹤待辦",
+                    body=f"{user.username} 從 {len(created)} 筆 {ttype} 批次建立追蹤待辦,其中包含您負責的項目。",
+                    level="info",
+                    link=None,
+                    related_entity_type=ttype,
+                    related_entity_id=None,
+                    organization_id=user.organization_id,
+                )
+        except Exception:    # noqa: BLE001
+            import logging
+            logging.getLogger(__name__).exception("bulk-from-targets notify failed")
+
+    return {"created": created, "skipped": skipped}
