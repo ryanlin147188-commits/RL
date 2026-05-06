@@ -59,13 +59,18 @@ _TABLES = [
 
 
 def _column_type_is_varchar(table: str, column: str) -> bool:
+    """直接查 information_schema 判斷實際型別,避免 SQLAlchemy 反射對 ENUM 回報失準。"""
     bind = op.get_bind()
-    cols = sa.inspect(bind).get_columns(table)
-    for c in cols:
-        if c["name"] == column:
-            type_str = str(c["type"]).upper()
-            return "VARCHAR" in type_str or "CHARACTER VARYING" in type_str
-    return False
+    row = bind.execute(
+        sa.text(
+            "SELECT data_type FROM information_schema.columns "
+            "WHERE table_schema='public' AND table_name=:t AND column_name=:c"
+        ).bindparams(t=table, c=column)
+    ).scalar()
+    if row is None:
+        return False
+    dt = str(row).lower()
+    return "character varying" in dt or "varchar" in dt or dt == "text"
 
 
 def _alter_to_varchar(table: str, column: str) -> None:
