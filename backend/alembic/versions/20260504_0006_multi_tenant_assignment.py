@@ -44,83 +44,111 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
+def _table_exists(name: str) -> bool:
+    bind = op.get_bind()
+    return sa.inspect(bind).has_table(name)
+
+
+def _column_exists(table_name: str, column_name: str) -> bool:
+    bind = op.get_bind()
+    return any(
+        column["name"] == column_name
+        for column in sa.inspect(bind).get_columns(table_name)
+    )
+
+
+def _index_exists(table_name: str, index_name: str) -> bool:
+    bind = op.get_bind()
+    return any(
+        index["name"] == index_name
+        for index in sa.inspect(bind).get_indexes(table_name)
+    )
+
+
 def upgrade() -> None:
     # ── 1) org_memberships ────────────────────────────────────────────────
-    op.create_table(
-        "org_memberships",
-        sa.Column("id", sa.String(36), primary_key=True),
-        sa.Column(
-            "username",
-            sa.String(80),
-            sa.ForeignKey("users.username", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column(
-            "organization_id",
-            sa.String(36),
-            sa.ForeignKey("organizations.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column(
-            "role_id",
-            sa.String(36),
-            sa.ForeignKey("roles.id", ondelete="SET NULL"),
-            nullable=True,
-        ),
-        sa.Column("is_default", sa.Boolean(), nullable=False, server_default=sa.text("false")),
-        sa.Column("status", sa.String(16), nullable=False, server_default="active"),
-        sa.Column("joined_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
-        sa.Column(
-            "invited_by",
-            sa.String(80),
-            sa.ForeignKey("users.username", ondelete="SET NULL"),
-            nullable=True,
-        ),
-        sa.UniqueConstraint("username", "organization_id", name="uq_org_memberships_user_org"),
-    )
-    op.create_index("ix_org_memberships_username", "org_memberships", ["username"])
-    op.create_index("ix_org_memberships_org", "org_memberships", ["organization_id"])
+    if not _table_exists("org_memberships"):
+        op.create_table(
+            "org_memberships",
+            sa.Column("id", sa.String(36), primary_key=True),
+            sa.Column(
+                "username",
+                sa.String(80),
+                sa.ForeignKey("users.username", ondelete="CASCADE"),
+                nullable=False,
+            ),
+            sa.Column(
+                "organization_id",
+                sa.String(36),
+                sa.ForeignKey("organizations.id", ondelete="CASCADE"),
+                nullable=False,
+            ),
+            sa.Column(
+                "role_id",
+                sa.String(36),
+                sa.ForeignKey("roles.id", ondelete="SET NULL"),
+                nullable=True,
+            ),
+            sa.Column("is_default", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+            sa.Column("status", sa.String(16), nullable=False, server_default="active"),
+            sa.Column("joined_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
+            sa.Column(
+                "invited_by",
+                sa.String(80),
+                sa.ForeignKey("users.username", ondelete="SET NULL"),
+                nullable=True,
+            ),
+            sa.UniqueConstraint("username", "organization_id", name="uq_org_memberships_user_org"),
+        )
+    if not _index_exists("org_memberships", "ix_org_memberships_username"):
+        op.create_index("ix_org_memberships_username", "org_memberships", ["username"])
+    if not _index_exists("org_memberships", "ix_org_memberships_org"):
+        op.create_index("ix_org_memberships_org", "org_memberships", ["organization_id"])
 
     # ── 2) project_members ────────────────────────────────────────────────
-    op.create_table(
-        "project_members",
-        sa.Column("id", sa.String(36), primary_key=True),
-        sa.Column(
-            "project_id",
-            sa.String(36),
-            sa.ForeignKey("projects.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column(
-            "username",
-            sa.String(80),
-            sa.ForeignKey("users.username", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column(
-            "role_id",
-            sa.String(36),
-            sa.ForeignKey("roles.id", ondelete="SET NULL"),
-            nullable=True,
-        ),
-        sa.Column("status", sa.String(16), nullable=False, server_default="active"),
-        sa.Column("joined_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
-        sa.Column(
-            "invited_by",
-            sa.String(80),
-            sa.ForeignKey("users.username", ondelete="SET NULL"),
-            nullable=True,
-        ),
-        sa.UniqueConstraint("project_id", "username", name="uq_project_members_project_user"),
-    )
-    op.create_index("ix_project_members_project", "project_members", ["project_id"])
-    op.create_index("ix_project_members_username", "project_members", ["username"])
+    if not _table_exists("project_members"):
+        op.create_table(
+            "project_members",
+            sa.Column("id", sa.String(36), primary_key=True),
+            sa.Column(
+                "project_id",
+                sa.String(36),
+                sa.ForeignKey("projects.id", ondelete="CASCADE"),
+                nullable=False,
+            ),
+            sa.Column(
+                "username",
+                sa.String(80),
+                sa.ForeignKey("users.username", ondelete="CASCADE"),
+                nullable=False,
+            ),
+            sa.Column(
+                "role_id",
+                sa.String(36),
+                sa.ForeignKey("roles.id", ondelete="SET NULL"),
+                nullable=True,
+            ),
+            sa.Column("status", sa.String(16), nullable=False, server_default="active"),
+            sa.Column("joined_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
+            sa.Column(
+                "invited_by",
+                sa.String(80),
+                sa.ForeignKey("users.username", ondelete="SET NULL"),
+                nullable=True,
+            ),
+            sa.UniqueConstraint("project_id", "username", name="uq_project_members_project_user"),
+        )
+    if not _index_exists("project_members", "ix_project_members_project"):
+        op.create_index("ix_project_members_project", "project_members", ["project_id"])
+    if not _index_exists("project_members", "ix_project_members_username"):
+        op.create_index("ix_project_members_username", "project_members", ["username"])
 
     # ── 3) roles.scope ────────────────────────────────────────────────────
-    op.add_column(
-        "roles",
-        sa.Column("scope", sa.String(16), nullable=False, server_default="org"),
-    )
+    if not _column_exists("roles", "scope"):
+        op.add_column(
+            "roles",
+            sa.Column("scope", sa.String(16), nullable=False, server_default="org"),
+        )
 
     # ── 4) Backfill ───────────────────────────────────────────────────────
     # 4a) 每個 user 在他現在的 org 都加一筆 OrgMembership(is_default=true)。
