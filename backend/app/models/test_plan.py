@@ -58,7 +58,7 @@ class TestPlan(TenantScoped, Base):
     exit_criteria_json: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
     approvals_json: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
     status: Mapped[TestPlanStatus] = mapped_column(
-        Enum(TestPlanStatus), default=TestPlanStatus.NEW, nullable=False
+        Enum(TestPlanStatus, values_callable=lambda x: [e.value for e in x], native_enum=False, length=20), default=TestPlanStatus.NEW, nullable=False
     )
     owner: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

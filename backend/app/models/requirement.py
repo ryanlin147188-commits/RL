@@ -68,7 +68,7 @@ class Requirement(Assignable, TenantScoped, Base):
         Enum(RequirementPriority), default=RequirementPriority.SHOULD, nullable=False
     )
     status: Mapped[RequirementStatus] = mapped_column(
-        Enum(RequirementStatus), default=RequirementStatus.NEW, nullable=False
+        Enum(RequirementStatus, values_callable=lambda x: [e.value for e in x], native_enum=False, length=20), default=RequirementStatus.NEW, nullable=False
     )
     owner: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

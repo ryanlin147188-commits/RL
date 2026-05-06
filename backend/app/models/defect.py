@@ -75,7 +75,7 @@ class Defect(Assignable, TenantScoped, Base):
         Enum(DefectPriority), default=DefectPriority.P2, nullable=False
     )
     status: Mapped[DefectStatus] = mapped_column(
-        Enum(DefectStatus), default=DefectStatus.NEW, nullable=False
+        Enum(DefectStatus, values_callable=lambda x: [e.value for e in x], native_enum=False, length=20), default=DefectStatus.NEW, nullable=False
     )
     reporter: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     assignee: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)

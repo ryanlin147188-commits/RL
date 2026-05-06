@@ -46,7 +46,7 @@ class TestMilestone(TenantScoped, Base):
     start_date: Mapped[date] = mapped_column(Date, nullable=False)
     end_date: Mapped[date] = mapped_column(Date, nullable=False)
     status: Mapped[MilestoneStatus] = mapped_column(
-        Enum(MilestoneStatus), default=MilestoneStatus.NEW, nullable=False
+        Enum(MilestoneStatus, values_callable=lambda x: [e.value for e in x], native_enum=False, length=20), default=MilestoneStatus.NEW, nullable=False
     )
     owner: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     # 顏色（calendar / gantt 用）；HEX 字串例如 "#3b82f6"

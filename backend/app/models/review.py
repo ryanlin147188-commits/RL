@@ -97,7 +97,7 @@ class ReviewRecord(Assignable, TenantScoped, Base):
     )
     entity_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     status: Mapped[ReviewStatus] = mapped_column(
-        Enum(ReviewStatus, name="review_status"),
+        Enum(ReviewStatus, name="review_status", values_callable=lambda x: [e.value for e in x], native_enum=False, length=20),
         nullable=False,
         default=ReviewStatus.PENDING,
         index=True,
@@ -142,8 +142,8 @@ class ReviewHistory(TenantScoped, Base):
     # Required when action is REJECT or REVERT; nullable for SUBMIT/APPROVE.
     reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     previous_status: Mapped[Optional[ReviewStatus]] = mapped_column(
-        Enum(ReviewStatus, name="review_status"), nullable=True
+        Enum(ReviewStatus, name="review_status", values_callable=lambda x: [e.value for e in x], native_enum=False, length=20), nullable=True
     )
     new_status: Mapped[ReviewStatus] = mapped_column(
-        Enum(ReviewStatus, name="review_status"), nullable=False
+        Enum(ReviewStatus, name="review_status", values_callable=lambda x: [e.value for e in x], native_enum=False, length=20), nullable=False
     )

@@ -75,7 +75,7 @@ class TodoItem(Base):
     # 預定到期日（YYYY-MM-DD），用於日曆 + 過期計算
     due_date: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     status: Mapped[TodoStatus] = mapped_column(
-        Enum(TodoStatus), default=TodoStatus.NEW, nullable=False
+        Enum(TodoStatus, values_callable=lambda x: [e.value for e in x], native_enum=False, length=20), default=TodoStatus.NEW, nullable=False
     )
     priority: Mapped[TodoPriority] = mapped_column(
         Enum(TodoPriority), default=TodoPriority.P2, nullable=False
