@@ -37,14 +37,16 @@ class DefectPriority(str, enum.Enum):
 
 
 class DefectStatus(str, enum.Enum):
+    """統一 7 值狀態 — 對齊 todo / requirement / review。
+    舊值 Fixed→IN_REVIEW, Reopened→REWORK_REQUIRED, WontFix→CLOSED 由 migration 0011 自動轉換。
+    """
     NEW = "New"
     ASSIGNED = "Assigned"
     IN_PROGRESS = "InProgress"
-    FIXED = "Fixed"
+    IN_REVIEW = "InReview"
+    REWORK_REQUIRED = "ReworkRequired"
     VERIFIED = "Verified"
     CLOSED = "Closed"
-    REOPENED = "Reopened"
-    WONT_FIX = "WontFix"
 
 
 class Defect(Assignable, TenantScoped, Base):

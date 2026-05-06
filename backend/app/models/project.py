@@ -3,11 +3,12 @@
 除了原本的 id / name 之外，新增以下選填欄位以支援「測試專案」工作區：
 - description: 專案簡介
 - owner: 負責人
-- status: Planning / Active / OnHold / Archived（自由文字字串）
+- status: 統一 7 值狀態（New / Assigned / InProgress / InReview / ReworkRequired / Verified / Closed）
+         遷移後對應:Planning→New, Active→InProgress, OnHold→Assigned, Archived→Closed
 - start_date / target_date: 預計起訖日（YYYY-MM-DD 字串，方便前端 input[type=date]）
 - tags: 用「,」分隔的標籤字串
 
-所有新欄位皆為 nullable，舊資料不需 migration。
+所有新欄位皆為 nullable，舊資料由 migration 0012 自動轉換。
 """
 import uuid
 from datetime import datetime
@@ -31,7 +32,7 @@ class Project(Base):
     )
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     owner: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    status: Mapped[Optional[str]] = mapped_column(String(40), nullable=True, default="Active")
+    status: Mapped[Optional[str]] = mapped_column(String(40), nullable=True, default="InProgress")
     start_date: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     target_date: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     tags: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)

@@ -26,9 +26,13 @@ from app.schemas.test_milestone import (
 router = APIRouter()
 
 
+_LEGACY_MS_STATUS = {"Planned": "New", "Completed": "Verified", "Cancelled": "Closed"}
+
+
 def _resolve_status(val, default):
     if val is None:
         return default
+    val = _LEGACY_MS_STATUS.get(val, val)
     try:
         return MilestoneStatus(val)
     except ValueError:

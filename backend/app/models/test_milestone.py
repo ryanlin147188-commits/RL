@@ -16,10 +16,20 @@ from .base import Base
 
 
 class MilestoneStatus(str, enum.Enum):
-    PLANNED = "Planned"
+    """統一 7 值狀態 — 對齊 defect / todo / requirement / review。
+    舊值 Planned→NEW, InProgress→IN_PROGRESS, Completed→VERIFIED, Cancelled→CLOSED 由 migration 0012 自動轉換。
+    為相容舊呼叫方,保留 PLANNED/COMPLETED/CANCELLED 別名指向新值。
+    """
+    NEW = "New"
+    ASSIGNED = "Assigned"
     IN_PROGRESS = "InProgress"
-    COMPLETED = "Completed"
-    CANCELLED = "Cancelled"
+    IN_REVIEW = "InReview"
+    REWORK_REQUIRED = "ReworkRequired"
+    VERIFIED = "Verified"
+    CLOSED = "Closed"
+    PLANNED = NEW
+    COMPLETED = VERIFIED
+    CANCELLED = CLOSED
 
 
 class TestMilestone(TenantScoped, Base):
@@ -36,7 +46,7 @@ class TestMilestone(TenantScoped, Base):
     start_date: Mapped[date] = mapped_column(Date, nullable=False)
     end_date: Mapped[date] = mapped_column(Date, nullable=False)
     status: Mapped[MilestoneStatus] = mapped_column(
-        Enum(MilestoneStatus), default=MilestoneStatus.PLANNED, nullable=False
+        Enum(MilestoneStatus), default=MilestoneStatus.NEW, nullable=False
     )
     owner: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     # 顏色（calendar / gantt 用）；HEX 字串例如 "#3b82f6"

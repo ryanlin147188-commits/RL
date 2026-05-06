@@ -27,10 +27,16 @@ from .base import Base
 
 
 class TodoStatus(str, enum.Enum):
-    TODO = "Todo"
+    """統一 7 值狀態 — 對齊 defect / requirement / review。
+    舊值 Todo→ASSIGNED, Done→VERIFIED, Cancelled→CLOSED 由 migration 0011 自動轉換。
+    """
+    NEW = "New"
+    ASSIGNED = "Assigned"
     IN_PROGRESS = "InProgress"
-    DONE = "Done"
-    CANCELLED = "Cancelled"
+    IN_REVIEW = "InReview"
+    REWORK_REQUIRED = "ReworkRequired"
+    VERIFIED = "Verified"
+    CLOSED = "Closed"
 
 
 class TodoPriority(str, enum.Enum):
@@ -69,7 +75,7 @@ class TodoItem(Base):
     # 預定到期日（YYYY-MM-DD），用於日曆 + 過期計算
     due_date: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     status: Mapped[TodoStatus] = mapped_column(
-        Enum(TodoStatus), default=TodoStatus.TODO, nullable=False
+        Enum(TodoStatus), default=TodoStatus.NEW, nullable=False
     )
     priority: Mapped[TodoPriority] = mapped_column(
         Enum(TodoPriority), default=TodoPriority.P2, nullable=False

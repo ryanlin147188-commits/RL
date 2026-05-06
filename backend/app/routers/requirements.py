@@ -120,7 +120,7 @@ async def create_requirement(
         description=payload.description,
         source=_resolve_enum(RequirementSource, payload.source, RequirementSource.PRD),
         priority=_resolve_enum(RequirementPriority, payload.priority, RequirementPriority.SHOULD),
-        status=_resolve_enum(RequirementStatus, payload.status, RequirementStatus.DRAFT),
+        status=_resolve_enum(RequirementStatus, payload.status, RequirementStatus.NEW),
         owner=payload.owner,
     )
     db.add(r)

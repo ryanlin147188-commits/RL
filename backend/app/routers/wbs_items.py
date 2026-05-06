@@ -31,9 +31,16 @@ async def _next_code(db: AsyncSession, project_id: str) -> str:
     return f"WBS-{n:03d}"
 
 
+_LEGACY_WBS_STATUS = {
+    "NotStarted": "New", "Completed": "Verified",
+    "Blocked": "ReworkRequired", "Cancelled": "Closed",
+}
+
+
 def _resolve_status(val, default):
     if val is None:
         return default
+    val = _LEGACY_WBS_STATUS.get(val, val)
     try:
         return WbsStatus(val)
     except ValueError:
@@ -58,7 +65,8 @@ async def list_wbs(
     if project_id:
         stmt = stmt.where(WbsItem.project_id == project_id)
     if status:
-        stmt = stmt.where(WbsItem.status == WbsStatus(status))
+        norm = _LEGACY_WBS_STATUS.get(status, status)
+        stmt = stmt.where(WbsItem.status == WbsStatus(norm))
     stmt = scope_by_project(stmt, WbsItem, user)
     stmt = page.apply(stmt)
     rows = (await db.execute(stmt)).scalars().all()

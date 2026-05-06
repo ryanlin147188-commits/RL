@@ -17,11 +17,21 @@ from .base import Base
 
 
 class TestPlanStatus(str, enum.Enum):
-    DRAFT = "Draft"
+    """統一 7 值狀態 — 對齊 defect / todo / requirement / review。
+    舊值 Draft→NEW, InReview→IN_REVIEW, Approved→VERIFIED, Active→IN_PROGRESS, Closed→CLOSED 由 migration 0012 自動轉換。
+    為相容舊呼叫方,保留 DRAFT/APPROVED/ACTIVE 別名指向新值。
+    """
+    NEW = "New"
+    ASSIGNED = "Assigned"
+    IN_PROGRESS = "InProgress"
     IN_REVIEW = "InReview"
-    APPROVED = "Approved"
-    ACTIVE = "Active"
+    REWORK_REQUIRED = "ReworkRequired"
+    VERIFIED = "Verified"
     CLOSED = "Closed"
+    # 別名(指向新值)— 舊程式 TestPlanStatus.DRAFT / APPROVED / ACTIVE 仍有效
+    DRAFT = NEW
+    APPROVED = VERIFIED
+    ACTIVE = IN_PROGRESS
 
 
 class TestPlan(TenantScoped, Base):
@@ -48,7 +58,7 @@ class TestPlan(TenantScoped, Base):
     exit_criteria_json: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
     approvals_json: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
     status: Mapped[TestPlanStatus] = mapped_column(
-        Enum(TestPlanStatus), default=TestPlanStatus.DRAFT, nullable=False
+        Enum(TestPlanStatus), default=TestPlanStatus.NEW, nullable=False
     )
     owner: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

@@ -22,6 +22,22 @@ from app.services.tree_service import build_tree
 router = APIRouter()
 
 
+# 統一 7 值狀態 — 舊 project lifecycle (Planning / Active / OnHold / Archived)
+# 對應到統一狀態。外部呼叫送舊值會自動 normalize,送新值原樣保留。
+_LEGACY_PROJECT_STATUS = {
+    "Planning": "New",
+    "Active": "InProgress",
+    "OnHold": "Assigned",
+    "Archived": "Closed",
+}
+
+
+def _normalize_project_status(val):
+    if val is None:
+        return None
+    return _LEGACY_PROJECT_STATUS.get(val, val)
+
+
 def _scope_filter(stmt, user: User):
     """以 organization_id 過濾；superuser 看得到全部，普通使用者只看自己的 org。"""
     if user.is_superuser:
@@ -73,7 +89,8 @@ async def create_project(
         organization_id=user.organization_id,   # 自動掛在使用者的 org
         description=payload.description,
         owner=payload.owner,
-        status=payload.status or "Active",
+        # 統一 7 值狀態 — Planning→New, Active→InProgress, OnHold→Assigned, Archived→Closed
+        status=_normalize_project_status(payload.status) or "InProgress",
         start_date=payload.start_date,
         target_date=payload.target_date,
         tags=payload.tags,
@@ -176,7 +193,10 @@ async def update_project(
         proj.name = name
     for key in ("description", "owner", "status", "start_date", "target_date", "tags"):
         if key in data:
-            setattr(proj, key, data[key])
+            val = data[key]
+            if key == "status":
+                val = _normalize_project_status(val)
+            setattr(proj, key, val)
     await db.flush()
     await db.refresh(proj)
     return proj

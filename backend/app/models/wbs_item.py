@@ -20,11 +20,22 @@ from .base import Base
 
 
 class WbsStatus(str, enum.Enum):
-    NOT_STARTED = "NotStarted"
+    """統一 7 值狀態 — 對齊 defect / todo / requirement / review。
+    舊值 NotStarted→NEW, InProgress→IN_PROGRESS, Completed→VERIFIED,
+         Blocked→REWORK_REQUIRED, Cancelled→CLOSED 由 migration 0012 自動轉換。
+    為相容舊呼叫方,保留 NOT_STARTED/COMPLETED/BLOCKED/CANCELLED 別名指向新值。
+    """
+    NEW = "New"
+    ASSIGNED = "Assigned"
     IN_PROGRESS = "InProgress"
-    COMPLETED = "Completed"
-    BLOCKED = "Blocked"
-    CANCELLED = "Cancelled"
+    IN_REVIEW = "InReview"
+    REWORK_REQUIRED = "ReworkRequired"
+    VERIFIED = "Verified"
+    CLOSED = "Closed"
+    NOT_STARTED = NEW
+    COMPLETED = VERIFIED
+    BLOCKED = REWORK_REQUIRED
+    CANCELLED = CLOSED
 
 
 class WbsItem(TenantScoped, Base):
@@ -47,7 +58,7 @@ class WbsItem(TenantScoped, Base):
         String(20), nullable=False, default="approved", server_default="approved", index=True,
     )
     status: Mapped[WbsStatus] = mapped_column(
-        Enum(WbsStatus), default=WbsStatus.NOT_STARTED, nullable=False
+        Enum(WbsStatus), default=WbsStatus.NEW, nullable=False
     )
     progress: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     assignee: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)

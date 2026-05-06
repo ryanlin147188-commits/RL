@@ -32,9 +32,14 @@ async def _next_code(db: AsyncSession, project_id: str) -> str:
     return f"TP-{n:03d}"
 
 
+_LEGACY_PLAN_STATUS = {"Draft": "New", "Approved": "Verified", "Active": "InProgress"}
+
+
 def _resolve_status(val, default):
     if val is None:
         return default
+    # 舊值容錯:Draft / Approved / Active 仍可被外部呼叫送進來,自動 normalize 成新值
+    val = _LEGACY_PLAN_STATUS.get(val, val)
     try:
         return TestPlanStatus(val)
     except ValueError:
@@ -58,7 +63,8 @@ async def list_plans(
     if project_id:
         stmt = stmt.where(TestPlan.project_id == project_id)
     if status:
-        stmt = stmt.where(TestPlan.status == TestPlanStatus(status))
+        norm = _LEGACY_PLAN_STATUS.get(status, status)
+        stmt = stmt.where(TestPlan.status == TestPlanStatus(norm))
     stmt = scope_by_project(stmt, TestPlan, user)
     stmt = page.apply(stmt)
     rows = (await db.execute(stmt)).scalars().all()

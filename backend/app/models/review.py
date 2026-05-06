@@ -48,9 +48,21 @@ class ReviewableEntityType(str, enum.Enum):
 
 
 class ReviewStatus(str, enum.Enum):
-    PENDING = "pending"
-    APPROVED = "approved"
-    REJECTED = "rejected"
+    """統一 7 值狀態 — 對齊 defect / todo / requirement。
+    舊值 pending→IN_REVIEW, approved→VERIFIED, rejected→CLOSED 由 migration 0011 轉換。
+    為相容舊呼叫方,保留 PENDING/APPROVED/REJECTED 別名指向新值。
+    """
+    NEW = "New"
+    ASSIGNED = "Assigned"
+    IN_PROGRESS = "InProgress"
+    IN_REVIEW = "InReview"
+    REWORK_REQUIRED = "ReworkRequired"
+    VERIFIED = "Verified"
+    CLOSED = "Closed"
+    # 別名(指向新值)— 讓 review_service 內 ReviewStatus.PENDING / APPROVED / REJECTED 仍有效
+    PENDING = IN_REVIEW
+    APPROVED = VERIFIED
+    REJECTED = CLOSED
 
 
 class ReviewAction(str, enum.Enum):

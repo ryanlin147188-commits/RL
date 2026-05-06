@@ -129,7 +129,7 @@ RL 鎖定 **15–500 人規模、有自動化測試需求但被工具鏈拖累**
 | 🔁 **DDT 資料驅動** | 同案例跑多組資料、每列獨立錄影 + Trace |
 | 📊 **完整 RTM 追溯鏈** ✨ | User Story → AC → TestCase → Defect 一頁看穿;**Backlog Task 可橫向連結 10 種實體**(含測試版號)+ link_kind 語意(verifies / blocks / duplicates)+ 反向視圖在每個 entity detail modal |
 | 🎯 **跨 entity 指派系統** ✨ | 統一 schema 涵蓋 6 種 entity(defect / todo / testcase / requirement / document / review),群組指派自動 fan-out 通知,bulk reassign(≤200/call),「我的工作」inbox 個人視圖 |
-| 📋 **多 entity 測試看版** ✨ | 從 defect-only 升級到全 ALM 看板:6 個 entity tab + 「我的指派 / 全部」 toggle,「全部」 mode 用 generic 3 欄(待處理 / 進行中 / 已完成),單一 entity tab 用該 entity 細分 status,卡片直接重新指派 |
+| 📋 **統一 7 欄看板 + 拖移變更狀態** ✨ | 8 個 entity 的 status 統一成 `新建立 / 等待處理 / 進行中 / 等待審核 / 退回修改 / 已驗證 / 已關閉` 7 個值;看板用同一套欄位顯示;**defect / todo / requirement 卡片可拖到其他欄變更狀態**(樂觀更新 + 失敗回滾);卡片顯示優先級 / Blocked / Module / Type / Assignee / 到期日 |
 | 🏢 **多租戶 + 自助註冊** ✨ | Organization 隔離、**email_domain 自動歸屬 + 預覽器**(設定前先看會 catch 哪些既有 user)、**完整邀請 lifecycle**(寄 / 重寄 / 延期 / 撤銷 / 批次)、群組可巢狀 + 可當 Todo assignee + **群組 → 專案橋接**(整個群組一鍵加入專案) |
 | 🛡 **權限與角色管理** ✨ | 設定頁 6 個分頁全 search/sort/pagination/bulk operations、角色 clone(含 permissions diff)、反向查詢「哪些角色含此權限 / 誰使用此角色」、cascade-aware delete(刪角色/群組前看影響面) |
 | 🏷 **測試版號追蹤** ✨ | WEB / API / APP 版號獨立管理,測試報告 / 缺陷 / 回合反向 FK 連動,**待辦可連結到版號**,清楚「這 bug 是哪個版本爆的、哪些 todo 在追蹤」 |
@@ -153,8 +153,9 @@ RL 鎖定 **15–500 人規模、有自動化測試需求但被工具鏈拖累**
 | **E** | 收尾完整覆蓋 | bulk reassign 推到 testcase / review 清單、`/me?entity_type=todo` API 修 |
 | **F** | 多 entity 看板 | 看板從只看 defect 變成跨 6 種 entity,接到 Tier D 指派系統 |
 | **G** | 待辦連結機制完善 | TodoLink 支援測試版號、link_kind 語意、5 個 detail modal 加反向視圖、bulk-from-targets(從 N 個 entity 一鍵建追蹤待辦)、連結通知 |
+| **H** | **狀態統一 + 拖移看板 + 側欄重組** | 8 個 entity 的 status enum 全部對齊成統一 7 值工作流(`New → Assigned → InProgress → InReview → (Verified \| ReworkRequired \| Closed)`);新增 `0011_unify_status` + `0012_unify_status_part2` 兩支可逆 alembic migration 自動轉換舊資料;routers 加 legacy normalize map;Python enum 別名讓舊 `.DRAFT / .APPROVED / .ACTIVE` 等引用照舊有效。**看板支援 defect / todo / requirement 拖移變更狀態**;卡片顯示 Blocked / Rejected / Priority / Module / Type / Assignee / 到期日 等 metadata。**側邊欄與首頁快速導覽**重組為 5 大類別(專案管理 / 測試設計 / 測試環境 / 執行中心 / 品質追蹤)。 |
 
-每輪都是 backend additive(不破壞既有 API)+ 前端漸進升級,**沒有 schema breaking change**(D-1 唯一一次 column rename 以 alembic migration 可逆處理)。
+每輪都是 backend additive(不破壞既有 API)+ 前端漸進升級,**沒有 schema breaking change**(D-1 唯一一次 column rename + H 的 enum→VARCHAR 都以 alembic migration 可逆處理)。
 
 ---
 
@@ -238,13 +239,13 @@ docker compose up -d --no-build
 | **「我的工作」 inbox** ✨ | 個人視圖,跨 6 種 entity 列出所有指派給我的工作;KPI(過期 / 今日到期 / 全部)+ entity-type tab 切換 + 點擊跳到對應詳情頁 |
 | **群組管理** ✨ | 設定頁分頁,可巢狀(parent_id),Todo / 缺陷 / 案例 / 需求 / 文件 / 審核 都可選群組為 assignee → 自動 fan-out 通知所有成員(含子群組去重);**群組 → 專案橋接**:整個群組一鍵加入專案成員 |
 | **需求 + RTM** | User Story → AC 階層,**RTM 追溯鏈** 在每個節點顯示 linked Backlog,完整可視化 |
-| **缺陷管理** ✨ | 8 種狀態工作流 + 嚴重性 + 附件 + 「關聯測試案例」下拉,自動納入 RTM 鏈;**可標記發生於哪個測試版號**;清單支援 bulk reassign + bulk 建立追蹤待辦;detail modal 顯示「相關待辦」 |
+| **缺陷管理** ✨ | **統一 7 值狀態工作流**(`新建立 → 等待處理 → 進行中 → 等待審核 →(已驗證 \| 退回修改 \| 已關閉)`)+ 嚴重性 + 附件 + 「關聯測試案例」下拉,自動納入 RTM 鏈;**可標記發生於哪個測試版號**;清單支援 bulk reassign + bulk 建立追蹤待辦;detail modal 顯示「相關待辦」 |
 | **測試版號** ✨ | 設定頁分頁,WEB / API / APP 三軌獨立管理;版號連動測試報告 / 缺陷 / 回合;**待辦可連結回版號**,detail modal 顯示「相關待辦」 |
 | **WBS** | 工作分解結構 + 進度百分比 + 依負責人篩選 |
 | **測試計畫** | ISTQB 8 區塊格式(Scope / 策略 / 資源 / 時程 / 風險 / 入出條件 / 簽核)|
 | **測試時程** | 里程碑 + Gantt 風格時間軸 |
 | **測試回合** | 命名集合彙總執行,單一報告 |
-| **測試看版 (Kanban)** ✨ | 從 defect-only 升級到**多 entity 看板**:全部 / 缺陷 / 待辦 / 案例 / 需求 / 文件 / 審核 7 個 tab + 「我的指派 / 全部」 toggle;「全部」mode 用 generic 3 欄,單一 entity 用該 entity 細分 status;卡片直接顯示 assigned_to / 過期紅標 / 「重新指派」按鈕 |
+| **測試看版 (Kanban)** ✨ | **多 entity 看板 + 統一 7 欄 + 拖移變更狀態**:全部 / 缺陷 / 待辦 / 案例 / 需求 / 文件 / 審核 7 個 tab + 「我的指派 / 全部」 toggle;所有 entity 都用統一 7 欄(`新建立 / 等待處理 / 進行中 / 等待審核 / 退回修改 / 已驗證 / 已關閉`);**defect / todo / requirement 卡片可拖到其他欄即時變更狀態**(樂觀更新 + 失敗回滾);卡片顯示 Priority / Blocked / Module / Type / Assignee / 到期日 等 metadata + 過期紅標 + 「重新指派」按鈕 |
 | **審核中心** ✨ | 4 種類型(testcase / document / script / report)的送審 → approved / rejected workflow;清單支援 bulk reassign |
 | **通知中心** | 站內紅點 badge + Email(per-event channel)+ toast 訊息歷史 |
 | **多租戶 + 自助註冊** ✨ | Organization 隔離 + email_domain 自動歸屬 + **預覽器**(adopt 前看誰會被 catch)+ 完整邀請 lifecycle(`POST /invites` / `/resend` / `/extend` / `/bulk` / `DELETE`)|

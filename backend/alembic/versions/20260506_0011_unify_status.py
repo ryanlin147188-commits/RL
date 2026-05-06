@@ -1,0 +1,118 @@
+"""unify_status -- 4 entity status enum 全部統一成 7 值
+
+Revision ID: 0011_unify_status
+Revises: 0010_entity_versions
+Create Date: 2026-05-06
+
+把 defect / todo / requirement / review 的 status 欄位轉成統一的 7 個值:
+``New / Assigned / InProgress / InReview / ReworkRequired / Verified / Closed``
+
+設計:
+  * 把每個 status 欄位從 PG native enum 轉成 ``VARCHAR(20)``,讓 Python 端
+    enum class 統一管枚舉值,DB 不再寫死(避免之後改 enum 又要 ALTER TYPE)。
+  * UPDATE 既有資料:把舊值對應到新值(see _STATUS_REMAP)。
+  * DROP 舊的 PG enum type(如果存在)。
+
+idempotent:
+  * 若 column type 已經是 VARCHAR(fresh DB 0001 baseline 用 new model 建表)
+    則 ALTER 是 no-op cast,UPDATE 也碰不到任何 row,DROP TYPE IF EXISTS 不爆。
+"""
+from __future__ import annotations
+
+from typing import Sequence, Union
+
+import sqlalchemy as sa
+from alembic import op
+
+
+revision: str = "0011_unify_status"
+down_revision: Union[str, None] = "0010_entity_versions"
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+
+# (table, column, old_enum_type_name, {old_value: new_value} 映射)
+_TABLES = [
+    (
+        "defects",
+        "status",
+        "defectstatus",
+        {"Fixed": "InReview", "Reopened": "ReworkRequired", "WontFix": "Closed"},
+    ),
+    (
+        "todo_items",
+        "status",
+        "todostatus",
+        {"Todo": "Assigned", "Done": "Verified", "Cancelled": "Closed"},
+    ),
+    (
+        "requirements",
+        "status",
+        "requirementstatus",
+        {"Draft": "New", "Approved": "Assigned", "Implemented": "InReview", "Deprecated": "Closed"},
+    ),
+    (
+        # ReviewStatus 是顯式命名 review_status,且 review_records + review_history 兩張表都用到
+        "review_records",
+        "status",
+        "review_status",
+        {"pending": "InReview", "approved": "Verified", "rejected": "Closed"},
+    ),
+]
+
+
+def _column_type_is_varchar(table: str, column: str) -> bool:
+    bind = op.get_bind()
+    cols = sa.inspect(bind).get_columns(table)
+    for c in cols:
+        if c["name"] == column:
+            type_str = str(c["type"]).upper()
+            return "VARCHAR" in type_str or "CHARACTER VARYING" in type_str
+    return False
+
+
+def _alter_to_varchar(table: str, column: str) -> None:
+    """把 column 從 PG enum 轉 VARCHAR(20)。已經是 VARCHAR 就 no-op。"""
+    if _column_type_is_varchar(table, column):
+        return
+    op.execute(
+        f'ALTER TABLE {table} ALTER COLUMN {column} TYPE VARCHAR(20) USING {column}::text'
+    )
+
+
+def upgrade() -> None:
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+
+    for table, column, enum_name, remap in _TABLES:
+        if not inspector.has_table(table):
+            continue
+        # 1) ALTER column type
+        _alter_to_varchar(table, column)
+        # 2) UPDATE 舊值到新值
+        for old, new in remap.items():
+            op.execute(
+                sa.text(
+                    f'UPDATE {table} SET {column} = :new WHERE {column} = :old'
+                ).bindparams(old=old, new=new)
+            )
+        # 3) Drop 舊的 PG enum type(若還存在)
+        op.execute(f'DROP TYPE IF EXISTS {enum_name}')
+
+    # review_history 也有 previous_status / new_status 兩個 review_status 欄
+    if inspector.has_table("review_history"):
+        for col in ("previous_status", "new_status"):
+            _alter_to_varchar("review_history", col)
+            for old, new in {"pending": "InReview", "approved": "Verified", "rejected": "Closed"}.items():
+                op.execute(
+                    sa.text(
+                        f'UPDATE review_history SET {col} = :new WHERE {col} = :old'
+                    ).bindparams(old=old, new=new)
+                )
+
+
+def downgrade() -> None:
+    # 一律 no-op:downgrade 把舊狀態值反向 map 回去意義不大
+    # (Fixed / Reopened / Done / Draft / pending 等舊值已被 UPDATE 蓋掉,
+    # 沒有「明確 reversible」的回滾路徑)。
+    pass

@@ -430,7 +430,7 @@ async def bulk_create_todos_from_targets(
             project_id=pid,
             organization_id=user.organization_id,
             title=todo_title,
-            status=TodoStatus.TODO,
+            status=TodoStatus.NEW,
             priority=prio_enum,
             due_date=due_date,
             sprint_label=sprint_label,

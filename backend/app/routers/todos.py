@@ -117,7 +117,7 @@ def _enrich(t: TodoItem) -> dict:
     """把 ORM 物件轉成 dict 並加上 is_overdue / days_to_due。"""
     is_overdue = False
     days_to_due = None
-    if t.due_date and t.status not in (TodoStatus.DONE, TodoStatus.CANCELLED):
+    if t.due_date and t.status not in (TodoStatus.VERIFIED, TodoStatus.CLOSED):
         try:
             d = date.fromisoformat(t.due_date)
             today = date.today()
@@ -203,16 +203,16 @@ async def list_todos(
             enriched = [
                 e for e in enriched
                 if e["days_to_due"] is not None and 0 <= e["days_to_due"] <= 3
-                and e["status"] not in ("Done", "Cancelled")
+                and e["status"] not in ("Verified", "Closed")
             ]
         elif bucket == "upcoming":
             enriched = [
                 e for e in enriched
                 if e["days_to_due"] is not None and e["days_to_due"] > 3
-                and e["status"] not in ("Done", "Cancelled")
+                and e["status"] not in ("Verified", "Closed")
             ]
         elif bucket == "done":
-            enriched = [e for e in enriched if e["status"] in ("Done", "Cancelled")]
+            enriched = [e for e in enriched if e["status"] in ("Verified", "Closed")]
     return enriched
 
 
@@ -240,18 +240,18 @@ async def todo_summary(
     due_soon = sum(
         1 for e in enriched
         if e["days_to_due"] is not None and 0 <= e["days_to_due"] <= 3
-        and e["status"] not in ("Done", "Cancelled")
+        and e["status"] not in ("Verified", "Closed")
     )
-    todo = sum(1 for e in enriched if e["status"] == "Todo" and not e["is_overdue"])
+    todo = sum(1 for e in enriched if e["status"] in ("New", "Assigned") and not e["is_overdue"])
     in_progress = sum(1 for e in enriched if e["status"] == "InProgress" and not e["is_overdue"])
-    done = sum(1 for e in enriched if e["status"] == "Done")
+    done = sum(1 for e in enriched if e["status"] in ("Verified", "Closed"))
     return {
         "overdue": overdue,
         "due_soon": due_soon,
         "todo": todo,
         "in_progress": in_progress,
         "done": done,
-        "total_active": sum(1 for e in enriched if e["status"] not in ("Done", "Cancelled")),
+        "total_active": sum(1 for e in enriched if e["status"] not in ("Verified", "Closed")),
     }
 
 
@@ -293,7 +293,7 @@ async def todo_tree(
         else:
             stmt = stmt.where(TodoItem.sprint_label == sprint_label)
     if not include_done:
-        stmt = stmt.where(TodoItem.status.notin_([TodoStatus.DONE, TodoStatus.CANCELLED]))
+        stmt = stmt.where(TodoItem.status.notin_([TodoStatus.VERIFIED, TodoStatus.CLOSED]))
 
     rows = (await db.execute(stmt)).scalars().all()
     items = [_enrich(t) for t in rows]
@@ -331,7 +331,7 @@ async def create_todo(
         title=payload.title,
         description=payload.description,
         due_date=payload.due_date,
-        status=_resolve_status(payload.status, TodoStatus.TODO),
+        status=_resolve_status(payload.status, TodoStatus.NEW),
         priority=_resolve_priority(payload.priority, TodoPriority.P2),
         assigned_to=payload.assignee,
         assigned_to_type=(payload.assignee_type or "user") if payload.assignee else "user",
@@ -391,9 +391,9 @@ async def update_todo(
         if key == "status" and val is not None:
             new_st = _resolve_status(val, t.status)
             t.status = new_st
-            if new_st in (TodoStatus.DONE, TodoStatus.CANCELLED) and t.completed_at is None:
+            if new_st in (TodoStatus.VERIFIED, TodoStatus.CLOSED) and t.completed_at is None:
                 t.completed_at = datetime.utcnow()
-            elif new_st not in (TodoStatus.DONE, TodoStatus.CANCELLED):
+            elif new_st not in (TodoStatus.VERIFIED, TodoStatus.CLOSED):
                 t.completed_at = None
         elif key == "priority" and val is not None:
             t.priority = _resolve_priority(val, t.priority)

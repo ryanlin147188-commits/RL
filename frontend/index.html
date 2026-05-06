@@ -850,65 +850,73 @@
 
         <!-- Body -->
         <div class="flex-1 overflow-y-auto p-3 space-y-5">
-            <!-- 規劃 -->
+            <!-- 1) 專案管理 -->
             <section>
                 <div class="text-[10px] font-bold text-amber-700 uppercase tracking-wider mb-2 px-2 flex items-center gap-1.5">
-                    <i class="fa-solid fa-pen-ruler text-[11px]"></i>
-                    <span data-i18n="nav.section.planning">規劃</span>
+                    <i class="fa-solid fa-folder-open text-[11px]"></i>
+                    <span data-i18n="nav.section.project">專案管理</span>
                 </div>
                 <div class="space-y-0.5">
                     <button type="button" onclick="closeNavDrawer(); showTestProjectsView()" class="nav-drawer-btn"><i class="fa-solid fa-folder-tree text-amber-600"></i><span data-i18n="nav.testProjects">測試專案</span></button>
-                    <button type="button" onclick="closeNavDrawer(); showWbsView()"          class="nav-drawer-btn"><i class="fa-solid fa-sitemap text-yellow-600"></i><span data-i18n="nav.wbs">WBS</span></button>
+                    <button type="button" onclick="closeNavDrawer(); showWbsView()"          class="nav-drawer-btn"><i class="fa-solid fa-sitemap text-yellow-600"></i><span data-i18n="nav.wbs">WBS / 工作分解</span></button>
                     <button type="button" onclick="closeNavDrawer(); showTestPlanView()"     class="nav-drawer-btn"><i class="fa-solid fa-clipboard-list text-blue-600"></i><span data-i18n="nav.testPlan">測試計畫</span></button>
-                    <button type="button" onclick="closeNavDrawer(); showRequirementsView()" class="nav-drawer-btn"><i class="fa-solid fa-diagram-project text-cyan-600"></i><span data-i18n="nav.requirements">需求/RTM</span></button>
-                    <button type="button" onclick="closeNavDrawer(); showTestCasesView()"    class="nav-drawer-btn"><i class="fa-solid fa-list-check text-blue-600"></i><span data-i18n="nav.testCases">測試案例</span></button>
-                    <button type="button" onclick="closeNavDrawer(); showTestDataSetsView()" class="nav-drawer-btn"><i class="fa-solid fa-table text-violet-600"></i><span data-i18n="nav.dataSets">測試資料集</span></button>
-                    <button type="button" onclick="closeNavDrawer(); showTestDocumentsView()" class="nav-drawer-btn"><i class="fa-solid fa-file-lines text-pink-600"></i><span data-i18n="nav.documents">測試文件</span></button>
-                    <button type="button" onclick="closeNavDrawer(); showMyWorkView()" class="nav-drawer-btn"><i class="fa-solid fa-inbox text-amber-700"></i><span data-i18n="nav.myWork">我的工作</span></button>
-                    <button type="button" onclick="closeNavDrawer(); showBacklogView()" class="nav-drawer-btn"><i class="fa-solid fa-list-check text-amber-600"></i><span data-i18n="nav.backlog">待辦清單</span></button>
+                    <button type="button" onclick="closeNavDrawer(); showTestMilestonesView()" class="nav-drawer-btn"><i class="fa-regular fa-calendar text-teal-600"></i><span data-i18n="nav.milestones">測試時程</span></button>
+                    <button type="button" onclick="closeNavDrawer(); showTestVersionsView()" class="nav-drawer-btn"><i class="fa-solid fa-tag text-amber-600"></i><span data-i18n="nav.testVersions">測試版號</span></button>
+                    <button type="button" onclick="closeNavDrawer(); showTestKanbanView()"   class="nav-drawer-btn"><i class="fa-solid fa-columns text-orange-600"></i><span data-i18n="nav.kanban">測試看版</span></button>
                 </div>
             </section>
 
-            <!-- 設定 -->
+            <!-- 2) 測試設計 -->
             <section>
-                <div class="text-[10px] font-bold text-stone-500 uppercase tracking-wider mb-2 px-2 flex items-center gap-1.5">
-                    <i class="fa-solid fa-gear text-[11px]"></i>
-                    <span data-i18n="nav.section.settings">設定</span>
+                <div class="text-[10px] font-bold text-cyan-700 uppercase tracking-wider mb-2 px-2 flex items-center gap-1.5">
+                    <i class="fa-solid fa-pen-ruler text-[11px]"></i>
+                    <span data-i18n="nav.section.design">測試設計</span>
+                </div>
+                <div class="space-y-0.5">
+                    <button type="button" onclick="closeNavDrawer(); showRequirementsView()" class="nav-drawer-btn"><i class="fa-solid fa-diagram-project text-cyan-600"></i><span data-i18n="nav.requirements">需求 / RTM</span></button>
+                    <button type="button" onclick="closeNavDrawer(); showTestCasesView()"    class="nav-drawer-btn"><i class="fa-solid fa-list-check text-blue-600"></i><span data-i18n="nav.testCases">測試案例</span></button>
+                    <button type="button" onclick="closeNavDrawer(); showTestDataSetsView()" class="nav-drawer-btn"><i class="fa-solid fa-table text-violet-600"></i><span data-i18n="nav.dataSets">測試資料集</span></button>
+                    <button type="button" onclick="closeNavDrawer(); showTestDocumentsView()" class="nav-drawer-btn"><i class="fa-solid fa-file-lines text-pink-600"></i><span data-i18n="nav.documents">測試文件</span></button>
+                </div>
+            </section>
+
+            <!-- 3) 測試環境 -->
+            <section>
+                <div class="text-[10px] font-bold text-emerald-700 uppercase tracking-wider mb-2 px-2 flex items-center gap-1.5">
+                    <i class="fa-solid fa-server text-[11px]"></i>
+                    <span data-i18n="nav.section.env">測試環境</span>
                 </div>
                 <div class="space-y-0.5">
                     <button type="button" onclick="closeNavDrawer(); showDevicesView()"      class="nav-drawer-btn"><i class="fa-solid fa-mobile-screen text-rose-600"></i><span data-i18n="nav.devices">設備資訊</span></button>
                     <button type="button" onclick="closeNavDrawer(); showEnvVarsView()"      class="nav-drawer-btn"><i class="fa-solid fa-key text-emerald-600"></i><span data-i18n="nav.envVars">環境變數</span></button>
-                    <button type="button" onclick="closeNavDrawer(); showDbConfigView()"     class="nav-drawer-btn"><i class="fa-solid fa-database text-indigo-600"></i><span data-i18n="nav.dbConfig">DB資訊</span></button>
-                    <button type="button" onclick="closeNavDrawer(); showMockView()"         class="nav-drawer-btn"><i class="fa-solid fa-plug text-amber-600"></i><span data-i18n="nav.mock">Mock</span></button>
-                    <button type="button" onclick="closeNavDrawer(); showTestVersionsView()" class="nav-drawer-btn"><i class="fa-solid fa-tag text-amber-600"></i><span data-i18n="nav.testVersions">測試版號</span></button>
+                    <button type="button" onclick="closeNavDrawer(); showDbConfigView()"     class="nav-drawer-btn"><i class="fa-solid fa-database text-indigo-600"></i><span data-i18n="nav.dbConfig">DB 資訊</span></button>
+                    <button type="button" onclick="closeNavDrawer(); showMockView()"         class="nav-drawer-btn"><i class="fa-solid fa-plug text-amber-600"></i><span data-i18n="nav.mock">Mock 設定</span></button>
                 </div>
             </section>
 
-            <!-- 執行 / 監控 -->
+            <!-- 4) 執行中心 -->
             <section>
-                <div class="text-[10px] font-bold text-emerald-700 uppercase tracking-wider mb-2 px-2 flex items-center gap-1.5">
+                <div class="text-[10px] font-bold text-purple-700 uppercase tracking-wider mb-2 px-2 flex items-center gap-1.5">
                     <i class="fa-solid fa-play text-[11px]"></i>
-                    <span data-i18n="nav.section.execution">執行 / 監控</span>
+                    <span data-i18n="nav.section.execution">執行中心</span>
                 </div>
                 <div class="space-y-0.5">
-                    <button type="button" onclick="closeNavDrawer(); showTestMilestonesView()" class="nav-drawer-btn"><i class="fa-regular fa-calendar text-teal-600"></i><span data-i18n="nav.milestones">測試時程</span></button>
-                    <button type="button" onclick="closeNavDrawer(); showTestRoundView()"      class="nav-drawer-btn"><i class="fa-solid fa-layer-group text-purple-600"></i><span data-i18n="nav.testRound">測試回合</span></button>
-                    <button type="button" onclick="closeNavDrawer(); showScheduleView()"       class="nav-drawer-btn"><i class="fa-solid fa-calendar-days text-emerald-600"></i><span data-i18n="nav.schedule">測試排程</span></button>
-                    <button type="button" onclick="closeNavDrawer(); showRecorderView()"       class="nav-drawer-btn"><i class="fa-solid fa-video text-rose-600"></i><span data-i18n="nav.recorder">測試錄製</span></button>
-                    <button type="button" onclick="closeNavDrawer(); showTestKanbanView()"     class="nav-drawer-btn"><i class="fa-solid fa-columns text-orange-600"></i><span data-i18n="nav.kanban">測試看版</span></button>
-                    <button type="button" onclick="closeNavDrawer(); showReportView()"         class="nav-drawer-btn"><i class="fa-solid fa-chart-pie text-blue-600"></i><span data-i18n="nav.reports">測試報告</span></button>
-                    <button type="button" onclick="closeNavDrawer(); showDefectsView()"        class="nav-drawer-btn"><i class="fa-solid fa-bug text-red-600"></i><span data-i18n="nav.defects">缺陷管理</span></button>
+                    <button type="button" onclick="closeNavDrawer(); showTestRoundView()"   class="nav-drawer-btn"><i class="fa-solid fa-layer-group text-purple-600"></i><span data-i18n="nav.testRound">測試回合</span></button>
+                    <button type="button" onclick="closeNavDrawer(); showScheduleView()"    class="nav-drawer-btn"><i class="fa-solid fa-calendar-days text-emerald-600"></i><span data-i18n="nav.schedule">測試排程</span></button>
+                    <button type="button" onclick="closeNavDrawer(); showRecorderView()"    class="nav-drawer-btn"><i class="fa-solid fa-video text-rose-600"></i><span data-i18n="nav.recorder">測試錄製</span></button>
                 </div>
             </section>
 
-            <!-- 審核 -->
+            <!-- 5) 品質追蹤 -->
             <section>
                 <div class="text-[10px] font-bold text-violet-700 uppercase tracking-wider mb-2 px-2 flex items-center gap-1.5">
-                    <i class="fa-solid fa-stamp text-[11px]"></i>
-                    <span data-i18n="nav.section.review">審核</span>
+                    <i class="fa-solid fa-shield-halved text-[11px]"></i>
+                    <span data-i18n="nav.section.quality">品質追蹤</span>
                 </div>
                 <div class="space-y-0.5">
-                    <button type="button" onclick="closeNavDrawer(); showReviewView()" class="nav-drawer-btn">
+                    <button type="button" onclick="closeNavDrawer(); showReportView()"  class="nav-drawer-btn"><i class="fa-solid fa-chart-pie text-blue-600"></i><span data-i18n="nav.reports">測試報告</span></button>
+                    <button type="button" onclick="closeNavDrawer(); showDefectsView()" class="nav-drawer-btn"><i class="fa-solid fa-bug text-red-600"></i><span data-i18n="nav.defects">缺陷管理</span></button>
+                    <button type="button" onclick="closeNavDrawer(); showReviewView()"  class="nav-drawer-btn">
                         <i class="fa-solid fa-clipboard-check text-violet-600"></i>
                         <span data-i18n="nav.review">審核中心</span>
                         <span id="navReviewPendingBadge" class="hidden ml-auto px-1.5 py-0.5 text-[10px] font-mono bg-amber-500 text-white rounded-full"></span>
@@ -1035,10 +1043,13 @@
                     <div><label for="todoDue" class="block text-xs font-semibold text-stone-600 mb-1">到期日</label><span class="date-zh"><input type="date" id="todoDue" aria-label="到期日" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></span></div>
                     <div><label for="todoStatus" class="block text-xs font-semibold text-stone-600 mb-1">狀態</label>
                         <select id="todoStatus" aria-label="狀態" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
-                            <option value="Todo" selected>待辦</option>
+                            <option value="New" selected>新建立</option>
+                            <option value="Assigned">等待處理</option>
                             <option value="InProgress">進行中</option>
-                            <option value="Done">已完成</option>
-                            <option value="Cancelled">已取消</option>
+                            <option value="InReview">等待審核</option>
+                            <option value="ReworkRequired">退回修改</option>
+                            <option value="Verified">已驗證</option>
+                            <option value="Closed">已關閉</option>
                         </select>
                     </div>
                 </div>
@@ -2709,139 +2720,159 @@ driver.swipe(100, 800, 100, 200, 500)"
                     </div>
                 </section>
 
-                <!-- 功能卡片：對齊上方導覽列(規劃 / 設定 / 執行 · 監控) -->
+                <!-- 功能卡片:5 大類別 -->
                 <section class="max-w-6xl mx-auto mb-8">
                     <h3 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
                         <i class="fa-solid fa-compass text-blue-500"></i> <span data-i18n="home.quickNav">快速導覽</span>
                     </h3>
 
-                    <!-- 規劃 (Planning) -->
+                    <!-- 1) 專案管理 -->
                     <h4 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 mt-1 flex items-center gap-2">
-                        <i class="fa-solid fa-pen-ruler text-amber-500"></i>
-                        <span data-i18n="home.section.planning">規劃 · Planning</span>
+                        <i class="fa-solid fa-folder-open text-amber-500"></i>
+                        <span data-i18n="home.section.project">專案管理 · Project</span>
                         <span class="text-slate-300 font-normal">·</span>
-                        <span class="text-slate-400 font-medium">7</span>
+                        <span class="text-slate-400 font-medium">6</span>
                     </h4>
                     <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
                         <button onclick="showTestProjectsView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-amber-300 transition group">
                             <div class="w-10 h-10 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-folder-tree"></i></div>
                             <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.testProjects">測試專案</div>
-                            <div class="text-xs text-slate-500" data-i18n="home.card.testProjects.desc">專案卡片 / 起訖日 / 負責人</div>
+                            <div class="text-xs text-slate-500">專案卡片 / 起訖日 / 負責人</div>
                         </button>
                         <button onclick="showWbsView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-yellow-300 transition group">
                             <div class="w-10 h-10 rounded-lg bg-yellow-100 text-yellow-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-sitemap"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.wbs">WBS</div>
-                            <div class="text-xs text-slate-500" data-i18n="home.card.wbs.desc">工作分解結構 / 進度追蹤</div>
+                            <div class="font-semibold text-slate-800 mb-0.5">WBS / 工作分解</div>
+                            <div class="text-xs text-slate-500">工作分解結構 / 進度追蹤</div>
                         </button>
                         <button onclick="showTestPlanView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300 transition group">
                             <div class="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-clipboard-list"></i></div>
                             <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.testPlan">測試計畫</div>
-                            <div class="text-xs text-slate-500" data-i18n="home.card.testPlan.desc">ISTQB 格式 / Markdown / Mermaid</div>
+                            <div class="text-xs text-slate-500">ISTQB 格式 / Markdown / Mermaid</div>
                         </button>
+                        <button onclick="showTestMilestonesView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-teal-300 transition group">
+                            <div class="w-10 h-10 rounded-lg bg-teal-100 text-teal-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-regular fa-calendar"></i></div>
+                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.milestones">測試時程</div>
+                            <div class="text-xs text-slate-500">里程碑 / 時間軸概覽</div>
+                        </button>
+                        <button onclick="showTestVersionsView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-amber-300 transition group">
+                            <div class="w-10 h-10 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-tag"></i></div>
+                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.testVersions">測試版號</div>
+                            <div class="text-xs text-slate-500">WEB / API / APP 版號管理</div>
+                        </button>
+                        <button onclick="showTestKanbanView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-orange-300 transition group">
+                            <div class="w-10 h-10 rounded-lg bg-orange-100 text-orange-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-columns"></i></div>
+                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.kanban">測試看版</div>
+                            <div class="text-xs text-slate-500">統一狀態 Kanban + 我的指派</div>
+                        </button>
+                    </div>
+
+                    <!-- 2) 測試設計 -->
+                    <h4 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 mt-1 flex items-center gap-2">
+                        <i class="fa-solid fa-pen-ruler text-cyan-500"></i>
+                        <span data-i18n="home.section.design">測試設計 · Design</span>
+                        <span class="text-slate-300 font-normal">·</span>
+                        <span class="text-slate-400 font-medium">4</span>
+                    </h4>
+                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
                         <button onclick="showRequirementsView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-cyan-300 transition group">
                             <div class="w-10 h-10 rounded-lg bg-cyan-100 text-cyan-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-diagram-project"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="home.card.requirements.title">需求 / RTM</div>
-                            <div class="text-xs text-slate-500" data-i18n="home.card.requirements.desc">需求清單 + 追溯矩陣</div>
+                            <div class="font-semibold text-slate-800 mb-0.5">需求 / RTM</div>
+                            <div class="text-xs text-slate-500">需求清單 + 追溯矩陣</div>
                         </button>
                         <button onclick="showTestCasesView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300 transition group">
                             <div class="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-list-check"></i></div>
                             <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.testCases">測試案例</div>
-                            <div class="text-xs text-slate-500" data-i18n="home.card.testCases.desc">瀏覽 / 編輯所有 TESTCASE</div>
+                            <div class="text-xs text-slate-500">瀏覽 / 編輯所有 TESTCASE</div>
                         </button>
                         <button onclick="showTestDataSetsView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-violet-300 transition group">
                             <div class="w-10 h-10 rounded-lg bg-violet-100 text-violet-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-table"></i></div>
                             <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.dataSets">測試資料集</div>
-                            <div class="text-xs text-slate-500" data-i18n="home.card.dataSets.desc">DDT 資料表 (No / Key / Value)</div>
+                            <div class="text-xs text-slate-500">DDT 資料表 (No / Key / Value)</div>
                         </button>
                         <button onclick="showTestDocumentsView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-pink-300 transition group">
                             <div class="w-10 h-10 rounded-lg bg-pink-100 text-pink-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-file-lines"></i></div>
                             <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.documents">測試文件</div>
-                            <div class="text-xs text-slate-500" data-i18n="home.card.documents.desc">Markdown WYSIWYG + Mermaid</div>
+                            <div class="text-xs text-slate-500">Markdown WYSIWYG + Mermaid</div>
                         </button>
                     </div>
 
-                    <!-- 設定 (Settings) -->
+                    <!-- 3) 測試環境 -->
                     <h4 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 mt-1 flex items-center gap-2">
-                        <i class="fa-solid fa-sliders text-emerald-500"></i>
-                        <span data-i18n="home.section.settings">設定 · Settings</span>
+                        <i class="fa-solid fa-server text-emerald-500"></i>
+                        <span data-i18n="home.section.env">測試環境 · Environment</span>
                         <span class="text-slate-300 font-normal">·</span>
-                        <span class="text-slate-400 font-medium">5</span>
+                        <span class="text-slate-400 font-medium">4</span>
                     </h4>
                     <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
                         <button onclick="showDevicesView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-rose-300 transition group">
                             <div class="w-10 h-10 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-mobile-screen"></i></div>
                             <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.devices">設備資訊</div>
-                            <div class="text-xs text-slate-500" data-i18n="home.card.devices.desc">Android / iOS 虛擬機管理</div>
+                            <div class="text-xs text-slate-500">Android / iOS 虛擬機管理</div>
                         </button>
                         <button onclick="showEnvVarsView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-300 transition group">
                             <div class="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-key"></i></div>
                             <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.envVars">環境變數</div>
-                            <div class="text-xs text-slate-500" data-i18n="home.card.envVars.desc">全專案共用 Robot suite vars</div>
+                            <div class="text-xs text-slate-500">全專案共用 Robot suite vars</div>
                         </button>
                         <button onclick="showDbConfigView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-300 transition group">
                             <div class="w-10 h-10 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-database"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="home.card.dbConfig.title">DB 資訊</div>
-                            <div class="text-xs text-slate-500" data-i18n="home.card.dbConfig.desc">資料庫連線設定與 SQL 測試</div>
+                            <div class="font-semibold text-slate-800 mb-0.5">DB 資訊</div>
+                            <div class="text-xs text-slate-500">資料庫連線設定與 SQL 測試</div>
                         </button>
                         <button onclick="showMockView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-amber-300 transition group">
                             <div class="w-10 h-10 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-plug"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.mock">Mock</div>
-                            <div class="text-xs text-slate-500" data-i18n="home.card.mock.desc">REST Mock 端點管理</div>
-                        </button>
-                        <button onclick="showTestVersionsView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-amber-300 transition group">
-                            <div class="w-10 h-10 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-tag"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.testVersions">測試版號</div>
-                            <div class="text-xs text-slate-500" data-i18n="home.card.testVersions.desc">WEB / API / APP 版號管理</div>
+                            <div class="font-semibold text-slate-800 mb-0.5">Mock 設定</div>
+                            <div class="text-xs text-slate-500">REST Mock 端點管理</div>
                         </button>
                     </div>
 
-                    <!-- 執行 / 監控 (Execution / Monitor) -->
+                    <!-- 4) 執行中心 -->
                     <h4 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 mt-1 flex items-center gap-2">
-                        <i class="fa-solid fa-play text-violet-500"></i>
-                        <span data-i18n="home.section.execution">執行 · 監控 · Execution</span>
+                        <i class="fa-solid fa-play text-purple-500"></i>
+                        <span data-i18n="home.section.execution">執行中心 · Execution</span>
                         <span class="text-slate-300 font-normal">·</span>
-                        <span class="text-slate-400 font-medium">8</span>
+                        <span class="text-slate-400 font-medium">3</span>
                     </h4>
-                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                        <button onclick="showTestMilestonesView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-teal-300 transition group">
-                            <div class="w-10 h-10 rounded-lg bg-teal-100 text-teal-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-regular fa-calendar"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.milestones">測試時程</div>
-                            <div class="text-xs text-slate-500" data-i18n="home.card.milestones.desc">里程碑 / 時間軸概覽</div>
-                        </button>
+                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
                         <button onclick="showTestRoundView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-purple-300 transition group">
                             <div class="w-10 h-10 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-layer-group"></i></div>
                             <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.testRound">測試回合</div>
-                            <div class="text-xs text-slate-500" data-i18n="home.card.testRound.desc">具名案例集合彙總執行</div>
+                            <div class="text-xs text-slate-500">具名案例集合彙總執行</div>
                         </button>
                         <button onclick="showScheduleView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-300 transition group">
                             <div class="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-calendar-days"></i></div>
                             <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.schedule">測試排程</div>
-                            <div class="text-xs text-slate-500" data-i18n="home.card.schedule.desc">單次 / 每天 / 每週 / 每月</div>
+                            <div class="text-xs text-slate-500">單次 / 每天 / 每週 / 每月</div>
                         </button>
                         <button onclick="showRecorderView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-rose-300 transition group">
                             <div class="w-10 h-10 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-video"></i></div>
                             <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.recorder">測試錄製</div>
-                            <div class="text-xs text-slate-500" data-i18n="home.card.recorder.desc">WEB / API / APP 三種來源</div>
+                            <div class="text-xs text-slate-500">WEB / API / APP 三種來源</div>
                         </button>
-                        <button onclick="showTestKanbanView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-orange-300 transition group">
-                            <div class="w-10 h-10 rounded-lg bg-orange-100 text-orange-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-columns"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.kanban">測試看版</div>
-                            <div class="text-xs text-slate-500" data-i18n="home.card.kanban.desc">缺陷 Kanban + KPI 概覽</div>
-                        </button>
+                    </div>
+
+                    <!-- 5) 品質追蹤 -->
+                    <h4 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 mt-1 flex items-center gap-2">
+                        <i class="fa-solid fa-shield-halved text-violet-500"></i>
+                        <span data-i18n="home.section.quality">品質追蹤 · Quality</span>
+                        <span class="text-slate-300 font-normal">·</span>
+                        <span class="text-slate-400 font-medium">3</span>
+                    </h4>
+                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                         <button onclick="showReportView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300 transition group">
                             <div class="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-chart-pie"></i></div>
                             <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.reports">測試報告</div>
-                            <div class="text-xs text-slate-500" data-i18n="home.card.reports.desc">Dashboard / 歷史 / Trace 檢視</div>
+                            <div class="text-xs text-slate-500">Dashboard / 歷史 / Trace 檢視</div>
                         </button>
                         <button onclick="showDefectsView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-red-300 transition group">
                             <div class="w-10 h-10 rounded-lg bg-red-100 text-red-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-bug"></i></div>
                             <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.defects">缺陷管理</div>
-                            <div class="text-xs text-slate-500" data-i18n="home.card.defects.desc">缺陷列表 + 附件 + 工作流</div>
+                            <div class="text-xs text-slate-500">缺陷列表 + 附件 + 工作流</div>
                         </button>
                         <button onclick="showReviewView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-300 transition group">
                             <div class="w-10 h-10 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-clipboard-check"></i></div>
                             <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.review">審核中心</div>
-                            <div class="text-xs text-slate-500" data-i18n="home.card.review.desc">案例 / 文件 / 腳本 / 報告 核可工作流</div>
+                            <div class="text-xs text-slate-500">案例 / 文件 / 腳本 / 報告 核可工作流</div>
                         </button>
                     </div>
                 </section>
@@ -3764,10 +3795,10 @@ driver.swipe(100, 800, 100, 200, 500)"
                             </div>
                             <select id="defStatusFilter" onchange="renderDefectsList()" aria-label="依狀態過濾" class="px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
                                 <option value="">全部狀態</option>
-                                <option value="New">新建立</option><option value="Assigned">已指派</option>
-                                <option value="InProgress">處理中</option><option value="Fixed">已修復</option>
+                                <option value="New">新建立</option><option value="Assigned">等待處理</option>
+                                <option value="InProgress">進行中</option><option value="InReview">等待審核</option>
+                                <option value="ReworkRequired">退回修改</option>
                                 <option value="Verified">已驗證</option><option value="Closed">已關閉</option>
-                                <option value="Reopened">重新開啟</option><option value="WontFix">不予修復</option>
                             </select>
                             <select id="defSeverityFilter" onchange="renderDefectsList()" aria-label="依嚴重性過濾" class="px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
                                 <option value="">全部嚴重性</option>
@@ -4012,8 +4043,10 @@ driver.swipe(100, 800, 100, 200, 500)"
                             </div>
                             <select id="msStatusFilter" onchange="renderMilestonesList()" aria-label="依狀態過濾" class="px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
                                 <option value="">全部狀態</option>
-                                <option value="Planned">規劃中</option><option value="InProgress">進行中</option>
-                                <option value="Completed">已完成</option><option value="Cancelled">已取消</option>
+                                <option value="New">新建立</option><option value="Assigned">等待處理</option>
+                                <option value="InProgress">進行中</option><option value="InReview">等待審核</option>
+                                <option value="ReworkRequired">退回修改</option>
+                                <option value="Verified">已驗證</option><option value="Closed">已關閉</option>
                             </select>
                             <button onclick="renderMilestonesList()" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
                             <button onclick="openMilestoneModal()" class="px-3 py-2 bg-teal-500 hover:bg-teal-600 text-white rounded-md text-sm font-semibold shadow-sm"><i class="fa-solid fa-plus"></i> 新增時程</button>
@@ -4048,8 +4081,10 @@ driver.swipe(100, 800, 100, 200, 500)"
                             </div>
                             <select id="tpStatusFilter" onchange="renderPlansList()" aria-label="依狀態過濾" class="px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
                                 <option value="">全部狀態</option>
-                                <option value="Draft">草稿</option><option value="InReview">審核中</option>
-                                <option value="Approved">已核准</option><option value="Active">執行中</option><option value="Closed">已關閉</option>
+                                <option value="New">新建立</option><option value="Assigned">等待處理</option>
+                                <option value="InProgress">進行中</option><option value="InReview">等待審核</option>
+                                <option value="ReworkRequired">退回修改</option>
+                                <option value="Verified">已驗證</option><option value="Closed">已關閉</option>
                             </select>
                             <button onclick="renderPlansList()" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
                             <button onclick="openPlanModal()" class="px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md text-sm font-semibold shadow-sm"><i class="fa-solid fa-plus"></i> 新增計畫</button>
@@ -4137,16 +4172,7 @@ driver.swipe(100, 800, 100, 200, 500)"
             <!-- ── 測試看版 ── -->
             <div id="testKanbanWorkspace" class="flex-1 overflow-y-auto p-6 bg-amber-50/30 hidden">
                 <div class="max-w-7xl mx-auto">
-                    <!-- KPI 摘要 -->
-                    <section class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4" id="kanbanKpis">
-                        <div class="bg-white rounded-xl p-3 border border-orange-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-solid fa-bug text-red-500"></i> 未關閉缺陷</div><div class="text-2xl font-bold text-red-600" id="kpi_open_defects">—</div></div>
-                        <div class="bg-white rounded-xl p-3 border border-orange-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-solid fa-skull text-rose-700"></i> Critical+Major</div><div class="text-2xl font-bold text-rose-700" id="kpi_critical_defects">—</div></div>
-                        <div class="bg-white rounded-xl p-3 border border-orange-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-regular fa-calendar text-teal-500"></i> 進行中時程</div><div class="text-2xl font-bold text-teal-600" id="kpi_active_milestones">—</div></div>
-                        <div class="bg-white rounded-xl p-3 border border-orange-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-solid fa-clipboard-list text-blue-500"></i> 啟用中計畫</div><div class="text-2xl font-bold text-blue-600" id="kpi_active_plans">—</div></div>
-                        <div class="bg-white rounded-xl p-3 border border-orange-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-solid fa-diagram-project text-cyan-500"></i> 需求總數</div><div class="text-2xl font-bold text-cyan-600" id="kpi_requirements">—</div></div>
-                        <div class="bg-white rounded-xl p-3 border border-orange-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-solid fa-list-check text-amber-500"></i> Backlog 活躍</div><div class="text-2xl font-bold text-amber-600" id="kpi_active_backlog">—</div></div>
-                    </section>
-                    <!-- Tier F:多 entity 看板 — 工具列(entity tab + 我的/全部 toggle)-->
+                    <!-- 工具列(entity tab + 新增待辦 + 重新整理) -->
                     <div class="bg-white rounded-lg border border-orange-100 shadow-sm p-2 mb-3 flex items-center gap-3 flex-wrap">
                         <!-- entity-type tabs -->
                         <div class="flex gap-1 flex-wrap">
@@ -4158,25 +4184,57 @@ driver.swipe(100, 800, 100, 200, 500)"
                             <button id="kanbanTabDocument" onclick="kanbanSetEntity('document')" class="px-3 py-1.5 text-xs font-medium rounded text-stone-600 hover:bg-stone-50 border border-transparent">文件</button>
                             <button id="kanbanTabReview" onclick="kanbanSetEntity('review')" class="px-3 py-1.5 text-xs font-medium rounded text-stone-600 hover:bg-stone-50 border border-transparent">審核</button>
                         </div>
-                        <span class="text-stone-300">|</span>
-                        <!-- 我的 / 全部 toggle -->
-                        <div class="flex gap-1 bg-stone-100 rounded p-1">
-                            <button id="kanbanScopeMine" onclick="kanbanSetScope('mine')" class="px-3 py-1 text-xs font-semibold rounded text-amber-700 bg-white shadow-sm">我的指派</button>
-                            <button id="kanbanScopeAll" onclick="kanbanSetScope('all')" class="px-3 py-1 text-xs font-semibold rounded text-stone-600 hover:bg-white">全部</button>
-                        </div>
-                        <span class="text-stone-300">|</span>
-                        <label class="flex items-center gap-1.5 text-xs text-stone-700 cursor-pointer">
-                            <input type="checkbox" id="kanbanOverdueOnly" onchange="renderTestKanban()" class="rounded border-stone-300 text-amber-500 focus:ring-amber-400">
-                            僅看過期
+                        <!-- 我的指派 / 全部 scope toggle 已移除;預設 scope='mine'。
+                             保留 hidden 占位以避免 kanbanSetScope() 內部 querySelector 失敗。 -->
+                        <span id="kanbanScopeMine" class="hidden"></span>
+                        <span id="kanbanScopeAll" class="hidden"></span>
+                        <!-- 舊 overdue checkbox 隱藏保留(舊 inline 觸發點 fallback);chip 已蓋過 -->
+                        <label class="hidden">
+                            <input type="checkbox" id="kanbanOverdueOnly" onchange="renderTestKanban()">
                         </label>
-                        <button onclick="renderTestKanban()" class="ml-auto text-xs px-2 py-1 border border-stone-300 rounded hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
+                        <!-- 新增待辦 — 直接呼叫 openTodoModal(),不再多 entity 下拉 -->
+                        <button type="button" onclick="openTodoModal()" id="kanbanAddBtn"
+                            class="ml-auto px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded text-xs font-semibold shadow-sm flex items-center gap-1.5">
+                            <i class="fa-solid fa-plus"></i> 新增待辦
+                        </button>
+                        <button onclick="renderTestKanban()" class="text-xs px-2 py-1 border border-stone-300 rounded hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
+                    </div>
+                    <!-- 第二列工具:搜尋 + 狀態 chip + assignee + (entity=todo 才顯示) Sprint dropdown + 群組 toggle -->
+                    <div class="bg-white rounded-lg border border-orange-100 shadow-sm p-3 mb-3">
+                        <div class="flex flex-wrap items-center gap-3">
+                            <div class="flex-1 min-w-[220px] relative">
+                                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm"></i>
+                                <input id="kanbanSearch" type="search" oninput="kanbanOnSearch(this.value)" placeholder="搜尋標題…"
+                                    class="w-full pl-9 pr-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+                            </div>
+                            <select id="kanbanAssigneeFilter" onchange="kanbanSetAssignee(this.value)" class="px-3 py-2 border border-stone-300 rounded-md text-sm bg-white" aria-label="負責人">
+                                <option value="">全部負責人</option>
+                            </select>
+                            <div id="kanbanTodoOnlyTools" class="hidden flex items-center gap-3">
+                                <select id="kanbanSprintFilter" onchange="kanbanSetSprint(this.value)" class="px-3 py-2 border border-stone-300 rounded-md text-sm bg-white" aria-label="Sprint">
+                                    <option value="">全部 Sprint</option>
+                                    <option value="__backlog__">未排入 Sprint</option>
+                                </select>
+                                <label class="flex items-center gap-1.5 text-xs text-stone-700 cursor-pointer whitespace-nowrap">
+                                    <input type="checkbox" id="kanbanGroupBySprint" onchange="kanbanToggleGroupBySprint(this.checked)" class="rounded border-stone-300 text-amber-500 focus:ring-amber-400">
+                                    依 Sprint 分群
+                                </label>
+                            </div>
+                        </div>
+                        <div id="kanbanChips" class="flex flex-wrap gap-1.5 mt-3 text-xs">
+                            <button type="button" onclick="kanbanSetChip('active')"   data-chip="active"   class="drawer-backlog-chip is-active">未完成</button>
+                            <button type="button" onclick="kanbanSetChip('overdue')"  data-chip="overdue"  class="drawer-backlog-chip">過期</button>
+                            <button type="button" onclick="kanbanSetChip('due_soon')" data-chip="due_soon" class="drawer-backlog-chip">7 天內</button>
+                            <button type="button" onclick="kanbanSetChip('done')"     data-chip="done"     class="drawer-backlog-chip">已完成</button>
+                        </div>
                     </div>
                     <h3 class="text-sm font-bold text-stone-500 uppercase tracking-wider mb-2 flex items-center gap-2">
                         <i class="fa-solid fa-columns text-orange-500"></i>
-                        <span id="kanbanTitleHint">看板（依狀態分欄,每欄上限 50 筆）</span>
+                        <span id="kanbanTitleHint">看板（依狀態分欄,每欄上限 50 筆;缺陷 / 待辦 / 需求 卡片可拖移到其他欄變更狀態）</span>
                     </h3>
                     <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-3" id="kanbanColumns">
-                        <!-- 動態渲染:全部 mode = 3 generic 欄;單一 entity mode = 該 entity 的細分 status 欄 -->
+                        <!-- 動態渲染:全部 mode = 3 generic 欄;單一 entity mode = 該 entity 的細分 status 欄;
+                             entity=todo + 依 Sprint 分群 = backlog 風格的群組面板 -->
                     </div>
                 </div>
             </div>
@@ -4193,10 +4251,10 @@ driver.swipe(100, 800, 100, 200, 500)"
                             </div>
                             <select id="tprjStatusFilter" onchange="renderTestProjectsList()" aria-label="依狀態過濾" class="px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
                                 <option value="">全部狀態</option>
-                                <option value="Planning">規劃中</option>
-                                <option value="Active">進行中</option>
-                                <option value="OnHold">暫停</option>
-                                <option value="Archived">已封存</option>
+                                <option value="New">新建立</option><option value="Assigned">等待處理</option>
+                                <option value="InProgress">進行中</option><option value="InReview">等待審核</option>
+                                <option value="ReworkRequired">退回修改</option>
+                                <option value="Verified">已驗證</option><option value="Closed">已關閉</option>
                             </select>
                             <button onclick="renderTestProjectsList()" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
                             <button onclick="openTestProjectModal()" class="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold shadow-sm"><i class="fa-solid fa-plus"></i> 新增專案</button>
@@ -4301,11 +4359,10 @@ driver.swipe(100, 800, 100, 200, 500)"
                             </div>
                             <select id="wbsStatusFilter" onchange="renderWbsTree()" aria-label="依狀態過濾" class="px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
                                 <option value="">全部狀態</option>
-                                <option value="NotStarted">未開始</option>
-                                <option value="InProgress">進行中</option>
-                                <option value="Completed">已完成</option>
-                                <option value="Blocked">已阻擋</option>
-                                <option value="Cancelled">已取消</option>
+                                <option value="New">新建立</option><option value="Assigned">等待處理</option>
+                                <option value="InProgress">進行中</option><option value="InReview">等待審核</option>
+                                <option value="ReworkRequired">退回修改</option>
+                                <option value="Verified">已驗證</option><option value="Closed">已關閉</option>
                             </select>
                             <button onclick="loadWbsAndRender()" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
                             <button onclick="wbsExpandAll(true)" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50"><i class="fa-solid fa-angles-down"></i> 全展開</button>
@@ -4398,11 +4455,13 @@ driver.swipe(100, 800, 100, 200, 500)"
                         <div class="grid grid-cols-3 gap-3">
                             <div><label for="wbsStatus" class="block text-xs font-semibold text-stone-600 mb-1">狀態</label>
                                 <select id="wbsStatus" aria-label="狀態" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
-                                    <option value="NotStarted" selected>未開始</option>
+                                    <option value="New" selected>新建立</option>
+                                    <option value="Assigned">等待處理</option>
                                     <option value="InProgress">進行中</option>
-                                    <option value="Completed">已完成</option>
-                                    <option value="Blocked">已阻擋</option>
-                                    <option value="Cancelled">已取消</option>
+                                    <option value="InReview">等待審核</option>
+                                    <option value="ReworkRequired">退回修改</option>
+                                    <option value="Verified">已驗證</option>
+                                    <option value="Closed">已關閉</option>
                                 </select>
                             </div>
                             <div><label for="wbsProgress" class="block text-xs font-semibold text-stone-600 mb-1">進度 (0-100)</label><input type="number" id="wbsProgress" aria-label="進度百分比" min="0" max="100" value="0" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
@@ -4508,10 +4567,13 @@ driver.swipe(100, 800, 100, 200, 500)"
                         <div class="grid grid-cols-2 gap-3">
                             <div><label for="tprjStatus" class="block text-xs font-semibold text-stone-600 mb-1">狀態</label>
                                 <select id="tprjStatus" aria-label="狀態" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
-                                    <option value="Planning">規劃中</option>
-                                    <option value="Active" selected>進行中</option>
-                                    <option value="OnHold">暫停</option>
-                                    <option value="Archived">已封存</option>
+                                    <option value="New">新建立</option>
+                                    <option value="Assigned">等待處理</option>
+                                    <option value="InProgress" selected>進行中</option>
+                                    <option value="InReview">等待審核</option>
+                                    <option value="ReworkRequired">退回修改</option>
+                                    <option value="Verified">已驗證</option>
+                                    <option value="Closed">已關閉</option>
                                 </select>
                             </div>
                             <div><label for="tprjOwner" class="block text-xs font-semibold text-stone-600 mb-1">負責人</label><input type="text" id="tprjOwner" aria-label="負責人" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
@@ -4582,7 +4644,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                         <div class="grid grid-cols-3 gap-3">
                             <div><label for="defSeverity" class="block text-xs font-semibold text-stone-600 mb-1">嚴重性</label><select id="defSeverity" aria-label="嚴重性" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option value="Critical">嚴重 (Critical)</option><option value="Major">重大 (Major)</option><option value="Minor" selected>次要 (Minor)</option><option value="Trivial">輕微 (Trivial)</option></select></div>
                             <div><label for="defPriority" class="block text-xs font-semibold text-stone-600 mb-1">優先</label><select id="defPriority" aria-label="優先" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option value="P0">P0 (最高)</option><option value="P1">P1 (高)</option><option value="P2" selected>P2 (中)</option><option value="P3">P3 (低)</option></select></div>
-                            <div><label for="defStatus" class="block text-xs font-semibold text-stone-600 mb-1">狀態</label><select id="defStatus" aria-label="狀態" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option value="New" selected>新建立</option><option value="Assigned">已指派</option><option value="InProgress">處理中</option><option value="Fixed">已修復</option><option value="Verified">已驗證</option><option value="Closed">已關閉</option><option value="Reopened">重新開啟</option><option value="WontFix">不予修復</option></select></div>
+                            <div><label for="defStatus" class="block text-xs font-semibold text-stone-600 mb-1">狀態</label><select id="defStatus" aria-label="狀態" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option value="New" selected>新建立</option><option value="Assigned">等待處理</option><option value="InProgress">進行中</option><option value="InReview">等待審核</option><option value="ReworkRequired">退回修改</option><option value="Verified">已驗證</option><option value="Closed">已關閉</option></select></div>
                         </div>
                         <div class="grid grid-cols-2 gap-3">
                             <div><label for="defReporter" class="block text-xs font-semibold text-stone-600 mb-1">回報者</label><input type="text" id="defReporter" aria-label="回報者" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
@@ -4646,7 +4708,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                             <div><label for="msEnd" class="block text-xs font-semibold text-stone-600 mb-1">結束日期 *</label><span class="date-zh"><input type="date" id="msEnd" aria-label="結束日期" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></span></div>
                         </div>
                         <div class="grid grid-cols-2 gap-3">
-                            <div><label for="msStatus" class="block text-xs font-semibold text-stone-600 mb-1">狀態</label><select id="msStatus" aria-label="狀態" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option value="Planned" selected>規劃中</option><option value="InProgress">進行中</option><option value="Completed">已完成</option><option value="Cancelled">已取消</option></select></div>
+                            <div><label for="msStatus" class="block text-xs font-semibold text-stone-600 mb-1">狀態</label><select id="msStatus" aria-label="狀態" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option value="New" selected>新建立</option><option value="Assigned">等待處理</option><option value="InProgress">進行中</option><option value="InReview">等待審核</option><option value="ReworkRequired">退回修改</option><option value="Verified">已驗證</option><option value="Closed">已關閉</option></select></div>
                             <div><label for="msOwner" class="block text-xs font-semibold text-stone-600 mb-1">負責人</label><input type="text" id="msOwner" aria-label="負責人" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
                         </div>
                         <div><label for="msDesc" class="block text-xs font-semibold text-stone-600 mb-1">說明</label><textarea id="msDesc" aria-label="說明" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
@@ -4675,10 +4737,12 @@ driver.swipe(100, 800, 100, 200, 500)"
                             <div class="md:col-span-2"><label for="tpVersion" class="block text-[10px] font-semibold text-stone-600 mb-0.5">版本</label><input type="text" id="tpVersion" aria-label="版本" placeholder="1.0" class="w-full px-3 py-1.5 border border-stone-300 rounded-md text-sm"></div>
                             <div class="md:col-span-2"><label for="tpStatus" class="block text-[10px] font-semibold text-stone-600 mb-0.5">狀態</label>
                                 <select id="tpStatus" aria-label="狀態" class="w-full px-3 py-1.5 border border-stone-300 rounded-md text-sm bg-white">
-                                    <option value="Draft" selected>草稿</option>
-                                    <option value="InReview">審核中</option>
-                                    <option value="Approved">已核准</option>
-                                    <option value="Active">執行中</option>
+                                    <option value="New" selected>新建立</option>
+                                    <option value="Assigned">等待處理</option>
+                                    <option value="InProgress">進行中</option>
+                                    <option value="InReview">等待審核</option>
+                                    <option value="ReworkRequired">退回修改</option>
+                                    <option value="Verified">已驗證</option>
                                     <option value="Closed">已關閉</option>
                                 </select>
                             </div>
@@ -4746,7 +4810,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                         <div class="grid grid-cols-3 gap-3">
                             <div><label for="reqSource" class="block text-xs font-semibold text-stone-600 mb-1">來源</label><select id="reqSource" aria-label="來源" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option value="PRD" selected>產品需求 (PRD)</option><option value="Customer">客戶</option><option value="Regulatory">法規</option><option value="Security">資安</option><option value="Internal">內部</option></select></div>
                             <div><label for="reqPriority" class="block text-xs font-semibold text-stone-600 mb-1">優先 (MoSCoW)</label><select id="reqPriority" aria-label="優先" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option value="Must">必要 (Must)</option><option value="Should" selected>應當 (Should)</option><option value="Could">可選 (Could)</option><option value="Wont">不做 (Won't)</option></select></div>
-                            <div><label for="reqStatus" class="block text-xs font-semibold text-stone-600 mb-1">狀態</label><select id="reqStatus" aria-label="狀態" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option value="Draft" selected>草稿</option><option value="Approved">已核准</option><option value="Implemented">已實作</option><option value="Verified">已驗證</option><option value="Deprecated">已淘汰</option></select></div>
+                            <div><label for="reqStatus" class="block text-xs font-semibold text-stone-600 mb-1">狀態</label><select id="reqStatus" aria-label="狀態" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option value="New" selected>新建立</option><option value="Assigned">等待處理</option><option value="InProgress">進行中</option><option value="InReview">等待審核</option><option value="ReworkRequired">退回修改</option><option value="Verified">已驗證</option><option value="Closed">已關閉</option></select></div>
                         </div>
                         <div><label for="reqDesc" class="block text-xs font-semibold text-stone-600 mb-1">說明</label><textarea id="reqDesc" aria-label="說明" rows="3" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
                         <div class="grid grid-cols-2 gap-3">
@@ -11509,7 +11573,8 @@ driver.swipe(100, 800, 100, 200, 500)"
                 : 'px-2 py-1 text-xs border border-stone-300 rounded hover:bg-amber-50 text-amber-600';
             btns.push(`<button type="button" onclick="reviewOpenAssign('${r.id}')" title="${_esc(assignTitle)}" class="${assignCls}"><i class="fa-solid fa-user-tag"></i></button>`);
 
-            if (r.status === 'pending') {
+            // 統一 7 值後 review 進行中狀態 = 'InReview'(舊值 'pending' 經 migration 已轉換,但保留判斷以相容 alias)
+            if (r.status === 'InReview' || r.status === 'pending') {
                 btns.push(`<button type="button" onclick="reviewApprove('${r.id}')" class="px-2 py-1 text-xs bg-emerald-500 hover:bg-emerald-600 text-white rounded font-semibold"><i class="fa-solid fa-check"></i> ${lc==='en'?'Approve':'通過'}</button>`);
                 btns.push(`<button type="button" onclick="reviewPromptReject('${r.id}')" class="px-2 py-1 text-xs bg-rose-500 hover:bg-rose-600 text-white rounded font-semibold"><i class="fa-solid fa-xmark"></i> ${lc==='en'?'Reject':'拒絕'}</button>`);
             } else {
@@ -16399,17 +16464,29 @@ driver.swipe(100, 800, 100, 200, 500)"
             // 缺陷
             defSeverity: {Critical:'嚴重', Major:'重大', Minor:'次要', Trivial:'輕微'},
             defPriority: {P0:'P0 (最高)', P1:'P1 (高)', P2:'P2 (中)', P3:'P3 (低)'},
-            defStatus:   {New:'新建立', Assigned:'已指派', InProgress:'處理中', Fixed:'已修復', Verified:'已驗證', Closed:'已關閉', Reopened:'重新開啟', WontFix:'不予修復'},
-            // 時程
-            msStatus:    {Planned:'規劃中', InProgress:'進行中', Completed:'已完成', Cancelled:'已取消'},
-            // 計畫
-            tpStatus:    {Draft:'草稿', InReview:'審核中', Approved:'已核准', Active:'執行中', Closed:'已關閉'},
+            // 統一 7 值狀態 + 舊值 i18n 相容(migration 0011 前資料)
+            defStatus:   {New:'新建立', Assigned:'等待處理', InProgress:'進行中', InReview:'等待審核', ReworkRequired:'退回修改', Verified:'已驗證', Closed:'已關閉',
+                          Fixed:'已修復', Reopened:'重新開啟', WontFix:'不予修復'},
+            // 時程 — 統一 7 值狀態 + 舊值 i18n 相容(migration 0012 前資料)
+            msStatus:    {New:'新建立', Assigned:'等待處理', InProgress:'進行中', InReview:'等待審核', ReworkRequired:'退回修改', Verified:'已驗證', Closed:'已關閉',
+                          Planned:'規劃中', Completed:'已完成', Cancelled:'已取消'},
+            // 計畫 — 統一 7 值狀態 + 舊值 i18n 相容
+            tpStatus:    {New:'新建立', Assigned:'等待處理', InProgress:'進行中', InReview:'等待審核', ReworkRequired:'退回修改', Verified:'已驗證', Closed:'已關閉',
+                          Draft:'草稿', Approved:'已核准', Active:'執行中'},
+            // WBS — 統一 7 值狀態 + 舊值 i18n 相容
+            wbsStatus:   {New:'新建立', Assigned:'等待處理', InProgress:'進行中', InReview:'等待審核', ReworkRequired:'退回修改', Verified:'已驗證', Closed:'已關閉',
+                          NotStarted:'未開始', Completed:'已完成', Blocked:'已阻擋', Cancelled:'已取消'},
             // 需求
             reqSource:   {PRD:'產品需求', Customer:'客戶', Regulatory:'法規', Security:'資安', Internal:'內部'},
             reqPriority: {Must:'必要', Should:'應當', Could:'可選', Wont:'不做'},
-            reqStatus:   {Draft:'草稿', Approved:'已核准', Implemented:'已實作', Verified:'已驗證', Deprecated:'已淘汰'},
-            // 測試專案
-            tprjStatus:  {Planning:'規劃中', Active:'進行中', OnHold:'暫停', Archived:'已封存'},
+            // 統一 7 值狀態(舊值保留作為 i18n 顯示相容,migration 0011 後 DB 不會再回傳舊值)
+            reqStatus:   {New:'新建立', Assigned:'等待處理', InProgress:'進行中', InReview:'等待審核', ReworkRequired:'退回修改', Verified:'已驗證', Closed:'已關閉',
+                          Draft:'草稿', Approved:'已核准', Implemented:'已實作', Deprecated:'已淘汰'},
+            // 缺陷 / 待辦也共用同一份 7 值標籤(供 list / modal / kanban 顯示)
+            unifiedStatus: {New:'新建立', Assigned:'等待處理', InProgress:'進行中', InReview:'等待審核', ReworkRequired:'退回修改', Verified:'已驗證', Closed:'已關閉'},
+            // 測試專案 — 統一 7 值狀態 + 舊值 i18n 相容
+            tprjStatus:  {New:'新建立', Assigned:'等待處理', InProgress:'進行中', InReview:'等待審核', ReworkRequired:'退回修改', Verified:'已驗證', Closed:'已關閉',
+                          Planning:'規劃中', Active:'進行中', OnHold:'暫停', Archived:'已封存'},
             // DDT 資料集分類
             dsCategory:  {Login:'登入', Boundary:'邊界值', Business:'業務流程', Performance:'效能', Other:'其他'},
         };
@@ -16509,7 +16586,14 @@ driver.swipe(100, 800, 100, 200, 500)"
                 cntEl.textContent = rows.length;
                 if (!rows.length) { tbody.innerHTML = '<tr><td colspan="9" class="p-6 text-center text-stone-400">尚無缺陷</td></tr>'; return; }
                 const sevColor = {Critical:'bg-red-100 text-red-700 border-red-200', Major:'bg-orange-100 text-orange-700 border-orange-200', Minor:'bg-amber-100 text-amber-700 border-amber-200', Trivial:'bg-stone-100 text-stone-600 border-stone-200'};
-                const stColor = {New:'bg-blue-100 text-blue-700', Assigned:'bg-purple-100 text-purple-700', InProgress:'bg-amber-100 text-amber-700', Fixed:'bg-emerald-100 text-emerald-700', Verified:'bg-green-100 text-green-700', Closed:'bg-stone-200 text-stone-700', Reopened:'bg-rose-100 text-rose-700', WontFix:'bg-stone-100 text-stone-500'};
+                // 統一 7 值狀態 + 舊值相容(migration 過渡期)
+                const stColor = {
+                    New:'bg-blue-100 text-blue-700', Assigned:'bg-purple-100 text-purple-700',
+                    InProgress:'bg-amber-100 text-amber-700', InReview:'bg-cyan-100 text-cyan-700',
+                    ReworkRequired:'bg-rose-100 text-rose-700', Verified:'bg-emerald-100 text-emerald-700',
+                    Closed:'bg-stone-200 text-stone-500',
+                    Fixed:'bg-cyan-100 text-cyan-700', Reopened:'bg-rose-100 text-rose-700', WontFix:'bg-stone-100 text-stone-500',
+                };
                 tbody.innerHTML = rows.map(r => `<tr class="hover:bg-amber-50/30">
                     <td class="p-3 text-center"><input type="checkbox" class="def-row-cb rounded border-stone-300 text-amber-500 focus:ring-amber-400" data-id="${_esc(r.id)}" ${_defectsSelected.has(r.id) ? 'checked' : ''} onchange="defectsToggleRow('${_esc(r.id)}', this.checked)"></td>
                     <td class="p-3 font-mono text-xs text-stone-500">${_esc(r.code)}</td>
@@ -16747,7 +16831,14 @@ driver.swipe(100, 800, 100, 200, 500)"
                 // 表格
                 if (!rows.length) { tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-stone-400">尚無時程</td></tr>'; }
                 else {
-                    const stColor = {Planned:'bg-blue-100 text-blue-700', InProgress:'bg-amber-100 text-amber-700', Completed:'bg-emerald-100 text-emerald-700', Cancelled:'bg-stone-100 text-stone-500'};
+                    // 統一 7 值狀態 + 舊值相容
+                    const stColor = {
+                        New:'bg-blue-100 text-blue-700', Assigned:'bg-purple-100 text-purple-700',
+                        InProgress:'bg-amber-100 text-amber-700', InReview:'bg-cyan-100 text-cyan-700',
+                        ReworkRequired:'bg-rose-100 text-rose-700', Verified:'bg-emerald-100 text-emerald-700',
+                        Closed:'bg-stone-200 text-stone-500',
+                        Planned:'bg-blue-100 text-blue-700', Completed:'bg-emerald-100 text-emerald-700', Cancelled:'bg-stone-100 text-stone-500',
+                    };
                     tbody.innerHTML = rows.map(r => `<tr class="hover:bg-amber-50/30">
                         <td class="p-3 font-semibold text-stone-800">${_esc(r.name)}</td>
                         <td class="p-3 text-xs font-mono">${_esc(r.start_date)}</td>
@@ -16769,7 +16860,14 @@ driver.swipe(100, 800, 100, 200, 500)"
                         const s = new Date(r.start_date); const e = new Date(r.end_date);
                         const offset = ((s-minD)/(1000*60*60*24)) / span * 100;
                         const width = Math.max(2, ((e-s)/(1000*60*60*24)) / span * 100);
-                        const stColor = {Planned:'bg-blue-400', InProgress:'bg-amber-500', Completed:'bg-emerald-500', Cancelled:'bg-stone-400'};
+                        // 甘特長條色:統一 7 值 + 舊值相容
+                        const stColor = {
+                            New:'bg-blue-400', Assigned:'bg-purple-400',
+                            InProgress:'bg-amber-500', InReview:'bg-cyan-500',
+                            ReworkRequired:'bg-rose-500', Verified:'bg-emerald-500',
+                            Closed:'bg-stone-400',
+                            Planned:'bg-blue-400', Completed:'bg-emerald-500', Cancelled:'bg-stone-400',
+                        };
                         return `<div class="flex items-center gap-2 text-xs">
                             <div class="w-32 truncate text-stone-600" title="${_esc(r.name)}">${_esc(r.name)}</div>
                             <div class="flex-1 h-4 bg-stone-100 rounded relative overflow-hidden">
@@ -16796,7 +16894,7 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('msName').value = r?.name || '';
             document.getElementById('msStart').value = r?.start_date || '';
             document.getElementById('msEnd').value = r?.end_date || '';
-            document.getElementById('msStatus').value = r?.status || 'Planned';
+            document.getElementById('msStatus').value = r?.status || 'New';
             document.getElementById('msOwner').value = r?.owner || '';
             document.getElementById('msDesc').value = r?.description || '';
             document.getElementById('milestoneModal').classList.remove('hidden');
@@ -16867,7 +16965,14 @@ driver.swipe(100, 800, 100, 200, 500)"
                 if (kw) rows = rows.filter(r => (r.title||'').toLowerCase().includes(kw) || (r.code||'').toLowerCase().includes(kw));
                 cntEl.textContent = rows.length;
                 if (!rows.length) { tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-stone-400">尚無測試計畫</td></tr>'; return; }
-                const stColor = {Draft:'bg-stone-100 text-stone-600', InReview:'bg-amber-100 text-amber-700', Approved:'bg-emerald-100 text-emerald-700', Active:'bg-blue-100 text-blue-700', Closed:'bg-stone-200 text-stone-500'};
+                // 統一 7 值狀態 + 舊值相容
+                const stColor = {
+                    New:'bg-blue-100 text-blue-700', Assigned:'bg-purple-100 text-purple-700',
+                    InProgress:'bg-amber-100 text-amber-700', InReview:'bg-cyan-100 text-cyan-700',
+                    ReworkRequired:'bg-rose-100 text-rose-700', Verified:'bg-emerald-100 text-emerald-700',
+                    Closed:'bg-stone-200 text-stone-500',
+                    Draft:'bg-stone-100 text-stone-600', Approved:'bg-emerald-100 text-emerald-700', Active:'bg-blue-100 text-blue-700',
+                };
                 tbody.innerHTML = rows.map(r => `<tr class="hover:bg-amber-50/30">
                     <td class="p-3 font-mono text-xs text-stone-500">${_esc(r.code)}</td>
                     <td class="p-3 font-semibold text-stone-800 break-all">${_esc(r.title)}</td>
@@ -17044,7 +17149,7 @@ gantt
                 : '<i class="fa-solid fa-clipboard-list text-blue-500"></i> 新增測試計畫';
             document.getElementById('tpTitle').value = r?.title || '';
             document.getElementById('tpVersion').value = r?.version || '';
-            document.getElementById('tpStatus').value = r?.status || 'Draft';
+            document.getElementById('tpStatus').value = r?.status || 'New';
             document.getElementById('tpOwner').value = r?.owner || (typeof authCurrentUsername === 'function' ? (authCurrentUsername()||'') : '');
             // 編輯既有計畫 → 用後端內容；建立新計畫 → 帶入 ISTQB 範本
             const isNew = !id;
@@ -17278,7 +17383,14 @@ gantt
                 cntEl.textContent = rows.length;
                 if (!rows.length) { tbody.innerHTML = '<tr><td colspan="8" class="p-6 text-center text-stone-400">尚無需求</td></tr>'; return; }
                 const prColor = {Must:'bg-red-100 text-red-700', Should:'bg-amber-100 text-amber-700', Could:'bg-blue-100 text-blue-700', Wont:'bg-stone-100 text-stone-500'};
-                const stColor = {Draft:'bg-stone-100 text-stone-600', Approved:'bg-amber-100 text-amber-700', Implemented:'bg-blue-100 text-blue-700', Verified:'bg-emerald-100 text-emerald-700', Deprecated:'bg-stone-200 text-stone-500'};
+                // 統一 7 值狀態 + 舊值相容(migration 過渡期)
+                const stColor = {
+                    New:'bg-blue-100 text-blue-700', Assigned:'bg-purple-100 text-purple-700',
+                    InProgress:'bg-amber-100 text-amber-700', InReview:'bg-cyan-100 text-cyan-700',
+                    ReworkRequired:'bg-rose-100 text-rose-700', Verified:'bg-emerald-100 text-emerald-700',
+                    Closed:'bg-stone-200 text-stone-500',
+                    Draft:'bg-stone-100 text-stone-600', Approved:'bg-purple-100 text-purple-700', Implemented:'bg-cyan-100 text-cyan-700', Deprecated:'bg-stone-200 text-stone-500',
+                };
                 const codeById = Object.fromEntries(_requirementsCache.map(x => [x.id, x.code]));
                 tbody.innerHTML = rows.map(r => {
                     const parentCode = r.parent_id ? codeById[r.parent_id] : null;
@@ -17333,7 +17445,7 @@ gantt
             document.getElementById('reqTitle').value = r?.title || '';
             document.getElementById('reqSource').value = r?.source || 'PRD';
             document.getElementById('reqPriority').value = r?.priority || 'Should';
-            document.getElementById('reqStatus').value = r?.status || 'Draft';
+            document.getElementById('reqStatus').value = r?.status || 'New';
             document.getElementById('reqOwner').value = r?.owner || (typeof authCurrentUsername === 'function' ? (authCurrentUsername()||'') : '');
             document.getElementById('reqDesc').value = r?.description || '';
             // 父需求下拉：列出所有現有需求；編輯時禁止選自己 / 自己的後代（避免循環）
@@ -17543,9 +17655,12 @@ gantt
         // 把 linked_todos 渲染成一排 chip(在 RTM 追溯鏈各層使用)
         function _rtmRenderLinkedTodos(todos) {
             if (!todos || !todos.length) return '';
-            const colorOf = (st) => st === 'Done' ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+            // 統一 7 值狀態 → 顏色;Verified/Done = 綠,Closed/Cancelled = 灰,InProgress = 黃,其餘(New/Assigned/InReview/ReworkRequired)= 藍
+            const colorOf = (st) => (st === 'Verified' || st === 'Done') ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
                 : st === 'InProgress' ? 'bg-amber-100 text-amber-700 border-amber-200'
-                : st === 'Cancelled' ? 'bg-stone-100 text-stone-500 border-stone-200'
+                : (st === 'Closed' || st === 'Cancelled') ? 'bg-stone-100 text-stone-500 border-stone-200'
+                : st === 'ReworkRequired' ? 'bg-rose-100 text-rose-700 border-rose-200'
+                : st === 'InReview' ? 'bg-cyan-100 text-cyan-700 border-cyan-200'
                 : 'bg-blue-100 text-blue-700 border-blue-200';
             const iconOf = (t) => ({Feature:'🎯', Task:'⚙', Bug:'🐛', Spike:'🔬'})[t] || '🔗';
             return `<div class="mt-1.5 flex flex-wrap gap-1 items-center text-[10px]">
@@ -17691,7 +17806,14 @@ gantt
         // 狀態:entity tab(空字串=全部)+ scope ('mine' | 'all')
         let _kanbanEntity = '';        // '' | 'defect' | 'todo' | 'testcase' | 'requirement' | 'document' | 'review'
         let _kanbanScope = 'mine';     // 'mine' | 'all'
-        let _kanbanItems = [];         // 統一 shape: {entity_type, id, label, status, project_id, due_date, assigned_to, assigned_to_type, assigned_by, assigned_at, severity?, code?}
+        let _kanbanItems = [];         // 統一 shape: {entity_type, id, label, status, project_id, due_date, assigned_to, assigned_to_type, assigned_by, assigned_at, severity?, code?, sprint_label?, parent_id?, item_type?}
+        // 整合「我的工作」/「待辦清單」進來後的新 state(原兩個 view 的 chip / 搜尋 / sprint / 樹)
+        let _kanbanChip = 'active';            // 'active' | 'overdue' | 'due_soon' | 'done'
+        let _kanbanSearch = '';
+        let _kanbanAssigneeFilter = '';
+        let _kanbanSprintFilter = '';
+        let _kanbanGroupBySprint = false;
+        let _kanbanTodoTreeRaw = [];           // /api/todos/tree 原始巢狀(parent-child 樹用)
 
         // entity → meta(icon / color / 細分欄定義)
         const _KANBAN_ENTITY_META = {
@@ -17702,50 +17824,80 @@ gantt
             document:    { icon: 'fa-file-lines', color: 'text-pink-600', label: '文件' },
             review:      { icon: 'fa-clipboard-check', color: 'text-emerald-600', label: '審核' },
         };
-        // generic 3-bucket(全部 mode)
-        const _KANBAN_GENERIC_BUCKETS = {
-            todo:        { Todo: 'todo', InProgress: 'doing', Done: 'done', Cancelled: 'done' },
-            defect:      { New: 'todo', Assigned: 'todo', Reopened: 'todo', InProgress: 'doing', Fixed: 'done', Verified: 'done', Closed: 'done', WontFix: 'done' },
-            requirement: { Draft: 'todo', Approved: 'doing', Implemented: 'doing', Verified: 'done', Deprecated: 'done' },
-            review:      { pending: 'todo', approved: 'done', rejected: 'done' },
-            // testcase / document 沒 status,一律當 'todo'
-        };
-        const _KANBAN_GENERIC_COLS = [
-            { key: 'todo',  label: '待處理', color: 'border-blue-300 bg-blue-50' },
-            { key: 'doing', label: '進行中', color: 'border-amber-300 bg-amber-50' },
-            { key: 'done',  label: '已完成', color: 'border-emerald-300 bg-emerald-50' },
+        // ═══════════════════════════════════════════════════════════════
+        // 統一 7 欄看板狀態 — 根據工作流:
+        //   New → Assigned → InProgress → InReview
+        //                                   ├─ 通過 → Verified → Closed
+        //                                   ├─ 退回修改 → ReworkRequired → InProgress
+        //                                   └─ 不採納 → Closed (close_reason=Rejected)
+        // 卡片上額外顯示:Blocked tag / Rejected 關閉原因 / Priority / Assignee / Due Date / Module / Type
+        // ═══════════════════════════════════════════════════════════════
+        const _KANBAN_UNIFIED_COLS = [
+            { key: 'New',            label: '新建立',     color: 'border-blue-300 bg-blue-50' },
+            { key: 'Assigned',       label: '等待處理',   color: 'border-purple-300 bg-purple-50' },
+            { key: 'InProgress',     label: '進行中',     color: 'border-amber-300 bg-amber-50' },
+            { key: 'InReview',       label: '等待審核',   color: 'border-cyan-300 bg-cyan-50' },
+            { key: 'ReworkRequired', label: '退回修改',   color: 'border-rose-300 bg-rose-50' },
+            { key: 'Verified',       label: '已驗證',     color: 'border-emerald-300 bg-emerald-50' },
+            { key: 'Closed',         label: '已關閉',     color: 'border-stone-300 bg-stone-50' },
         ];
-        // entity-specific 細分 status 欄(各 entity tab 用)
+        // 各 entity status → 統一 7 欄 bucket key。沒在表內的 status 落到 'Assigned'。
+        // 後端 4 entity (defect / todo / requirement / review) 已統一為 7 值,
+        // 此處 identity map;同時保留舊值的相容對應(migration 期間 / 第三方回傳)。
+        const _KANBAN_UNIFIED_IDENTITY = {
+            New: 'New',
+            Assigned: 'Assigned',
+            InProgress: 'InProgress',
+            InReview: 'InReview',
+            ReworkRequired: 'ReworkRequired',
+            Verified: 'Verified',
+            Closed: 'Closed',
+        };
+        const _KANBAN_UNIFIED_BUCKETS = {
+            defect: {
+                ..._KANBAN_UNIFIED_IDENTITY,
+                // 舊值相容
+                Fixed: 'InReview',
+                Reopened: 'ReworkRequired',
+                WontFix: 'Closed',
+            },
+            todo: {
+                ..._KANBAN_UNIFIED_IDENTITY,
+                // 舊值相容
+                Todo: 'Assigned',
+                Done: 'Verified',
+                Cancelled: 'Closed',
+            },
+            requirement: {
+                ..._KANBAN_UNIFIED_IDENTITY,
+                // 舊值相容
+                Draft: 'New',
+                Approved: 'Assigned',
+                Implemented: 'InReview',
+                Deprecated: 'Closed',
+            },
+            review: {
+                ..._KANBAN_UNIFIED_IDENTITY,
+                // 舊值相容(小寫)
+                pending: 'InReview',
+                approved: 'Verified',
+                rejected: 'Closed',
+            },
+            // testcase / document 沒 status → 全部落到 Assigned(等待處理)
+        };
+        // 反向 map(僅 defect 拖放會改 status;defect 已統一,直接 identity)。
+        const _KANBAN_DEFECT_REVERSE = { ..._KANBAN_UNIFIED_IDENTITY };
+        // ── 為了兼容性保留舊常數名稱(沒人用了,但避免外部引用爆) ─────────
+        const _KANBAN_GENERIC_BUCKETS = _KANBAN_UNIFIED_BUCKETS;
+        const _KANBAN_GENERIC_COLS = _KANBAN_UNIFIED_COLS;
+        // 所有 entity tab 都用統一 7 欄(testcase / document 沒 status,全 fallback 到 'pending')
         const _KANBAN_ENTITY_COLS = {
-            defect: [
-                {key:'New', label:'新建立', color:'border-blue-300 bg-blue-50'},
-                {key:'Assigned', label:'已指派', color:'border-purple-300 bg-purple-50'},
-                {key:'InProgress', label:'處理中', color:'border-amber-300 bg-amber-50'},
-                {key:'Fixed', label:'已修復', color:'border-emerald-300 bg-emerald-50'},
-                {key:'Verified', label:'已驗證', color:'border-green-300 bg-green-50'},
-                {key:'Closed', label:'已關閉', color:'border-stone-300 bg-stone-50'},
-            ],
-            todo: [
-                {key:'Todo', label:'待辦', color:'border-blue-300 bg-blue-50'},
-                {key:'InProgress', label:'處理中', color:'border-amber-300 bg-amber-50'},
-                {key:'Done', label:'已完成', color:'border-emerald-300 bg-emerald-50'},
-                {key:'Cancelled', label:'已取消', color:'border-stone-300 bg-stone-50'},
-            ],
-            requirement: [
-                {key:'Draft', label:'草稿', color:'border-blue-300 bg-blue-50'},
-                {key:'Approved', label:'已核准', color:'border-purple-300 bg-purple-50'},
-                {key:'Implemented', label:'已實作', color:'border-amber-300 bg-amber-50'},
-                {key:'Verified', label:'已驗證', color:'border-emerald-300 bg-emerald-50'},
-                {key:'Deprecated', label:'已棄用', color:'border-stone-300 bg-stone-50'},
-            ],
-            review: [
-                {key:'pending', label:'待審核', color:'border-amber-300 bg-amber-50'},
-                {key:'approved', label:'已通過', color:'border-emerald-300 bg-emerald-50'},
-                {key:'rejected', label:'已拒絕', color:'border-rose-300 bg-rose-50'},
-            ],
-            // testcase / document 沒 status,只給一個 catch-all 欄
-            testcase: [{key:'__all', label:'測試案例', color:'border-blue-300 bg-blue-50'}],
-            document: [{key:'__all', label:'測試文件', color:'border-pink-300 bg-pink-50'}],
+            defect: _KANBAN_UNIFIED_COLS,
+            todo: _KANBAN_UNIFIED_COLS,
+            requirement: _KANBAN_UNIFIED_COLS,
+            review: _KANBAN_UNIFIED_COLS,
+            testcase: _KANBAN_UNIFIED_COLS,
+            document: _KANBAN_UNIFIED_COLS,
         };
         const _KANBAN_SEV_BADGE = {Critical:'bg-red-100 text-red-700', Major:'bg-orange-100 text-orange-700', Minor:'bg-amber-100 text-amber-700', Trivial:'bg-stone-100 text-stone-500'};
 
@@ -17767,6 +17919,7 @@ gantt
                     el.classList.add('text-stone-600', 'border-transparent', 'hover:bg-stone-50');
                 }
             });
+            // 新增按鈕已簡化為固定「新增待辦」,不需要再依 entity 切 label。
             renderTestKanban();
         }
         function kanbanSetScope(scope) {
@@ -17793,6 +17946,7 @@ gantt
                 label: d.title,
                 code: d.code,
                 severity: d.severity,
+                priority: d.priority || null,
                 status: d.status,
                 project_id: d.project_id || projectId,
                 due_date: null,
@@ -17800,6 +17954,10 @@ gantt
                 assigned_to_type: d.assigned_to_type || 'user',
                 assigned_by: d.assigned_by || null,
                 assigned_at: d.assigned_at || null,
+                // 7 欄看板額外 metadata(後端有就帶,沒有就 fallback)
+                is_blocked: d.is_blocked || false,
+                close_reason: d.close_reason || null,
+                module: d.module || null,
             };
         }
         function _kanbanNormalizeTodo(t, projectId) {
@@ -17815,6 +17973,16 @@ gantt
                 assigned_to_type: t.assignee_type || 'user',
                 assigned_by: t.assigned_by,
                 assigned_at: t.assigned_at,
+                // 整合 backlog 後新增 — sprint 分群 + parent-child 樹用
+                sprint_label: t.sprint_label || null,
+                parent_id: t.parent_id || null,
+                item_type: t.item_type || null,
+                is_overdue: t.is_overdue,
+                days_to_due: t.days_to_due,
+                // 7 欄看板額外 metadata(後端目前未必有,pass-through 容錯)
+                is_blocked: t.is_blocked || false,
+                close_reason: t.close_reason || null,
+                module: t.module || null,
             };
         }
         function _kanbanNormalizeRequirement(r, projectId) {
@@ -17852,12 +18020,23 @@ gantt
                 id: it.entity_id,
                 label: it.label,
                 status: it.status || (it.entity_type === 'testcase' || it.entity_type === 'document' ? '__all' : null),
+                priority: it.priority || null,
+                severity: it.severity || null,
+                code: it.code || null,
                 project_id: it.project_id,
                 due_date: it.due_date,
                 assigned_to: it.assigned_to,
                 assigned_to_type: it.assigned_to_type,
                 assigned_by: it.assigned_by,
                 assigned_at: it.assigned_at,
+                // backlog 整合 —(/me 端點若有附 sprint_label / parent_id 一併帶,沒就 null)
+                sprint_label: it.sprint_label || null,
+                parent_id: it.parent_id || null,
+                item_type: it.item_type || null,
+                // 7 欄看板額外 metadata
+                is_blocked: it.is_blocked || false,
+                close_reason: it.close_reason || null,
+                module: it.module || null,
             };
         }
 
@@ -17866,30 +18045,46 @@ gantt
             const cols = document.getElementById('kanbanColumns');
             const titleHint = document.getElementById('kanbanTitleHint');
             if (!pid) {
-                cols.innerHTML = '<div class="col-span-6 p-6 text-center text-stone-400">請先選擇專案</div>';
-                ['kpi_open_defects','kpi_critical_defects','kpi_active_milestones','kpi_active_plans','kpi_requirements','kpi_active_backlog'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '—'; });
+                cols.innerHTML = '<div class="col-span-7 p-6 text-center text-stone-400">請先選擇專案</div>';
                 return;
             }
             // 顯示 loading
-            cols.innerHTML = '<div class="col-span-6 p-6 text-center text-stone-400"><i class="fa-solid fa-spinner fa-spin"></i> 載入中…</div>';
+            cols.innerHTML = '<div class="col-span-7 p-6 text-center text-stone-400"><i class="fa-solid fa-spinner fa-spin"></i> 載入中…</div>';
             try {
-                // 1) 載入 KPI(維持原 5 張)+ 拉資料
+                // KPI 卡已移除 — 仍預先取 defect linked-todos 給 _kanbanCardHtml 在缺陷卡上顯示連結 badge。
                 const kpisP = Promise.all([
-                    fetch('/api/milestones?project_id='+pid).then(r => r.json()).catch(() => []),
-                    fetch('/api/plans?project_id='+pid).then(r => r.json()).catch(() => []),
-                    fetch('/api/todos/summary?project_id='+pid).then(r => r.json()).catch(() => ({})),
+                    Promise.resolve([]),                                             // ms 占位
+                    Promise.resolve([]),                                             // plans 占位
+                    Promise.resolve({}),                                             // todoSummary 占位
                     fetch('/api/links/by-target/batch?target_type=defect&project_id='+pid).then(r => r.json()).catch(() => ({})),
                 ]);
 
                 // 2) 拉 items
                 let items = [];
-                if (_kanbanScope === 'mine') {
+                // chip='done' 時所有 list 端點都需要 include_done=true(否則拉不到完成的)
+                const includeDone = (_kanbanChip === 'done');
+                // entity=todo 且需要分群 / 父子樹 → 改打 /api/todos/tree(回傳含 sprint_label / children 的巢狀結構)
+                const todoNeedsTree = (
+                    _kanbanEntity === 'todo' &&
+                    _kanbanScope !== 'mine' &&         // mine 仍走 /me 簡化(/me 已 dedup)
+                    (_kanbanGroupBySprint || _kanbanSprintFilter)
+                );
+                if (todoNeedsTree) {
+                    const params = new URLSearchParams({ project_id: pid });
+                    if (includeDone) params.set('include_done', 'true');
+                    const tree = await fetch('/api/todos/tree?' + params).then(r => r.json()).catch(() => []);
+                    _kanbanTodoTreeRaw = tree || [];
+                    items = _flattenBacklogTree(_kanbanTodoTreeRaw, []).map(t => _kanbanNormalizeTodo(t, pid));
+                } else if (_kanbanScope === 'mine') {
+                    _kanbanTodoTreeRaw = [];
                     // 我的指派 — 一次撈 /me,可選 entity_type filter,有 project_id 一併送
                     const params = new URLSearchParams({ project_id: pid });
                     if (_kanbanEntity) params.set('entity_type', _kanbanEntity);
+                    if (includeDone) params.set('include_done', 'true');
                     const rows = await fetch('/api/assignments/me?' + params).then(r => r.json());
                     items = (rows || []).map(_kanbanNormalizeFromMe);
                 } else {
+                    _kanbanTodoTreeRaw = [];
                     // 全部 — 視 entity tab 各別 fetch
                     const wants = _kanbanEntity ? [_kanbanEntity] : ['defect', 'todo', 'requirement', 'review'];
                     // testcase / document 走全部時不顯示(資料太多 + 沒 status,意義不大);使用者要看就切到「我的」
@@ -17897,9 +18092,13 @@ gantt
                     if (wants.includes('defect')) fetchers.push(
                         fetch('/api/defects?project_id='+pid).then(r => r.json()).then(arr => arr.map(d => _kanbanNormalizeDefect(d, pid))).catch(() => [])
                     );
-                    if (wants.includes('todo')) fetchers.push(
-                        fetch('/api/todos?project_id='+pid).then(r => r.json()).then(arr => arr.map(t => _kanbanNormalizeTodo(t, pid))).catch(() => [])
-                    );
+                    if (wants.includes('todo')) {
+                        const todoParams = new URLSearchParams({ project_id: pid });
+                        if (includeDone) todoParams.set('include_done', 'true');
+                        fetchers.push(
+                            fetch('/api/todos?' + todoParams).then(r => r.json()).then(arr => arr.map(t => _kanbanNormalizeTodo(t, pid))).catch(() => [])
+                        );
+                    }
                     if (wants.includes('requirement')) fetchers.push(
                         fetch('/api/requirements?project_id='+pid).then(r => r.json()).then(arr => arr.map(rq => _kanbanNormalizeRequirement(rq, pid))).catch(() => [])
                     );
@@ -17931,80 +18130,212 @@ gantt
                     items = arrs.flat();
                 }
 
-                // overdue 過濾
+                // ─── 整合 backlog 後的過濾管線:chip → search → assignee → sprint ───
+                const today = new Date().toISOString().slice(0, 10);
+                // (a) chip 是「狀態總開關」:overdue / due_soon / done / active(非完成)
+                // 「done」對應到 7 欄看板的 Verified + Closed bucket;Fixed/InReview 仍算 active(等待 verify 中)。
+                const isItemDone = (x) => {
+                    const bucket = (_KANBAN_UNIFIED_BUCKETS[x.entity_type] || {})[x.status];
+                    if (bucket === 'Verified' || bucket === 'Closed') return true;
+                    // 沒在 mapping 內(testcase / document)— fallback 看 status 字面
+                    return ['Done','Closed','Verified','Cancelled','approved','rejected','Deprecated'].includes(x.status);
+                };
+                if (_kanbanChip === 'overdue') {
+                    items = items.filter(x => x.due_date && x.due_date < today && !isItemDone(x));
+                } else if (_kanbanChip === 'due_soon') {
+                    items = items.filter(x => {
+                        if (isItemDone(x) || !x.due_date) return false;
+                        const days = (Date.parse(x.due_date) - Date.parse(today)) / 86400000;
+                        return days >= 0 && days <= 7;
+                    });
+                } else if (_kanbanChip === 'done') {
+                    items = items.filter(isItemDone);
+                } else {
+                    // 'active' — 預設,排除已完成類
+                    items = items.filter(x => !isItemDone(x));
+                }
+                // (b) 舊的「僅看過期」 checkbox 仍可疊加(隱藏但留著);若有勾就再 narrow 一次
                 if (document.getElementById('kanbanOverdueOnly')?.checked) {
-                    const today = new Date().toISOString().slice(0, 10);
                     items = items.filter(x => x.due_date && x.due_date < today);
+                }
+                // (c) 全文搜尋 label
+                if (_kanbanSearch) {
+                    const q = _kanbanSearch.toLowerCase();
+                    items = items.filter(x => (x.label || '').toLowerCase().includes(q));
+                }
+                // (d) assignee 篩選(scope=mine 時其實已是「我的」,但保留語意一致)
+                if (_kanbanAssigneeFilter) {
+                    items = items.filter(x => (x.assigned_to || '') === _kanbanAssigneeFilter);
+                }
+                // (e) sprint 篩選 — 只有 todo entity 才有 sprint_label
+                if (_kanbanEntity === 'todo' && _kanbanSprintFilter) {
+                    if (_kanbanSprintFilter === '__backlog__') {
+                        items = items.filter(x => !x.sprint_label);
+                    } else {
+                        items = items.filter(x => x.sprint_label === _kanbanSprintFilter);
+                    }
                 }
 
                 _kanbanItems = items;
+                // entity=todo 才顯示 sprint dropdown / 群組 toggle;同時填 sprint options
+                const todoTools = document.getElementById('kanbanTodoOnlyTools');
+                if (todoTools) {
+                    if (_kanbanEntity === 'todo') {
+                        todoTools.classList.remove('hidden');
+                        todoTools.classList.add('flex');
+                        kanbanPopulateSprintOptions(items);
+                    } else {
+                        todoTools.classList.add('hidden');
+                        todoTools.classList.remove('flex');
+                    }
+                }
+                // 同步 assignee dropdown 選項(從目前 items 收集 unique 名字)
+                kanbanPopulateAssigneeOptions(items);
 
-                // 3) 渲染
+                // 3) 渲染 — 若 entity=todo + 依 Sprint 分群 → backlog 風格群組;否則走原本 column 看板
                 const colsEl = cols;
                 const useGeneric = !_kanbanEntity;     // 全部 → 3 generic 欄;單一 entity → 細分欄
                 const colDefs = useGeneric ? _KANBAN_GENERIC_COLS : (_KANBAN_ENTITY_COLS[_kanbanEntity] || _KANBAN_GENERIC_COLS);
                 if (titleHint) {
                     const scopeLbl = _kanbanScope === 'mine' ? '我的指派' : '全部';
                     const entLbl = _kanbanEntity ? _KANBAN_ENTITY_META[_kanbanEntity].label : '全部 entity';
-                    titleHint.textContent = `${scopeLbl} · ${entLbl}(${items.length} 筆)`;
+                    const modeSuffix = (_kanbanEntity === 'todo' && _kanbanGroupBySprint) ? ' · 依 Sprint 分群' : '';
+                    titleHint.textContent = `${scopeLbl} · ${entLbl}(${items.length} 筆)${modeSuffix}`;
                 }
-                renderKanbanColumns(colsEl, items, colDefs, useGeneric);
+                if (_kanbanEntity === 'todo' && _kanbanGroupBySprint) {
+                    kanbanRenderSprintGrouped(colsEl, items);
+                } else {
+                    renderKanbanColumns(colsEl, items, colDefs, useGeneric);
+                }
 
-                // 4) KPI(用既有 5 張 + 補 backlog active)
-                const [ms, plans, todoSummary, linkedByDefect] = await kpisP;
+                // 4) 拉 defect cache(給缺陷卡上的 linked-todos badge + drag-drop 樂觀更新用),
+                //    KPI 卡已下架,不再寫 #kpi_* 的 textContent
+                const [, , , linkedByDefect] = await kpisP;
                 _kanbanLinkedTodosByDefect = linkedByDefect || {};
-                // 缺陷 KPI 走 _kanbanItems 內 defect 部分(若 mine 模式撈不到全部 defect 就顯示「我的指派」相關;簡化先按既有方式重撈一次)
                 fetch('/api/defects?project_id='+pid).then(r => r.json()).then(defs => {
                     _defectsCache = defs;
                     _kanbanLastDefects = defs;
-                    const openStatuses = ['New','Assigned','InProgress','Reopened'];
-                    const openDefects = defs.filter(d => openStatuses.includes(d.status)).length;
-                    const criticalDefects = defs.filter(d => ['Critical','Major'].includes(d.severity) && openStatuses.includes(d.status)).length;
-                    document.getElementById('kpi_open_defects').textContent = openDefects;
-                    document.getElementById('kpi_critical_defects').textContent = criticalDefects;
                 }).catch(() => {});
-                document.getElementById('kpi_active_milestones').textContent = ms.filter(m => m.status === 'InProgress').length;
-                document.getElementById('kpi_active_plans').textContent = plans.filter(p => ['Active','Approved'].includes(p.status)).length;
-                fetch('/api/requirements?project_id='+pid).then(r => r.json()).then(reqs => {
-                    document.getElementById('kpi_requirements').textContent = reqs.length;
-                }).catch(() => {});
-                const todoActiveEl = document.getElementById('kpi_active_backlog');
-                if (todoActiveEl) todoActiveEl.textContent = todoSummary?.total_active ?? 0;
             } catch(e) {
-                cols.innerHTML = `<div class="col-span-6 p-6 text-center text-red-500">載入失敗:${_esc(e.message)}</div>`;
+                cols.innerHTML = `<div class="col-span-7 p-6 text-center text-red-500">載入失敗:${_esc(e.message)}</div>`;
             }
+        }
+
+        // ─── 整合 backlog / 我的工作 後新增的 helper(chip / search / sprint / assignee)──
+        const _kanbanOnSearchDebounced = (typeof _debounce === 'function')
+            ? _debounce((v) => { _kanbanSearch = (v || '').trim(); renderTestKanban(); }, 250)
+            : (v) => { _kanbanSearch = (v || '').trim(); renderTestKanban(); };
+        function kanbanOnSearch(v) { _kanbanOnSearchDebounced(v); }
+        function kanbanSetChip(c) {
+            if (!['active','overdue','due_soon','done'].includes(c)) c = 'active';
+            _kanbanChip = c;
+            document.querySelectorAll('#kanbanChips [data-chip]').forEach(el => {
+                el.classList.toggle('is-active', el.getAttribute('data-chip') === c);
+            });
+            // chip 切到/離開 done 都要 refetch(include_done flag 變了)
+            renderTestKanban();
+        }
+        function kanbanSetAssignee(v) { _kanbanAssigneeFilter = v || ''; renderTestKanban(); }
+        function kanbanSetSprint(v) {
+            _kanbanSprintFilter = v || '';
+            // sprint filter 改變需要重撈(切到 todos/tree 走別條 fetch path)
+            renderTestKanban();
+        }
+        function kanbanToggleGroupBySprint(checked) {
+            _kanbanGroupBySprint = !!checked;
+            renderTestKanban();
+        }
+        // 新增按鈕已簡化為固定「新增待辦」,直接 onclick="openTodoModal()" 不再需要 dropdown。
+        // 為相容舊 inline 呼叫保留 stub:
+        function kanbanToggleAddMenu(ev) { if (ev) ev.stopPropagation(); openTodoModal(); }
+        function kanbanPopulateSprintOptions(items) {
+            const sel = document.getElementById('kanbanSprintFilter');
+            if (!sel) return;
+            const cur = sel.value;
+            const labels = [...new Set((items || []).map(it => it.sprint_label).filter(Boolean))].sort();
+            sel.innerHTML = '<option value="">全部 Sprint</option>'
+                          + '<option value="__backlog__">未排入 Sprint</option>'
+                          + labels.map(l => `<option value="${_esc(l)}">${_esc(l)}</option>`).join('');
+            sel.value = cur;
+        }
+        function kanbanPopulateAssigneeOptions(items) {
+            const sel = document.getElementById('kanbanAssigneeFilter');
+            if (!sel) return;
+            const cur = sel.value;
+            const names = [...new Set((items || []).map(it => it.assigned_to).filter(Boolean))].sort();
+            sel.innerHTML = '<option value="">全部負責人</option>'
+                          + names.map(n => `<option value="${_esc(n)}">${_esc(n)}</option>`).join('');
+            sel.value = cur;
+        }
+        // entity=todo + 依 Sprint 分群 → 仿 backlog 風格的群組面板,每組內走 _kanbanCardHtml
+        function kanbanRenderSprintGrouped(colsEl, items) {
+            colsEl.className = 'space-y-4';
+            if (!items.length) {
+                colsEl.innerHTML = '<div class="bg-white rounded-lg p-12 text-center text-stone-400">沒有符合條件的待辦</div>';
+                return;
+            }
+            const groups = {};
+            for (const it of items) {
+                const key = it.sprint_label || '__backlog__';
+                if (!groups[key]) groups[key] = [];
+                groups[key].push(it);
+            }
+            const labels = Object.keys(groups).sort((a, b) => {
+                if (a === '__backlog__') return 1;
+                if (b === '__backlog__') return -1;
+                return a.localeCompare(b);
+            });
+            colsEl.innerHTML = labels.map(label => {
+                const its = groups[label];
+                const title = label === '__backlog__'
+                    ? '<i class="fa-solid fa-inbox text-stone-400"></i> 未排入 Sprint'
+                    : `<i class="fa-solid fa-flag text-purple-500"></i> ${_esc(label)}`;
+                return `
+                    <div class="bg-white rounded-lg border border-amber-100 shadow-sm p-4">
+                        <div class="text-sm font-bold text-stone-700 mb-3 flex items-center gap-2 pb-2 border-b border-stone-100">
+                            ${title}<span class="text-xs font-normal text-stone-400">(${its.length})</span>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                            ${its.map(_kanbanCardHtml).join('')}
+                        </div>
+                    </div>
+                `;
+            }).join('');
         }
 
         function renderKanbanColumns(colsEl, items, colDefs, useGeneric) {
             const today = new Date().toISOString().slice(0, 10);
-            // 把 items 分配到欄
+            // 統一 7 欄:任何 entity 都走 _KANBAN_UNIFIED_BUCKETS,把 entity status → bucket key
             const buckets = {};
             colDefs.forEach(c => buckets[c.key] = []);
             items.forEach(it => {
-                let colKey;
-                if (useGeneric) {
-                    const map = _KANBAN_GENERIC_BUCKETS[it.entity_type];
-                    colKey = (map && it.status && map[it.status]) ? map[it.status] : 'todo';
-                } else {
-                    if (_kanbanEntity === 'testcase' || _kanbanEntity === 'document') {
-                        colKey = '__all';
-                    } else {
-                        colKey = it.status;
-                    }
-                }
-                if (buckets[colKey] !== undefined) buckets[colKey].push(it);
-                else if (useGeneric) buckets['todo'].push(it);    // unknown status 落到「待處理」
+                const map = _KANBAN_UNIFIED_BUCKETS[it.entity_type];
+                // 新狀態值直接 identity;舊值經 map 對應;未知 status 落到「等待處理」(Assigned)。
+                let colKey = (map && it.status && map[it.status])
+                    ? map[it.status]
+                    : (_KANBAN_UNIFIED_IDENTITY[it.status] || 'Assigned');
+                if (buckets[colKey] === undefined) colKey = 'Assigned';
+                buckets[colKey].push(it);
             });
 
             // 動態 grid 欄數
-            const gridCls = colDefs.length === 3 ? 'lg:grid-cols-3' : (colDefs.length <= 4 ? 'lg:grid-cols-4' : (colDefs.length === 5 ? 'lg:grid-cols-5' : 'lg:grid-cols-6'));
+            // 統一 7 欄看板;7 欄太多時往下換行,以 lg-7-col(自訂)而非 grid-cols-7 確保畫面不擠
+            const gridCls = colDefs.length === 3 ? 'lg:grid-cols-3'
+                : (colDefs.length <= 4 ? 'lg:grid-cols-4'
+                : (colDefs.length === 5 ? 'lg:grid-cols-5'
+                : (colDefs.length === 6 ? 'lg:grid-cols-6' : 'lg:grid-cols-7 xl:grid-cols-7')));
             colsEl.className = `grid grid-cols-1 md:grid-cols-3 ${gridCls} gap-3`;
 
             colsEl.innerHTML = colDefs.map(c => {
                 const colItems = (buckets[c.key] || []).slice(0, 50);
                 const overflow = (buckets[c.key] || []).length > 50;
-                // drop target 只在 defect-only tab 啟用
-                const dropAttr = (_kanbanEntity === 'defect')
+                // drop target — 全部 / defect / todo / requirement 模式皆啟用
+                // (review 走自有 approve/reject 流程;testcase / document 無 status 可改)
+                const dropEnabled = (
+                    _kanbanEntity === '' ||
+                    _KANBAN_DRAGGABLE_ENTITIES.has(_kanbanEntity)
+                );
+                const dropAttr = dropEnabled
                     ? `data-col-status="${c.key}" ondragover="kanbanDragOver(event)" ondragleave="kanbanDragLeave(event)" ondrop="kanbanDrop(event)"`
                     : '';
                 return `<div class="bg-white rounded-lg border ${c.color} p-2 min-h-[200px] kanban-col" ${dropAttr}>
@@ -18046,10 +18377,41 @@ gantt
             const dueBadge = it.due_date
                 ? `<span class="text-[10px] ${isOverdue ? 'text-rose-700 font-semibold' : 'text-stone-500'}" title="${isOverdue ? '已過期' : '到期日'}"><i class="fa-regular fa-clock"></i> ${_esc(it.due_date)}</span>`
                 : '';
-            const dragAttr = (it.entity_type === 'defect' && _kanbanEntity === 'defect')
-                ? `draggable="true" data-defect-id="${_esc(it.id)}" data-defect-status="${_esc(it.status || '')}" ondragstart="kanbanDragStart(event)" ondragend="kanbanDragEnd(event)"`
+            // ── 額外 metadata badges:Blocked / Rejected / Module / Type ──
+            // 每個欄位都是 conditional:後端有提供才顯示,沒提供就靜默忽略,
+            // 所以即使目前 API 還沒輸出 is_blocked / close_reason / module 也不會炸。
+            const badges = [];
+            if (it.is_blocked) {
+                badges.push(`<span class="text-[10px] px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 font-semibold" title="此項目目前被阻擋"><i class="fa-solid fa-ban"></i> Blocked</span>`);
+            }
+            if ((it.close_reason || '').toLowerCase() === 'rejected') {
+                badges.push(`<span class="text-[10px] px-1.5 py-0.5 rounded bg-stone-200 text-stone-600 line-through" title="不採納">Rejected</span>`);
+            }
+            if (it.module) {
+                badges.push(`<span class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700"><i class="fa-solid fa-cube text-[9px]"></i> ${_esc(it.module)}</span>`);
+            }
+            // Type:todo 用 item_type;defect 用 'Bug';requirement 用 'Req';review 用 'Review';testcase 用 'Case';document 用 'Doc'
+            const typeLabel = it.item_type
+                ? it.item_type
+                : ({ defect: 'Bug', requirement: 'Req', review: 'Review', testcase: 'Case', document: 'Doc' })[it.entity_type] || '';
+            if (typeLabel) {
+                badges.push(`<span class="text-[10px] px-1.5 py-0.5 rounded bg-stone-100 text-stone-600">${_esc(typeLabel)}</span>`);
+            }
+            // todo 在 extraTop 已經顯示 priority,所以這裡只給「非 todo」加優先級 badge(若有)
+            if (it.entity_type !== 'todo' && it.priority) {
+                const prioCls = it.priority === 'P0' ? 'bg-rose-100 text-rose-700' : it.priority === 'P1' ? 'bg-orange-100 text-orange-700' : 'bg-stone-100 text-stone-500';
+                badges.push(`<span class="text-[10px] px-1.5 py-0.5 rounded ${prioCls} font-mono">${_esc(it.priority)}</span>`);
+            }
+            const badgeRow = badges.length
+                ? `<div class="flex flex-wrap gap-1 mt-1">${badges.join('')}</div>`
                 : '';
-            const cursorCls = (it.entity_type === 'defect' && _kanbanEntity === 'defect') ? 'cursor-move' : 'cursor-pointer';
+            // 拖移變更狀態 — defect / todo / requirement 三種 entity 都支援
+            // (review 用 approve/reject 流程,testcase / document 沒 status,皆不啟用拖移)
+            const draggable = _KANBAN_DRAGGABLE_ENTITIES.has(it.entity_type);
+            const dragAttr = draggable
+                ? `draggable="true" data-item-id="${_esc(it.id)}" data-entity-type="${_esc(it.entity_type)}" data-from-status="${_esc(it.status || '')}" ondragstart="kanbanDragStart(event)" ondragend="kanbanDragEnd(event)"`
+                : '';
+            const cursorCls = draggable ? 'cursor-move' : 'cursor-pointer';
             const overdueRing = isOverdue ? 'ring-1 ring-rose-300' : '';
             return `<div class="bg-white border border-stone-200 ${overdueRing} rounded p-2 ${cursorCls} hover:border-amber-300 shadow-sm kanban-card" ${dragAttr} onclick="kanbanCardClick(event, '${_esc(it.entity_type)}', '${_esc(it.id)}')">
                 <div class="flex items-center justify-between gap-1">
@@ -18060,6 +18422,7 @@ gantt
                     ${extraTop}
                 </div>
                 <div class="text-xs font-semibold text-stone-800 line-clamp-2 mt-0.5">${_esc(it.label)}</div>
+                ${badgeRow}
                 <div class="flex items-center justify-between mt-1 gap-1">
                     <div class="flex items-center gap-1 min-w-0">${assigneeHtml}</div>
                     <div class="flex items-center gap-1.5">
@@ -18099,19 +18462,31 @@ gantt
             }
         }
 
-        // ─── 看板拖移：改變缺陷狀態 ───────────────────────────────────────
-        // _kanbanDragId / _kanbanDragFromStatus：拖移中暫存
-        // _kanbanDidDrag：用來區分 click vs drag（draggable=true 的元件，純點擊也會
-        // 觸發短暫的 dragstart/dragend；我們需要避免拖完一放鬆就觸發 onclick）
+        // ─── 看板拖移:改變狀態 ──────────────────────────────────────────
+        // 支援 defect / todo / requirement 三種 entity(共用 PUT /api/<entity>s/{id})。
+        // review 走自有 approve/reject 流程,testcase / document 無 status,皆不啟用。
+        // _kanbanDragId / _kanbanDragFromStatus / _kanbanDragEntityType:拖移中暫存
+        // _kanbanDidDrag:區分 click vs drag(draggable=true 的元件,純點擊也會
+        //              觸發短暫的 dragstart/dragend;避免拖完一放鬆就觸發 onclick)
+        const _KANBAN_DRAGGABLE_ENTITIES = new Set(['defect', 'todo', 'requirement']);
+        const _KANBAN_DRAG_ENDPOINT = {
+            defect: (id) => '/api/defects/' + id,
+            todo: (id) => '/api/todos/' + id,
+            requirement: (id) => '/api/requirements/' + id,
+        };
         let _kanbanDragId = null;
         let _kanbanDragFromStatus = null;
+        let _kanbanDragEntityType = null;
         let _kanbanDidDrag = false;
 
         function kanbanDragStart(ev) {
             const card = ev.currentTarget;
-            _kanbanDragId = card.dataset.defectId;
+            _kanbanDragId = card.dataset.itemId;
+            _kanbanDragEntityType = card.dataset.entityType;
+            // 優先用所在欄的 bucket key(統一狀態值);若無則 fallback 到 card 自身的 from-status。
+            // 這樣同欄拖回不會誤觸 PUT(舊值如 Fixed 會被欄位 bucket 統一成 InReview)。
             const fromCol = card.closest('.kanban-col');
-            _kanbanDragFromStatus = fromCol ? fromCol.dataset.colStatus : (card.dataset.defectStatus || null);
+            _kanbanDragFromStatus = (fromCol && fromCol.dataset.colStatus) || card.dataset.fromStatus || null;
             _kanbanDidDrag = true;
             ev.dataTransfer.effectAllowed = 'move';
             try { ev.dataTransfer.setData('text/plain', _kanbanDragId); } catch (_) {}
@@ -18120,10 +18495,10 @@ gantt
         function kanbanDragEnd(ev) {
             ev.currentTarget.classList.remove('dragging');
             document.querySelectorAll('.kanban-col').forEach(c => c.classList.remove('drag-over'));
-            // 等 click 事件 (緊接著的 mouseup) 處理完再清旗標
             setTimeout(() => { _kanbanDidDrag = false; }, 50);
             _kanbanDragId = null;
             _kanbanDragFromStatus = null;
+            _kanbanDragEntityType = null;
         }
         function kanbanDragOver(ev) {
             ev.preventDefault();
@@ -18141,20 +18516,32 @@ gantt
             const col = ev.currentTarget;
             col.classList.remove('drag-over');
             const id = _kanbanDragId;
+            const entityType = _kanbanDragEntityType;
             const fromStatus = _kanbanDragFromStatus;
+            // 7 欄 bucket key 已是統一狀態值(New / Assigned / InProgress / InReview / ReworkRequired / Verified / Closed)
+            // 直接用 col.dataset.colStatus 當新狀態。
             const newStatus = col.dataset.colStatus;
-            // 注意：不在這裡清 _kanbanDidDrag，要交給 dragend 的 setTimeout
             _kanbanDragId = null;
             _kanbanDragFromStatus = null;
-            if (!id || !newStatus) return;
+            _kanbanDragEntityType = null;
+            if (!id || !newStatus || !entityType) return;
             if (fromStatus === newStatus) return;
-            // ── 樂觀更新：先在 _defectsCache 改狀態 + 重畫，讓使用者立刻看到變化 ──
-            const cached = (Array.isArray(_defectsCache) ? _defectsCache : []).find(d => d.id === id);
-            const prevStatus = cached ? cached.status : null;
-            if (cached) cached.status = newStatus;
-            renderTestKanbanFromCache();
+            const urlBuilder = _KANBAN_DRAG_ENDPOINT[entityType];
+            if (!urlBuilder) {
+                showToast(`此類型 (${entityType}) 不支援拖移變更狀態`, 'warning');
+                return;
+            }
+            // 樂觀更新:先在當前 _kanbanItems 改狀態 + 重畫
+            const item = (_kanbanItems || []).find(x => x.id === id && x.entity_type === entityType);
+            const prevStatus = item ? item.status : null;
+            if (item) item.status = newStatus;
+            // defect 同步寫回 _defectsCache(舊路徑用)
+            if (entityType === 'defect') {
+                const cached = (Array.isArray(_defectsCache) ? _defectsCache : []).find(d => d.id === id);
+                if (cached) cached.status = newStatus;
+            }
             try {
-                const res = await fetch('/api/defects/' + id, {
+                const res = await fetch(urlBuilder(id), {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ status: newStatus }),
@@ -18164,16 +18551,11 @@ gantt
                     try { const err = await res.json(); detail = err.detail || detail; } catch (_) {}
                     throw new Error(detail);
                 }
-                const saved = await res.json();
-                // 用後端真實值更新 cache（含 closed_at 等同步寫入的欄位）
-                if (cached) Object.assign(cached, saved);
-                showToast(`狀態已改為「${_zh('defStatus', newStatus)}」`, 'success');
-                // 全量 refetch 一次以確保 stats / KPIs 也同步
+                showToast(`狀態已改為「${_zh('unifiedStatus', newStatus) || newStatus}」`, 'success');
                 renderTestKanban();
             } catch (e) {
-                showToast('狀態更新失敗：' + e.message, 'error');
-                // 還原 cache
-                if (cached && prevStatus !== null) cached.status = prevStatus;
+                showToast('狀態更新失敗:' + e.message, 'error');
+                if (item && prevStatus !== null) item.status = prevStatus;
                 renderTestKanban();
             }
         }
@@ -18217,7 +18599,14 @@ gantt
                 if (st) rows = rows.filter(r => r.status === st);
                 cnt.textContent = rows.length;
                 if (!rows.length) { tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-stone-400">尚無專案</td></tr>'; return; }
-                const stColor = {Planning:'bg-stone-100 text-stone-600', Active:'bg-emerald-100 text-emerald-700', OnHold:'bg-amber-100 text-amber-700', Archived:'bg-stone-200 text-stone-500'};
+                // 統一 7 值狀態 + 舊值相容
+                const stColor = {
+                    New:'bg-blue-100 text-blue-700', Assigned:'bg-purple-100 text-purple-700',
+                    InProgress:'bg-amber-100 text-amber-700', InReview:'bg-cyan-100 text-cyan-700',
+                    ReworkRequired:'bg-rose-100 text-rose-700', Verified:'bg-emerald-100 text-emerald-700',
+                    Closed:'bg-stone-200 text-stone-500',
+                    Planning:'bg-stone-100 text-stone-600', Active:'bg-emerald-100 text-emerald-700', OnHold:'bg-amber-100 text-amber-700', Archived:'bg-stone-200 text-stone-500',
+                };
                 tbody.innerHTML = rows.map(r => `<tr class="hover:bg-amber-50/30">
                     <td class="p-3"><div class="font-semibold text-stone-800">${_esc(r.name)}</div>${r.description ? `<div class="text-[11px] text-stone-500 line-clamp-1">${_esc(r.description)}</div>` : ''}</td>
                     <td class="p-3"><span class="text-xs px-2 py-0.5 rounded font-medium ${stColor[r.status]||'bg-stone-100'}">${_esc(_zh('tprjStatus', r.status))}</span></td>
@@ -18241,7 +18630,7 @@ gantt
             document.getElementById('testProjectModalTitle').innerHTML = r ? `<i class="fa-solid fa-folder-tree text-amber-500"></i> 編輯專案 ${_esc(r.name)}` : '<i class="fa-solid fa-folder-tree text-amber-500"></i> 新增測試專案';
             document.getElementById('tprjName').value = r?.name || '';
             document.getElementById('tprjDesc').value = r?.description || '';
-            document.getElementById('tprjStatus').value = r?.status || 'Active';
+            document.getElementById('tprjStatus').value = r?.status || 'InProgress';
             document.getElementById('tprjOwner').value = r?.owner || (typeof authCurrentUsername === 'function' ? (authCurrentUsername()||'') : '');
             document.getElementById('tprjStart').value = r?.start_date || '';
             document.getElementById('tprjTarget').value = r?.target_date || '';
@@ -18818,8 +19207,21 @@ gantt
 
         // ─── WBS (Work Breakdown Structure) ──────────────────────────────
         const _WBS_STATUS = { NotStarted:'未開始', InProgress:'進行中', Completed:'已完成', Blocked:'已阻擋', Cancelled:'已取消' };
-        const _WBS_STATUS_COLOR = { NotStarted:'bg-stone-100 text-stone-600', InProgress:'bg-amber-100 text-amber-700', Completed:'bg-emerald-100 text-emerald-700', Blocked:'bg-rose-100 text-rose-700', Cancelled:'bg-stone-200 text-stone-500' };
-        const _WBS_BAR_COLOR = { NotStarted:'bg-stone-300', InProgress:'bg-amber-400', Completed:'bg-emerald-500', Blocked:'bg-rose-400', Cancelled:'bg-stone-300' };
+        // 統一 7 值狀態 + 舊值相容(migration 0012 前資料)
+        const _WBS_STATUS_COLOR = {
+            New:'bg-blue-100 text-blue-700', Assigned:'bg-purple-100 text-purple-700',
+            InProgress:'bg-amber-100 text-amber-700', InReview:'bg-cyan-100 text-cyan-700',
+            ReworkRequired:'bg-rose-100 text-rose-700', Verified:'bg-emerald-100 text-emerald-700',
+            Closed:'bg-stone-200 text-stone-500',
+            NotStarted:'bg-stone-100 text-stone-600', Completed:'bg-emerald-100 text-emerald-700', Blocked:'bg-rose-100 text-rose-700', Cancelled:'bg-stone-200 text-stone-500',
+        };
+        const _WBS_BAR_COLOR = {
+            New:'bg-blue-400', Assigned:'bg-purple-400',
+            InProgress:'bg-amber-400', InReview:'bg-cyan-400',
+            ReworkRequired:'bg-rose-400', Verified:'bg-emerald-500',
+            Closed:'bg-stone-400',
+            NotStarted:'bg-stone-300', Completed:'bg-emerald-500', Blocked:'bg-rose-400', Cancelled:'bg-stone-300',
+        };
         let _wbsCache = [];                  // 平面陣列
         let _editingWbsId = null;
         const _wbsExpanded = new Set();      // 展開的節點 id
@@ -18857,12 +19259,23 @@ gantt
             }
         }
 
+        // 統一 7 值狀態 → 4 個 KPI bucket(未開始 / 進行中 / 已完成 / 已阻擋)
+        // 舊值同時 fallback,migration 過渡期混用也能正確統計。
+        const _WBS_KPI_BUCKET = {
+            New:'NotStarted', Assigned:'NotStarted', NotStarted:'NotStarted',
+            InProgress:'InProgress', InReview:'InProgress',
+            Verified:'Completed', Closed:'Completed', Completed:'Completed',
+            ReworkRequired:'Blocked', Blocked:'Blocked',
+            Cancelled:'Completed',
+        };
+
         function renderWbsKpis() {
             const total = _wbsCache.length;
-            const counts = { NotStarted:0, InProgress:0, Completed:0, Blocked:0, Cancelled:0 };
+            const counts = { NotStarted:0, InProgress:0, Completed:0, Blocked:0 };
             let totalEffort = 0, weightedProgress = 0;
             _wbsCache.forEach(w => {
-                counts[w.status] = (counts[w.status] || 0) + 1;
+                const bucket = _WBS_KPI_BUCKET[w.status] || 'NotStarted';
+                counts[bucket] = (counts[bucket] || 0) + 1;
                 totalEffort += parseFloat(w.effort_hours || 0) || 0;
                 weightedProgress += (parseInt(w.progress, 10) || 0);
             });
@@ -18990,7 +19403,7 @@ gantt
                 : '<i class="fa-solid fa-sitemap text-yellow-500"></i> 新增 WBS 工作項目';
             document.getElementById('wbsName').value = r?.name || '';
             document.getElementById('wbsCode').value = r?.code || '';
-            document.getElementById('wbsStatus').value = r?.status || 'NotStarted';
+            document.getElementById('wbsStatus').value = r?.status || 'New';
             document.getElementById('wbsProgress').value = r?.progress ?? 0;
             document.getElementById('wbsAssignee').value = r?.assignee || (typeof authCurrentUsername === 'function' ? (authCurrentUsername()||'') : '');
             document.getElementById('wbsStart').value = r?.start_date || '';
@@ -21826,6 +22239,9 @@ gantt
             renderHomeCalendar();
         }
 
+        // 統一 7 值狀態判斷:Verified / Closed = 完成;舊值 Done / Cancelled 也視為完成(migration 過渡相容)
+        const _isTodoDone = (st) => st === 'Verified' || st === 'Closed' || st === 'Done' || st === 'Cancelled';
+
         function renderHomeCalendar() {
             const grid = document.getElementById('calGrid');
             const label = document.getElementById('calMonthLabel');
@@ -21855,7 +22271,7 @@ gantt
                 let dotsHtml = '';
                 if (items.length) {
                     const colors = items.slice(0, 4).map(t => {
-                        if (t.status === 'Done' || t.status === 'Cancelled') return 'bg-emerald-500';
+                        if (_isTodoDone(t.status)) return 'bg-emerald-500';
                         if (t.is_overdue) return 'bg-rose-500';
                         if (t.days_to_due != null && t.days_to_due <= 3) return 'bg-amber-500';
                         return 'bg-blue-500';
@@ -21909,7 +22325,7 @@ gantt
 
         function _filterByBucket(items, bucket) {
             return items.filter(t => {
-                const isDone = t.status === 'Done' || t.status === 'Cancelled';
+                const isDone = _isTodoDone(t.status);
                 if (bucket === 'overdue')  return t.is_overdue && !isDone;
                 if (bucket === 'due_soon') return !t.is_overdue && t.days_to_due != null && t.days_to_due <= 3 && !isDone;
                 if (bucket === 'upcoming') return !isDone && (t.days_to_due == null || t.days_to_due > 3);
@@ -21926,8 +22342,19 @@ gantt
                 box.innerHTML = '<div class="p-6 text-center text-stone-400 text-sm">本分桶無待辦</div>';
                 return;
             }
-            const stColor = { Todo:'bg-blue-100 text-blue-700', InProgress:'bg-amber-100 text-amber-700', Done:'bg-emerald-100 text-emerald-700', Cancelled:'bg-stone-200 text-stone-500' };
-            const stLabel = { Todo:'待辦', InProgress:'進行中', Done:'已完成', Cancelled:'已取消' };
+            // 統一 7 值狀態 + 舊值相容映射(過渡期間混用時兩者都能正確顯示)
+            const stColor = {
+                New:'bg-blue-100 text-blue-700', Assigned:'bg-purple-100 text-purple-700',
+                InProgress:'bg-amber-100 text-amber-700', InReview:'bg-cyan-100 text-cyan-700',
+                ReworkRequired:'bg-rose-100 text-rose-700', Verified:'bg-emerald-100 text-emerald-700',
+                Closed:'bg-stone-200 text-stone-500',
+                Todo:'bg-blue-100 text-blue-700', Done:'bg-emerald-100 text-emerald-700', Cancelled:'bg-stone-200 text-stone-500',
+            };
+            const stLabel = {
+                New:'新建立', Assigned:'等待處理', InProgress:'進行中', InReview:'等待審核',
+                ReworkRequired:'退回修改', Verified:'已驗證', Closed:'已關閉',
+                Todo:'待辦', Done:'已完成', Cancelled:'已取消',
+            };
             const prColor = { P0:'bg-red-100 text-red-700', P1:'bg-orange-100 text-orange-700', P2:'bg-amber-100 text-amber-700', P3:'bg-stone-100 text-stone-600' };
             box.innerHTML = filtered.map(t => {
                 let dueBadge = '';
@@ -21937,10 +22364,11 @@ gantt
                     else if (t.days_to_due != null && t.days_to_due <= 3) dueBadge = `<span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-200">${t.days_to_due} 天後</span>`;
                     else if (t.days_to_due != null) dueBadge = `<span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">${t.days_to_due} 天後</span>`;
                 }
+                const done = _isTodoDone(t.status);
                 return `<div class="flex items-start gap-3 px-3 py-2 border-b border-stone-100 hover:bg-amber-50/30">
-                    <input type="checkbox" ${t.status==='Done'?'checked':''} onchange="todoQuickToggle('${_esc(t.id)}', this.checked)" class="mt-1 rounded border-stone-300 text-amber-500 focus:ring-amber-400">
+                    <input type="checkbox" ${done?'checked':''} onchange="todoQuickToggle('${_esc(t.id)}', this.checked)" class="mt-1 rounded border-stone-300 text-amber-500 focus:ring-amber-400">
                     <button type="button" onclick="openTodoModal('${_esc(t.id)}')" class="flex-1 min-w-0 text-left">
-                        <div class="text-sm font-semibold text-stone-800 ${t.status==='Done'?'line-through text-stone-400':''} truncate">${_esc(t.title)}</div>
+                        <div class="text-sm font-semibold text-stone-800 ${done?'line-through text-stone-400':''} truncate">${_esc(t.title)}</div>
                         <div class="flex items-center gap-1.5 mt-1 flex-wrap">
                             <span class="text-[10px] px-1.5 py-0.5 rounded ${stColor[t.status]||''}">${_esc(stLabel[t.status]||t.status)}</span>
                             <span class="text-[10px] px-1.5 py-0.5 rounded ${prColor[t.priority]||''}">${_esc(t.priority)}</span>
@@ -21969,7 +22397,7 @@ gantt
             const par = document.getElementById('todoParent');
             if (!sel || !par) return;
             const allow = BACKLOG_PARENT_RULES[sel.value] || [];
-            const candidates = (_homeTodos || []).filter(it => allow.includes(it.item_type) && (it.status !== 'Done' && it.status !== 'Cancelled'));
+            const candidates = (_homeTodos || []).filter(it => allow.includes(it.item_type) && !_isTodoDone(it.status));
             par.innerHTML = '<option value="">— 無 (頂層) —</option>' +
                 candidates.map(it => `<option value="${_esc(it.id)}">${_esc(BACKLOG_TYPE_LABEL[it.item_type] || it.item_type)} · ${_esc(it.title)}</option>`).join('');
             par.disabled = !allow.length;
@@ -22264,7 +22692,7 @@ gantt
                 : `<i class="fa-solid fa-list-check text-amber-500"></i> 新增 ${_esc(typeLabel)}`;
             document.getElementById('todoTitle').value = t?.title || '';
             document.getElementById('todoDue').value = t?.due_date || defaultDue || '';
-            document.getElementById('todoStatus').value = t?.status || 'Todo';
+            document.getElementById('todoStatus').value = t?.status || 'New';
             document.getElementById('todoPriority').value = t?.priority || 'P2';
             // 指派人下拉:預設新建時填當前使用者,編輯時填現存值
             // 注意:openTodoModal 第三個參數已叫 defaultType,內部用 assigneeType 避免重複宣告
@@ -22580,7 +23008,7 @@ gantt
                     const icon = (BACKLOG_TYPE_LABEL[t.item_type]||'').slice(0,2);
                     return `<div class="px-2 py-1 hover:bg-amber-50 rounded text-xs flex items-center gap-2 cursor-pointer" onclick="document.getElementById('_linkedTodosPopover').remove(); showBacklogView(); setTimeout(()=>{ if (typeof openTodoModal==='function') openTodoModal('${_esc(t.id)}'); }, 200);">
                         <span>${icon}</span>
-                        <span class="text-[10px] px-1.5 py-0.5 rounded ${t.status==='Done'?'bg-emerald-100 text-emerald-700':t.status==='InProgress'?'bg-amber-100 text-amber-700':t.status==='Cancelled'?'bg-stone-200 text-stone-500':'bg-blue-100 text-blue-700'}">${_esc(t.status)}</span>
+                        <span class="text-[10px] px-1.5 py-0.5 rounded ${(t.status==='Verified'||t.status==='Done')?'bg-emerald-100 text-emerald-700':t.status==='InProgress'?'bg-amber-100 text-amber-700':(t.status==='Closed'||t.status==='Cancelled')?'bg-stone-200 text-stone-500':t.status==='ReworkRequired'?'bg-rose-100 text-rose-700':t.status==='InReview'?'bg-cyan-100 text-cyan-700':'bg-blue-100 text-blue-700'}">${_esc(t.status)}</span>
                         <span class="flex-1 min-w-0 truncate">${_esc(t.title)}</span>
                         <span class="text-[10px] text-stone-400">${_esc(t.assignee||'')}</span>
                     </div>`;
@@ -22604,7 +23032,8 @@ gantt
 
         async function todoQuickToggle(id, checked) {
             try {
-                const r = await fetch('/api/todos/'+id, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status: checked ? 'Done' : 'Todo' }) });
+                // 統一 7 值狀態:打勾 → Verified(已驗證);取消勾選 → Assigned(等待處理)
+                const r = await fetch('/api/todos/'+id, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status: checked ? 'Verified' : 'Assigned' }) });
                 if (!r.ok) throw new Error('HTTP '+r.status);
                 reloadHomeTodos();
                 reloadBacklogView();
@@ -22636,16 +23065,19 @@ gantt
             return out;
         }
 
+        // 「待辦清單」已整合進「測試看版」(scope=mine + entity=todo + Sprint 分群可選)。
+        // 此函式保留只為 graceful fallback:任何舊 inline 呼叫(notification badge / linked-todos popover
+        // / hash route 等)都會跳到看板對應的設定。
         function showBacklogView() {
-            if (!_setView('backlogWorkspace',
-                '<i class="fa-solid fa-list-check text-amber-500"></i>',
-                'Backlog',
-                'bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium',
-                '待辦清單',
-                { titleKey: 'view.backlog.title', filenameKey: 'view.backlog.title' })) return;
-            const assigneeSel = document.getElementById('backlogAssigneeFilter');
-            if (assigneeSel && !assigneeSel.dataset.userInteracted) assigneeSel.value = '__me__';
-            reloadBacklogView();
+            try {
+                _kanbanScope = 'mine';
+                _kanbanEntity = 'todo';
+                _kanbanChip = 'active';
+            } catch (_) {}
+            if (typeof showTestKanbanView === 'function') showTestKanbanView();
+            // 同步 entity tab 顏色 + scope toggle UI
+            try { if (typeof kanbanSetEntity === 'function') kanbanSetEntity('todo'); } catch (_) {}
+            try { if (typeof kanbanSetScope === 'function')  kanbanSetScope('mine'); } catch (_) {}
         }
 
         // ─── Tier D-4:我的工作(My Work inbox)──────────────────
@@ -22660,14 +23092,17 @@ gantt
             document:    { icon: 'fa-file-lines', cls: 'text-pink-600', label: '文件' },
             review:      { icon: 'fa-clipboard-check', cls: 'text-emerald-600', label: '審核' },
         };
+        // 「我的工作」已整合進「測試看版」(scope=mine + entity=全部 + chip=未完成)。
+        // 此函式保留為 fallback,任何舊 inline 呼叫都會跳到看板對應的設定。
         function showMyWorkView() {
-            if (!_setView('myWorkWorkspace',
-                '<i class="fa-solid fa-inbox text-amber-600"></i>',
-                'My Work',
-                'bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium',
-                '我的工作',
-                { titleKey: 'view.myWork.title', filenameKey: 'view.myWork.title' })) return;
-            myWorkReload();
+            try {
+                _kanbanScope = 'mine';
+                _kanbanEntity = '';
+                _kanbanChip = 'active';
+            } catch (_) {}
+            if (typeof showTestKanbanView === 'function') showTestKanbanView();
+            try { if (typeof kanbanSetEntity === 'function') kanbanSetEntity(''); } catch (_) {}
+            try { if (typeof kanbanSetScope === 'function')  kanbanSetScope('mine'); } catch (_) {}
         }
         async function myWorkReload() {
             const list = document.getElementById('myWorkList');
@@ -22824,13 +23259,13 @@ gantt
             const ring = ringMap[f];
             if (ring) document.getElementById('backlogKpi' + ring)?.classList.add('ring-2','ring-amber-400');
             // done 需要重撈;從 done 切回非 done 也要重撈
-            const hasDone = _backlogTree.some(n => n.status === 'Done' || n.status === 'Cancelled');
+            const hasDone = _backlogTree.some(n => _isTodoDone(n.status));
             if (f === 'done' || hasDone) { reloadBacklogView(); return; }
             _renderBacklogView();
         }
 
         function _filterBacklogNode(item) {
-            const isDone = item.status === 'Done' || item.status === 'Cancelled';
+            const isDone = _isTodoDone(item.status);
             const f = _backlogFilter;
             const typeFilter = document.getElementById('backlogTypeFilter')?.value || '';
             if (typeFilter && item.item_type !== typeFilter) return false;
@@ -22852,14 +23287,25 @@ gantt
         }
 
         function _renderBacklogRow(item) {
-            const isDone = item.status === 'Done' || item.status === 'Cancelled';
+            const isDone = _isTodoDone(item.status);
             const cls = ['backlog-row'];
             if (isDone) cls.push('is-done');
             else if (item.is_overdue) cls.push('is-overdue');
             else if (item.days_to_due != null && item.days_to_due <= 3) cls.push('is-due-soon');
             const prColor = { P0:'bg-red-100 text-red-700', P1:'bg-orange-100 text-orange-700', P2:'bg-amber-100 text-amber-700', P3:'bg-stone-100 text-stone-600' };
-            const stColor = { Todo:'bg-blue-100 text-blue-700', InProgress:'bg-amber-100 text-amber-700', Done:'bg-emerald-100 text-emerald-700', Cancelled:'bg-stone-200 text-stone-500' };
-            const stLabel = { Todo:'待辦', InProgress:'進行中', Done:'已完成', Cancelled:'已取消' };
+            // 統一 7 值狀態 + 舊值相容(過渡期)
+            const stColor = {
+                New:'bg-blue-100 text-blue-700', Assigned:'bg-purple-100 text-purple-700',
+                InProgress:'bg-amber-100 text-amber-700', InReview:'bg-cyan-100 text-cyan-700',
+                ReworkRequired:'bg-rose-100 text-rose-700', Verified:'bg-emerald-100 text-emerald-700',
+                Closed:'bg-stone-200 text-stone-500',
+                Todo:'bg-blue-100 text-blue-700', Done:'bg-emerald-100 text-emerald-700', Cancelled:'bg-stone-200 text-stone-500',
+            };
+            const stLabel = {
+                New:'新建立', Assigned:'等待處理', InProgress:'進行中', InReview:'等待審核',
+                ReworkRequired:'退回修改', Verified:'已驗證', Closed:'已關閉',
+                Todo:'待辦', Done:'已完成', Cancelled:'已取消',
+            };
             let dueBadge = '';
             if (item.due_date && !isDone) {
                 if (item.is_overdue) dueBadge = `<span class="text-[10px] px-1.5 py-0.5 rounded bg-rose-100 text-rose-700">過期 ${Math.abs(item.days_to_due)} 天</span>`;

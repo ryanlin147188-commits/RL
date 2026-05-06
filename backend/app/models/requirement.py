@@ -30,11 +30,16 @@ class RequirementPriority(str, enum.Enum):
 
 
 class RequirementStatus(str, enum.Enum):
-    DRAFT = "Draft"
-    APPROVED = "Approved"
-    IMPLEMENTED = "Implemented"
+    """統一 7 值狀態 — 對齊 defect / todo / review。
+    舊值 Draft→NEW, Approved→ASSIGNED, Implemented→IN_REVIEW, Deprecated→CLOSED 由 migration 0011 轉換。
+    """
+    NEW = "New"
+    ASSIGNED = "Assigned"
+    IN_PROGRESS = "InProgress"
+    IN_REVIEW = "InReview"
+    REWORK_REQUIRED = "ReworkRequired"
     VERIFIED = "Verified"
-    DEPRECATED = "Deprecated"
+    CLOSED = "Closed"
 
 
 class Requirement(Assignable, TenantScoped, Base):
@@ -63,7 +68,7 @@ class Requirement(Assignable, TenantScoped, Base):
         Enum(RequirementPriority), default=RequirementPriority.SHOULD, nullable=False
     )
     status: Mapped[RequirementStatus] = mapped_column(
-        Enum(RequirementStatus), default=RequirementStatus.DRAFT, nullable=False
+        Enum(RequirementStatus), default=RequirementStatus.NEW, nullable=False
     )
     owner: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
