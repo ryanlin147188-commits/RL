@@ -483,8 +483,15 @@
         // 阻塞式 token 檢查 — 在 DOM render 前同步跑。
         // 有效 token = 已登入 → overlay 直接 hidden,不閃主畫面前的登入框。
         // 沒有 token = 未登入 → overlay 維持 visible,不閃主畫面。
+        // 例外:URL 帶 ?reset_token=... 時,不論有沒有 token 都強制顯示 overlay,
+        // 避免使用者點重置連結卻被自動帶進主畫面。
         (function () {
             try {
+                var hasReset = /[?&]reset_token=/.test(window.location.search || '');
+                if (hasReset) {
+                    document.documentElement.setAttribute('data-auth', 'out');
+                    return;
+                }
                 var t = localStorage.getItem('autotest.auth.access_token');
                 var exp = localStorage.getItem('autotest.auth.access_expires_at');
                 var valid = !!t && (!exp || Date.now() < Number(exp));
@@ -541,10 +548,6 @@
                     class="flex-1 py-3 text-sm font-medium text-amber-600 border-b-2 border-amber-500 bg-white transition">
                     <i class="fa-solid fa-right-to-bracket mr-1"></i> 登入
                 </button>
-                <button type="button" id="authTabRegister" onclick="switchAuthTab('register')"
-                    class="flex-1 py-3 text-sm font-medium text-stone-500 border-b-2 border-transparent hover:text-amber-600 transition">
-                    <i class="fa-solid fa-user-plus mr-1"></i> 註冊
-                </button>
                 <button type="button" id="authTabForgot" onclick="switchAuthTab('forgot')"
                     class="flex-1 py-3 text-sm font-medium text-stone-500 border-b-2 border-transparent hover:text-amber-600 transition">
                     <i class="fa-solid fa-key mr-1"></i> 忘記密碼
@@ -593,56 +596,13 @@
 
             </form>
 
-            <!-- 註冊表單 -->
-            <form id="authRegisterForm" onsubmit="return authHandleRegister(event)" class="px-8 py-6 space-y-4 hidden">
-                <div>
-                    <label for="regUsername" class="block text-xs font-semibold text-stone-600 mb-1.5">使用者名稱 <span class="text-rose-500">*</span></label>
-                    <input type="text" id="regUsername" required pattern="[A-Za-z0-9_]{3,32}" title="3-32 字元，英數與底線"
-                        class="w-full px-3 py-2.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition">
-                    <p class="text-[10px] text-stone-500 mt-1">3-32 字元，限英數與底線</p>
-                </div>
-                <div>
-                    <label for="regEmail" class="block text-xs font-semibold text-stone-600 mb-1.5">Email</label>
-                    <input type="email" id="regEmail"
-                        class="w-full px-3 py-2.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition">
-                </div>
-                <div>
-                    <label for="regPassword" class="block text-xs font-semibold text-stone-600 mb-1.5">密碼 <span class="text-rose-500">*</span></label>
-                    <div class="relative">
-                        <input type="password" id="regPassword" required minlength="6"
-                            class="w-full pl-3 pr-10 py-2.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition">
-                        <button type="button" onclick="togglePasswordVisibility('regPassword', this)" aria-label="顯示/隱藏密碼"
-                            class="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-stone-400 hover:text-amber-500 transition">
-                            <i class="fa-regular fa-eye"></i>
-                        </button>
-                    </div>
-                    <p class="text-[10px] text-stone-500 mt-1">至少 6 字元</p>
-                </div>
-                <div>
-                    <label for="regPassword2" class="block text-xs font-semibold text-stone-600 mb-1.5">再次輸入密碼 <span class="text-rose-500">*</span></label>
-                    <div class="relative">
-                        <input type="password" id="regPassword2" required minlength="6"
-                            class="w-full pl-3 pr-10 py-2.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition">
-                        <button type="button" onclick="togglePasswordVisibility('regPassword2', this)" aria-label="顯示/隱藏密碼"
-                            class="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-stone-400 hover:text-amber-500 transition">
-                            <i class="fa-regular fa-eye"></i>
-                        </button>
-                    </div>
-                </div>
-                <p class="text-[11px] text-stone-500 bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
-                    <i class="fa-solid fa-circle-info text-amber-500 mt-0.5"></i>
-                    <span>系統會以您的 Email 後綴自動歸屬到對應組織。若您有邀請碼,登入後到 <b>設定 → 兌換邀請碼</b> 輸入即可加入指定組織。</span>
-                </p>
-                <button type="submit" class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-lg font-semibold text-sm shadow-md transition flex items-center justify-center gap-2">
-                    <i class="fa-solid fa-user-plus"></i> 建立帳號
-                </button>
-            </form>
+            <!-- 註冊表單已下架:本系統禁止自助註冊,所有帳號由管理員建立。 -->
 
-            <!-- 忘記密碼表單（直接重設：需輸入帳號 + Email + 新密碼） -->
+            <!-- 忘記密碼表單(寄重置連結到 email) -->
             <form id="authForgotForm" onsubmit="return authHandleForgot(event)" class="px-8 py-6 space-y-4 hidden">
                 <p class="text-xs text-stone-600 bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
                     <i class="fa-solid fa-circle-info text-amber-500 mt-0.5"></i>
-                    <span>請輸入你的 <b>使用者名稱</b>、<b>註冊 Email</b> 與 <b>新密碼</b>。兩者比對成功後即時重設密碼。</span>
+                    <span>請輸入您的 <b>使用者名稱</b> 與 <b>註冊 Email</b>,系統會將密碼重置連結寄到您的信箱。</span>
                 </p>
                 <div>
                     <label for="forgotUsername" class="block text-xs font-semibold text-stone-600 mb-1.5">使用者名稱</label>
@@ -660,13 +620,27 @@
                             class="w-full pl-9 pr-3 py-2.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition">
                     </div>
                 </div>
+                <button type="submit" id="authForgotSubmitBtn" class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-lg font-semibold text-sm shadow-md transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-paper-plane"></i> 寄送重置連結
+                </button>
+                <div id="authForgotSentNote" class="hidden text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded p-3">
+                    <i class="fa-solid fa-circle-check"></i> 若帳號 / Email 正確,我們已將密碼重置連結寄到您的信箱,請至信箱查收(連結 1 小時內有效)。
+                </div>
+            </form>
+
+            <!-- 設定新密碼表單(從 email 連結點進來,URL 帶 ?reset_token=...) -->
+            <form id="authResetPwdForm" onsubmit="return authHandleResetPwd(event)" class="px-8 py-6 space-y-4 hidden">
+                <p class="text-xs text-stone-600 bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
+                    <i class="fa-solid fa-circle-info text-amber-500 mt-0.5"></i>
+                    <span id="authResetPwdHint">請設定您的新密碼。設定完成後會自動回到登入頁。</span>
+                </p>
                 <div>
-                    <label for="forgotNewPwd" class="block text-xs font-semibold text-stone-600 mb-1.5">新密碼</label>
+                    <label for="resetNewPwd" class="block text-xs font-semibold text-stone-600 mb-1.5">新密碼</label>
                     <div class="relative">
                         <i class="fa-solid fa-lock absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm"></i>
-                        <input type="password" id="forgotNewPwd" required minlength="6" autocomplete="new-password"
+                        <input type="password" id="resetNewPwd" required minlength="6" autocomplete="new-password"
                             class="w-full pl-9 pr-10 py-2.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition">
-                        <button type="button" onclick="togglePasswordVisibility('forgotNewPwd', this)" aria-label="顯示/隱藏密碼"
+                        <button type="button" onclick="togglePasswordVisibility('resetNewPwd', this)" aria-label="顯示/隱藏密碼"
                             class="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-stone-400 hover:text-amber-500 transition">
                             <i class="fa-regular fa-eye"></i>
                         </button>
@@ -674,21 +648,86 @@
                     <p class="text-[10px] text-stone-500 mt-1">至少 6 字元</p>
                 </div>
                 <div>
-                    <label for="forgotNewPwd2" class="block text-xs font-semibold text-stone-600 mb-1.5">再次輸入新密碼</label>
+                    <label for="resetNewPwd2" class="block text-xs font-semibold text-stone-600 mb-1.5">再次輸入新密碼</label>
                     <div class="relative">
                         <i class="fa-solid fa-lock absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm"></i>
-                        <input type="password" id="forgotNewPwd2" required minlength="6" autocomplete="new-password"
+                        <input type="password" id="resetNewPwd2" required minlength="6" autocomplete="new-password"
                             class="w-full pl-9 pr-10 py-2.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition">
-                        <button type="button" onclick="togglePasswordVisibility('forgotNewPwd2', this)" aria-label="顯示/隱藏密碼"
+                        <button type="button" onclick="togglePasswordVisibility('resetNewPwd2', this)" aria-label="顯示/隱藏密碼"
                             class="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-stone-400 hover:text-amber-500 transition">
                             <i class="fa-regular fa-eye"></i>
                         </button>
                     </div>
                 </div>
                 <button type="submit" class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-lg font-semibold text-sm shadow-md transition flex items-center justify-center gap-2">
-                    <i class="fa-solid fa-rotate"></i> 重設密碼
+                    <i class="fa-solid fa-rotate"></i> 設定新密碼
                 </button>
             </form>
+        </div>
+    </div>
+
+    <!-- 強制改密碼 Modal:登入後若 must_change_password=true 自動開啟,
+         未完成前所有 API 都會被後端擋下(403 + code=must_change_password)。
+         同時也會被 apiFetch 攔截器自動觸發。 -->
+    <div id="forcePwdModal" class="hidden fixed inset-0 z-[210] bg-stone-900/60 flex items-center justify-center p-4">
+        <div class="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-amber-200/60 overflow-hidden">
+            <div class="bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-4 text-white">
+                <h3 class="font-bold text-base flex items-center gap-2">
+                    <i class="fa-solid fa-shield-halved"></i> 首次登入請設定新密碼
+                </h3>
+                <p class="text-xs opacity-90 mt-1">為了帳號安全,請立即更換預設密碼後再開始使用系統。</p>
+            </div>
+            <form id="forcePwdForm" onsubmit="return forcePwdHandleSubmit(event)" class="px-6 py-5 space-y-3">
+                <div>
+                    <label for="forcePwdOld" class="block text-xs font-semibold text-stone-600 mb-1">目前密碼</label>
+                    <input type="password" id="forcePwdOld" required autocomplete="current-password"
+                        class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+                </div>
+                <div>
+                    <label for="forcePwdNew" class="block text-xs font-semibold text-stone-600 mb-1">新密碼</label>
+                    <input type="password" id="forcePwdNew" required minlength="6" autocomplete="new-password"
+                        class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+                    <p class="text-[10px] text-stone-500 mt-1">至少 6 字元,且不可與目前密碼相同</p>
+                </div>
+                <div>
+                    <label for="forcePwdNew2" class="block text-xs font-semibold text-stone-600 mb-1">再次輸入新密碼</label>
+                    <input type="password" id="forcePwdNew2" required minlength="6" autocomplete="new-password"
+                        class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+                </div>
+                <button type="submit"
+                    class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-lg font-semibold text-sm shadow-md transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-floppy-disk"></i> 變更密碼並繼續
+                </button>
+                <p class="text-[10px] text-stone-400 text-center">未變更密碼前無法使用其他功能。</p>
+            </form>
+        </div>
+    </div>
+
+    <!-- 版本歷史 Modal (通用,6 個 entity 共用)──────────────────────────
+         流程:呼叫 openEntityVersionsModal('testcase' | 'defect' | ...)→ 載入版本列表
+         → 顯示時間軸(版本號 / 狀態 / 來源 / 操作者 / 時間 / [還原])。
+         需 superuser 才能還原(後端會擋,前端只是 UX hint)。-->
+    <div id="entityVersionsModal" class="hidden fixed inset-0 z-[200] bg-black/50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col">
+            <div class="px-6 py-4 border-b border-stone-200 flex items-center justify-between">
+                <div>
+                    <h3 class="font-bold text-stone-800 flex items-center gap-2">
+                        <i class="fa-solid fa-clock-rotate-left text-amber-500"></i> 版本歷史
+                        <span id="evhEntityLabel" class="text-sm font-normal text-stone-500"></span>
+                    </h3>
+                    <p class="text-[11px] text-stone-500 mt-0.5">
+                        每次寫入(AI 生成 / 人工編輯 / 審核 / 還原)都會留一筆快照。可在此查閱並還原至任意版本。
+                    </p>
+                </div>
+                <button onclick="closeEntityVersionsModal()" class="text-stone-400 hover:text-rose-600 p-1.5 rounded hover:bg-stone-100">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div id="evhBody" class="flex-1 overflow-y-auto p-6 space-y-2">
+                <div class="text-center text-stone-400 text-xs py-8">
+                    <i class="fa-solid fa-spinner fa-spin"></i> 載入版本歷史…
+                </div>
+            </div>
         </div>
     </div>
 
@@ -967,7 +1006,10 @@
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-xl border border-amber-200 max-h-[90vh] overflow-y-auto">
             <div class="px-6 py-4 border-b border-stone-200 bg-amber-50/60 flex items-center justify-between">
                 <h3 id="todoModalTitle" class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-list-check text-amber-500"></i> 新增待辦</h3>
-                <button type="button" onclick="closeTodoModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+                <div class="flex items-center gap-2">
+                    <button type="button" onclick="if(_editingTodoId)openEntityVersionsModal('todo',_editingTodoId,document.getElementById('todoTitle').value)" id="todoVersionsBtn" class="hidden text-xs px-2.5 py-1 border border-amber-300 text-amber-700 rounded hover:bg-amber-50" title="檢視版本歷史 / 還原"><i class="fa-solid fa-clock-rotate-left"></i> 版本歷史</button>
+                    <button type="button" onclick="closeTodoModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+                </div>
             </div>
             <form onsubmit="return todoSubmit(event)" class="p-6 space-y-3">
                 <!-- 類型 + 父項(階層約束:Task/Bug/Spike 可選 Feature 父) -->
@@ -1159,33 +1201,8 @@
                     <button onclick="runTest()" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium shadow-sm transition flex items-center gap-2">
                         <i class="fa-solid fa-play"></i> 執行測試
                     </button>
-                    <!-- 執行設定（齒輪 popover）：Trace+Video / DDT 展開 -->
-                    <div class="relative">
-                        <button type="button" onclick="toggleRunOptionsPopover(event)" aria-label="執行設定" title="執行設定"
-                            class="px-3 py-2 border border-slate-300 rounded-md text-slate-600 hover:bg-slate-50 font-medium transition flex items-center gap-2 shadow-sm">
-                            <i class="fa-solid fa-gear"></i>
-                        </button>
-                        <div id="runOptionsPopover" class="hidden absolute right-0 mt-2 w-72 bg-white border border-slate-200 rounded-md shadow-lg p-3 z-30">
-                            <p class="text-xs font-semibold text-slate-500 mb-2">執行設定</p>
-                            <label class="flex items-start gap-2 py-1 cursor-pointer">
-                                <input type="checkbox" id="optEnableRecording" checked class="mt-0.5">
-                                <span>
-                                    <span class="text-sm text-slate-800">啟用 Trace（軌跡）+ Video（錄影）</span>
-                                    <span class="block text-[11px] text-slate-500">產生 trace.zip / .webm；關閉可加快執行</span>
-                                </span>
-                            </label>
-                            <!-- 「展開 DDT 每一列都執行」選項暫時隱藏（預設僅以第一列當變數來源跑一次；需要時請在此取消註解）
-                            <label class="flex items-start gap-2 py-1 cursor-pointer">
-                                <input type="checkbox" id="optDdtExpand" class="mt-0.5">
-                                <span>
-                                    <span class="text-sm text-slate-800">展開 DDT 每一列都執行</span>
-                                    <span class="block text-[11px] text-slate-500">預設僅以第一列當變數來源跑一次</span>
-                                </span>
-                            </label>
-                            -->
-                            <p class="text-[11px] text-slate-400 mt-1 pt-1 border-t border-slate-100">DDT 預設僅以第一列當變數來源執行一次</p>
-                        </div>
-                    </div>
+                    <!-- 執行設定已移到「設定 → 個人偏好」(localStorage 持久化跨案例)。
+                         此處不再顯示齒輪;getRunOptions() 會直接讀偏好。 -->
                 </div>
             </div>
 
@@ -3051,21 +3068,130 @@ driver.swipe(100, 800, 100, 200, 500)"
                 </div>
             </div>
 
+            <!-- 建立新使用者 Modal(superuser-only) -->
+            <div id="pmCreateUserModal" class="hidden fixed inset-0 z-[170] bg-black/40 flex items-center justify-center p-4">
+                <div class="bg-white rounded-lg shadow-xl border border-stone-200 w-full max-w-md">
+                    <div class="px-5 py-3 border-b flex justify-between items-center">
+                        <div class="font-bold text-stone-800"><i class="fa-solid fa-user-plus text-emerald-600"></i> 建立新使用者</div>
+                        <button onclick="pmCloseCreateUserModal()" class="text-stone-400 hover:text-rose-600"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <form onsubmit="return pmSubmitCreateUser(event)" class="p-4 space-y-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-stone-600 mb-1">使用者名稱 <span class="text-rose-500">*</span></label>
+                            <input type="text" id="pmCuUsername" required pattern="[A-Za-z0-9_]{3,32}" autocomplete="off"
+                                class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm">
+                            <p class="text-[10px] text-stone-500 mt-1">3-32 字元,英數與底線</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-stone-600 mb-1">顯示名稱</label>
+                            <input type="text" id="pmCuDisplayName" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-stone-600 mb-1">Email</label>
+                            <input type="email" id="pmCuEmail" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-stone-600 mb-1">初始密碼 <span class="text-rose-500">*</span></label>
+                            <input type="text" id="pmCuPassword" required minlength="6" autocomplete="new-password"
+                                class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm font-mono">
+                            <p class="text-[10px] text-stone-500 mt-1">至少 6 字元;使用者第一次登入後會被強制修改。</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-stone-600 mb-1">系統角色</label>
+                            <select id="pmCuRoleId" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm">
+                                <option value="">— 無角色 —</option>
+                            </select>
+                        </div>
+                        <label class="flex items-center gap-2 text-xs text-stone-600 cursor-pointer">
+                            <input type="checkbox" id="pmCuAddToProject" checked class="rounded border-stone-300 text-emerald-500 focus:ring-emerald-400">
+                            <span>建立後同時加入<b id="pmCuProjectName">當前專案</b>為成員</span>
+                        </label>
+                        <div class="flex justify-end gap-2 pt-2">
+                            <button type="button" onclick="pmCloseCreateUserModal()" class="px-3 py-1.5 text-sm border border-stone-300 rounded hover:bg-stone-50">取消</button>
+                            <button type="submit" class="px-4 py-1.5 text-sm bg-emerald-500 hover:bg-emerald-600 text-white rounded font-semibold">建立</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- 編輯使用者 Modal -->
+            <div id="pmEditUserModal" class="hidden fixed inset-0 z-[170] bg-black/40 flex items-center justify-center p-4">
+                <div class="bg-white rounded-lg shadow-xl border border-stone-200 w-full max-w-md">
+                    <div class="px-5 py-3 border-b flex justify-between items-center">
+                        <div class="font-bold text-stone-800"><i class="fa-solid fa-user-pen text-amber-600"></i> 編輯使用者 <span id="pmEuTitleUsername" class="text-stone-500 text-sm font-mono"></span></div>
+                        <button onclick="pmCloseEditUserModal()" class="text-stone-400 hover:text-rose-600"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <form onsubmit="return pmSubmitEditUser(event)" class="p-4 space-y-3">
+                        <input type="hidden" id="pmEuUsername">
+                        <div>
+                            <label class="block text-xs font-semibold text-stone-600 mb-1">顯示名稱</label>
+                            <input type="text" id="pmEuDisplayName" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-stone-600 mb-1">Email</label>
+                            <input type="email" id="pmEuEmail" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-stone-600 mb-1">系統角色</label>
+                            <select id="pmEuRoleId" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm">
+                                <option value="">— 無角色 —</option>
+                            </select>
+                        </div>
+                        <label class="flex items-center gap-2 text-xs text-stone-600 cursor-pointer">
+                            <input type="checkbox" id="pmEuIsActive" class="rounded border-stone-300 text-amber-500 focus:ring-amber-400">
+                            <span>啟用(取消勾選 = 停用此帳號,本人無法登入)</span>
+                        </label>
+                        <label class="flex items-center gap-2 text-xs text-stone-600 cursor-pointer">
+                            <input type="checkbox" id="pmEuIsSuperuser" class="rounded border-stone-300 text-rose-500 focus:ring-rose-400">
+                            <span class="text-rose-700 font-semibold">系統管理員(superuser)</span>
+                        </label>
+                        <div class="flex justify-between gap-2 pt-2">
+                            <button type="button" onclick="pmOpenResetPwdModal()" class="px-3 py-1.5 text-xs border border-amber-300 text-amber-700 rounded hover:bg-amber-50"><i class="fa-solid fa-key"></i> 重設密碼</button>
+                            <div class="flex gap-2">
+                                <button type="button" onclick="pmCloseEditUserModal()" class="px-3 py-1.5 text-sm border border-stone-300 rounded hover:bg-stone-50">取消</button>
+                                <button type="submit" class="px-4 py-1.5 text-sm bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold">儲存</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- 重設密碼 Modal(superuser-only;對方下次登入會被強制再改一次) -->
+            <div id="pmResetPwdModal" class="hidden fixed inset-0 z-[180] bg-black/40 flex items-center justify-center p-4">
+                <div class="bg-white rounded-lg shadow-xl border border-stone-200 w-full max-w-sm">
+                    <div class="px-5 py-3 border-b flex justify-between items-center">
+                        <div class="font-bold text-stone-800"><i class="fa-solid fa-key text-amber-600"></i> 重設 <span id="pmRpTargetUsername" class="font-mono"></span> 的密碼</div>
+                        <button onclick="pmCloseResetPwdModal()" class="text-stone-400 hover:text-rose-600"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <form onsubmit="return pmSubmitResetPwd(event)" class="p-4 space-y-3">
+                        <p class="text-[11px] text-stone-500 bg-amber-50 border border-amber-200 rounded p-2">
+                            <i class="fa-solid fa-circle-info text-amber-500"></i>
+                            重設後對方下次登入會被自動要求再次修改密碼,管理員不會看到對方的最終密碼。
+                        </p>
+                        <div>
+                            <label class="block text-xs font-semibold text-stone-600 mb-1">新密碼</label>
+                            <input type="text" id="pmRpNewPassword" required minlength="6" autocomplete="new-password"
+                                class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm font-mono">
+                            <p class="text-[10px] text-stone-500 mt-1">至少 6 字元</p>
+                        </div>
+                        <div class="flex justify-end gap-2 pt-2">
+                            <button type="button" onclick="pmCloseResetPwdModal()" class="px-3 py-1.5 text-sm border border-stone-300 rounded hover:bg-stone-50">取消</button>
+                            <button type="submit" class="px-4 py-1.5 text-sm bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold">確認重設</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
             <!-- 視圖：使用者設定 -->
             <div id="userSettingsWorkspace" class="flex-1 overflow-y-auto p-6 bg-amber-50/30 hidden">
                 <div class="max-w-5xl mx-auto">
                     <!-- 6 個分頁切換 -->
                     <div class="bg-white rounded-lg border border-amber-100 shadow-sm p-2 mb-4 flex gap-1 flex-wrap">
                         <button id="setTabUser"     onclick="settingsSwitchTab('user')"     class="px-3 py-1.5 text-sm font-medium rounded text-amber-700 bg-amber-50 border border-amber-300"><i class="fa-solid fa-user-circle"></i> <span data-i18n="settings.tab.user">設定</span></button>
-                        <button id="setTabPerms"    onclick="settingsSwitchTab('perms')"    class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-shield"></i> <span data-i18n="settings.tab.perms">權限管理</span></button>
-                        <button id="setTabRoles"    onclick="settingsSwitchTab('roles')"    class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-user-tag"></i> <span data-i18n="settings.tab.roles">角色管理</span></button>
                         <button id="setTabNotif"    onclick="settingsSwitchTab('notif')"    class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-bell"></i> <span data-i18n="settings.tab.notif">通知設定</span></button>
                         <button id="setTabEmail"    onclick="settingsSwitchTab('email')"    class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-envelope"></i> <span data-i18n="settings.tab.email">電子郵件</span></button>
                         <button id="setTabAi"       onclick="settingsSwitchTab('ai')"       class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-robot"></i> <span data-i18n="settings.tab.ai">AI Token</span></button>
-                        <button id="setTabGroups"   onclick="settingsSwitchTab('groups')"   class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-people-group"></i> <span data-i18n="settings.tab.groups">群組</span></button>
-                        <button id="setTabInvites"  onclick="settingsSwitchTab('invites')"  class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-at"></i> <span data-i18n="settings.tab.invites">成員歸屬</span></button>
-                        <button id="setTabOrgMembers" onclick="settingsSwitchTab('orgMembers')" class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-users"></i> <span data-i18n="settings.tab.orgmembers">組織成員</span></button>
-                        <button id="setTabProjectMembers" onclick="settingsSwitchTab('projectMembers')" class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-users-gear"></i> <span data-i18n="settings.tab.projectmembers">專案成員</span></button>
+                        <button id="setTabProjectMembers" onclick="settingsSwitchTab('projectMembers')" class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-users-gear"></i> <span data-i18n="settings.tab.projectmembers">專案協作成員</span></button>
                     </div>
 
                     <!-- ─── Pane 1: 使用者設定（保留原本內容） ─── -->
@@ -3111,15 +3237,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                                 <label for="usDisplayName" class="block text-xs font-semibold text-stone-600 mb-1">顯示名稱</label>
                                 <input type="text" id="usDisplayName" placeholder="選填,會顯示在報告的「觸發者」欄位"
                                     class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400">
-                            </div>
-                            <div>
-                                <label for="usRoleSel" class="block text-xs font-semibold text-stone-600 mb-1">
-                                    角色
-                                    <span class="text-[10px] text-stone-400 font-normal">(決定可用功能)</span>
-                                </label>
-                                <select id="usRoleSel" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400">
-                                    <option value="">— 無角色 —</option>
-                                </select>
                             </div>
                         </div>
                         <div class="flex justify-end mt-5">
@@ -3209,6 +3326,13 @@ driver.swipe(100, 800, 100, 200, 500)"
                                     <span class="block text-[11px] text-stone-500">保護工作成果，避免誤切導致變更遺失</span>
                                 </span>
                             </label>
+                            <label class="flex items-start gap-2 cursor-pointer">
+                                <input type="checkbox" id="usPrefEnableRecording" class="mt-0.5 rounded border-stone-300 text-amber-500 focus:ring-amber-400">
+                                <span>
+                                    <span class="text-sm text-stone-700">啟用 Trace（軌跡）+ Video（錄影）</span>
+                                    <span class="block text-[11px] text-stone-500">產生 trace.zip / .webm；關閉可加快執行</span>
+                                </span>
+                            </label>
                             <div class="flex justify-end">
                                 <button type="button" onclick="saveUserPrefs()"
                                     class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold shadow-sm transition flex items-center gap-2">
@@ -3245,49 +3369,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                     </section>
                     </div>
 
-                    <!-- ─── Pane 2: 權限管理（唯讀清單；可指派給角色） ─── -->
-                    <div id="setPanePerms" class="hidden space-y-4">
-                        <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-6">
-                            <h3 class="font-bold text-stone-700 text-base mb-2 flex items-center gap-2"><i class="fa-solid fa-shield text-amber-500"></i> 系統權限清單</h3>
-                            <p class="text-xs text-stone-500 mb-4">這份權限清單由後端定義；要把哪些權限給誰請到「角色管理」分頁勾選 → 然後把使用者指派到該角色。</p>
-                            <div id="permsCatalogue" class="space-y-4"></div>
-                        </section>
-                    </div>
-
-                    <!-- ─── Pane 3: 角色管理 ─── -->
-                    <div id="setPaneRoles" class="hidden space-y-4">
-                        <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-4">
-                            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
-                                <h3 class="font-bold text-stone-700 text-base flex items-center gap-2"><i class="fa-solid fa-user-tag text-amber-500"></i> 角色與權限</h3>
-                                <div class="flex items-center gap-2">
-                                    <button onclick="renderRolesList()" class="text-xs px-2.5 py-1.5 border border-stone-300 rounded hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
-                                    <button onclick="openRoleModal()" class="text-xs px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold"><i class="fa-solid fa-plus"></i> 新增角色</button>
-                                </div>
-                            </div>
-                            <div class="mb-2 relative">
-                                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-xs"></i>
-                                <input type="search" id="rolesSearch" oninput="rolesOnSearchInput(this.value)"
-                                    placeholder="搜尋角色名稱 / 說明…"
-                                    class="w-full pl-8 pr-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400">
-                            </div>
-                            <div class="overflow-hidden border border-stone-100 rounded-md">
-                                <table class="w-full text-sm">
-                                    <thead class="bg-amber-50/60 text-stone-600 text-xs uppercase">
-                                        <tr>
-                                            <th class="p-3 text-left cursor-pointer select-none hover:bg-amber-100/60" onclick="rolesToggleSort('name')">角色名稱 <span id="rolesSortName"></span></th>
-                                            <th class="p-3 text-left">說明</th>
-                                            <th class="p-3 w-28 text-center cursor-pointer select-none hover:bg-amber-100/60" onclick="rolesToggleSort('perms_count')">權限數 <span id="rolesSortCount"></span></th>
-                                            <th class="p-3 w-28 text-center cursor-pointer select-none hover:bg-amber-100/60" onclick="rolesToggleSort('usage_total')" title="使用此角色的人數(組織 + 專案)">使用數 <span id="rolesSortUsage"></span></th>
-                                            <th class="p-3 w-24 text-center">類型</th>
-                                            <th class="p-3 w-32 text-center">操作</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="rolesListBody" class="divide-y divide-stone-100"></tbody>
-                                </table>
-                            </div>
-                            <div class="mt-2 text-[11px] text-stone-500" id="rolesFilterHint"></div>
-                        </section>
-                    </div>
 
                     <!-- ─── Pane 4: 通知設定（per-user grid） ─── -->
                     <div id="setPaneNotif" class="hidden space-y-4">
@@ -3333,64 +3414,18 @@ driver.swipe(100, 800, 100, 200, 500)"
                     </div>
 
                     <!-- ─── Pane 9: 組織成員(Phase 7 多租戶)─── -->
-                    <div id="setPaneOrgMembers" class="hidden space-y-4">
-                        <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-4">
-                            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
-                                <h3 class="font-bold text-stone-700 text-base flex items-center gap-2"><i class="fa-solid fa-users text-amber-500"></i> 組織成員(<span id="omOrgName">—</span>)</h3>
-                                <div class="flex items-center gap-2">
-                                    <button onclick="omReload()" class="text-xs px-2.5 py-1.5 border border-stone-300 rounded hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
-                                </div>
-                            </div>
-                            <p class="text-xs text-stone-500 mb-3">列出當前組織所有成員與其組織層角色;切換組織透過上方列右側的「組織」下拉。</p>
-                            <div class="mb-2 relative">
-                                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-xs"></i>
-                                <input type="search" id="omSearch" oninput="omOnSearchInput(this.value)"
-                                    placeholder="搜尋使用者名稱 / 顯示名稱 / Email…"
-                                    class="w-full pl-8 pr-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400">
-                            </div>
-                            <div id="omBulkBar" class="hidden mb-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded flex items-center gap-3 text-xs">
-                                <span class="font-semibold text-amber-700">已選 <span id="omBulkCount">0</span> 人</span>
-                                <select id="omBulkRoleSelect" class="px-2 py-1 border border-stone-300 rounded text-xs bg-white"></select>
-                                <button onclick="omBulkApplyRole()" class="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold">套用角色</button>
-                                <button onclick="omBulkClear()" class="text-stone-500 hover:text-stone-700 ml-auto"><i class="fa-solid fa-xmark"></i> 取消選取</button>
-                            </div>
-                            <div class="overflow-hidden border border-stone-100 rounded-md">
-                                <table class="w-full text-sm">
-                                    <thead class="bg-amber-50/60 text-stone-600 text-xs uppercase">
-                                        <tr>
-                                            <th class="p-3 w-8 text-center"><input type="checkbox" id="omSelectAll" onchange="omToggleSelectAll(this.checked)" class="rounded border-stone-300 text-amber-500 focus:ring-amber-400"></th>
-                                            <th class="p-3 text-left cursor-pointer select-none hover:bg-amber-100/60" onclick="omToggleSort('username')">使用者 <span id="omSortUsername"></span></th>
-                                            <th class="p-3 text-left cursor-pointer select-none hover:bg-amber-100/60" onclick="omToggleSort('email')">Email <span id="omSortEmail"></span></th>
-                                            <th class="p-3 text-left w-48">Org 角色</th>
-                                            <th class="p-3 text-left w-24">狀態</th>
-                                            <th class="p-3 text-left w-28 cursor-pointer select-none hover:bg-amber-100/60" onclick="omToggleSort('joined_at')">加入時間 <span id="omSortJoinedAt"></span></th>
-                                            <th class="p-3 text-center w-20"></th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="omTableBody" class="divide-y divide-stone-100">
-                                        <tr><td colspan="7" class="p-4 text-center text-stone-400">載入中…</td></tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                            <div class="mt-2 text-[11px] text-stone-500" id="omFilterHint"></div>
-                            <div class="mt-2 text-[11px] text-stone-500">
-                                <i class="fa-solid fa-circle-info text-amber-500"></i>
-                                想限縮某使用者只能看特定專案?到右邊「<b>專案成員</b>」分頁管理;這裡只管 org 層的可見性。
-                            </div>
-                        </section>
-                    </div>
 
-                    <!-- ─── Pane 10: 專案成員(Phase 5 多租戶,當前專案 scope)─── -->
+                    <!-- ─── Pane 10: 專案協作成員(當前專案 scope) ─── -->
                     <div id="setPaneProjectMembers" class="hidden space-y-4">
                         <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-4">
                             <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
                                 <div class="flex-1 min-w-0">
-                                    <h3 class="font-bold text-stone-700 text-base flex items-center gap-2"><i class="fa-solid fa-users-gear text-amber-500"></i> 專案成員(<span id="pmCurrentProjectName">—</span>)</h3>
-                                    <p class="text-xs text-stone-500 mt-1" data-i18n="pm.subtitle">當前專案的成員與 per-project 角色</p>
+                                    <h3 class="font-bold text-stone-700 text-base flex items-center gap-2"><i class="fa-solid fa-users-gear text-amber-500"></i> 專案協作成員(<span id="pmCurrentProjectName">—</span>)</h3>
+                                    <p class="text-xs text-stone-500 mt-1" data-i18n="pm.subtitle">當前專案的協作者帳號與基本資料管理</p>
                                 </div>
                                 <div class="flex items-center gap-2">
                                     <button onclick="pmReload()" class="text-xs px-2.5 py-1.5 border border-stone-300 rounded hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
-                                    <button onclick="pmOpenAddModal()" class="text-xs px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold"><i class="fa-solid fa-user-plus"></i> 加成員</button>
+                                    <button onclick="pmOpenCreateUserModal()" class="text-xs px-2.5 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded font-semibold" title="建立全新帳號並加入此專案"><i class="fa-solid fa-user-plus"></i> 建立新使用者</button>
                                 </div>
                             </div>
 
@@ -3405,148 +3440,27 @@ driver.swipe(100, 800, 100, 200, 500)"
                                     placeholder="搜尋使用者名稱 / 顯示名稱 / Email…"
                                     class="w-full pl-8 pr-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400">
                             </div>
-                            <div id="pmBulkBar" class="hidden mb-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded flex items-center gap-3 text-xs">
-                                <span class="font-semibold text-amber-700">已選 <span id="pmBulkCount">0</span> 人</span>
-                                <select id="pmBulkRoleSelect" class="px-2 py-1 border border-stone-300 rounded text-xs bg-white"></select>
-                                <button onclick="pmBulkApplyRole()" class="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold">套用角色</button>
-                                <button onclick="pmBulkClear()" class="text-stone-500 hover:text-stone-700 ml-auto"><i class="fa-solid fa-xmark"></i> 取消選取</button>
-                            </div>
                             <div id="pmTableWrap" class="overflow-hidden border border-stone-100 rounded-md">
                                 <table class="w-full text-sm">
                                     <thead class="bg-amber-50/60 text-stone-600 text-xs uppercase">
                                         <tr>
-                                            <th class="p-3 w-8 text-center"><input type="checkbox" id="pmSelectAll" onchange="pmToggleSelectAll(this.checked)" class="rounded border-stone-300 text-amber-500 focus:ring-amber-400"></th>
                                             <th class="p-3 text-left cursor-pointer select-none hover:bg-amber-100/60" onclick="pmToggleSort('username')">使用者 <span id="pmSortUsername"></span></th>
                                             <th class="p-3 text-left cursor-pointer select-none hover:bg-amber-100/60" onclick="pmToggleSort('email')">Email <span id="pmSortEmail"></span></th>
-                                            <th class="p-3 text-left w-56">角色(per-project)</th>
                                             <th class="p-3 text-left w-24">狀態</th>
                                             <th class="p-3 text-left w-28 cursor-pointer select-none hover:bg-amber-100/60" onclick="pmToggleSort('joined_at')">加入時間 <span id="pmSortJoinedAt"></span></th>
-                                            <th class="p-3 text-center w-20"></th>
+                                            <th class="p-3 text-center w-32">操作</th>
                                         </tr>
                                     </thead>
                                     <tbody id="pmTableBody" class="divide-y divide-stone-100">
-                                        <tr><td colspan="7" class="p-4 text-center text-stone-400" data-i18n="common.loading">載入中…</td></tr>
+                                        <tr><td colspan="5" class="p-4 text-center text-stone-400" data-i18n="common.loading">載入中…</td></tr>
                                     </tbody>
                                 </table>
                             </div>
                             <div class="mt-2 text-[11px] text-stone-500" id="pmFilterHint"></div>
-                            <div class="mt-2 text-[11px] text-stone-500">
-                                <i class="fa-solid fa-circle-info text-amber-500"></i>
-                                per-project 角色為空 = 從組織層(OrgMembership)繼承;指定後 override 該專案內的權限。
-                            </div>
                         </section>
                     </div>
 
                     <!-- ─── Pane 8: 邀請 + Email Domain 自動歸屬 ─── -->
-                    <div id="setPaneInvites" class="hidden space-y-4">
-                        <!-- Email Domain 自動歸屬:本 org 的 email 後綴白名單 -->
-                        <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-4">
-                            <h3 class="font-bold text-stone-700 text-base flex items-center gap-2 mb-2"><i class="fa-solid fa-at text-amber-500"></i> Email Domain 自動歸屬</h3>
-                            <p class="text-xs text-stone-500 mb-3">註冊時若 Email 後綴(例:<code class="bg-stone-100 px-1 rounded">@acme.com</code>)在這份清單裡,新使用者會自動加入本組織。多個 domain 用逗號分隔。</p>
-                            <div class="flex items-center gap-2">
-                                <input type="text" id="orgEmailDomains" placeholder="acme.com, acme.io, sub.example.org"
-                                    class="flex-1 px-3 py-2 border border-stone-300 rounded-md text-sm font-mono">
-                                <button onclick="previewOrgEmailDomains()" class="px-3 py-2 border border-amber-300 text-amber-700 hover:bg-amber-50 rounded text-xs font-semibold whitespace-nowrap" title="顯示哪些已註冊使用者會被這份清單 catch"><i class="fa-solid fa-magnifying-glass"></i> 預覽</button>
-                                <button onclick="saveOrgEmailDomains()" class="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded text-xs font-semibold whitespace-nowrap"><i class="fa-solid fa-floppy-disk"></i> 儲存</button>
-                            </div>
-                            <p id="orgEmailDomainsHint" class="text-[10px] text-stone-400 mt-1">—</p>
-                        </section>
-
-                        <!-- 邀請碼管理(C4) -->
-                        <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-4">
-                            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
-                                <h3 class="font-bold text-stone-700 text-base flex items-center gap-2"><i class="fa-solid fa-envelope-open-text text-amber-500"></i> 邀請碼管理</h3>
-                                <div class="flex items-center gap-2">
-                                    <button onclick="invReload()" class="text-xs px-2.5 py-1.5 border border-stone-300 rounded hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
-                                    <button onclick="invOpenSingleModal()" class="text-xs px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold"><i class="fa-solid fa-paper-plane"></i> 寄邀請</button>
-                                    <button onclick="invOpenBulkModal()" class="text-xs px-2.5 py-1.5 border border-amber-300 text-amber-700 hover:bg-amber-50 rounded font-semibold"><i class="fa-solid fa-list"></i> 批次寄邀請</button>
-                                </div>
-                            </div>
-                            <p class="text-xs text-stone-500 mb-3">邀請信會帶 token 連結;對方點開後直接落到本組織的 OrgMembership。Email domain 自動歸屬適合「整個公司一起加入」,邀請適合「逐人邀請、可選角色 / 群組」。</p>
-                            <div class="overflow-hidden border border-stone-100 rounded-md">
-                                <table class="w-full text-sm">
-                                    <thead class="bg-amber-50/60 text-stone-600 text-xs uppercase">
-                                        <tr>
-                                            <th class="p-3 text-left">Email</th>
-                                            <th class="p-3 text-left w-32">狀態</th>
-                                            <th class="p-3 text-left w-40">過期時間</th>
-                                            <th class="p-3 text-left w-32">建立者</th>
-                                            <th class="p-3 text-center w-44">操作</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="invTableBody" class="divide-y divide-stone-100">
-                                        <tr><td colspan="5" class="p-4 text-center text-stone-400">載入中…</td></tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </section>
-                    </div>
-
-                    <!-- ─── Pane 7: 群組(團隊群組,可巢狀,可作為 todo 指派目標)─── -->
-                    <div id="setPaneGroups" class="hidden space-y-4">
-                        <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-4">
-                            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
-                                <h3 class="font-bold text-stone-700 text-base flex items-center gap-2"><i class="fa-solid fa-people-group text-amber-500"></i> 團隊群組</h3>
-                                <div class="flex items-center gap-2">
-                                    <button onclick="renderGroupsView()" class="text-xs px-2.5 py-1.5 border border-stone-300 rounded hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
-                                    <button onclick="openGroupModal()" class="text-xs px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold"><i class="fa-solid fa-plus"></i> 新增群組</button>
-                                </div>
-                            </div>
-                            <p class="text-xs text-stone-500 mb-3">群組 ≠ 角色;角色管權限,群組管成員集合。同 org 內可巢狀(子群組會繼承父群組的指派通知)。建立群組後可從待辦的「負責人」下拉選擇,通知會 fan-out 給所有成員。</p>
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <!-- 左欄:群組樹 -->
-                                <div class="border border-stone-200 rounded-md bg-stone-50/40 p-3 space-y-2 max-h-[60vh] overflow-y-auto">
-                                    <div class="relative">
-                                        <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400 text-[11px]"></i>
-                                        <input type="search" id="groupsSearch" oninput="groupsOnSearchInput(this.value)"
-                                            placeholder="搜尋群組…"
-                                            class="w-full pl-7 pr-2 py-1.5 border border-stone-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-amber-400">
-                                    </div>
-                                    <div class="text-[11px] font-semibold text-stone-500">群組(共 <span id="groupsListCount">0</span>)</div>
-                                    <div id="groupsTree" class="space-y-1">
-                                        <div class="text-xs text-stone-400 p-3 text-center">載入中…</div>
-                                    </div>
-                                </div>
-                                <!-- 右欄(2/3 寬):選中群組詳細 -->
-                                <div class="md:col-span-2 border border-stone-200 rounded-md bg-white p-4">
-                                    <div id="groupDetailEmpty" class="text-sm text-stone-400 p-8 text-center">
-                                        <i class="fa-solid fa-hand-pointer text-2xl mb-2 block"></i>
-                                        從左側選一個群組來檢視 / 編輯成員
-                                    </div>
-                                    <div id="groupDetail" class="hidden space-y-3">
-                                        <div class="flex items-start justify-between gap-2 pb-3 border-b border-stone-200">
-                                            <div class="flex-1">
-                                                <h4 class="font-bold text-stone-800 text-sm flex items-center gap-2"><i class="fa-solid fa-users text-amber-500"></i> <span id="groupDetailName">—</span></h4>
-                                                <div class="text-[11px] text-stone-500 mt-0.5"><span id="groupDetailType">—</span> · <span id="groupDetailParent">—</span></div>
-                                                <div id="groupDetailDesc" class="text-xs text-stone-600 mt-1"></div>
-                                            </div>
-                                            <div class="flex flex-col gap-1">
-                                                <button onclick="editCurrentGroup()" class="text-[11px] px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded"><i class="fa-solid fa-pen"></i> 編輯</button>
-                                                <button onclick="deleteCurrentGroup()" class="text-[11px] px-2 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded"><i class="fa-solid fa-trash"></i> 刪除</button>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <div class="flex items-center justify-between mb-2">
-                                                <h5 class="font-semibold text-stone-700 text-xs">成員(共 <span id="groupMembersCount">0</span>)</h5>
-                                            </div>
-                                            <div id="groupMembersList" class="space-y-1.5 mb-3"></div>
-                                            <div class="flex items-center gap-2 pt-2 border-t border-stone-200">
-                                                <select id="groupAddMemberSelect" aria-label="新增成員" class="flex-1 px-2 py-1.5 border border-stone-300 rounded text-xs bg-white">
-                                                    <option value="">— 選擇使用者 —</option>
-                                                </select>
-                                                <select id="groupAddMemberRole" aria-label="角色" class="px-2 py-1.5 border border-stone-300 rounded text-xs bg-white">
-                                                    <option value="member">成員</option>
-                                                    <option value="admin">管理員</option>
-                                                    <option value="owner">擁有者</option>
-                                                </select>
-                                                <button onclick="addGroupMember()" class="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded text-xs font-medium"><i class="fa-solid fa-plus"></i> 加入</button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </section>
-                    </div>
 
                     <!-- ─── Pane 6: AI Token ─── -->
                     <div id="setPaneAi" class="hidden space-y-4">
@@ -4466,7 +4380,10 @@ driver.swipe(100, 800, 100, 200, 500)"
                 <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl border border-yellow-200 max-h-[90vh] overflow-y-auto">
                     <div class="px-6 py-4 border-b border-stone-200 bg-yellow-50/60 flex items-center justify-between">
                         <h3 id="wbsModalTitle" class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-sitemap text-yellow-500"></i> 新增 WBS 工作項目</h3>
-                        <button type="button" onclick="closeWbsModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+                        <div class="flex items-center gap-2">
+                            <button type="button" onclick="if(_editingWbsId)openEntityVersionsModal('wbs_item',_editingWbsId,document.getElementById('wbsName').value)" id="wbsVersionsBtn" class="hidden text-xs px-2.5 py-1 border border-amber-300 text-amber-700 rounded hover:bg-amber-50" title="檢視版本歷史 / 還原"><i class="fa-solid fa-clock-rotate-left"></i> 版本歷史</button>
+                            <button type="button" onclick="closeWbsModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
                     </div>
                     <form onsubmit="return wbsSubmit(event)" class="p-6 space-y-3">
                         <div><label for="wbsName" class="block text-xs font-semibold text-stone-600 mb-1">名稱 *</label><input type="text" id="wbsName" aria-label="名稱" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
@@ -4508,6 +4425,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                     <div class="px-6 py-3 border-b border-stone-200 bg-pink-50/60 flex items-center justify-between gap-3 flex-wrap shrink-0">
                         <h3 id="testDocumentModalTitle" class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-file-lines text-pink-500"></i> 新增測試文件</h3>
                         <div class="flex items-center gap-2 flex-wrap">
+                            <button type="button" onclick="if(_editingDocumentId)openEntityVersionsModal('test_document',_editingDocumentId,document.getElementById('docTitle').value)" id="documentVersionsBtn" class="hidden text-xs px-2.5 py-1 border border-amber-300 text-amber-700 rounded hover:bg-amber-50" title="檢視版本歷史 / 還原"><i class="fa-solid fa-clock-rotate-left"></i> 版本歷史</button>
                             <span class="text-[10px] text-stone-400 hidden md:inline" id="docEditorHint">Tip：在 ```mermaid 區塊內畫流程圖；右側預覽會即時渲染</span>
                             <button type="button" onclick="docEditorViewMode('split')" id="docViewSplitBtn" class="text-xs px-2 py-1 border border-stone-300 rounded hover:bg-pink-50" title="編輯 + 預覽分欄"><i class="fa-solid fa-columns"></i> 分欄</button>
                             <button type="button" onclick="docEditorViewMode('edit')" id="docViewEditBtn" class="text-xs px-2 py-1 border border-stone-300 rounded hover:bg-pink-50" title="只看編輯區"><i class="fa-solid fa-pen"></i> 編輯</button>
@@ -4654,7 +4572,10 @@ driver.swipe(100, 800, 100, 200, 500)"
                 <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl border border-red-200 max-h-[90vh] overflow-y-auto">
                     <div class="px-6 py-4 border-b border-stone-200 bg-red-50/60 flex items-center justify-between">
                         <h3 id="defectModalTitle" class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-bug text-red-500"></i> 新增缺陷</h3>
-                        <button type="button" onclick="closeDefectModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+                        <div class="flex items-center gap-2">
+                            <button type="button" onclick="if(_editingDefectId)openEntityVersionsModal('defect',_editingDefectId,document.getElementById('defTitle').value)" id="defectVersionsBtn" class="hidden text-xs px-2.5 py-1 border border-amber-300 text-amber-700 rounded hover:bg-amber-50" title="檢視版本歷史 / 還原"><i class="fa-solid fa-clock-rotate-left"></i> 版本歷史</button>
+                            <button type="button" onclick="closeDefectModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
                     </div>
                     <form onsubmit="return defectSubmit(event)" class="p-6 space-y-3">
                         <div><label for="defTitle" class="block text-xs font-semibold text-stone-600 mb-1">標題 *</label><input type="text" id="defTitle" aria-label="標題" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
@@ -4815,7 +4736,10 @@ driver.swipe(100, 800, 100, 200, 500)"
                 <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl border border-cyan-200 max-h-[90vh] overflow-y-auto">
                     <div class="px-6 py-4 border-b border-stone-200 bg-cyan-50/60 flex items-center justify-between">
                         <h3 id="requirementModalTitle" class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-diagram-project text-cyan-500"></i> 新增需求</h3>
-                        <button type="button" onclick="closeRequirementModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+                        <div class="flex items-center gap-2">
+                            <button type="button" onclick="if(_editingRequirementId)openEntityVersionsModal('requirement',_editingRequirementId,document.getElementById('reqTitle').value)" id="requirementVersionsBtn" class="hidden text-xs px-2.5 py-1 border border-amber-300 text-amber-700 rounded hover:bg-amber-50" title="檢視版本歷史 / 還原"><i class="fa-solid fa-clock-rotate-left"></i> 版本歷史</button>
+                            <button type="button" onclick="closeRequirementModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
                     </div>
                     <form onsubmit="return requirementSubmit(event)" class="p-6 space-y-3">
                         <div><label for="reqTitle" class="block text-xs font-semibold text-stone-600 mb-1">標題 *</label><input type="text" id="reqTitle" aria-label="標題" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
@@ -10123,23 +10047,23 @@ driver.swipe(100, 800, 100, 200, 500)"
             return (v === 'local') ? 'local' : 'docker';
         }
 
-        // ── 執行設定（齒輪 popover）──────────────────────────────
-        // 讀取 checkbox 當下狀態；checkbox 不在 DOM 時退回預設（recording=true、ddt_expand=false）
+        // ── 執行設定 ───────────────────────────────────────────
+        // Trace+Video 偏好現在存在「設定 → 個人偏好」的 localStorage 偏好下,
+        // 透過 _loadUserPrefs() 讀;沒登入或沒設過 → 預設 true(開啟錄影)。
         function getRunOptions() {
-            const rec = document.getElementById('optEnableRecording');
-            const dd = document.getElementById('optDdtExpand');
-            return {
-                enable_recording: rec ? !!rec.checked : true,
-                ddt_expand: dd ? !!dd.checked : false,
-            };
+            let enable_recording = true;
+            try {
+                const prefs = (typeof _loadUserPrefs === 'function') ? _loadUserPrefs() : {};
+                if (prefs && Object.prototype.hasOwnProperty.call(prefs, 'enableRecording')) {
+                    enable_recording = !!prefs.enableRecording;
+                }
+            } catch (_) { /* fall back to default */ }
+            return { enable_recording, ddt_expand: false };
         }
-        function toggleRunOptionsPopover(ev) {
-            if (ev) ev.stopPropagation();
-            const pop = document.getElementById('runOptionsPopover');
-            if (!pop) return;
-            pop.classList.toggle('hidden');
-        }
-        // 點 popover 外面就關閉
+        // toggleRunOptionsPopover 已隨齒輪 UI 一起拿掉;留個 stub 給之前
+        // (萬一某個 inline onclick 還沒清乾淨)觸發時不會 ReferenceError。
+        function toggleRunOptionsPopover() { /* deprecated */ }
+        // 點 popover 外面就關閉(原本 popover 已移除,留此 listener 不會炸)
         document.addEventListener('click', (e) => {
             const pop = document.getElementById('runOptionsPopover');
             if (!pop || pop.classList.contains('hidden')) return;
@@ -10667,7 +10591,9 @@ driver.swipe(100, 800, 100, 200, 500)"
         }
 
         function switchAuthTab(tab) {
-            const tabs = ['login', 'register', 'forgot'];
+            // 'register' tab 已下架(改由管理員建立帳號)。
+            const tabs = ['login', 'forgot'];
+            if (!tabs.includes(tab)) tab = 'login';
             tabs.forEach(t => {
                 const btn = document.getElementById('authTab' + t.charAt(0).toUpperCase() + t.slice(1));
                 const form = document.getElementById('auth' + t.charAt(0).toUpperCase() + t.slice(1) + 'Form');
@@ -10683,7 +10609,6 @@ driver.swipe(100, 800, 100, 200, 500)"
             const subtitle = document.getElementById('authHeroSubtitle');
             if (subtitle) {
                 if (tab === 'login') subtitle.textContent = '歡迎回來，請登入以繼續';
-                else if (tab === 'register') subtitle.textContent = '建立新帳號，立即開始自動化測試';
                 else if (tab === 'forgot') subtitle.textContent = '沒關係，我們來幫你重設密碼';
             }
         }
@@ -10706,6 +10631,11 @@ driver.swipe(100, 800, 100, 200, 500)"
                 }
                 const data = await r.json();
                 authSetTokens(data.access_token, data.refresh_token, data.expires_in);
+                // 強制改密碼:後端在 /auth/me 以外的 endpoint 都會 403,先彈 modal。
+                if (data.must_change_password) {
+                    forcePwdShow(uname);
+                    return false;
+                }
                 // 拿使用者資訊
                 let me = { username: uname, display_name: uname, email: '' };
                 try {
@@ -10733,100 +10663,345 @@ driver.swipe(100, 800, 100, 200, 500)"
             return false;
         }
 
-        async function authHandleRegister(ev) {
+        // ── 強制改密碼 modal ──────────────────────────────────────
+        // 進入點 1:登入回傳 must_change_password=true。
+        // 進入點 2:任何 API 回 403 + detail.code=must_change_password(_responseHandledForceMC)。
+        let _forcePwdActiveUser = '';
+        function forcePwdShow(username) {
+            _forcePwdActiveUser = username || '';
+            ['forcePwdOld','forcePwdNew','forcePwdNew2'].forEach(id => {
+                const el = document.getElementById(id); if (el) el.value = '';
+            });
+            const m = document.getElementById('forcePwdModal');
+            if (m) m.classList.remove('hidden');
+            setTimeout(() => {
+                const inp = document.getElementById('forcePwdOld');
+                if (inp) inp.focus();
+            }, 50);
+        }
+        function forcePwdHide() {
+            const m = document.getElementById('forcePwdModal');
+            if (m) m.classList.add('hidden');
+        }
+        async function forcePwdHandleSubmit(ev) {
             ev.preventDefault();
-            const uname = document.getElementById('regUsername').value.trim();
-            const email = document.getElementById('regEmail').value.trim();
-            const pwd = document.getElementById('regPassword').value;
-            const pwd2 = document.getElementById('regPassword2').value;
-            if (!/^[A-Za-z0-9_]{3,32}$/.test(uname)) {
-                showToast('使用者名稱格式不符(3-32 字元,英數底線)', 'error');
-                return false;
+            const oldPwd = document.getElementById('forcePwdOld').value;
+            const newPwd = document.getElementById('forcePwdNew').value;
+            const newPwd2 = document.getElementById('forcePwdNew2').value;
+            if (newPwd.length < 6) {
+                showToast('新密碼至少 6 字元', 'error'); return false;
             }
-            if (pwd !== pwd2) {
-                showToast('兩次密碼輸入不一致', 'error');
-                return false;
+            if (newPwd === oldPwd) {
+                showToast('新密碼不可與目前密碼相同', 'error'); return false;
             }
-            if (!email) {
-                showToast('請填寫 Email(以 Email 後綴自動歸屬到對應組織)', 'error');
-                return false;
+            if (newPwd !== newPwd2) {
+                showToast('兩次新密碼不一致', 'error'); return false;
             }
             try {
-                const r = await window.fetch('/api/auth/register', {
+                const r = await window.fetch('/api/auth/change-password', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        username: uname,
-                        password: pwd,
-                        email: email,
-                    }),
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + (localStorage.getItem('autotest.auth.access_token') || ''),
+                    },
+                    body: JSON.stringify({ old_password: oldPwd, new_password: newPwd }),
                 });
                 if (!r.ok) {
-                    const detail = (await r.json().catch(() => ({}))).detail || '註冊失敗';
-                    showToast(detail, 'error');
+                    const detail = (await r.json().catch(() => ({}))).detail || '密碼變更失敗';
+                    showToast(typeof detail === 'string' ? detail : (detail.message || JSON.stringify(detail)), 'error');
                     return false;
                 }
-                const data = await r.json();
-                authSetTokens(data.access_token, data.refresh_token, data.expires_in);
-                let me = { username: uname, display_name: uname, email };
+                showToast('密碼已變更,系統將以新密碼重新登入', 'success');
+                forcePwdHide();
+                // 簡化:清掉 token 讓使用者重新登入(避免本機殘留錯密碼狀態)
                 try {
-                    const meRes = await window.fetch('/api/auth/me');
-                    if (meRes.ok) me = await meRes.json();
+                    localStorage.removeItem('autotest.auth.access_token');
+                    localStorage.removeItem('autotest.auth.access_expires_at');
+                    localStorage.removeItem('autotest.auth.refresh_token');
                 } catch (_) {}
-                const now = new Date().toISOString();
-                _authWriteSession({
-                    username: me.username || uname,
-                    displayName: me.display_name || uname,
-                    email: me.email || email,
-                    loginAt: now,
-                    loginCount: 1,
-                });
-                showToast(`註冊成功!歡迎 ${me.display_name || uname}`, 'success');
-                authHideOverlay();
-                renderExecutionModeButton();
-                updateUserMenuUI();
-                initProjects().then(() => { try { showHomeView(); } catch (_) {} }).catch(() => {});
+                document.documentElement.setAttribute('data-auth', 'out');
+                const ov = document.getElementById('authOverlay');
+                if (ov) ov.classList.remove('hidden');
+                const u = document.getElementById('loginUsername');
+                if (u && _forcePwdActiveUser) u.value = _forcePwdActiveUser;
+                const p = document.getElementById('loginPassword'); if (p) p.value = '';
+                if (p) p.focus();
             } catch (e) {
-                showToast('註冊失敗:' + (e.message || e), 'error');
+                showToast('密碼變更失敗:' + (e.message || e), 'error');
             }
             return false;
         }
 
-        function authHandleForgot(ev) {
+        // ─── 版本歷史 Modal(6 個 entity 共用)──────────────────────────
+        const _ENTITY_LABELS = {
+            testcase: '測試案例',
+            defect: '缺陷',
+            requirement: '需求',
+            test_document: '測試文件',
+            wbs_item: 'WBS 項目',
+            todo: '待辦',
+        };
+        const _CONTENT_STATUS_BADGES = {
+            ai_draft:        ['bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200', 'AI 草稿'],
+            pending_review:  ['bg-amber-100 text-amber-700 border-amber-200',       '待審核'],
+            approved:        ['bg-emerald-100 text-emerald-700 border-emerald-200', '已通過'],
+            rejected:        ['bg-rose-100 text-rose-700 border-rose-200',          '已駁回'],
+        };
+        const _CHANGE_SOURCE_BADGES = {
+            human:  ['bg-blue-50 text-blue-700',     '人工'],
+            ai:     ['bg-fuchsia-50 text-fuchsia-700','AI'],
+            system: ['bg-stone-100 text-stone-600',  '系統'],
+            revert: ['bg-amber-50 text-amber-700',   '還原'],
+        };
+        let _evhCtx = null;  // {entityType, entityId, label, onAfterRevert}
+
+        async function openEntityVersionsModal(entityType, entityId, label, opts) {
+            opts = opts || {};
+            _evhCtx = { entityType, entityId, label, onAfterRevert: opts.onAfterRevert || null };
+            const labEl = document.getElementById('evhEntityLabel');
+            if (labEl) {
+                const typeLabel = _ENTITY_LABELS[entityType] || entityType;
+                labEl.textContent = `· ${typeLabel}${label ? ' / '+label : ''} (${entityId.slice(0,8)})`;
+            }
+            const body = document.getElementById('evhBody');
+            body.innerHTML = '<div class="text-center text-stone-400 text-xs py-8"><i class="fa-solid fa-spinner fa-spin"></i> 載入版本歷史…</div>';
+            document.getElementById('entityVersionsModal').classList.remove('hidden');
+            try {
+                const r = await fetch(`/api/entity-versions/${encodeURIComponent(entityType)}/${encodeURIComponent(entityId)}`);
+                if (!r.ok) {
+                    const j = await r.json().catch(() => ({}));
+                    body.innerHTML = `<div class="text-rose-600 text-sm py-6 text-center">載入失敗:${_esc(j.detail || r.statusText)}</div>`;
+                    return;
+                }
+                const versions = await r.json();
+                _renderEntityVersions(versions);
+            } catch (e) {
+                body.innerHTML = `<div class="text-rose-600 text-sm py-6 text-center">載入失敗:${_esc(e.message || String(e))}</div>`;
+            }
+        }
+        function closeEntityVersionsModal() {
+            document.getElementById('entityVersionsModal').classList.add('hidden');
+            _evhCtx = null;
+        }
+        function _renderEntityVersions(versions) {
+            const body = document.getElementById('evhBody');
+            if (!Array.isArray(versions) || !versions.length) {
+                body.innerHTML = '<div class="text-stone-400 text-sm py-6 text-center">尚無版本紀錄</div>';
+                return;
+            }
+            const rows = versions.map((v, idx) => {
+                const isLatest = idx === 0;
+                const sBadge = _CONTENT_STATUS_BADGES[v.content_status] || ['bg-stone-100 text-stone-600', v.content_status];
+                const srcBadge = _CHANGE_SOURCE_BADGES[v.change_source] || ['bg-stone-100 text-stone-600', v.change_source];
+                const time = v.created_at ? new Date(v.created_at).toLocaleString() : '—';
+                const reason = v.change_reason ? `<div class="text-[11px] text-stone-500 mt-1">${_esc(v.change_reason)}</div>` : '';
+                const revertBtn = isLatest
+                    ? '<span class="text-[10px] text-stone-400">當前版本</span>'
+                    : `<button onclick="entityVersionRevert('${_esc(v.id)}', ${v.version_no})"
+                          class="px-2.5 py-1 text-xs border border-amber-300 text-amber-700 rounded hover:bg-amber-50">
+                          <i class="fa-solid fa-rotate-left"></i> 還原至此
+                       </button>`;
+                return `
+                    <div class="border ${isLatest ? 'border-amber-300 bg-amber-50/30' : 'border-stone-200'} rounded-lg p-3">
+                        <div class="flex items-center justify-between gap-3 flex-wrap">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <span class="font-mono font-bold text-stone-700">v${v.version_no}</span>
+                                <span class="px-1.5 py-0.5 text-[10px] rounded border ${sBadge[0]}">${sBadge[1]}</span>
+                                <span class="px-1.5 py-0.5 text-[10px] rounded ${srcBadge[0]}">${srcBadge[1]}</span>
+                                <span class="text-[11px] text-stone-500">by <b>${_esc(v.changed_by || '?')}</b></span>
+                                <span class="text-[11px] text-stone-400">${time}</span>
+                            </div>
+                            <div>${revertBtn}</div>
+                        </div>
+                        ${reason}
+                    </div>
+                `;
+            }).join('');
+            body.innerHTML = rows;
+        }
+        async function entityVersionRevert(versionId, versionNo) {
+            if (!_evhCtx) return;
+            const reason = prompt(`確定要把此 ${_ENTITY_LABELS[_evhCtx.entityType] || _evhCtx.entityType} 還原到 v${versionNo}?\n會把當前內容覆蓋,但歷史紀錄都保留。\n\n還原原因(選填):`);
+            if (reason === null) return; // 取消
+            try {
+                const r = await fetch(`/api/entity-versions/${encodeURIComponent(_evhCtx.entityType)}/${encodeURIComponent(_evhCtx.entityId)}/revert`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ version_id: versionId, reason: reason || null }),
+                });
+                if (!r.ok) {
+                    const j = await r.json().catch(() => ({}));
+                    showToast('還原失敗:' + (j.detail || r.statusText), 'error');
+                    return;
+                }
+                showToast(`已還原至 v${versionNo}`, 'success');
+                if (typeof _evhCtx.onAfterRevert === 'function') {
+                    try { await _evhCtx.onAfterRevert(); } catch (_) {}
+                }
+                openEntityVersionsModal(_evhCtx.entityType, _evhCtx.entityId, _evhCtx.label, { onAfterRevert: _evhCtx.onAfterRevert });
+            } catch (e) {
+                showToast('還原失敗:' + (e.message || e), 'error');
+            }
+        }
+
+        // 在 modal 開啟 / 編輯狀態變動時,自動顯示對應的「版本歷史」按鈕。
+        // 直接 poll _editingXxxId 全域變數;modal 隱藏時按鈕也跟著隱藏。
+        // 用 setInterval 是因為各 modal 的開啟 logic 太分散,不想改 5 個地方。
+        function _refreshEntityVersionsBtns() {
+            const pairs = [
+                ['defectVersionsBtn', 'defectModal', () => window._editingDefectId],
+                ['requirementVersionsBtn', 'requirementModal', () => window._editingRequirementId],
+                ['documentVersionsBtn', 'testDocumentModal', () => window._editingDocumentId],
+                ['wbsVersionsBtn', 'wbsModal', () => window._editingWbsId],
+                ['todoVersionsBtn', 'todoModal', () => window._editingTodoId],
+            ];
+            pairs.forEach(([btnId, modalId, getter]) => {
+                const btn = document.getElementById(btnId);
+                if (!btn) return;
+                const modal = document.getElementById(modalId);
+                const modalOpen = modal && !modal.classList.contains('hidden');
+                let id = null;
+                try { id = getter(); } catch (_) {}
+                if (modalOpen && id) btn.classList.remove('hidden');
+                else btn.classList.add('hidden');
+            });
+        }
+        // 1.2s 一次的低頻 poll;modal 開關 + ID 變化都不會超過這個延遲使用者就感受不到。
+        setInterval(_refreshEntityVersionsBtns, 1200);
+
+        async function authHandleForgot(ev) {
             ev.preventDefault();
             const uname = document.getElementById('forgotUsername').value.trim();
             const email = document.getElementById('forgotEmail').value.trim().toLowerCase();
-            const newPwd = document.getElementById('forgotNewPwd').value;
-            const newPwd2 = document.getElementById('forgotNewPwd2').value;
-            if (newPwd !== newPwd2) {
-                showToast('兩次新密碼不一致', 'error');
+            if (!uname || !email) {
+                showToast('請填寫使用者名稱與 Email', 'error');
                 return false;
             }
-            if (newPwd.length < 6) {
-                showToast('新密碼至少需 6 字元', 'error');
-                return false;
+            const btn = document.getElementById('authForgotSubmitBtn');
+            const note = document.getElementById('authForgotSentNote');
+            try {
+                if (btn) { btn.disabled = true; btn.classList.add('opacity-60'); }
+                const r = await window.fetch('/api/auth/forgot-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: uname, email: email }),
+                });
+                if (r.status === 429) {
+                    showToast('請求過於頻繁,請稍後再試(每小時最多 3 次)', 'warning');
+                    return false;
+                }
+                // 後端不論成功與否都回 200(privacy);只要不是 5xx 就顯示通用訊息
+                if (note) note.classList.remove('hidden');
+                showToast('如帳號 / Email 正確,重置連結已寄送', 'success');
+            } catch (e) {
+                showToast('寄送失敗:' + (e.message || e), 'error');
+            } finally {
+                if (btn) { btn.disabled = false; btn.classList.remove('opacity-60'); }
             }
-            const users = _authReadUsers();
-            const idx = users.findIndex(u => u.username === uname && (u.email || '').toLowerCase() === email);
-            if (idx < 0) {
-                showToast('使用者名稱與 Email 不相符，請確認後再試', 'error');
-                return false;
-            }
-            users[idx].password = newPwd;
-            _authWriteUsers(users);
-            showToast('密碼已重設，請用新密碼登入', 'success');
-            // 自動切回登入分頁並代入帳號
-            switchAuthTab('login');
-            document.getElementById('loginUsername').value = uname;
-            document.getElementById('loginPassword').value = '';
-            document.getElementById('loginPassword').focus();
-            // 清空忘記密碼表單
-            document.getElementById('forgotUsername').value = '';
-            document.getElementById('forgotEmail').value = '';
-            document.getElementById('forgotNewPwd').value = '';
-            document.getElementById('forgotNewPwd2').value = '';
             return false;
         }
+
+        // ── 設定新密碼(reset_token 流程)──────────────────────────────
+        // 進入點:URL 帶 ?reset_token=<token>。在 DOMContentLoaded 時偵測,
+        // 命中就把 overlay 強制顯示並切到 reset 表單。
+        function _authGetResetTokenFromUrl() {
+            try {
+                const u = new URL(window.location.href);
+                return u.searchParams.get('reset_token') || '';
+            } catch (_) { return ''; }
+        }
+        function _authStripResetTokenFromUrl() {
+            try {
+                const u = new URL(window.location.href);
+                u.searchParams.delete('reset_token');
+                window.history.replaceState({}, '', u.toString());
+            } catch (_) {}
+        }
+        async function authShowResetPwdForm(token) {
+            // 先驗 token 是否有效
+            try {
+                const r = await window.fetch('/api/auth/reset-password/check?token=' + encodeURIComponent(token));
+                const j = await r.json().catch(() => ({}));
+                if (!r.ok || !j.valid) {
+                    showToast('重置連結已失效或過期,請重新發起忘記密碼', 'error');
+                    _authStripResetTokenFromUrl();
+                    switchAuthTab('forgot');
+                    return;
+                }
+            } catch (_) {
+                showToast('無法驗證重置連結,請稍後再試', 'error');
+                return;
+            }
+            // 隱藏 tab buttons + 其它 form,只露出 reset 表單
+            ['authTabLogin','authTabForgot'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.add('hidden');
+            });
+            ['authLoginForm','authForgotForm'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.add('hidden');
+            });
+            const f = document.getElementById('authResetPwdForm');
+            if (f) f.classList.remove('hidden');
+            const sub = document.getElementById('authHeroSubtitle');
+            if (sub) sub.textContent = '請設定您的新密碼';
+            // 確保 overlay 顯示(即使 user 已有殘留 token)
+            document.documentElement.setAttribute('data-auth', 'out');
+            const ov = document.getElementById('authOverlay');
+            if (ov) ov.classList.remove('hidden');
+            setTimeout(() => {
+                const inp = document.getElementById('resetNewPwd');
+                if (inp) inp.focus();
+            }, 50);
+        }
+        async function authHandleResetPwd(ev) {
+            ev.preventDefault();
+            const newPwd = document.getElementById('resetNewPwd').value;
+            const newPwd2 = document.getElementById('resetNewPwd2').value;
+            const token = _authGetResetTokenFromUrl();
+            if (!token) {
+                showToast('找不到重置 token,請重新從信件連結進入', 'error');
+                return false;
+            }
+            if (newPwd.length < 6) { showToast('新密碼至少 6 字元', 'error'); return false; }
+            if (newPwd !== newPwd2) { showToast('兩次新密碼不一致', 'error'); return false; }
+            try {
+                const r = await window.fetch('/api/auth/reset-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token, new_password: newPwd }),
+                });
+                if (!r.ok) {
+                    const j = await r.json().catch(() => ({}));
+                    showToast('密碼重置失敗:' + (j.detail || r.statusText), 'error');
+                    return false;
+                }
+                const data = await r.json().catch(() => ({}));
+                showToast('密碼已重置,請用新密碼登入', 'success');
+                _authStripResetTokenFromUrl();
+                // 重啟 tabs / 表單到登入狀態
+                ['authTabLogin','authTabForgot'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.classList.remove('hidden');
+                });
+                document.getElementById('authResetPwdForm').classList.add('hidden');
+                switchAuthTab('login');
+                if (data.username) {
+                    const u = document.getElementById('loginUsername');
+                    if (u) u.value = data.username;
+                }
+                const p = document.getElementById('loginPassword');
+                if (p) { p.value = ''; p.focus(); }
+            } catch (e) {
+                showToast('密碼重置失敗:' + (e.message || e), 'error');
+            }
+            return false;
+        }
+        // page-load hook
+        document.addEventListener('DOMContentLoaded', () => {
+            const t = _authGetResetTokenFromUrl();
+            if (t) authShowResetPwdForm(t);
+        });
 
         // 顯示/隱藏密碼（input id + 觸發按鈕；會切換按鈕圖示）
         function togglePasswordVisibility(inputId, btn) {
@@ -10909,21 +11084,14 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('usDisplayName').value = me.display_name || '';
             document.getElementById('usLastLogin').textContent = s && s.loginAt ? s.loginAt.replace('T', ' ').slice(0, 19) : '—';
             document.getElementById('usLoginCount').textContent = s && s.loginCount ? String(s.loginCount) : '1';
-            // 角色下拉:拉系統內所有 role,選中目前的
-            try {
-                const roles = await apiFetch('/api/settings/roles');
-                const sel = document.getElementById('usRoleSel');
-                sel.innerHTML = '<option value="">— 無角色 —</option>' +
-                    (roles || []).map(r => `<option value="${_esc(r.id)}">${_esc(r.name)}${r.is_system ? ' <span class="text-stone-400">(系統)</span>' : ''}</option>`).join('');
-                sel.value = me.role_id || '';
-            } catch (e) {
-                console.warn('load roles failed', e);
-            }
+            // 角色下拉已移除 — 角色由系統管理員透過「專案協作成員」頁編輯使用者時設定。
             // 偏好
             const prefs = _loadUserPrefs();
             document.getElementById('usPrefDefaultExec').value = prefs.defaultExec || 'docker';
             document.getElementById('usPrefAutoRefresh').checked = prefs.autoRefresh !== false;
             document.getElementById('usPrefConfirmDiscard').checked = prefs.confirmDiscard !== false;
+            // enableRecording 預設 true(沒設過 → 開錄影)
+            document.getElementById('usPrefEnableRecording').checked = prefs.enableRecording !== false;
         }
 
         function _renderUserAvatar(me) {
@@ -10993,7 +11161,6 @@ driver.swipe(100, 800, 100, 200, 500)"
             const payload = {
                 email: document.getElementById('usEmail').value.trim(),
                 display_name: document.getElementById('usDisplayName').value.trim(),
-                role_id: document.getElementById('usRoleSel')?.value || null,
             };
             try {
                 const me = await apiFetch('/api/auth/me', {
@@ -11051,6 +11218,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 defaultExec: document.getElementById('usPrefDefaultExec').value,
                 autoRefresh: document.getElementById('usPrefAutoRefresh').checked,
                 confirmDiscard: document.getElementById('usPrefConfirmDiscard').checked,
+                enableRecording: document.getElementById('usPrefEnableRecording').checked,
             };
             _saveUserPrefs(prefs);
             showToast('個人偏好已儲存', 'success');
@@ -13795,56 +13963,239 @@ driver.swipe(100, 800, 100, 200, 500)"
             if (hint) {
                 hint.textContent = _pmSearch
                     ? `符合「${_pmSearch}」:${filtered.length} / ${members.length}`
-                    : 'per-project 角色為空 = 從組織層 (OrgMembership) 繼承;指定後 override 該專案內的權限。';
+                    : '';
             }
             if (!filtered.length) {
                 _renderTableEmpty(
-                    tbody, 7,
+                    tbody, 5,
                     _pmSearch ? '沒有符合條件的成員' : '尚無成員',
-                    _pmSearch ? null : '加成員',
-                    _pmSearch ? null : 'pmOpenAddModal()'
+                    _pmSearch ? null : '建立新使用者',
+                    _pmSearch ? null : 'pmOpenCreateUserModal()'
                 );
                 return;
             }
-            const roleOptions = (currentRoleId) => {
-                const inherit = `<option value="" ${!currentRoleId ? 'selected' : ''}>— 繼承 Org 角色 —</option>`;
-                const items = _pmAllRoles.map(r => {
-                    const tag = r.scope === 'project' ? ' (專案)' : ' (組織)';
-                    return `<option value="${_esc(r.id)}" ${currentRoleId === r.id ? 'selected' : ''}>${_esc(r.name)}${tag}</option>`;
-                }).join('');
-                return inherit + items;
-            };
             tbody.innerHTML = filtered.map(m => {
                 const joined = m.joined_at ? new Date(m.joined_at).toLocaleDateString() : '—';
                 const statusBadge = m.status === 'active'
                     ? '<span class="px-2 py-0.5 text-[11px] bg-emerald-50 text-emerald-700 rounded font-medium">active</span>'
                     : `<span class="px-2 py-0.5 text-[11px] bg-stone-100 text-stone-600 rounded">${_esc(m.status)}</span>`;
-                const isChecked = _pmSelected.has(m.username) ? 'checked' : '';
                 return `
                     <tr class="hover:bg-amber-50/40">
-                        <td class="p-3 text-center"><input type="checkbox" class="pm-row-cb rounded border-stone-300 text-amber-500 focus:ring-amber-400" data-username="${_esc(m.username)}" ${isChecked} onchange="pmToggleRow('${_esc(m.username)}', this.checked)"></td>
                         <td class="p-3">
                             <div class="font-semibold text-stone-800">${_esc(m.display_name || m.username)}</div>
                             <div class="text-[11px] text-stone-500 font-mono">@${_esc(m.username)}</div>
                         </td>
                         <td class="p-3 text-stone-600">${_esc(m.email || '—')}</td>
-                        <td class="p-3">
-                            <select onchange="pmChangeRole('${_esc(m.username)}', this.value)"
-                                class="w-full px-2 py-1 border border-stone-300 rounded text-xs bg-white">
-                                ${roleOptions(m.role_id)}
-                            </select>
-                        </td>
                         <td class="p-3">${statusBadge}</td>
                         <td class="p-3 text-stone-500 text-[11px]">${joined}</td>
-                        <td class="p-3 text-center">
-                            <button onclick="pmRemove('${_esc(m.username)}')" title="移除"
-                                class="text-stone-400 hover:text-rose-600 transition">
+                        <td class="p-3 text-center whitespace-nowrap">
+                            <button onclick="pmOpenEditUserModal('${_esc(m.username)}')" title="編輯使用者(顯示名稱 / Email / 啟用)"
+                                class="text-stone-400 hover:text-amber-600 transition px-1">
+                                <i class="fa-solid fa-user-pen"></i>
+                            </button>
+                            <button onclick="pmRemove('${_esc(m.username)}')" title="從此專案移除(帳號保留)"
+                                class="text-stone-400 hover:text-rose-600 transition px-1">
                                 <i class="fa-solid fa-user-minus"></i>
+                            </button>
+                            <button onclick="pmDeleteUser('${_esc(m.username)}')" title="徹底刪除帳號(連同所有專案成員身分)"
+                                class="text-stone-400 hover:text-rose-700 transition px-1">
+                                <i class="fa-solid fa-user-xmark"></i>
                             </button>
                         </td>
                     </tr>
                 `;
             }).join('');
+        }
+
+        // ── 使用者 CRUD modals(superuser-only;非 superuser 呼叫會被後端 403)──
+        async function _pmLoadAdminRoles() {
+            // 用 /api/settings/roles(已存在)塞進 create / edit 角色下拉
+            try {
+                const r = await fetch('/api/settings/roles');
+                if (!r.ok) return [];
+                return await r.json();
+            } catch (_) { return []; }
+        }
+
+        async function pmOpenCreateUserModal() {
+            const sel = document.getElementById('pmCuRoleId');
+            sel.innerHTML = '<option value="">— 無角色 —</option>';
+            const roles = await _pmLoadAdminRoles();
+            roles.forEach(r => {
+                const opt = document.createElement('option');
+                opt.value = r.id; opt.textContent = r.name;
+                sel.appendChild(opt);
+            });
+            ['pmCuUsername','pmCuDisplayName','pmCuEmail','pmCuPassword'].forEach(id => {
+                const el = document.getElementById(id); if (el) el.value = '';
+            });
+            const proj = currentProjectId ? projectsData[currentProjectId] : null;
+            const projName = document.getElementById('pmCuProjectName');
+            if (projName) projName.textContent = proj ? `「${proj.name}」` : '當前專案';
+            const addCb = document.getElementById('pmCuAddToProject');
+            if (addCb) addCb.checked = !!currentProjectId;
+            document.getElementById('pmCreateUserModal').classList.remove('hidden');
+            setTimeout(() => document.getElementById('pmCuUsername').focus(), 50);
+        }
+        function pmCloseCreateUserModal() {
+            document.getElementById('pmCreateUserModal').classList.add('hidden');
+        }
+        async function pmSubmitCreateUser(ev) {
+            ev.preventDefault();
+            const username = document.getElementById('pmCuUsername').value.trim();
+            const display_name = document.getElementById('pmCuDisplayName').value.trim() || null;
+            const email = document.getElementById('pmCuEmail').value.trim() || null;
+            const password = document.getElementById('pmCuPassword').value;
+            const role_id = document.getElementById('pmCuRoleId').value || null;
+            const addToProject = document.getElementById('pmCuAddToProject').checked && !!currentProjectId;
+            if (!/^[A-Za-z0-9_]{3,32}$/.test(username)) {
+                showToast('使用者名稱格式不符(3-32 字元,英數底線)', 'error');
+                return false;
+            }
+            if (password.length < 6) {
+                showToast('密碼至少 6 字元', 'error'); return false;
+            }
+            try {
+                const r = await fetch('/api/auth/users', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, display_name, email, password, role_id }),
+                });
+                if (!r.ok) {
+                    const j = await r.json().catch(() => ({}));
+                    showToast('建立失敗:' + (j.detail || r.statusText), 'error');
+                    return false;
+                }
+                if (addToProject) {
+                    try {
+                        const pmR = await fetch(`/api/projects/${encodeURIComponent(currentProjectId)}/members`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ username: username, role_id: null }),
+                        });
+                        if (!pmR.ok) {
+                            const j2 = await pmR.json().catch(() => ({}));
+                            showToast('建立成功,但加入專案失敗:' + (j2.detail || pmR.statusText), 'warning');
+                        }
+                    } catch (_) {}
+                }
+                showToast(`已建立使用者「${username}」`, 'success');
+                pmCloseCreateUserModal();
+                pmReload();
+            } catch (e) {
+                showToast('建立失敗:' + (e.message || e), 'error');
+            }
+            return false;
+        }
+
+        async function pmOpenEditUserModal(username) {
+            // 從快取拿 row;沒有就重撈
+            let m = (_pmMembersCache || []).find(x => x.username === username);
+            if (!m) {
+                showToast('找不到該使用者(請重新整理)', 'error'); return;
+            }
+            document.getElementById('pmEuUsername').value = username;
+            document.getElementById('pmEuTitleUsername').textContent = '@' + username;
+            document.getElementById('pmEuDisplayName').value = m.display_name || '';
+            document.getElementById('pmEuEmail').value = m.email || '';
+            document.getElementById('pmEuIsActive').checked = m.is_active !== false;
+            document.getElementById('pmEuIsSuperuser').checked = !!m.is_superuser;
+            const sel = document.getElementById('pmEuRoleId');
+            sel.innerHTML = '<option value="">— 無角色 —</option>';
+            const roles = await _pmLoadAdminRoles();
+            roles.forEach(r => {
+                const opt = document.createElement('option');
+                opt.value = r.id; opt.textContent = r.name;
+                if (m.role_id === r.id) opt.selected = true;
+                sel.appendChild(opt);
+            });
+            document.getElementById('pmEditUserModal').classList.remove('hidden');
+        }
+        function pmCloseEditUserModal() {
+            document.getElementById('pmEditUserModal').classList.add('hidden');
+        }
+        async function pmSubmitEditUser(ev) {
+            ev.preventDefault();
+            const username = document.getElementById('pmEuUsername').value;
+            const payload = {
+                display_name: document.getElementById('pmEuDisplayName').value.trim() || null,
+                email: document.getElementById('pmEuEmail').value.trim() || null,
+                role_id: document.getElementById('pmEuRoleId').value || null,
+                is_active: document.getElementById('pmEuIsActive').checked,
+                is_superuser: document.getElementById('pmEuIsSuperuser').checked,
+            };
+            try {
+                const r = await fetch(`/api/auth/users/${encodeURIComponent(username)}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+                if (!r.ok) {
+                    const j = await r.json().catch(() => ({}));
+                    showToast('更新失敗:' + (j.detail || r.statusText), 'error');
+                    return false;
+                }
+                showToast('已更新', 'success');
+                pmCloseEditUserModal();
+                pmReload();
+            } catch (e) {
+                showToast('更新失敗:' + (e.message || e), 'error');
+            }
+            return false;
+        }
+
+        function pmOpenResetPwdModal() {
+            const username = document.getElementById('pmEuUsername').value;
+            if (!username) return;
+            document.getElementById('pmRpTargetUsername').textContent = '@' + username;
+            document.getElementById('pmRpNewPassword').value = '';
+            document.getElementById('pmResetPwdModal').classList.remove('hidden');
+        }
+        function pmCloseResetPwdModal() {
+            document.getElementById('pmResetPwdModal').classList.add('hidden');
+        }
+        async function pmSubmitResetPwd(ev) {
+            ev.preventDefault();
+            const username = document.getElementById('pmEuUsername').value;
+            const newPwd = document.getElementById('pmRpNewPassword').value;
+            if (newPwd.length < 6) {
+                showToast('新密碼至少 6 字元', 'error'); return false;
+            }
+            try {
+                const r = await fetch(`/api/auth/users/${encodeURIComponent(username)}/reset-password`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ new_password: newPwd }),
+                });
+                if (!r.ok) {
+                    const j = await r.json().catch(() => ({}));
+                    showToast('重設失敗:' + (j.detail || r.statusText), 'error');
+                    return false;
+                }
+                showToast(`已重設「${username}」的密碼,對方下次登入會被要求再改一次`, 'success');
+                pmCloseResetPwdModal();
+            } catch (e) {
+                showToast('重設失敗:' + (e.message || e), 'error');
+            }
+            return false;
+        }
+
+        async function pmDeleteUser(username) {
+            if (!confirm(`徹底刪除帳號「${username}」?\n\n會連同他所有專案成員身分一併刪除,且無法復原。\n如果只是想把他從這個專案移除,請改按旁邊的「移除」按鈕。`)) return;
+            try {
+                const r = await fetch(`/api/auth/users/${encodeURIComponent(username)}`, {
+                    method: 'DELETE',
+                });
+                if (!r.ok) {
+                    const j = await r.json().catch(() => ({}));
+                    showToast('刪除失敗:' + (j.detail || r.statusText), 'error');
+                    return;
+                }
+                showToast(`已刪除帳號「${username}」`, 'success');
+                pmReload();
+            } catch (e) {
+                showToast('刪除失敗:' + (e.message || e), 'error');
+            }
         }
 
         async function pmChangeRole(username, roleId) {
@@ -18700,8 +19051,12 @@ gantt
             } catch (e) { showToast('刪除失敗：' + e.message, 'error'); }
         }
 
-        // ─── 設定（Settings）── 9 個 tab
-        const _SETTINGS_TABS = ['user','perms','roles','notif','email','ai','groups','invites','orgMembers','projectMembers'];
+        // ─── 設定（Settings）── 5 個 tab
+        // 註:'groups' / 'invites' / 'orgMembers' 已隨自助註冊 / 邀請碼 /
+        // Email Domain 自動歸屬 一起下架;'perms' / 'roles' 也已下架(權限與
+        // 角色由系統內建,不需在設定頁管理)。後端對應 endpoint 仍保留以利
+        // 程式內部呼叫(例如登入時 hydrate 角色名稱)。
+        const _SETTINGS_TABS = ['user','notif','email','ai','projectMembers'];
         const _SETTINGS_TAB_BTN_ON  = 'px-3 py-1.5 text-sm font-medium rounded text-amber-700 bg-amber-50 border border-amber-300';
         const _SETTINGS_TAB_BTN_OFF = 'px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50';
         function settingsSwitchTab(name) {
@@ -18718,14 +19073,9 @@ gantt
                 }
             });
             // lazy load 各分頁資料
-            if (name === 'perms') renderPermissionCatalogue();
-            else if (name === 'roles') renderRolesList();
-            else if (name === 'notif') loadNotificationPrefs();
+            if (name === 'notif') loadNotificationPrefs();
             else if (name === 'email') loadEmailConfig();
             else if (name === 'ai') renderAiTokensList();
-            else if (name === 'groups') renderGroupsView();
-            else if (name === 'invites') renderInvitesView();
-            else if (name === 'orgMembers') omReload();
             else if (name === 'projectMembers') pmReload();
         }
 
@@ -18809,20 +19159,30 @@ gantt
             closePermissionUsageDrawer();
             const wrap = document.createElement('div');
             wrap.id = '_permUsageDrawer';
+            // z-[155] 必須高於 #sidebar (z-50) 與其他 settings UI;低於 forcePwdModal (z-210)、authOverlay (z-200)。
             wrap.innerHTML = `
-                <div class="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onclick="if(event.target===this)closePermissionUsageDrawer()">
+                <div class="fixed inset-0 z-[155] bg-black/40 flex items-center justify-center p-4" onclick="if(event.target===this)closePermissionUsageDrawer()">
                     <div class="bg-white rounded-xl shadow-2xl max-w-md w-full max-h-[80vh] overflow-y-auto">
                         <div class="px-5 py-3 border-b border-stone-100 flex items-center justify-between">
                             <div>
                                 <div class="font-bold text-stone-700">${_esc(label)}</div>
                                 <div class="font-mono text-[11px] text-stone-400">${_esc(key)}</div>
                             </div>
-                            <button onclick="closePermissionUsageDrawer()" class="text-stone-400 hover:text-stone-600"><i class="fa-solid fa-xmark"></i></button>
+                            <button onclick="closePermissionUsageDrawer()" class="text-stone-400 hover:text-stone-600 p-1.5 rounded hover:bg-stone-100"><i class="fa-solid fa-xmark"></i></button>
                         </div>
                         <div class="p-5">${bodyHtml}</div>
                     </div>
                 </div>`;
             document.body.appendChild(wrap);
+            // ESC 鍵關閉(只綁一次,關閉時 cleanup)
+            const onEsc = (ev) => {
+                if (ev.key === 'Escape') {
+                    closePermissionUsageDrawer();
+                    document.removeEventListener('keydown', onEsc);
+                }
+            };
+            document.addEventListener('keydown', onEsc);
+            wrap.dataset.onEscBound = '1';
         }
         function closePermissionUsageDrawer() {
             const el = document.getElementById('_permUsageDrawer');
@@ -21342,8 +21702,8 @@ gantt
                 if (!it) continue;
                 const name = `${it.title || 'AI生成案例'}_${dateStr}.md`.replace(/[\\/:*?"<>|]/g, '_');
                 try {
-                    // 1. 建 node
-                    const created = await apiFetch('/api/nodes', {
+                    // 1. 建 node — 帶 from_ai=true 讓後端記為 ai_draft
+                    const created = await apiFetch('/api/nodes?from_ai=true', {
                         method: 'POST', headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({ project_id: currentProjectId, parent_id: scenarioId, name }),
                     });
@@ -21396,7 +21756,7 @@ gantt
                 const name = `${it.title || 'AI生成案例'}_${dateStr}.md`.replace(/[\\/:*?"<>|]/g, '_');
                 let createdId = null;
                 try {
-                    const created = await apiFetch('/api/nodes', {
+                    const created = await apiFetch('/api/nodes?from_ai=true', {
                         method: 'POST', headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({ project_id: currentProjectId, parent_id: scenarioId, name }),
                     });

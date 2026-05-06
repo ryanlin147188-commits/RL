@@ -323,6 +323,9 @@ async def list_project_members(
             "role_scope": role.scope if role else None,
             "status": pm.status,
             "joined_at": pm.joined_at.isoformat() if pm.joined_at else None,
+            # 給「編輯使用者」modal 預填用(superuser 才看得到該按鈕在後端 PUT/DELETE 上的效力)
+            "is_active": bool(u.is_active),
+            "is_superuser": bool(u.is_superuser),
         }
         for pm, u, role in rows
     ]
