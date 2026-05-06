@@ -1,153 +1,119 @@
 # First-admin bootstrap (operator runbook)
 
-A fresh AutoTest deployment has no users. The platform refuses self-service
-registration without an invite or matching `email_domains`, so somebody has
-to create the very first admin out-of-band.
+A fresh AutoTest deployment **automatically seeds a default admin** on first
+backend start. There is no longer a self-service registration path or invite
+mint endpoint — every account in the system is created by an admin.
 
-Two ways to do it. Pick one.
+## TL;DR — first login
 
-## Option A — `POST /api/auth/bootstrap-invite` (UI-friendly)
-
-Mints a single-use Admin invite that the first user can paste into the
-normal `/register` flow. Endpoint is **disabled by default**; turn it on
-just long enough to bootstrap, then turn it off.
-
-### Steps
-
-1. **Generate a strong bootstrap token** (operator-only secret):
-
-    ```sh
-    openssl rand -hex 32
-    # e.g. 0f2c...b71a
-    ```
-
-2. **Set the env var on the backend container** and restart:
-
-    ```sh
-    # in .env (or your secret manager)
-    echo "AUTOTEST_BOOTSTRAP_TOKEN=0f2c...b71a" >> .env
-
-    docker compose up -d --no-deps --force-recreate backend
-    ```
-
-3. **Mint the invite** (from any host that can reach the API):
-
-    ```sh
-    curl -sS -X POST http://localhost:8000/api/auth/bootstrap-invite \
-      -H 'Content-Type: application/json' \
-      -d '{
-        "bootstrap_token": "0f2c...b71a",
-        "organization_slug": "default",
-        "email": "you@example.com",
-        "ttl_hours": 1
-      }'
-    ```
-
-   Response:
-
-    ```json
-    {
-      "invite_token": "BOOT-xxxxxxxxxxxxxxxxxxxxxxxx",
-      "organization_id": "<uuid>",
-      "organization_slug": "default",
-      "role": "Admin",
-      "expires_at": "2026-04-29T19:30:00",
-      "note": "Use this token in POST /api/auth/register as `invite_token`. ..."
-    }
-    ```
-
-4. **Use the invite to register** via the normal UI flow (or curl):
-
-    ```sh
-    curl -X POST http://localhost:8000/api/auth/register \
-      -H 'Content-Type: application/json' \
-      -d '{
-        "username": "first_admin",
-        "password": "your-strong-password",
-        "email": "you@example.com",
-        "invite_token": "BOOT-xxxxxxxxxxxxxxxxxxxxxxxx"
-      }'
-    ```
-
-5. **Close the door** — unset the env var and restart so future calls
-   to `/bootstrap-invite` get 503:
-
-    ```sh
-    sed -i.bak '/^AUTOTEST_BOOTSTRAP_TOKEN=/d' .env
-    docker compose up -d --no-deps --force-recreate backend
-    ```
-
-   (Optional) elevate the new user to `is_superuser=True` if you want
-   them to bypass RBAC for support tasks:
-
-    ```sh
-    docker exec autotest-postgres psql -U admin -d autotest_db -c \
-      "UPDATE users SET is_superuser=true WHERE username='first_admin';"
-    ```
-
-### Safety properties
-
-The endpoint refuses to mint a token unless **all** of the following hold,
-so the worst that can happen if you forget to unset the env var is one
-extra invite for an org that already has admins (nothing happens):
-
-| Check | Failure code | Behaviour |
-|---|---|---|
-| `AUTOTEST_BOOTSTRAP_TOKEN` env unset | 503 | endpoint disabled |
-| `bootstrap_token` body field doesn't match | 403 | constant-time compare |
-| Target org doesn't exist | 404 | — |
-| Org already has an active admin (superuser OR Admin role) | 409 | — |
-| > 3 calls per hour from same IP | 429 | slowapi throttle (disabled in tests) |
-
-The endpoint is also kept off the JWT-required path list, so an
-unauthenticated request can reach it — gating is purely
-`bootstrap_token` + admin-presence.
-
-## Option B — `python -m app.cli create-admin` (no HTTP)
-
-Direct CLI on the backend container. Doesn't touch HTTP at all, so it
-works even if the gateway is down. Trade-off: SSH access required.
-
-```sh
-docker compose exec backend python -m app.cli create-admin
-# interactive: prompts for username / password / email
+```
+帳號:   admin
+密碼:   admin123
 ```
 
-Or non-interactively:
+The first time `admin` logs in, the backend forces a password rotation:
+the API returns `must_change_password=true` on `/auth/login`, and every
+non-`/auth/me` / non-`/auth/change-password` endpoint returns `403`
+until the password is rotated. The frontend pops a forced-change modal
+that blocks all other UI.
+
+## How the seed works
+
+`backend/app/main.py::_ensure_default_admin()` runs in the lifespan
+startup hook. On every backend boot:
+
+1. If a `users` row with `username='admin'` **already exists**, the seed
+   self-heals (`is_superuser=True`, `is_active=True`, `role_id=Admin`)
+   but **does not touch `password_hash` or `must_change_password`** — so
+   restarts never reset the operator-set password.
+2. If `admin` is missing, the seed creates it with:
+   - `password_hash = hash_password(AUTOTEST_DEFAULT_ADMIN_PASSWORD or 'admin123')`
+   - `must_change_password = True`
+   - `is_superuser = True`
+   - `role = Admin`
+   - `organization = default`
+
+### Customising the seed password (prod)
+
+`admin123` is a known-bad default. For prod / staging, set the
+`AUTOTEST_DEFAULT_ADMIN_PASSWORD` env var **before** the very first
+boot. The seed will use that string instead of `admin123`. Either way,
+`must_change_password=True` so the operator still has to rotate on
+first login.
 
 ```sh
-AUTOTEST_ADMIN_USERNAME=first_admin \
-AUTOTEST_ADMIN_PASSWORD='your-strong-password' \
-AUTOTEST_ADMIN_EMAIL=you@example.com \
-docker compose exec -T backend python -m app.cli create-admin --non-interactive
+# .env(務必在 backend 容器第一次啟動之前設好)
+echo "AUTOTEST_DEFAULT_ADMIN_PASSWORD=Op3rat0r-S0lid-Initial" >> .env
+
+docker compose up -d backend
 ```
 
-CLI-created users are `is_superuser=True` by default; they bypass RBAC.
+## Adding more admins / users
 
-## Which option?
+After logging in as `admin`, go to **設定 → 專案協作成員** to:
 
-| Need | Option |
-|---|---|
-| You have UI / curl access; SSH is restricted | A |
-| You're scripting deploys (Terraform, Ansible) | A (idempotent: 409 on retry) |
-| You want a normal-looking Admin user | A |
-| You want `is_superuser=True` immediately | B |
-| You don't want to expose HTTP secret token to anyone | B |
+- 「**建立新使用者**」(綠色按鈕)— 建立全新帳號(username + email + 初始密碼 + 角色),可選擇同時加入當前專案
+- 「**編輯使用者**」(每列 ✎ 按鈕)— 改 display_name / email / 角色 / 啟用旗標 / superuser 旗標
+- 「**重設密碼**」(編輯 modal 內)— 設新密碼,目標帳號的 `must_change_password` 會自動設回 `True`,他下次登入會被強制再改一次
+- 「**徹底刪除帳號**」(每列 ✗ 按鈕)— cascade 清掉 ProjectMember 等關聯
 
-## What if I lose access?
-
-If you lose every admin's password and `bootstrap-invite` returns 409:
+Programmatic equivalent:
 
 ```sh
-# 1) Soft-deactivate every existing admin so the gate flips back open
+# 建立新使用者(superuser only)
+curl -X POST http://localhost/api/auth/users \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{
+    "username": "alice",
+    "password": "alice-initial",
+    "email": "alice@example.com",
+    "is_superuser": false
+  }'
+```
+
+## 忘記密碼
+
+登入頁的「**忘記密碼**」 tab → 輸入 username + email → 系統寄重置連結到該 email
+(連結 1 小時內有效,單次使用)→ 點連結進設定新密碼頁,完成後自動重新登入。
+
+需要 SMTP 設定(設定 → 電子郵件)才能真的寄信;沒設 SMTP 時 token 仍會
+建到 `password_reset_tokens` 表,可從 DB 取出測試:
+
+```sh
 docker exec autotest-postgres psql -U admin -d autotest_db -c \
-  "UPDATE users SET is_active=false
-    WHERE organization_id=(SELECT id FROM organizations WHERE slug='default')
-      AND (is_superuser OR role_id=(SELECT id FROM roles WHERE name='Admin'));"
-
-# 2) Re-bootstrap via Option A
-# 3) Re-activate any user you still want
+  "SELECT token, expires_at FROM password_reset_tokens \
+   WHERE username='admin' ORDER BY created_at DESC LIMIT 1;"
 ```
 
-Don't `DELETE` admins — referenced by audit_logs / todo_items / etc.
-Soft delete (`is_active=false`) is the right tool.
+把 token 拼到 `http://localhost/?reset_token=<TOKEN>` 即可。
+
+## What if I lose admin password and the SMTP isn't set?
+
+```sh
+# 直接重設 admin 的 password_hash
+HASH=$(docker exec autotest-backend python -c \
+  "from app.auth.security import hash_password; print(hash_password('admin123'))")
+
+docker exec autotest-postgres psql -U admin -d autotest_db -c \
+  "UPDATE users SET password_hash='$HASH', must_change_password=true \
+   WHERE username='admin';"
+
+# 然後用 admin / admin123 登入,系統強制改新密碼
+```
+
+## 已下架的舊機制(歷史紀錄)
+
+下列 endpoint / 流程在 0008+0009 後已全部移除,跑舊文件 / 舊 client 的話會碰到:
+
+| 舊 endpoint / 流程 | 新行為 |
+|---|---|
+| `POST /api/auth/register` | `410 Gone` + `code=registration_disabled` |
+| `POST /api/auth/bootstrap-invite` | 完全移除(原本用來 mint 第一張 invite) |
+| `POST /api/auth/redeem-invite` | 完全移除 |
+| `POST /api/auth/request-access` | 完全移除 |
+| Email-domain 自動歸屬 | 邏輯刪除;`organizations.email_domains` 欄位保留但 API 不再讀寫 |
+| 邀請碼管理 UI | 從設定頁拿掉 |
+| 組織成員 / 群組設定 UI | 從設定頁拿掉(群組 model 仍在,給「指派 todo 給群組」共用) |
+| `python -m app.cli create-admin` | CLI 仍可用,但不再是「首次部署必跑」 — 系統會自動 seed |
+
+`AUTOTEST_BOOTSTRAP_TOKEN` env var 已不再被 backend 讀取 — 設了也不會啟用任何流程。

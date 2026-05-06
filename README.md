@@ -48,9 +48,15 @@ docker compose --profile spawnable build
 # 3) Start the main stack.
 docker compose up -d --build
 
-# 4) Create the first admin user (no default account is shipped).
-docker compose exec backend python -m app.cli create-admin
+# 4) (Optional) override the seeded default admin password BEFORE the first
+#    backend start. If skipped, the seed uses 'admin123' and forces a rotation
+#    on first login. See docs/ops/bootstrap.md for details.
+# echo "AUTOTEST_DEFAULT_ADMIN_PASSWORD=Op3rator-Init" >> .env
 ```
+
+After backend starts, log in with `admin` / `admin123` (or your override).
+The first login is gated by a forced password change. Self-service registration
+is disabled — additional users are created from **設定 → 專案協作成員**.
 
 **Default URLs after a successful boot**
 

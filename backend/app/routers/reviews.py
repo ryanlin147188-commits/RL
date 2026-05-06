@@ -231,12 +231,21 @@ async def get_review_history(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    # Resolve + scope-check the parent record first; history is denormalised
-    # with organization_id but listing untrusted record_ids straight from
-    # the URL would be a foot-gun.
+    """先用 path 參數當 review_record.id 找;找不到就 fallback 當 entity_id 找
+    (testcase / document 等業務 entity 的 ID),回傳對應 review 的 history。"""
     record = (
         await db.execute(TenantQuery.for_(ReviewRecord).where(ReviewRecord.id == record_id))
     ).scalar_one_or_none()
+    if record is None:
+        # 兼容呼叫端用業務 entity ID 直查的習慣 — 在 review_records 內找
+        # entity_id == path 參數的 row(若有多筆則取最新一筆)
+        record = (
+            await db.execute(
+                TenantQuery.for_(ReviewRecord)
+                .where(ReviewRecord.entity_id == record_id)
+                .order_by(ReviewRecord.created_at.desc())
+            )
+        ).scalars().first()
     if record is None:
         raise HTTPException(404, "review record not found")
 

@@ -4192,12 +4192,8 @@ driver.swipe(100, 800, 100, 200, 500)"
                         <label class="hidden">
                             <input type="checkbox" id="kanbanOverdueOnly" onchange="renderTestKanban()">
                         </label>
-                        <!-- 新增待辦 — 直接呼叫 openTodoModal(),不再多 entity 下拉 -->
-                        <button type="button" onclick="openTodoModal()" id="kanbanAddBtn"
-                            class="ml-auto px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded text-xs font-semibold shadow-sm flex items-center gap-1.5">
-                            <i class="fa-solid fa-plus"></i> 新增待辦
-                        </button>
-                        <button onclick="renderTestKanban()" class="text-xs px-2 py-1 border border-stone-300 rounded hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
+                        <!-- 新增按鈕已移除 — entity 統一從 WBS Task 之下「+ 連結」建立,看版只負責呈現狀態流動 -->
+                        <button onclick="renderTestKanban()" class="ml-auto text-xs px-2 py-1 border border-stone-300 rounded hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
                     </div>
                     <!-- 第二列工具:搜尋 + 狀態 chip + assignee + (entity=todo 才顯示) Sprint dropdown + 群組 toggle -->
                     <div class="bg-white rounded-lg border border-orange-100 shadow-sm p-3 mb-3">
@@ -4444,7 +4440,15 @@ driver.swipe(100, 800, 100, 200, 500)"
                     </div>
                     <form onsubmit="return wbsSubmit(event)" class="p-6 space-y-3">
                         <div><label for="wbsName" class="block text-xs font-semibold text-stone-600 mb-1">名稱 *</label><input type="text" id="wbsName" aria-label="名稱" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
-                        <div class="grid grid-cols-2 gap-3">
+                        <div class="grid grid-cols-3 gap-3">
+                            <div><label for="wbsItemType" class="block text-xs font-semibold text-stone-600 mb-1">階層類型</label>
+                                <select id="wbsItemType" aria-label="階層類型" onchange="_wbsToggleLinksPanel()" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
+                                    <option value="">— 自動推斷 —</option>
+                                    <option value="Feature">🎯 Feature</option>
+                                    <option value="WorkPackage">📦 WorkPackage / 工作包</option>
+                                    <option value="Task">⚙ Task</option>
+                                </select>
+                            </div>
                             <div><label for="wbsParent" class="block text-xs font-semibold text-stone-600 mb-1">父項目（留空 = 頂層）</label>
                                 <select id="wbsParent" aria-label="父項目" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
                                     <option value="">— 頂層 —</option>
@@ -4473,6 +4477,39 @@ driver.swipe(100, 800, 100, 200, 500)"
                             <div><label for="wbsEffort" class="block text-xs font-semibold text-stone-600 mb-1">預估工時</label><input type="number" id="wbsEffort" aria-label="預估工時" step="0.5" min="0" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
                         </div>
                         <div><label for="wbsDesc" class="block text-xs font-semibold text-stone-600 mb-1">說明</label><textarea id="wbsDesc" aria-label="說明" rows="3" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
+
+                        <!-- Task 葉節點專用:連結到外部實體(任務 / 測試案例 / 缺陷 / 執行紀錄) -->
+                        <div id="wbsLinksPanel" class="hidden border border-yellow-200 bg-yellow-50/40 rounded-md p-3 space-y-2">
+                            <div class="text-xs font-semibold text-stone-700 flex items-center gap-1.5">
+                                <i class="fa-solid fa-link text-yellow-600"></i> Task 連結 <span class="text-stone-400 font-normal">(任務 / 測試案例 / 缺陷 / 執行紀錄)</span>
+                            </div>
+                            <div class="grid grid-cols-12 gap-2 items-end">
+                                <div class="col-span-3">
+                                    <label class="text-[10px] text-stone-500">類型</label>
+                                    <select id="wbsLinkTargetType" onchange="_wbsLoadLinkTargetOptions()" class="w-full px-2 py-1.5 border border-stone-300 rounded text-xs bg-white">
+                                        <option value="todo">任務</option>
+                                        <option value="testcase">測試案例</option>
+                                        <option value="defect">缺陷</option>
+                                        <option value="execution_report">執行紀錄</option>
+                                    </select>
+                                </div>
+                                <div class="col-span-7">
+                                    <label class="text-[10px] text-stone-500">目標</label>
+                                    <select id="wbsLinkTargetId" class="w-full px-2 py-1.5 border border-stone-300 rounded text-xs bg-white">
+                                        <option value="">— 載入中… —</option>
+                                    </select>
+                                </div>
+                                <div class="col-span-2">
+                                    <button type="button" onclick="_wbsAddLink()" class="w-full px-2 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-white rounded text-xs font-semibold">
+                                        <i class="fa-solid fa-plus"></i> 連結
+                                    </button>
+                                </div>
+                            </div>
+                            <ul id="wbsLinksList" class="text-xs space-y-1 max-h-40 overflow-y-auto">
+                                <li class="text-stone-400 text-center py-2">尚無連結</li>
+                            </ul>
+                        </div>
+
                         <div class="flex justify-end gap-2 pt-2"><button type="button" onclick="closeWbsModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button><button type="submit" class="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button></div>
                     </form>
                 </div>
@@ -18247,7 +18284,9 @@ gantt
         }
         // 新增按鈕已簡化為固定「新增待辦」,直接 onclick="openTodoModal()" 不再需要 dropdown。
         // 為相容舊 inline 呼叫保留 stub:
-        function kanbanToggleAddMenu(ev) { if (ev) ev.stopPropagation(); openTodoModal(); }
+        // 看版的「新增」按鈕已從 toolbar 拿掉 — entity 統一從 WBS Task 之下連結建立。
+        // 留 stub 是保證舊 inline 觸發點(若有)不會炸 ReferenceError。
+        function kanbanToggleAddMenu() { /* deprecated — see WBS create flow */ }
         function kanbanPopulateSprintOptions(items) {
             const sel = document.getElementById('kanbanSprintFilter');
             if (!sel) return;
@@ -19356,13 +19395,26 @@ gantt
                 const barCls = _WBS_BAR_COLOR[n.status] || 'bg-stone-300';
                 const progress = Math.max(0, Math.min(100, parseInt(n.progress, 10) || 0));
                 const indentPx = depth * 18;
+                const _typeMeta = ({
+                    Feature:     { icon: 'fa-bullseye', cls: 'text-purple-600', label: 'Feature' },
+                    WorkPackage: { icon: 'fa-box', cls: 'text-amber-600', label: 'WP' },
+                    Task:        { icon: 'fa-screwdriver-wrench', cls: 'text-stone-600', label: 'Task' },
+                })[n.item_type] || { icon: 'fa-circle', cls: 'text-stone-400', label: n.item_type || '?' };
+                const _lc = n.link_counts || {};
+                const _linkBadges = [];
+                if (_lc.todo)             _linkBadges.push(`<span class="text-[10px] px-1 rounded bg-amber-50 text-amber-700" title="任務"><i class="fa-solid fa-list-check"></i> ${_lc.todo}</span>`);
+                if (_lc.testcase)         _linkBadges.push(`<span class="text-[10px] px-1 rounded bg-blue-50 text-blue-700" title="測試案例"><i class="fa-solid fa-flask-vial"></i> ${_lc.testcase}</span>`);
+                if (_lc.defect)           _linkBadges.push(`<span class="text-[10px] px-1 rounded bg-rose-50 text-rose-700" title="缺陷"><i class="fa-solid fa-bug"></i> ${_lc.defect}</span>`);
+                if (_lc.execution_report) _linkBadges.push(`<span class="text-[10px] px-1 rounded bg-emerald-50 text-emerald-700" title="執行紀錄"><i class="fa-solid fa-clipboard-list"></i> ${_lc.execution_report}</span>`);
                 out.push(`<div class="grid grid-cols-12 gap-2 px-3 py-2 border-b border-stone-100 hover:bg-amber-50/40 items-center">
                     <div class="col-span-5 flex items-center gap-1" data-indent="${indentPx}" style="padding-left:${indentPx}px">
                         ${hasChildren
                             ? `<button type="button" class="w-5 h-5 flex items-center justify-center text-stone-400 hover:text-yellow-600" onclick="wbsToggleNode('${_esc(n.id)}')" aria-label="${expanded ? '收合' : '展開'}子項目"><i class="fa-solid ${expanded ? 'fa-chevron-down' : 'fa-chevron-right'} text-xs"></i></button>`
                             : '<span class="w-5 inline-block"></span>'}
+                        <i class="fa-solid ${_typeMeta.icon} ${_typeMeta.cls} text-[11px]" title="${_esc(_typeMeta.label)}"></i>
                         <span class="font-mono text-[11px] text-stone-400">${_esc(n.code)}</span>
                         <span class="font-semibold text-stone-800 truncate" title="${_esc(n.name)}">${_esc(n.name)}</span>
+                        ${_linkBadges.length ? `<span class="ml-1 flex gap-1">${_linkBadges.join('')}</span>` : ''}
                     </div>
                     <div class="col-span-2"><span class="text-xs px-2 py-0.5 rounded font-medium ${stCls}">${_esc(_WBS_STATUS[n.status] || n.status)}</span></div>
                     <div class="col-span-2 text-xs text-stone-600 truncate">${_esc(n.assignee || '—')}</div>
@@ -19403,6 +19455,7 @@ gantt
                 : '<i class="fa-solid fa-sitemap text-yellow-500"></i> 新增 WBS 工作項目';
             document.getElementById('wbsName').value = r?.name || '';
             document.getElementById('wbsCode').value = r?.code || '';
+            document.getElementById('wbsItemType').value = r?.item_type || '';
             document.getElementById('wbsStatus').value = r?.status || 'New';
             document.getElementById('wbsProgress').value = r?.progress ?? 0;
             document.getElementById('wbsAssignee').value = r?.assignee || (typeof authCurrentUsername === 'function' ? (authCurrentUsername()||'') : '');
@@ -19415,8 +19468,118 @@ gantt
             const parentSel = document.getElementById('wbsParent');
             parentSel.value = (r?.parent_id || parentId || '');
             document.getElementById('wbsModal').classList.remove('hidden');
+            // 連結 panel 只在編輯既有 Task 時顯示;新建時還沒 id 不能 link
+            _wbsToggleLinksPanel();
+            if (id && (r?.item_type === 'Task')) {
+                _wbsLoadLinkTargetOptions();
+                _wbsRefreshLinksList();
+            }
         }
         function closeWbsModal() { document.getElementById('wbsModal').classList.add('hidden'); _editingWbsId = null; }
+
+        // ── WBS Task 連結 panel ───────────────────────────────────────
+        function _wbsToggleLinksPanel() {
+            const panel = document.getElementById('wbsLinksPanel');
+            if (!panel) return;
+            const t = document.getElementById('wbsItemType')?.value || '';
+            const show = !!_editingWbsId && (t === 'Task' || (t === '' && !!_editingWbsId));
+            panel.classList.toggle('hidden', !show);
+        }
+        async function _wbsLoadLinkTargetOptions() {
+            const t = document.getElementById('wbsLinkTargetType').value;
+            const sel = document.getElementById('wbsLinkTargetId');
+            sel.innerHTML = '<option value="">— 載入中… —</option>';
+            const pid = currentProjectId;
+            const urls = {
+                todo:             `/api/todos?project_id=${encodeURIComponent(pid)}`,
+                testcase:         `/api/projects/${encodeURIComponent(pid)}/tree`,
+                defect:           `/api/defects?project_id=${encodeURIComponent(pid)}`,
+                execution_report: `/api/reports?project_id=${encodeURIComponent(pid)}`,
+            };
+            try {
+                const r = await fetch(urls[t]);
+                if (!r.ok) throw new Error('HTTP '+r.status);
+                let arr = await r.json();
+                let opts = [];
+                if (t === 'todo') {
+                    opts = arr.map(x => ({ id: x.id, label: `${x.title}` }));
+                } else if (t === 'testcase') {
+                    // tree: 只取 TESTCASE 葉節點
+                    const out = [];
+                    const walk = (nodes) => (nodes || []).forEach(n => {
+                        if (n.level_type === 'TESTCASE') out.push({ id: n.id, label: n.name });
+                        walk(n.children);
+                    });
+                    walk(arr);
+                    opts = out;
+                } else if (t === 'defect') {
+                    opts = arr.map(x => ({ id: x.id, label: `[${x.code}] ${x.title}` }));
+                } else if (t === 'execution_report') {
+                    opts = (Array.isArray(arr) ? arr : (arr.items || [])).map(x => ({
+                        id: x.id, label: `${x.id.slice(0,8)} · ${x.status || ''} · ${x.created_at?.slice(0,16) || ''}`,
+                    }));
+                }
+                sel.innerHTML = '<option value="">— 選擇 —</option>'
+                              + opts.map(o => `<option value="${_esc(o.id)}">${_esc(o.label)}</option>`).join('');
+            } catch (e) {
+                sel.innerHTML = `<option value="">— 載入失敗:${_esc(e.message)} —</option>`;
+            }
+        }
+        async function _wbsRefreshLinksList() {
+            const list = document.getElementById('wbsLinksList');
+            if (!_editingWbsId) { list.innerHTML = '<li class="text-stone-400 text-center py-2">儲存後可連結</li>'; return; }
+            try {
+                const r = await fetch(`/api/wbs/${encodeURIComponent(_editingWbsId)}/links`);
+                if (!r.ok) throw new Error('HTTP '+r.status);
+                const links = await r.json();
+                if (!links.length) { list.innerHTML = '<li class="text-stone-400 text-center py-2">尚無連結</li>'; return; }
+                const ICON = { todo:'fa-list-check text-amber-600', testcase:'fa-flask-vial text-blue-600', defect:'fa-bug text-rose-600', execution_report:'fa-clipboard-list text-emerald-600' };
+                const TLABEL = { todo:'任務', testcase:'測試案例', defect:'缺陷', execution_report:'執行紀錄' };
+                list.innerHTML = links.map(l => `
+                    <li class="flex items-center gap-2 px-2 py-1 bg-white border border-stone-100 rounded">
+                        <i class="fa-solid ${ICON[l.target_type] || 'fa-link'}"></i>
+                        <span class="text-[10px] text-stone-500">${TLABEL[l.target_type] || l.target_type}</span>
+                        <span class="font-medium truncate flex-1">${_esc(l.label || l.target_id)}</span>
+                        ${l.code ? `<span class="font-mono text-[10px] text-stone-400">${_esc(l.code)}</span>` : ''}
+                        ${l.status ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-stone-100 text-stone-600">${_esc(l.status)}</span>` : ''}
+                        <button type="button" onclick="_wbsRemoveLink('${_esc(l.id)}')" class="text-stone-300 hover:text-rose-600 ml-1" title="移除連結"><i class="fa-solid fa-xmark text-xs"></i></button>
+                    </li>
+                `).join('');
+            } catch (e) {
+                list.innerHTML = `<li class="text-rose-500 text-center py-2">載入失敗:${_esc(e.message)}</li>`;
+            }
+        }
+        async function _wbsAddLink() {
+            if (!_editingWbsId) { showToast('請先儲存 WBS 項目再連結', 'info'); return; }
+            const t = document.getElementById('wbsLinkTargetType').value;
+            const id = document.getElementById('wbsLinkTargetId').value;
+            if (!t || !id) { showToast('請選擇連結目標', 'error'); return; }
+            try {
+                const r = await fetch(`/api/wbs/${encodeURIComponent(_editingWbsId)}/links`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ target_type: t, target_id: id }),
+                });
+                if (!r.ok) {
+                    const j = await r.json().catch(() => ({}));
+                    showToast('連結失敗:' + (j.detail || r.statusText), 'error');
+                    return;
+                }
+                showToast('已連結', 'success');
+                await _wbsRefreshLinksList();
+            } catch (e) {
+                showToast('連結失敗:' + (e.message || e), 'error');
+            }
+        }
+        async function _wbsRemoveLink(linkId) {
+            if (!_editingWbsId) return;
+            if (!confirm('確定移除此連結?')) return;
+            try {
+                const r = await fetch(`/api/wbs/${encodeURIComponent(_editingWbsId)}/links/${encodeURIComponent(linkId)}`, { method: 'DELETE' });
+                if (!r.ok && r.status !== 204) { showToast('移除失敗:' + r.statusText, 'error'); return; }
+                await _wbsRefreshLinksList();
+            } catch (e) { showToast('移除失敗:' + (e.message || e), 'error'); }
+        }
 
         async function wbsSubmit(ev) {
             ev.preventDefault();
@@ -19426,6 +19589,7 @@ gantt
                 code: document.getElementById('wbsCode').value.trim() || null,
                 name: document.getElementById('wbsName').value.trim(),
                 description: document.getElementById('wbsDesc').value || null,
+                item_type: document.getElementById('wbsItemType').value || null,
                 status: document.getElementById('wbsStatus').value,
                 progress: parseInt(document.getElementById('wbsProgress').value, 10) || 0,
                 assignee: document.getElementById('wbsAssignee').value.trim() || null,
