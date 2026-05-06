@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+import sqlalchemy as sa
 from sqlalchemy import asc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,7 +18,8 @@ from app.auth.scope import (
 from app.common import Pagination
 from app.database import get_db
 from app.models.user import User
-from app.models.wbs_item import WbsItem, WbsStatus
+from app.models.wbs_item import WbsItem, WbsItemType, WbsStatus
+from app.models.wbs_link import ALLOWED_WBS_TARGET_TYPES, WbsLink
 from app.schemas.wbs_item import WbsItemCreate, WbsItemResponse, WbsItemUpdate
 
 router = APIRouter()
@@ -100,6 +102,7 @@ async def wbs_tree(
             "code": r.code,
             "name": r.name,
             "description": r.description,
+            "item_type": r.item_type.value if hasattr(r.item_type, "value") else str(r.item_type),
             "status": r.status.value if hasattr(r.status, "value") else str(r.status),
             "progress": r.progress,
             "assignee": r.assignee,
@@ -108,7 +111,21 @@ async def wbs_tree(
             "effort_hours": r.effort_hours,
             "sort_order": r.sort_order,
             "children": [],
+            "link_counts": {"todo": 0, "testcase": 0, "defect": 0, "execution_report": 0},
         }
+
+    # 同步把 wbs_links 的計數也放進每個 Task 節點(讓 UI 一眼看到 4 種連結各有幾筆)
+    if rows:
+        ids = [r.id for r in rows]
+        link_rows = (await db.execute(
+            select(WbsLink.wbs_item_id, WbsLink.target_type, sa.func.count(WbsLink.id))
+            .where(WbsLink.wbs_item_id.in_(ids))
+            .group_by(WbsLink.wbs_item_id, WbsLink.target_type)
+        )).all()
+        for wbs_id, ttype, cnt in link_rows:
+            counts = by_id.get(wbs_id, {}).get("link_counts")
+            if counts is not None and ttype in counts:
+                counts[ttype] = int(cnt)
 
     roots: list[dict] = []
     for r in rows:
@@ -133,12 +150,35 @@ async def create_wbs(
         parent = await db.get(WbsItem, payload.parent_id)
         if not parent or parent.project_id != payload.project_id:
             raise HTTPException(400, "parent_id 不存在或不屬於同專案")
+    # 決定 item_type:payload 給的 → 若沒給,看 parent 來推斷
+    #   parent=None → Feature(根層)
+    #   parent=Feature → WorkPackage
+    #   parent=WorkPackage → Task
+    #   parent=Task → 仍 Task(Task 下不允許再有層,但容許多層 Task 巢狀以彈性)
+    requested_type = (payload.item_type or "").strip()
+    if requested_type:
+        try:
+            resolved_type = WbsItemType(requested_type)
+        except ValueError:
+            raise HTTPException(400, f"item_type 必須是 Feature / WorkPackage / Task")
+    else:
+        if not payload.parent_id:
+            resolved_type = WbsItemType.FEATURE
+        else:
+            parent_obj = await db.get(WbsItem, payload.parent_id)
+            ptype = (parent_obj.item_type if parent_obj else WbsItemType.TASK)
+            resolved_type = {
+                WbsItemType.FEATURE: WbsItemType.WORK_PACKAGE,
+                WbsItemType.WORK_PACKAGE: WbsItemType.TASK,
+                WbsItemType.TASK: WbsItemType.TASK,
+            }.get(ptype, WbsItemType.TASK)
     item = WbsItem(
         project_id=payload.project_id,
         parent_id=payload.parent_id,
         code=code,
         name=payload.name,
         description=payload.description,
+        item_type=resolved_type,
         status=_resolve_status(payload.status, WbsStatus.NOT_STARTED),
         progress=max(0, min(100, payload.progress or 0)),
         assignee=payload.assignee,
@@ -196,6 +236,11 @@ async def update_wbs(
             item.status = _resolve_status(val, item.status)
         elif key == "progress" and val is not None:
             item.progress = max(0, min(100, int(val)))
+        elif key == "item_type" and val is not None:
+            try:
+                item.item_type = WbsItemType(val)
+            except ValueError:
+                raise HTTPException(400, "item_type 必須是 Feature / WorkPackage / Task")
         else:
             setattr(item, key, val)
     await db.flush()
@@ -221,4 +266,127 @@ async def delete_wbs(
         db, item.project_id if item else None, user, not_found_detail="WBS item not found"
     )
     await db.delete(item)
+    await db.flush()
+
+
+# ─── WbsLink:Task 葉節點連到 todo / testcase / defect / execution_report ──
+async def _enrich_wbs_link(db: AsyncSession, link: WbsLink) -> dict:
+    """補上 target 物件的可讀欄位(label / status 等),前端不用再多打一次 API。"""
+    base = {
+        "id": link.id,
+        "wbs_item_id": link.wbs_item_id,
+        "target_type": link.target_type,
+        "target_id": link.target_id,
+        "created_by": link.created_by,
+        "created_at": link.created_at.isoformat() if link.created_at else None,
+        "label": None,
+        "status": None,
+        "code": None,
+    }
+    try:
+        if link.target_type == "todo":
+            from app.models.todo_item import TodoItem
+            o = await db.get(TodoItem, link.target_id)
+            if o:
+                base.update({"label": o.title, "status": o.status.value if hasattr(o.status, "value") else o.status})
+        elif link.target_type == "testcase":
+            from app.models.tree_node import TreeNode
+            o = await db.get(TreeNode, link.target_id)
+            if o:
+                base.update({"label": o.name, "status": o.content_status})
+        elif link.target_type == "defect":
+            from app.models.defect import Defect
+            o = await db.get(Defect, link.target_id)
+            if o:
+                base.update({
+                    "label": o.title,
+                    "code": o.code,
+                    "status": o.status.value if hasattr(o.status, "value") else o.status,
+                })
+        elif link.target_type == "execution_report":
+            from app.models.execution_report import ExecutionReport
+            o = await db.get(ExecutionReport, link.target_id)
+            if o:
+                base.update({
+                    "label": getattr(o, "name", None) or getattr(o, "trigger_user", None) or link.target_id[:8],
+                    "status": o.status.value if hasattr(o.status, "value") else getattr(o, "status", None),
+                })
+    except Exception:
+        pass
+    return base
+
+
+@router.get("/wbs/{item_id}/links", tags=["R · WBS"])
+async def list_wbs_links(
+    item_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """列出此 WBS Task 連到的所有外部實體(任務 / 測試案例 / 缺陷 / 執行紀錄)。"""
+    item = await db.get(WbsItem, item_id)
+    await ensure_project_in_scope(
+        db, item.project_id if item else None, user, not_found_detail="WBS item not found"
+    )
+    links = (await db.execute(
+        select(WbsLink).where(WbsLink.wbs_item_id == item_id).order_by(WbsLink.created_at)
+    )).scalars().all()
+    return [await _enrich_wbs_link(db, l) for l in links]
+
+
+@router.post("/wbs/{item_id}/links", status_code=201, tags=["R · WBS"])
+async def create_wbs_link(
+    item_id: str,
+    payload: dict,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """連結一個外部實體到 WBS Task。
+    body: ``{"target_type": "todo|testcase|defect|execution_report", "target_id": "..."}``"""
+    item = await db.get(WbsItem, item_id)
+    await ensure_project_in_scope(
+        db, item.project_id if item else None, user, not_found_detail="WBS item not found"
+    )
+    target_type = (payload or {}).get("target_type", "").strip()
+    target_id = (payload or {}).get("target_id", "").strip()
+    if target_type not in ALLOWED_WBS_TARGET_TYPES:
+        raise HTTPException(400, f"target_type 必須是 {sorted(ALLOWED_WBS_TARGET_TYPES)}")
+    if not target_id:
+        raise HTTPException(400, "缺少 target_id")
+    # dedupe(同 wbs_item + target 組合只一筆)
+    existing = (await db.execute(
+        select(WbsLink)
+        .where(WbsLink.wbs_item_id == item_id)
+        .where(WbsLink.target_type == target_type)
+        .where(WbsLink.target_id == target_id)
+    )).scalar_one_or_none()
+    if existing:
+        return await _enrich_wbs_link(db, existing)
+    link = WbsLink(
+        wbs_item_id=item_id,
+        target_type=target_type,
+        target_id=target_id,
+        created_by=user.username,
+        organization_id=item.organization_id,
+    )
+    db.add(link)
+    await db.flush()
+    await db.refresh(link)
+    return await _enrich_wbs_link(db, link)
+
+
+@router.delete("/wbs/{item_id}/links/{link_id}", status_code=204, tags=["R · WBS"])
+async def delete_wbs_link(
+    item_id: str,
+    link_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    item = await db.get(WbsItem, item_id)
+    await ensure_project_in_scope(
+        db, item.project_id if item else None, user, not_found_detail="WBS item not found"
+    )
+    link = await db.get(WbsLink, link_id)
+    if not link or link.wbs_item_id != item_id:
+        raise HTTPException(404, "Link not found")
+    await db.delete(link)
     await db.flush()

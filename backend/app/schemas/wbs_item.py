@@ -9,7 +9,9 @@ class WbsItemBase(BaseModel):
     name: str
     description: Optional[str] = None
     parent_id: Optional[str] = None
-    status: str = "NotStarted"
+    # WBS v1 階層:Feature / WorkPackage / Task。留空 → router 由 parent 自動推斷。
+    item_type: Optional[str] = None
+    status: str = "New"
     progress: int = 0
     assignee: Optional[str] = None
     start_date: Optional[str] = None
@@ -27,6 +29,7 @@ class WbsItemUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     parent_id: Optional[str] = None
+    item_type: Optional[str] = None
     status: Optional[str] = None
     progress: Optional[int] = None
     assignee: Optional[str] = None

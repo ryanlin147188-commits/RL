@@ -19,6 +19,16 @@ from app.auth.tenant import TenantScoped
 from .base import Base
 
 
+class WbsItemType(str, enum.Enum):
+    """WBS 階層三層:Feature → WorkPackage → Task。
+    Task 為葉節點,可透過 wbs_links 表連到 todo / testcase / defect / execution_report。
+    既有資料 default 'Task'(v1 之前所有 row 都當作 Task)。
+    """
+    FEATURE = "Feature"
+    WORK_PACKAGE = "WorkPackage"
+    TASK = "Task"
+
+
 class WbsStatus(str, enum.Enum):
     """統一 7 值狀態 — 對齊 defect / todo / requirement / review。
     舊值 NotStarted→NEW, InProgress→IN_PROGRESS, Completed→VERIFIED,
@@ -53,12 +63,18 @@ class WbsItem(TenantScoped, Base):
     code: Mapped[str] = mapped_column(String(60), nullable=False)
     name: Mapped[str] = mapped_column(String(300), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # WBS v1 階層:Feature / WorkPackage / Task。預設 Task(既有資料 + 新建葉節點)。
+    item_type: Mapped[WbsItemType] = mapped_column(
+        Enum(WbsItemType, values_callable=lambda x: [e.value for e in x], native_enum=False, length=20),
+        default=WbsItemType.TASK, server_default=WbsItemType.TASK.value, nullable=False, index=True,
+    )
     # 生命週期狀態(配合 entity_versions 的 AB 設計;舊資料 default approved)
     content_status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="approved", server_default="approved", index=True,
     )
     status: Mapped[WbsStatus] = mapped_column(
-        Enum(WbsStatus), default=WbsStatus.NEW, nullable=False
+        Enum(WbsStatus, values_callable=lambda x: [e.value for e in x], native_enum=False, length=20),
+        default=WbsStatus.NEW, nullable=False,
     )
     progress: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     assignee: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
