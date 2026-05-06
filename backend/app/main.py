@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.database import init_db
-from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings, schedules, local_runner, test_rounds, project_settings, screenshot_baselines, system, defects, test_milestones, test_plans, requirements, test_data_sets, test_documents, wbs_items, settings as app_settings, todos, todo_links, auth, ai, ai_chat, audit_logs, organizations, oidc, notifications, mock_endpoints, db_configs, groups, test_versions, reviews, assignments, artifacts
+from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings, schedules, local_runner, test_rounds, project_settings, screenshot_baselines, system, defects, test_milestones, test_plans, requirements, test_data_sets, test_documents, wbs_items, settings as app_settings, todos, todo_links, auth, ai, ai_chat, audit_logs, organizations, oidc, notifications, mock_endpoints, db_configs, groups, test_versions, reviews, assignments, artifacts, entity_versions
 # 確保新增 model 在 init_db() 前已 import 註冊到 Base.metadata
 from app.models import (  # noqa: F401
     Defect, TestMilestone, TestPlan, Requirement, RequirementTestcaseLink,
@@ -252,30 +252,82 @@ async def _seed_default_org_and_backfill() -> None:
         await session.commit()
 
 
-async def _warn_if_no_users() -> None:
-    """若資料庫沒有任何使用者,在啟動 log 印出建立 admin 的指引。
+async def _ensure_default_admin() -> None:
+    """確保「預設系統管理員」一定存在;不存在就用 admin/admin123 種出來,
+    並打開 must_change_password 旗標,使用者第一次登入會被前端強制改密碼。
 
-    過去版本會自動建立 admin/admin123,但該預設密碼在 codebase 公開後等同無認證。
-    現改為「啟動時偵測 + 提示使用者執行 CLI」,避免在公開部署環境留下預設帳號。
+    決策:
+      * 帳號名固定 ``admin``;預設密碼來自 env ``AUTOTEST_DEFAULT_ADMIN_PASSWORD``
+        (預設 ``admin123``)。Prod 環境可在 .env 設更強的初始密碼,容器
+        起來後第一次登入仍會被強制改一次。
+      * 既有 ``admin`` row 不會被覆蓋(連 must_change_password / password_hash
+        都不動),避免重啟意外重置密碼。
+      * 一併把 admin 掛到 default org + Admin role + is_superuser=True,
+        相當於先前 _heal_admin_user() 的自我修復行為。
     """
     import logging
-    from sqlalchemy import select, func
+    import os
+    from sqlalchemy import select
+    from app.auth.security import hash_password
     from app.database import AsyncSessionLocal
 
-    async with AsyncSessionLocal() as session:
-        existing_count = (
-            await session.execute(select(func.count(User.username)))
-        ).scalar_one_or_none() or 0
-    if existing_count > 0:
-        return
     logger = logging.getLogger(__name__)
-    logger.warning(
-        "No users found in database. Bootstrap an admin with:\n"
-        "    docker compose exec backend python -m app.cli create-admin\n"
-        "Or non-interactively (e.g., from a provisioning script):\n"
-        "    AUTOTEST_ADMIN_USERNAME=alice AUTOTEST_ADMIN_PASSWORD='<at-least-8-chars>' \\\n"
-        "    docker compose exec -T backend python -m app.cli create-admin --non-interactive"
+    default_password = (
+        os.environ.get("AUTOTEST_DEFAULT_ADMIN_PASSWORD") or "admin123"
     )
+
+    async with AsyncSessionLocal() as session:
+        admin = (
+            await session.execute(select(User).where(User.username == "admin"))
+        ).scalar_one_or_none()
+        admin_role = (
+            await session.execute(
+                select(Role).where(Role.name == "Admin", Role.is_system.is_(True))
+            )
+        ).scalar_one_or_none()
+        default_org = (
+            await session.execute(
+                select(Organization).where(Organization.slug == "default")
+            )
+        ).scalar_one_or_none()
+
+        if admin is None:
+            admin = User(
+                username="admin",
+                display_name="系統管理員",
+                password_hash=hash_password(default_password),
+                role_id=admin_role.id if admin_role else None,
+                organization_id=default_org.id if default_org else None,
+                is_superuser=True,
+                is_active=True,
+                must_change_password=True,
+            )
+            session.add(admin)
+            await session.commit()
+            logger.warning(
+                "Default admin created: username=admin password=%s "
+                "(must change password on first login)",
+                "admin123" if default_password == "admin123" else "<from env>",
+            )
+            return
+
+        # 既有 admin → 只做 self-heal 不動密碼
+        changed = False
+        if not admin.is_superuser:
+            admin.is_superuser = True
+            changed = True
+        if not admin.is_active:
+            admin.is_active = True
+            changed = True
+        if admin_role and admin.role_id != admin_role.id:
+            admin.role_id = admin_role.id
+            changed = True
+        if changed:
+            await session.commit()
+            logger.info(
+                "admin self-heal: superuser=%s active=%s role_id=%s",
+                admin.is_superuser, admin.is_active, admin.role_id,
+            )
 
 
 @asynccontextmanager
@@ -320,10 +372,12 @@ async def lifespan(app: FastAPI):
     # is set). The function itself is kept below for environments where
     # ops want to re-enable self-heal — just call it from here.
     try:
-        await _warn_if_no_users()
+        await _ensure_default_admin()
     except Exception as e:
         import logging
-        logging.getLogger(__name__).warning("user existence check failed: %s", e)
+        logging.getLogger(__name__).exception(
+            "default admin bootstrap failed: %s", e,
+        )
     scheduler_task = asyncio.create_task(scheduler_loop())
     # Sprint 10.1 — MCP idle sweeper
     from app.routers.ai import _mcp_idle_sweeper_loop
@@ -422,6 +476,7 @@ app.include_router(db_configs.router,      prefix="/api", tags=["AA · DB 連線
 app.include_router(groups.router,          prefix="/api", tags=["S · 設定"])
 app.include_router(test_versions.router,   prefix="/api", tags=["TV · 測試版號"])
 app.include_router(reviews.router,         prefix="/api", tags=["AB · 審核"])
+app.include_router(entity_versions.router, prefix="/api", tags=["AC · 版本歷史"])
 app.include_router(assignments.router,     prefix="/api", tags=["AC · 指派"])
 
 

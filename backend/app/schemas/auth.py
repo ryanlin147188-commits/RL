@@ -15,6 +15,9 @@ class TokenResponse(BaseModel):
     refresh_token: str
     token_type: str = "bearer"
     expires_in: int   # 單位：秒；前端用來決定何時 silent refresh
+    # 若為 True,前端登入後第一件事必須走 /auth/change-password,在那之前所有
+    # 其他 API 都會被後端攔成 403。預設 False (一般登入流程)。
+    must_change_password: bool = False
 
 
 class RefreshRequest(BaseModel):
@@ -31,6 +34,7 @@ class UserResponse(BaseModel):
     organization_id: Optional[str] = None
     is_active: bool = True
     is_superuser: bool = False
+    must_change_password: bool = False
     last_login_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
@@ -54,83 +58,52 @@ class UserUpdateMeRequest(BaseModel):
     role_id: Optional[str] = None  # 想換角色
 
 
+class UserAdminUpdateRequest(BaseModel):
+    """Superuser 用 PUT /auth/users/{u} 改別人。
+
+    密碼/帳號名/organization_id 不在這裡改:密碼走 reset-password,
+    organization_id 走 switch-org / 重新建立。所有欄位都是 optional,
+    缺省 = 不動。
+    """
+    display_name: Optional[str] = None
+    email: Optional[str] = None
+    role_id: Optional[str] = None
+    is_active: Optional[bool] = None
+    is_superuser: Optional[bool] = None
+
+
 class ChangePasswordRequest(BaseModel):
     old_password: str
     new_password: str
 
 
-class RegisterRequest(BaseModel):
-    """自助註冊。歸屬邏輯(優先順序由高到低):
-    1. invite_token 存在 + 有效 → 用 invite 的 org / role / group
-    2. email 後綴 match 某 org 的 email_domains → 自動加入
-    3. 兩者都無 → 拒絕(避免任意人都能搶到 default org)
-    """
+class UserResetPasswordRequest(BaseModel):
+    """Superuser 替別人 reset 密碼。對方下次登入會被強制改密碼。"""
+    new_password: str
+
+
+class ForgotPasswordRequest(BaseModel):
+    """忘記密碼:輸入 username + email,系統寄重置連結到 email。"""
     username: str
-    password: str
-    email: Optional[str] = None
-    display_name: Optional[str] = None
-    invite_token: Optional[str] = None
-
-
-class BootstrapInviteRequest(BaseModel):
-    """Bootstrap 第一張 admin 邀請碼。
-
-    雙重閘門:
-      * AUTOTEST_BOOTSTRAP_TOKEN env 必須設 (operator-controlled secret)
-      * 目標 org 必須沒有任何 active admin (避免覆蓋既有部署)
-
-    任一條件不滿足 → 端點拒絕。設計目的是讓「第一次部署的客戶」可以從
-    UI 走完整個註冊流程,不需要 SSH 進 host 跑 CLI。
-    """
-    bootstrap_token: str
-    organization_slug: str = "default"
-    email: Optional[str] = None
-    ttl_hours: int = 24
-
-
-class RedeemInviteRequest(BaseModel):
-    """Logged-in user pastes an invite code to (re)assign their org/role/group."""
-    invite_token: str
-
-
-class RedeemInviteResponse(BaseModel):
-    """Returned after a successful redeem; the access_token is re-issued so
-    the new organization_id is reflected in the JWT claim immediately."""
-    organization_slug: str
-    organization_name: str
-    role_assigned: Optional[str] = None
-    group_assigned: Optional[str] = None
-    access_token: str
-    refresh_token: str
-    expires_in: int
-
-
-class RequestAccessRequest(BaseModel):
-    """Anonymous self-service invite request.
-
-    The caller supplies an email; the server looks up an Organization that
-    claims the email's @domain via Organization.email_domains, mints an
-    invite, and emails the token to the requester. The token is NEVER
-    returned in the HTTP response — only via email — so a third party who
-    learns the email cannot pivot to the invite token without also reading
-    the inbox."""
     email: str
-    display_name: Optional[str] = None
 
 
-class RequestAccessResponse(BaseModel):
+class ForgotPasswordResponse(BaseModel):
+    """為避免洩露帳號是否存在,後端永遠回 ``{"sent": true}`` + 通用訊息。"""
     sent: bool = True
-    organization_slug: str
-    masked_email: str
+    message: str = "若帳號 / Email 正確,我們已寄出重置連結,請至信箱查收"
 
 
-class BootstrapInviteResponse(BaseModel):
-    invite_token: str
-    organization_id: str
-    organization_slug: str
-    role: str
-    expires_at: datetime
-    note: str = (
-        "Use this token in POST /api/auth/register as `invite_token`. "
-        "Single-use; expires at the time above."
-    )
+class ResetPasswordRequest(BaseModel):
+    """從 email 連結點進來後,提交 token + 新密碼。"""
+    token: str
+    new_password: str
+
+
+class ResetPasswordTokenInfo(BaseModel):
+    """前端載入頁面後預先驗證 token 用,僅回傳是否有效跟過期時間。
+    不洩露 username,避免 token 流出後別人能拼湊出帳號名。"""
+    valid: bool
+    expires_at: Optional[datetime] = None
+
+

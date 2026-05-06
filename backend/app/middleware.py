@@ -33,6 +33,10 @@ _PUBLIC_PATTERNS: list[re.Pattern] = [
     re.compile(r"^/api/auth/refresh$"),
     re.compile(r"^/api/auth/register$"),
     re.compile(r"^/api/auth/bootstrap-invite$"),
+    # Forgot-password 三步流程都需要匿名存取(從 email 連結點進來時還沒登入)
+    re.compile(r"^/api/auth/forgot-password$"),
+    re.compile(r"^/api/auth/reset-password$"),
+    re.compile(r"^/api/auth/reset-password/check$"),
     # Self-service invite (Phase 4): anonymous user requests an invite by email
     re.compile(r"^/api/auth/request-access$"),
     re.compile(r"^/api/organizations/by-email-domain$"),

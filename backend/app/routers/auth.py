@@ -1,13 +1,16 @@
 """Auth REST endpoints — 登入 / 登出 / 取得當前使用者 / 變更密碼 / 管理使用者。
 
+註冊政策:本系統**禁止自助註冊**。使用者帳號統一由管理員透過
+``POST /auth/users`` 建立。歷史上的 ``/auth/register`` /
+``/auth/redeem-invite`` / ``/auth/request-access`` / ``/auth/bootstrap-invite``
+路徑已全部下架,只保留 ``/auth/register`` 一個 410 Gone 的 stub 以提示
+舊 client。
+
 注意：此檔不寫 `from __future__ import annotations`；slowapi 的 @limiter.limit
 裝飾器會讀取 function signature 做型別內省，搭配延後求值的 forward-ref
 （如 `payload: LoginRequest`）會在 FastAPI 註冊路由時拋
 `PydanticUndefinedAnnotation`。
 """
-import io
-import os
-import re
 import secrets
 import uuid
 from datetime import datetime, timedelta
@@ -15,7 +18,7 @@ from typing import Optional
 
 import jwt as pyjwt
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
-from sqlalchemy import func, or_, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.storage_service import save_bytes
@@ -32,28 +35,30 @@ from app.auth.security import (
 )
 from app.rate_limit import limiter
 from app.database import get_db
-from app.models.group import GroupMembership
-from app.models.org_invite import OrgInvite
 from app.models.org_membership import OrgMembership
 from app.models.organization import Organization
+from app.models.password_reset_token import PasswordResetToken
 from app.models.role import Role
 from app.models.user import User
 from app.schemas.auth import (
-    BootstrapInviteRequest,
-    BootstrapInviteResponse,
     ChangePasswordRequest,
+    ForgotPasswordRequest,
+    ForgotPasswordResponse,
     LoginRequest,
-    RedeemInviteRequest,
-    RedeemInviteResponse,
     RefreshRequest,
-    RegisterRequest,
-    RequestAccessRequest,
-    RequestAccessResponse,
+    ResetPasswordRequest,
+    ResetPasswordTokenInfo,
     TokenResponse,
+    UserAdminUpdateRequest,
     UserCreateRequest,
+    UserResetPasswordRequest,
     UserResponse,
     UserUpdateMeRequest,
 )
+
+
+# 重置 token 有效期。1 小時是常見、夠寬,且夠短不會堆積過多 dormant token。
+PASSWORD_RESET_TTL_HOURS = 1
 
 router = APIRouter()
 
@@ -76,555 +81,202 @@ async def login(request: Request, payload: LoginRequest, db: AsyncSession = Depe
         access_token=create_access_token(user.username, extra=extra),
         refresh_token=create_refresh_token(user.username),
         expires_in=ACCESS_TOKEN_TTL_MINUTES * 60,
+        must_change_password=bool(user.must_change_password),
     )
 
 
-USERNAME_RE = re.compile(r"^[A-Za-z0-9_]{3,32}$")
+@router.post("/auth/register", status_code=410, tags=["U · 認證"])
+async def register_disabled(request: Request) -> dict:
+    """自助註冊已停用。
+
+    本系統改為「管理員建立帳號」單一管道,所有使用者一律由 admin 透過
+    `POST /auth/users` 建立。舊的 invite-code / email-domain 自動歸屬流程
+    一併移除,避免任意人寫入 default org 的安全風險。
+
+    保留此 stub 是為了:
+      * 給舊的 client 一個明確的 410 + JSON 訊息,而不是 404
+      * 在 OpenAPI 文件留一行紀錄,方便讀者知道功能搬到哪裡
+    """
+    raise HTTPException(
+        status_code=410,
+        detail={
+            "code": "registration_disabled",
+            "message": "自助註冊已停用,請聯絡管理員開設帳號",
+        },
+    )
 
 
-@router.post("/auth/register", response_model=TokenResponse, status_code=201, tags=["U · 認證"])
-@limiter.limit("5/minute")  # 防爆量註冊
-async def register(
+# ── 忘記密碼:三步流程 ────────────────────────────────────────────────────
+#   1. POST /auth/forgot-password          (匿名;rate-limited)
+#   2. GET  /auth/reset-password/check     (匿名;前端載入時預檢 token)
+#   3. POST /auth/reset-password           (匿名;帶 token + new_password)
+#
+# Privacy:forgot-password 永遠回 200 + 通用訊息,不洩露 username/email
+# 是否存在;只有寄信端會 silently no-op。reset-password 真實驗證才會回錯。
+
+@router.post(
+    "/auth/forgot-password",
+    response_model=ForgotPasswordResponse,
+    tags=["U · 認證"],
+)
+@limiter.limit("3/hour")  # 同 IP 每小時最多 3 次,避免被當寄信跳板
+async def forgot_password(
     request: Request,
-    payload: RegisterRequest,
+    payload: ForgotPasswordRequest,
     db: AsyncSession = Depends(get_db),
-):
-    """自助註冊。歸屬邏輯:
-        1. invite_token → 套用 invite 設定(org / role / group)
-        2. email 後綴 match 某 org 的 email_domains → 自動加入該 org
-        3. 都不 match → 拒絕(避免亂註冊污染 default org)
-    註冊成功直接簽 access token,前端可立即登入。"""
-    # ── 基本驗證 ──
+) -> ForgotPasswordResponse:
+    """寄重置連結到使用者 email。
+
+    成功與否(帳號存在 / 已停用 / email 不符 / 寄信失敗)在 HTTP 回應中
+    一律呈現為 ``200 + {"sent": true}``;真正的執行結果寫進 server log。
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
     uname = (payload.username or "").strip()
-    pwd = payload.password or ""
-    email = (payload.email or "").strip().lower() or None
-    if not USERNAME_RE.match(uname):
-        raise HTTPException(400, "使用者名稱格式錯誤(3-32 字元,英數底線)")
-    if len(pwd) < 6:
-        raise HTTPException(400, "密碼至少 6 字元")
-    existing = (
+    email = (payload.email or "").strip().lower()
+    if not uname or not email or "@" not in email:
+        # 格式錯誤直接回通用訊息(同樣不洩露)
+        return ForgotPasswordResponse()
+
+    user = (
         await db.execute(select(User).where(User.username == uname))
     ).scalar_one_or_none()
-    if existing:
-        raise HTTPException(409, "帳號已存在")
+    if not user or not user.is_active:
+        logger.info("forgot-password: no active user '%s'", uname)
+        return ForgotPasswordResponse()
+    if (user.email or "").strip().lower() != email:
+        logger.info("forgot-password: email mismatch for user '%s'", uname)
+        return ForgotPasswordResponse()
 
-    target_org: Optional[Organization] = None
-    target_role_id: Optional[str] = None
-    target_group_id: Optional[str] = None
-    invite: Optional[OrgInvite] = None
-
-    # 1) 邀請碼路徑
-    if payload.invite_token:
-        invite = (
-            await db.execute(
-                select(OrgInvite).where(OrgInvite.token == payload.invite_token.strip())
-            )
-        ).scalar_one_or_none()
-        if not invite:
-            raise HTTPException(400, "邀請碼無效")
-        if invite.used_at is not None:
-            raise HTTPException(400, "邀請碼已被使用")
-        if invite.expires_at and invite.expires_at < datetime.utcnow():
-            raise HTTPException(400, "邀請碼已過期")
-        if invite.email and (not email or invite.email.lower() != email):
-            raise HTTPException(400, "此邀請碼限定特定 email,請用該 email 註冊")
-        target_org = await db.get(Organization, invite.organization_id)
-        if not target_org:
-            raise HTTPException(400, "邀請對應的組織不存在")
-        target_role_id = invite.role_id
-        target_group_id = invite.group_id
-
-    # 2) Email domain 路徑
-    if not target_org and email and "@" in email:
-        domain = email.rsplit("@", 1)[1].strip().lower()
-        if domain:
-            orgs = (await db.execute(select(Organization))).scalars().all()
-            for org in orgs:
-                if not org.email_domains:
-                    continue
-                domains = {d.strip().lower() for d in org.email_domains.split(",") if d.strip()}
-                if domain in domains:
-                    target_org = org
-                    break
-
-    # 3) Fall back to the default organisation. New users without a
-    # matching email domain land here as Viewer; an admin can move them
-    # to the right org via the user-management UI. This keeps the register
-    # endpoint frictionless even on a fresh deploy where no org has
-    # email_domains configured yet.
-    if not target_org:
-        target_org = (
-            await db.execute(
-                select(Organization).where(Organization.slug == "default")
-            )
-        ).scalar_one_or_none()
-
-    # Lazy-create default org if the lifespan seed silently dropped it
-    # (e.g. early-startup race, half-applied migration, manual TRUNCATE).
-    # We'd rather create-on-demand here than 500 the user's register POST.
-    if not target_org:
-        import logging
-        logging.getLogger(__name__).warning(
-            "register: 'default' org missing — lazy-creating it for user '%s'",
-            uname,
-        )
-        target_org = Organization(
-            slug="default",
-            name="Default Organization",
-            description="自動建立的預設組織;未指定 organization_id 的所有資料會歸屬於此",
-            plan="free",
-        )
-        db.add(target_org)
-        await db.flush()
-
-    # 預設角色(invite 沒指定就掛系統 Viewer,讓使用者進來只能讀;管理員之後再升)
-    if not target_role_id:
-        viewer = (
-            await db.execute(
-                select(Role).where(Role.name == "Viewer", Role.is_system.is_(True))
-            )
-        ).scalar_one_or_none()
-        target_role_id = viewer.id if viewer else None
-
-    new_user = User(
-        username=uname,
-        display_name=payload.display_name or uname,
-        email=email,
-        password_hash=hash_password(pwd),
-        role_id=target_role_id,
-        organization_id=target_org.id,
-        is_superuser=False,
-        is_active=True,
-    )
-    db.add(new_user)
-    await db.flush()
-
-    # 多組織模型:同步加 OrgMembership(預設這就是該 user 的 active org)。
-    db.add(OrgMembership(
-        username=new_user.username,
-        organization_id=target_org.id,
-        role_id=target_role_id,
-        is_default=True,
-        status="active",
-        invited_by=invite.created_by if invite is not None else None,
-    ))
-
-    # 起始群組
-    if target_group_id:
-        # 確認 group 存在 + 同 org
-        from app.models.group import Group
-        g = await db.get(Group, target_group_id)
-        if g and g.organization_id == target_org.id:
-            db.add(GroupMembership(
-                group_id=g.id, username=new_user.username, role_in_group="member"
-            ))
-
-    # 標記邀請已使用
-    if invite is not None:
-        invite.used_by = new_user.username
-        invite.used_at = datetime.utcnow()
-
-    await db.flush()
-
-    # 自動登入:簽 access token + refresh token
-    extra = {"org_id": new_user.organization_id, "is_superuser": new_user.is_superuser}
-    return TokenResponse(
-        access_token=create_access_token(new_user.username, extra=extra),
-        refresh_token=create_refresh_token(new_user.username),
-        expires_in=ACCESS_TOKEN_TTL_MINUTES * 60,
-    )
-
-
-@router.post(
-    "/auth/redeem-invite",
-    response_model=RedeemInviteResponse,
-    tags=["U · 認證"],
-)
-async def redeem_invite(
-    payload: RedeemInviteRequest,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Already-logged-in user pastes an invite code to switch into the
-    invite's organization (and optionally pick up the invite's role / group).
-
-    Why a separate endpoint and not just register-with-token?
-        Self-service registration was simplified to email-domain only;
-        invite codes are now redeemed *after* login from Settings → 兌換邀請碼.
-        This means a user who got auto-assigned to the wrong org (or whose
-        company hasn't registered an email domain) can still join the right
-        org by pasting the code their admin sent them.
-
-    Validation mirrors the original register flow:
-      * token must exist, not be used, not be expired
-      * if invite has email-lock, it must match the caller's email
-      * caller must have an email on file (otherwise email-locked invites
-        can't be safely matched)
-
-    On success:
-      * caller's user row is updated: organization_id, optionally role_id
-      * if the invite has a group_id, caller is added to GroupMembership
-      * invite is marked used (single-use)
-      * a fresh access/refresh token pair is returned so the new org_id
-        flows into the JWT claim without the client having to re-login.
-    """
-    token = (payload.invite_token or "").strip()
-    if not token:
-        raise HTTPException(400, "請輸入邀請碼")
-
-    invite = (
-        await db.execute(select(OrgInvite).where(OrgInvite.token == token))
-    ).scalar_one_or_none()
-    if not invite:
-        raise HTTPException(400, "邀請碼無效")
-    if invite.used_at is not None:
-        raise HTTPException(400, "邀請碼已被使用")
-    if invite.expires_at and invite.expires_at < datetime.utcnow():
-        raise HTTPException(400, "邀請碼已過期")
-
-    if invite.email:
-        caller_email = (user.email or "").strip().lower()
-        if not caller_email:
-            raise HTTPException(
-                400,
-                "此邀請碼限定特定 Email,請先到「設定 → 個人資料」設定您的 Email 後再兌換",
-            )
-        if invite.email.lower() != caller_email:
-            raise HTTPException(400, "此邀請碼限定特定 Email,與您帳號的 Email 不符")
-
-    target_org = await db.get(Organization, invite.organization_id)
-    if not target_org:
-        raise HTTPException(400, "邀請對應的組織不存在")
-
-    # Apply: org switch + optional role + optional group
-    user.organization_id = target_org.id
-    role_assigned: Optional[str] = None
-    if invite.role_id:
-        role = await db.get(Role, invite.role_id)
-        if role:
-            user.role_id = role.id
-            role_assigned = role.name
-
-    # 多組織模型:把 user 也加到 target_org 的 OrgMembership(idempotent)。
-    # 不動其他既有 OrgMembership — 使用者可保留在原本的組織,日後 switch-org 切回。
-    existing_mem = (
-        await db.execute(
-            select(OrgMembership)
-            .where(OrgMembership.username == user.username)
-            .where(OrgMembership.organization_id == target_org.id)
-        )
-    ).scalar_one_or_none()
-    if existing_mem is None:
-        # 此 user 沒有任何 default → 給這個 org 設 default;否則維持原有 default
-        any_default = (
-            await db.execute(
-                select(OrgMembership)
-                .where(OrgMembership.username == user.username)
-                .where(OrgMembership.is_default.is_(True))
-            )
-        ).scalar_one_or_none()
-        db.add(OrgMembership(
-            username=user.username,
-            organization_id=target_org.id,
-            role_id=invite.role_id,
-            is_default=(any_default is None),
-            status="active",
-            invited_by=invite.created_by,
-        ))
-    elif invite.role_id and existing_mem.role_id != invite.role_id:
-        # 已是成員但邀請帶新角色 → 更新角色(常見場景:從 Viewer 升 Admin)
-        existing_mem.role_id = invite.role_id
-
-    group_assigned: Optional[str] = None
-    if invite.group_id:
-        from app.models.group import Group
-        g = await db.get(Group, invite.group_id)
-        if g and g.organization_id == target_org.id:
-            # Idempotent: don't add a duplicate membership row.
-            existing = (
-                await db.execute(
-                    select(GroupMembership).where(
-                        GroupMembership.group_id == g.id,
-                        GroupMembership.username == user.username,
-                    )
-                )
-            ).scalar_one_or_none()
-            if existing is None:
-                db.add(GroupMembership(
-                    group_id=g.id, username=user.username, role_in_group="member",
-                ))
-            group_assigned = g.name
-
-    invite.used_by = user.username
-    invite.used_at = datetime.utcnow()
-    await db.flush()
-
-    extra = {"org_id": user.organization_id, "is_superuser": user.is_superuser}
-    return RedeemInviteResponse(
-        organization_slug=target_org.slug,
-        organization_name=target_org.name,
-        role_assigned=role_assigned,
-        group_assigned=group_assigned,
-        access_token=create_access_token(user.username, extra=extra),
-        refresh_token=create_refresh_token(user.username),
-        expires_in=ACCESS_TOKEN_TTL_MINUTES * 60,
-    )
-
-
-_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
-
-
-def _domain_of(email: str) -> Optional[str]:
-    email = (email or "").strip().lower()
-    if "@" not in email:
-        return None
-    return email.rsplit("@", 1)[1].strip() or None
-
-
-def _mask_email(email: str) -> str:
-    if "@" not in email:
-        return "***"
-    local, _, dom = email.partition("@")
-    if len(local) <= 1:
-        return f"*@{dom}"
-    return f"{local[0]}{'*' * (len(local) - 1)}@{dom}"
-
-
-@router.post(
-    "/auth/request-access",
-    response_model=RequestAccessResponse,
-    status_code=202,
-    tags=["U · 認證"],
-)
-@limiter.limit("5/hour")
-async def request_access(
-    request: Request,
-    payload: RequestAccessRequest,
-    db: AsyncSession = Depends(get_db),
-):
-    """Anonymous self-service invite.
-
-    Flow:
-      1. Caller posts ``email`` (and optional ``display_name``).
-      2. Server resolves the email's @domain → Organization via
-         ``email_domains``. No match → 400 ``unknown_domain``.
-      3. Server mints a single-use OrgInvite (Viewer role, 24h TTL,
-         email-bound) and enqueues an invite email containing the token.
-      4. Server returns 202 with ``{sent, organization_slug, masked_email}``.
-         The token itself is NEVER in the response — only in the email —
-         so a leaked HTTP log doesn't leak invite redemption power.
-
-    Rate limit: 5/hour per IP (slowapi). Single-email cooldown is enforced
-    inline below so the same address can't be re-mailed in under 60s.
-    """
-    email = (payload.email or "").strip().lower()
-    if not _EMAIL_RE.match(email):
-        raise HTTPException(400, "請輸入有效的 email")
-    domain = _domain_of(email)
-    if not domain:
-        raise HTTPException(400, "請輸入有效的 email")
-
-    # 1) Find the org claiming this domain
-    orgs = (await db.execute(select(Organization))).scalars().all()
-    target_org: Optional[Organization] = None
-    for o in orgs:
-        if not o.email_domains:
-            continue
-        domains = {d.strip().lower() for d in o.email_domains.split(",") if d.strip()}
-        if domain in domains:
-            target_org = o
-            break
-    if not target_org:
-        raise HTTPException(
-            status_code=400,
-            detail={"error": "unknown_domain", "message": "此 email 域名尚未登記任何組織,請聯絡管理員"},
-        )
-
-    # 2) Per-email cooldown: don't re-mail the same address within 60 seconds
-    now = datetime.utcnow()
-    recent = (
-        await db.execute(
-            select(OrgInvite)
-            .where(OrgInvite.email == email)
-            .where(OrgInvite.organization_id == target_org.id)
-            .order_by(OrgInvite.created_at.desc())
-        )
-    ).scalars().first()
-    if recent and recent.email_sent_at and (now - recent.email_sent_at).total_seconds() < 60:
-        raise HTTPException(
-            status_code=429,
-            detail="邀請信已在 1 分鐘內寄出,請稍候再試",
-        )
-
-    # 3) Default to Viewer role (admin can promote later)
-    viewer = (
-        await db.execute(
-            select(Role).where(Role.name == "Viewer", Role.is_system.is_(True))
-        )
-    ).scalar_one_or_none()
-
-    # 4) Mint the invite
-    expires_at = now + timedelta(hours=24)
-    invite_token = "REQ-" + secrets.token_urlsafe(24)
-    invite = OrgInvite(
-        organization_id=target_org.id,
-        token=invite_token,
-        email=email,
-        role_id=viewer.id if viewer else None,
-        expires_at=expires_at,
-        note="self-service request-access",
-        email_sent_at=now,
+    # mint token
+    token_value = secrets.token_urlsafe(32)
+    expires_at = datetime.utcnow() + timedelta(hours=PASSWORD_RESET_TTL_HOURS)
+    client_ip = request.client.host if request.client else None
+    prt = PasswordResetToken(
+        token=token_value,
+        username=user.username,
         email_sent_to=email,
+        expires_at=expires_at,
+        requested_ip=client_ip,
     )
-    db.add(invite)
+    db.add(prt)
     await db.flush()
 
-    # 5) Enqueue the invite email (non-blocking; failures logged but ignored)
+    # 寄信(透過 Celery,失敗不影響本端回應)
     try:
-        from app.services.email_service import render_invite_email
+        from app.services.email_service import render_password_reset_email
         from tasks.email_tasks import send_email_task
 
-        # Best-effort register URL: the front-end consumes ?token=&email=
-        # Anchor on the request host so dev/prod both work without config.
-        register_url = (
-            f"{request.url.scheme}://{request.url.netloc}/register"
-            f"?token={invite_token}&email={email}"
+        # reset URL:同 host + 前端會讀 ?reset_token=...
+        reset_url = (
+            f"{request.url.scheme}://{request.url.netloc}/?reset_token={token_value}"
         )
-        html_body, text_body = render_invite_email(
-            org_name=target_org.name,
-            register_url=register_url,
-            token=invite_token,
-            expires_at=expires_at,
+        html_body, text_body = render_password_reset_email(
+            display_name=user.display_name or user.username,
+            reset_url=reset_url,
+            expires_at=expires_at.strftime("%Y-%m-%d %H:%M UTC"),
         )
         send_email_task.delay(
             to=email,
-            subject=f"您獲邀加入 {target_org.name} (AutoTest)",
+            subject="AutoTest 密碼重置連結",
             html_body=html_body,
             text_body=text_body,
-            organization_id=target_org.id,
+            organization_id=user.organization_id,
+        )
+        logger.info(
+            "forgot-password: token=%s issued for user=%s ip=%s",
+            token_value[:8] + "...", uname, client_ip,
         )
     except Exception:  # noqa: BLE001
-        import logging
-        logging.getLogger(__name__).exception(
-            "request-access: invite saved but email enqueue failed for %s", email,
+        logger.exception(
+            "forgot-password: token saved but email enqueue failed for %s", uname,
         )
 
-    return RequestAccessResponse(
-        sent=True,
-        organization_slug=target_org.slug,
-        masked_email=_mask_email(email),
-    )
+    return ForgotPasswordResponse()
+
+
+@router.get(
+    "/auth/reset-password/check",
+    response_model=ResetPasswordTokenInfo,
+    tags=["U · 認證"],
+)
+async def check_reset_token(
+    token: str,
+    db: AsyncSession = Depends(get_db),
+) -> ResetPasswordTokenInfo:
+    """前端載入「設定新密碼」表單前先 hit 這支驗 token,避免使用者輸入完密碼
+    才被告知過期。回傳 ``valid`` + ``expires_at``;不洩露 username。"""
+    if not token:
+        return ResetPasswordTokenInfo(valid=False)
+    prt = (
+        await db.execute(
+            select(PasswordResetToken).where(PasswordResetToken.token == token)
+        )
+    ).scalar_one_or_none()
+    if not prt or prt.used_at is not None or prt.expires_at < datetime.utcnow():
+        return ResetPasswordTokenInfo(valid=False)
+    return ResetPasswordTokenInfo(valid=True, expires_at=prt.expires_at)
 
 
 @router.post(
-    "/auth/bootstrap-invite",
-    response_model=BootstrapInviteResponse,
-    status_code=201,
+    "/auth/reset-password",
     tags=["U · 認證"],
 )
-@limiter.limit("3/hour")
-async def bootstrap_invite(
+@limiter.limit("10/hour")  # 同 IP 每小時最多 10 次嘗試,避免暴力 token 猜測
+async def reset_password(
     request: Request,
-    payload: BootstrapInviteRequest,
+    payload: ResetPasswordRequest,
     db: AsyncSession = Depends(get_db),
-):
-    """Mint the first Admin invite token for a freshly-deployed organisation.
+) -> dict:
+    """以 forgot-password 寄出的 token 設定新密碼。
 
-    The endpoint is **disabled by default**. Operator must:
-
-    1. Set ``AUTOTEST_BOOTSTRAP_TOKEN`` to a strong random value
-       (e.g. ``openssl rand -hex 32``) and restart the backend.
-    2. Hit this endpoint with the matching token in the request body.
-
-    Once any active admin (superuser OR Admin role) exists in the target
-    organisation the endpoint returns 409 — preventing accidental
-    re-bootstrap on a running deploy.
-
-    Use the returned ``invite_token`` in ``POST /api/auth/register`` to
-    create the first Admin user. After that, ``unset
-    AUTOTEST_BOOTSTRAP_TOKEN`` and restart so the door closes behind you.
+    成功 → 用新密碼覆蓋 password_hash + 標記 token used + 把 user 的
+    must_change_password 設 False(代表使用者已自主修改,不需再 force)。
     """
-    # ── Gate 1: operator-controlled secret ─────────────────────────────
-    expected = (os.environ.get("AUTOTEST_BOOTSTRAP_TOKEN") or "").strip()
-    if not expected:
-        raise HTTPException(
-            status_code=503,
-            detail=(
-                "bootstrap-invite is disabled. Operator must set "
-                "AUTOTEST_BOOTSTRAP_TOKEN env var and restart the backend "
-                "to enable. See docs/ops/bootstrap.md."
-            ),
-        )
-    # constant-time compare to avoid timing-based token enumeration
-    if not secrets.compare_digest(payload.bootstrap_token or "", expected):
-        raise HTTPException(status_code=403, detail="bootstrap_token mismatch")
+    if not payload.token:
+        raise HTTPException(400, "缺少 token")
+    if not payload.new_password or len(payload.new_password) < 6:
+        raise HTTPException(400, "新密碼至少 6 字元")
 
-    # ── Resolve target org ─────────────────────────────────────────────
-    org = (
+    prt = (
         await db.execute(
-            select(Organization).where(Organization.slug == payload.organization_slug)
+            select(PasswordResetToken).where(PasswordResetToken.token == payload.token)
         )
     ).scalar_one_or_none()
-    if not org:
-        raise HTTPException(
-            status_code=404,
-            detail=f"organization '{payload.organization_slug}' not found",
-        )
+    if not prt:
+        raise HTTPException(400, "重置連結無效或已被使用")
+    if prt.used_at is not None:
+        raise HTTPException(400, "重置連結已被使用,請重新發起忘記密碼")
+    if prt.expires_at < datetime.utcnow():
+        raise HTTPException(400, "重置連結已過期,請重新發起忘記密碼")
 
-    # ── Gate 2: no admin must exist yet ────────────────────────────────
-    admin_role = (
-        await db.execute(select(Role).where(Role.name == "Admin", Role.is_system.is_(True)))
+    user = (
+        await db.execute(select(User).where(User.username == prt.username))
     ).scalar_one_or_none()
-    if not admin_role:
-        # Should never happen because lifespan seeds Admin/QA/Viewer, but
-        # fail loud rather than silently mint an invite to nowhere.
-        raise HTTPException(
-            status_code=500,
-            detail="default Admin role not seeded; contact operator",
-        )
+    if not user or not user.is_active:
+        # token 有效但帳號已被停用 / 刪除 — 仍然 mark used,避免被重試
+        prt.used_at = datetime.utcnow()
+        await db.flush()
+        raise HTTPException(400, "帳號已停用,請聯絡管理員")
 
-    admin_count_q = (
-        select(func.count(User.username))
-        .outerjoin(Role, User.role_id == Role.id)
-        .where(
-            User.organization_id == org.id,
-            User.is_active.is_(True),
-            or_(User.is_superuser.is_(True), Role.name == "Admin"),
+    user.password_hash = hash_password(payload.new_password)
+    user.must_change_password = False
+    prt.used_at = datetime.utcnow()
+    # 同 user 還未使用的其他 token 一併失效(避免外洩 token 又被用)
+    other_active = (
+        await db.execute(
+            select(PasswordResetToken)
+            .where(PasswordResetToken.username == user.username)
+            .where(PasswordResetToken.id != prt.id)
+            .where(PasswordResetToken.used_at.is_(None))
         )
-    )
-    admin_count = (await db.execute(admin_count_q)).scalar_one() or 0
-    if admin_count > 0:
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                f"organization '{org.slug}' already has {admin_count} active "
-                "admin user(s); have one of them mint an invite via the "
-                "regular admin UI instead."
-            ),
-        )
-
-    # ── Mint the invite ────────────────────────────────────────────────
-    ttl = max(1, min(payload.ttl_hours, 24 * 7))  # clamp 1h..7d
-    expires_at = datetime.utcnow() + timedelta(hours=ttl)
-    invite_token = "BOOT-" + secrets.token_urlsafe(24)
-
-    invite = OrgInvite(
-        organization_id=org.id,
-        token=invite_token,
-        email=(payload.email or "").strip().lower() or None,
-        role_id=admin_role.id,
-        expires_at=expires_at,
-    )
-    db.add(invite)
+    ).scalars().all()
+    for t in other_active:
+        t.used_at = datetime.utcnow()
     await db.flush()
 
-    return BootstrapInviteResponse(
-        invite_token=invite_token,
-        organization_id=org.id,
-        organization_slug=org.slug,
-        role="Admin",
-        expires_at=expires_at,
-    )
+    return {"ok": True, "username": user.username}
 
 
 @router.post("/auth/refresh", response_model=TokenResponse, tags=["U · 認證"])
@@ -836,7 +488,11 @@ async def change_password(
         raise HTTPException(400, "目前密碼不正確")
     if not payload.new_password or len(payload.new_password) < 6:
         raise HTTPException(400, "新密碼至少 6 字元")
+    if payload.new_password == payload.old_password:
+        raise HTTPException(400, "新密碼不可與目前密碼相同")
     user.password_hash = hash_password(payload.new_password)
+    # 走完強制改密碼流程後解閘,後續 API 才能正常呼叫
+    user.must_change_password = False
     await db.flush()
     return {"ok": True}
 
@@ -919,6 +575,74 @@ async def create_user(
         await db.flush()
     await db.refresh(new_user)
     return new_user
+
+
+@router.put("/auth/users/{username}", response_model=UserResponse, tags=["U · 認證"])
+async def admin_update_user(
+    username: str,
+    payload: UserAdminUpdateRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Superuser 修改其他使用者的基本資料 / 角色 / 啟用狀態 / superuser 旗標。
+
+    密碼不在這裡改,改密碼走 ``POST /auth/users/{username}/reset-password``。
+    """
+    _require_superuser(user)
+    target = (
+        await db.execute(select(User).where(User.username == username))
+    ).scalar_one_or_none()
+    if not target:
+        raise HTTPException(404, "使用者不存在")
+    if payload.display_name is not None:
+        target.display_name = payload.display_name.strip()[:120] or None
+    if payload.email is not None:
+        target.email = payload.email.strip()[:255] or None
+    if payload.role_id is not None:
+        if payload.role_id:
+            role = await db.get(Role, payload.role_id)
+            if not role:
+                raise HTTPException(404, "找不到該角色")
+            target.role_id = payload.role_id
+        else:
+            target.role_id = None
+    if payload.is_active is not None:
+        if target.username == user.username and not payload.is_active:
+            raise HTTPException(400, "不能停用自己")
+        target.is_active = bool(payload.is_active)
+    if payload.is_superuser is not None:
+        if target.username == user.username and not payload.is_superuser:
+            raise HTTPException(400, "不能撤銷自己的 superuser 權限")
+        target.is_superuser = bool(payload.is_superuser)
+    await db.flush()
+    await db.refresh(target)
+    return target
+
+
+@router.post("/auth/users/{username}/reset-password", tags=["U · 認證"])
+async def admin_reset_password(
+    username: str,
+    payload: UserResetPasswordRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Superuser 為其他使用者強制重設密碼。
+
+    重設後 ``must_change_password`` 一律設為 True,使用者下次登入會被前端
+    擋下並要求自行改密碼,管理員不會看到使用者的最終密碼。
+    """
+    _require_superuser(user)
+    if not payload.new_password or len(payload.new_password) < 6:
+        raise HTTPException(400, "新密碼至少 6 字元")
+    target = (
+        await db.execute(select(User).where(User.username == username))
+    ).scalar_one_or_none()
+    if not target:
+        raise HTTPException(404, "使用者不存在")
+    target.password_hash = hash_password(payload.new_password)
+    target.must_change_password = True
+    await db.flush()
+    return {"ok": True, "must_change_password": True}
 
 
 @router.delete("/auth/users/{username}", status_code=204, tags=["U · 認證"])

@@ -33,6 +33,11 @@ class User(Base):
     )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     is_superuser: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # 首次登入(或被管理員 reset 後)強制改密碼前不能呼叫其他 API。
+    # bootstrap admin (admin/admin123) 由 lifespan 種出來時 default True。
+    must_change_password: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false",
+    )
     last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(

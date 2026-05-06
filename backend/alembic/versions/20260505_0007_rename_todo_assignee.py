@@ -18,11 +18,21 @@ That schism cost us:
 
 This rename brings TodoItem in line. Pure column rename — no data loss, no
 constraint changes, and reversible.
+
+Idempotency notes (fresh-DB bootstrap):
+  * 0001 baseline runs ``Base.metadata.create_all`` against the *current*
+    model, so todo_items is born with ``assigned_to`` / ``assigned_to_type``.
+  * 0005 still issues ``ADD COLUMN IF NOT EXISTS assignee_type`` for the
+    legacy lightweight-SQL path, so on fresh DBs we end up with an orphan
+    ``assignee_type`` next to the canonical ``assigned_to_type``.
+  * This revision must therefore handle: (a) real upgrade — rename
+    legacy → canonical; (b) fresh DB — drop the orphan; (c) any half-state.
 """
 from __future__ import annotations
 
 from typing import Sequence, Union
 
+import sqlalchemy as sa
 from alembic import op
 
 
@@ -32,11 +42,41 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
+def _column_exists(table_name: str, column_name: str) -> bool:
+    bind = op.get_bind()
+    return any(
+        column["name"] == column_name
+        for column in sa.inspect(bind).get_columns(table_name)
+    )
+
+
+def _normalize(legacy: str, canonical: str) -> None:
+    """Bring ``todo_items`` into the canonical-only state for one column pair."""
+    legacy_exists = _column_exists("todo_items", legacy)
+    canonical_exists = _column_exists("todo_items", canonical)
+
+    if legacy_exists and not canonical_exists:
+        op.alter_column("todo_items", legacy, new_column_name=canonical)
+    elif legacy_exists and canonical_exists:
+        # Fresh-DB path: 0005 left an orphan legacy column next to the
+        # canonical one created by 0001. Drop the orphan.
+        op.drop_column("todo_items", legacy)
+    # else: canonical-only (already migrated) or neither (shouldn't happen) — no-op
+
+
 def upgrade() -> None:
-    op.alter_column("todo_items", "assignee", new_column_name="assigned_to")
-    op.alter_column("todo_items", "assignee_type", new_column_name="assigned_to_type")
+    _normalize("assignee", "assigned_to")
+    _normalize("assignee_type", "assigned_to_type")
 
 
 def downgrade() -> None:
-    op.alter_column("todo_items", "assigned_to", new_column_name="assignee")
-    op.alter_column("todo_items", "assigned_to_type", new_column_name="assignee_type")
+    if _column_exists("todo_items", "assigned_to") and not _column_exists(
+        "todo_items", "assignee"
+    ):
+        op.alter_column("todo_items", "assigned_to", new_column_name="assignee")
+    if _column_exists("todo_items", "assigned_to_type") and not _column_exists(
+        "todo_items", "assignee_type"
+    ):
+        op.alter_column(
+            "todo_items", "assigned_to_type", new_column_name="assignee_type"
+        )

@@ -187,6 +187,46 @@ def render_invite_email(
     return _INVITE_HTML_ZH.format(**fmt), _INVITE_TEXT_ZH.format(**fmt)
 
 
+_PWD_RESET_HTML_ZH = """\
+<html><body style="font-family:system-ui,-apple-system,sans-serif;color:#1f2937;max-width:600px">
+<h2 style="color:#d97706">AutoTest 密碼重置</h2>
+<p>您好 <b>{display_name}</b>,</p>
+<p>系統收到您的密碼重置請求。請點擊下方連結設定新密碼:</p>
+<p><a href="{reset_url}" style="display:inline-block;padding:10px 18px;background:#d97706;color:white;text-decoration:none;border-radius:6px">設定新密碼 →</a></p>
+<p style="color:#6b7280;font-size:12px">連結將於 <b>{expires_at}</b> 過期,且僅可使用一次。</p>
+<p style="color:#6b7280;font-size:12px">若連結無法點擊,請複製以下網址至瀏覽器:</p>
+<pre style="background:#f3f4f6;padding:10px;border-radius:6px;font-size:12px;word-break:break-all;white-space:pre-wrap">{reset_url}</pre>
+<hr style="border:none;border-top:1px solid #e5e7eb;margin-top:24px">
+<p style="color:#9ca3af;font-size:11px">若您沒有發起此請求,請忽略本信。本信件由 AutoTest 自動發出,請勿直接回覆。</p>
+</body></html>
+"""
+
+_PWD_RESET_TEXT_ZH = """\
+AutoTest 密碼重置
+
+您好 {display_name},
+
+系統收到您的密碼重置請求。請點擊下方連結設定新密碼:
+
+{reset_url}
+
+連結將於 {expires_at} 過期,且僅可使用一次。
+
+若您沒有發起此請求,請忽略本信。
+"""
+
+
+def render_password_reset_email(
+    *,
+    display_name: str,
+    reset_url: str,
+    expires_at: str,
+) -> tuple[str, str]:
+    """Return (html_body, text_body) for the forgot-password reset link email."""
+    fmt = {"display_name": display_name, "reset_url": reset_url, "expires_at": expires_at}
+    return _PWD_RESET_HTML_ZH.format(**fmt), _PWD_RESET_TEXT_ZH.format(**fmt)
+
+
 def render_notification_email(
     *,
     title: str,
