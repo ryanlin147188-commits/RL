@@ -16,6 +16,7 @@ from .ai_token_config import AiProvider, AiTokenConfig
 from .audit_log import AuditLog
 from .db_config import DbConfig
 from .email_config import EmailConfig
+from .entity_version import EntityVersion
 from .group import Group, GroupMembership
 from .mock_endpoint import MockEndpoint
 from .notification import Notification
@@ -24,6 +25,7 @@ from .oidc_provider import OidcProvider
 from .org_invite import OrgInvite
 from .org_membership import OrgMembership
 from .organization import Organization
+from .password_reset_token import PasswordResetToken
 from .project_member import ProjectMember
 from .role import Role
 from .user import User
@@ -80,6 +82,10 @@ __all__ = [
     "User",
     # Multi-tenancy + audit
     "Organization", "AuditLog", "OrgInvite", "OrgMembership",
+    # Forgot-password flow
+    "PasswordResetToken",
+    # Generic entity versioning (AI draft / pending review / approved / rejected + revert)
+    "EntityVersion",
     # Per-project membership + roles
     "ProjectMember",
     # SSO / OIDC

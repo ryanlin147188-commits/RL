@@ -320,6 +320,7 @@ async def todo_tree(
 @router.post("/todos", response_model=TodoItemResponse, status_code=201, tags=["T · 待辦"])
 async def create_todo(
     payload: TodoItemCreate,
+    from_ai: bool = False,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -348,6 +349,13 @@ async def create_todo(
         await _notify_assignment(db, t, user)
         await db.flush()
     await db.refresh(t)
+    from app.services import entity_version_service as evs
+    status_v = evs.CONTENT_STATUS_AI_DRAFT if from_ai else evs.CONTENT_STATUS_PENDING
+    source_v = evs.CHANGE_SOURCE_AI if from_ai else evs.CHANGE_SOURCE_HUMAN
+    await evs.snapshot(
+        db, entity_type="todo", entity=t,
+        source=source_v, status=status_v, by=user.username,
+    )
     return _enrich(t)
 
 
@@ -409,6 +417,12 @@ async def update_todo(
         await _notify_assignment(db, t, user)
         await db.flush()
     await db.refresh(t)
+    from app.services import entity_version_service as evs
+    await evs.snapshot(
+        db, entity_type="todo", entity=t,
+        source=evs.CHANGE_SOURCE_HUMAN, status=evs.CONTENT_STATUS_PENDING,
+        by=user.username,
+    )
     return _enrich(t)
 
 

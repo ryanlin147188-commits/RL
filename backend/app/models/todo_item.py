@@ -62,6 +62,10 @@ class TodoItem(Base):
     )
     title: Mapped[str] = mapped_column(String(300), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # 生命週期狀態(配合 entity_versions 的 AB 設計;舊資料 default approved)
+    content_status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="approved", server_default="approved", index=True,
+    )
     # 預定到期日（YYYY-MM-DD），用於日曆 + 過期計算
     due_date: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     status: Mapped[TodoStatus] = mapped_column(

@@ -106,6 +106,7 @@ async def list_requirements(
 @router.post("/requirements", response_model=RequirementResponse, status_code=201, tags=["O · 需求 / RTM"])
 async def create_requirement(
     payload: RequirementCreate,
+    from_ai: bool = False,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -125,6 +126,13 @@ async def create_requirement(
     db.add(r)
     await db.flush()
     await db.refresh(r)
+    from app.services import entity_version_service as evs
+    status_v = evs.CONTENT_STATUS_AI_DRAFT if from_ai else evs.CONTENT_STATUS_PENDING
+    source_v = evs.CHANGE_SOURCE_AI if from_ai else evs.CHANGE_SOURCE_HUMAN
+    await evs.snapshot(
+        db, entity_type="requirement", entity=r,
+        source=source_v, status=status_v, by=user.username,
+    )
     return await _to_response(db, r)
 
 
@@ -164,6 +172,12 @@ async def update_requirement(
             setattr(r, key, val)
     await db.flush()
     await db.refresh(r)
+    from app.services import entity_version_service as evs
+    await evs.snapshot(
+        db, entity_type="requirement", entity=r,
+        source=evs.CHANGE_SOURCE_HUMAN, status=evs.CONTENT_STATUS_PENDING,
+        by=user.username,
+    )
     return await _to_response(db, r)
 
 

@@ -38,6 +38,10 @@ class TestDocument(Assignable, TenantScoped, Base):
     )
     code: Mapped[str] = mapped_column(String(40), nullable=False)
     title: Mapped[str] = mapped_column(String(300), nullable=False)
+    # 生命週期狀態(配合 entity_versions 的 AB 設計;舊資料 default approved)
+    content_status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="approved", server_default="approved", index=True,
+    )
     category: Mapped[DocumentCategory] = mapped_column(
         Enum(DocumentCategory), default=DocumentCategory.NOTE, nullable=False
     )

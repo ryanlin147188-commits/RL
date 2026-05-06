@@ -115,6 +115,7 @@ async def wbs_tree(
 @router.post("/wbs", response_model=WbsItemResponse, status_code=201, tags=["R · WBS"])
 async def create_wbs(
     payload: WbsItemCreate,
+    from_ai: bool = False,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -141,6 +142,13 @@ async def create_wbs(
     db.add(item)
     await db.flush()
     await db.refresh(item)
+    from app.services import entity_version_service as evs
+    status_v = evs.CONTENT_STATUS_AI_DRAFT if from_ai else evs.CONTENT_STATUS_PENDING
+    source_v = evs.CHANGE_SOURCE_AI if from_ai else evs.CHANGE_SOURCE_HUMAN
+    await evs.snapshot(
+        db, entity_type="wbs_item", entity=item,
+        source=source_v, status=status_v, by=user.username,
+    )
     return item
 
 
@@ -184,6 +192,12 @@ async def update_wbs(
             setattr(item, key, val)
     await db.flush()
     await db.refresh(item)
+    from app.services import entity_version_service as evs
+    await evs.snapshot(
+        db, entity_type="wbs_item", entity=item,
+        source=evs.CHANGE_SOURCE_HUMAN, status=evs.CONTENT_STATUS_PENDING,
+        by=user.username,
+    )
     return item
 
 

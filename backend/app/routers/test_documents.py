@@ -78,6 +78,7 @@ async def list_documents(
 )
 async def create_document(
     payload: TestDocumentCreate,
+    from_ai: bool = False,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -96,6 +97,13 @@ async def create_document(
     db.add(doc)
     await db.flush()
     await db.refresh(doc)
+    from app.services import entity_version_service as evs
+    status_v = evs.CONTENT_STATUS_AI_DRAFT if from_ai else evs.CONTENT_STATUS_PENDING
+    source_v = evs.CHANGE_SOURCE_AI if from_ai else evs.CHANGE_SOURCE_HUMAN
+    await evs.snapshot(
+        db, entity_type="test_document", entity=doc,
+        source=source_v, status=status_v, by=user.username,
+    )
     return doc
 
 
@@ -145,6 +153,12 @@ async def update_document(
             setattr(doc, key, val)
     await db.flush()
     await db.refresh(doc)
+    from app.services import entity_version_service as evs
+    await evs.snapshot(
+        db, entity_type="test_document", entity=doc,
+        source=evs.CHANGE_SOURCE_HUMAN, status=evs.CONTENT_STATUS_PENDING,
+        by=user.username,
+    )
     return doc
 
 

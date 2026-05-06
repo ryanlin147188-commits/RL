@@ -94,6 +94,7 @@ async def list_defects(
 )
 async def create_defect(
     payload: DefectCreate,
+    from_ai: bool = False,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -120,6 +121,14 @@ async def create_defect(
     db.add(defect)
     await db.flush()
     await db.refresh(defect)
+    # AB 表 snapshot
+    from app.services import entity_version_service as evs
+    status_v = evs.CONTENT_STATUS_AI_DRAFT if from_ai else evs.CONTENT_STATUS_PENDING
+    source_v = evs.CHANGE_SOURCE_AI if from_ai else evs.CHANGE_SOURCE_HUMAN
+    await evs.snapshot(
+        db, entity_type="defect", entity=defect,
+        source=source_v, status=status_v, by=user.username,
+    )
     return defect
 
 
@@ -179,6 +188,13 @@ async def update_defect(
             setattr(d, key, val)
     await db.flush()
     await db.refresh(d)
+    # AB 表 snapshot:人工編輯 → pending_review
+    from app.services import entity_version_service as evs
+    await evs.snapshot(
+        db, entity_type="defect", entity=d,
+        source=evs.CHANGE_SOURCE_HUMAN, status=evs.CONTENT_STATUS_PENDING,
+        by=user.username,
+    )
     # Notify the assignee (or legacy `assignee` text) when status moved.
     # Errors are swallowed by notify(); never block the user's PUT.
     if status_changed_to is not None:

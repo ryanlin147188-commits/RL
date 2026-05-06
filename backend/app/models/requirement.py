@@ -50,6 +50,10 @@ class Requirement(Assignable, TenantScoped, Base):
     parent_id: Mapped[Optional[str]] = mapped_column(
         String(36), ForeignKey("requirements.id", ondelete="SET NULL"), nullable=True
     )
+    # 生命週期狀態(配合 entity_versions 的 AB 設計;舊資料 default approved)
+    content_status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="approved", server_default="approved", index=True,
+    )
     title: Mapped[str] = mapped_column(String(300), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     source: Mapped[RequirementSource] = mapped_column(

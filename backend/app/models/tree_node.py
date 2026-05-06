@@ -45,6 +45,11 @@ class TreeNode(Assignable, TenantScoped, Base):
     level_type: Mapped[LevelType] = mapped_column(Enum(LevelType), nullable=False)
     name: Mapped[str] = mapped_column(String(300), nullable=False)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    # 生命週期狀態(配合 entity_versions 的 AB 設計):ai_draft / pending_review / approved / rejected
+    # 預設 approved 是為了讓既有資料(舊版本沒這欄)直接視為已上線版,不會被審核 gate 擋住。
+    content_status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="approved", server_default="approved", index=True,
+    )
 
     # ── Relationships ──────────────────────────────────────────────
     project: Mapped["Project"] = relationship(

@@ -274,8 +274,48 @@ async def approve_review(
     await _ensure_admin(user, db)
     record = await _load_for_action(db, record_id, user)
     record = await review_service.approve(db, record=record, reviewer=user.username)
+    # AB 表 hook:對齊 entity_versions 的 content_status,並記一筆 source='system' 的 snapshot,
+    # 讓「review 通過 = 進入 approved 版本」這件事在版本歷史上看得到。
+    # 目前 review_records 僅涵蓋 testcase + document;其他 entity 透過
+    # /api/entity-versions/{type}/{id}/approve 直接審核(見 entity_versions router)。
+    await _sync_content_status_on_approve(db, record, user.username)
     names = await _resolve_entity_names(db, [record])
     return _to_response(record, names)
+
+
+async def _sync_content_status_on_approve(db, record, username: str) -> None:
+    """把 review record 對應的業務 entity 的 content_status flip 成 approved。
+
+    review_records.entity_type 是大寫枚舉(TESTCASE / DOCUMENT / ...)。本函式
+    把它 map 到 entity_versions registry 用的 lowercase key,並只處理 6 種已註冊
+    的 entity。沒對到 → 靜默跳過(REPORT / SCRIPT 等非 AB 範圍的 entity 不影響)。
+    """
+    type_map = {
+        "TESTCASE": "testcase",
+        "DOCUMENT": "test_document",
+    }
+    entity_type_value = (
+        record.entity_type.value if hasattr(record.entity_type, "value") else str(record.entity_type)
+    )
+    ev_type = type_map.get(entity_type_value.upper())
+    if not ev_type:
+        return
+    from app.services import entity_version_service as evs
+    spec = evs._get_registry().get(ev_type)
+    if not spec:
+        return
+    entity = await db.get(spec.model, record.entity_id)
+    if entity is None:
+        return
+    await evs.snapshot(
+        db,
+        entity_type=ev_type,
+        entity=entity,
+        source=evs.CHANGE_SOURCE_SYSTEM,
+        status=evs.CONTENT_STATUS_APPROVED,
+        by=username,
+        reason="Approved via review_records",
+    )
 
 
 @router.post(
@@ -294,8 +334,36 @@ async def reject_review(
     record = await review_service.reject(
         db, record=record, reviewer=user.username, reason=payload.reason
     )
+    await _sync_content_status_on_reject(db, record, user.username, payload.reason)
     names = await _resolve_entity_names(db, [record])
     return _to_response(record, names)
+
+
+async def _sync_content_status_on_reject(db, record, username: str, reason: str | None) -> None:
+    """同 _sync_content_status_on_approve,但 status 改 rejected。"""
+    type_map = {"TESTCASE": "testcase", "DOCUMENT": "test_document"}
+    entity_type_value = (
+        record.entity_type.value if hasattr(record.entity_type, "value") else str(record.entity_type)
+    )
+    ev_type = type_map.get(entity_type_value.upper())
+    if not ev_type:
+        return
+    from app.services import entity_version_service as evs
+    spec = evs._get_registry().get(ev_type)
+    if not spec:
+        return
+    entity = await db.get(spec.model, record.entity_id)
+    if entity is None:
+        return
+    await evs.snapshot(
+        db,
+        entity_type=ev_type,
+        entity=entity,
+        source=evs.CHANGE_SOURCE_SYSTEM,
+        status=evs.CONTENT_STATUS_REJECTED,
+        by=username,
+        reason=f"Rejected via review_records: {reason or '—'}",
+    )
 
 
 @router.post(
