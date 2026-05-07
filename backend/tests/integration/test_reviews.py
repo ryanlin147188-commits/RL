@@ -27,7 +27,7 @@ async def test_submit_creates_pending_record(client, org_a) -> None:
     )
     assert resp.status_code == 201, resp.text
     body = resp.json()
-    assert body["status"] == "pending"
+    assert body["status"] == "InReview"
     assert body["submitted_by"] == org_a.username
     assert body["entity_type"] == "document"
     assert body["entity_id"] == "doc-abc"
@@ -46,7 +46,7 @@ async def test_submit_then_approve(client, org_a) -> None:
     )
     assert approve.status_code == 200
     body = approve.json()
-    assert body["status"] == "approved"
+    assert body["status"] == "Verified"
     assert body["reviewed_by"] == org_a.username
     assert body["reviewed_at"] is not None
 
@@ -75,7 +75,7 @@ async def test_reject_requires_reason(client, org_a) -> None:
     )
     assert real.status_code == 200
     body = real.json()
-    assert body["status"] == "rejected"
+    assert body["status"] == "Closed"
     assert body["current_reason"] == "missing acceptance criteria"
 
 
@@ -99,7 +99,7 @@ async def test_resubmit_after_reject(client, org_a) -> None:
         headers=org_a.headers,
     )
     assert re.status_code == 201
-    assert re.json()["status"] == "pending"
+    assert re.json()["status"] == "InReview"
     assert re.json()["current_reason"] is None
 
 
@@ -133,7 +133,7 @@ async def test_revert_rejected_back_to_pending(client, org_a) -> None:
     )
     assert revert.status_code == 200
     body = revert.json()
-    assert body["status"] == "pending"
+    assert body["status"] == "InReview"
     # current_reason now carries the revert reason, not the rejection reason
     assert "submitter says" in body["current_reason"]
 
@@ -179,7 +179,7 @@ async def test_revert_requires_reason_and_unlocks(client, org_a) -> None:
     )
     assert real.status_code == 200
     body = real.json()
-    assert body["status"] == "pending"
+    assert body["status"] == "InReview"
     assert body["current_reason"] == "found a typo"
 
 
@@ -379,7 +379,7 @@ async def test_creating_testcase_node_autocreates_pending_review(client, org_a) 
     assert listing.status_code == 200
     rows = listing.json()
     assert any(
-        r["entity_type"] == "testcase" and r["entity_id"] == node_id and r["status"] == "pending"
+        r["entity_type"] == "testcase" and r["entity_id"] == node_id and r["status"] == "InReview"
         for r in rows
     ), f"expected auto-created review for {node_id}, got {rows}"
 

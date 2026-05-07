@@ -79,26 +79,21 @@ async def _gather_preconditions(
     ordered: list[str] = []
 
     def _dfs(node: str, on_path: set[str]) -> None:
-        if node in on_path:
-            raise HTTPException(
-                status_code=400,
-                detail=f"前置案例形成循環:{node}",
-            )
+        on_path.add(node)
         for pre_id, _ in edges.get(node, []):
             if pre_id in on_path:
                 raise HTTPException(
                     status_code=400,
                     detail=f"前置案例形成循環:{pre_id}",
                 )
-            on_path.add(pre_id)
             _dfs(pre_id, on_path)
-            on_path.remove(pre_id)
             if pre_id not in visited_global:
                 visited_global.add(pre_id)
                 ordered.append(pre_id)
+        on_path.remove(node)
 
     for main_id in main_ids:
-        _dfs(main_id, {main_id})
+        _dfs(main_id, set())
 
     return ordered
 

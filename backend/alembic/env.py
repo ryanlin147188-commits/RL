@@ -1,7 +1,11 @@
 """Alembic env.
 
-DSN is sourced from app.config.settings.SYNC_DATABASE_URL so that all DB
-configuration (host / port / user / password / dbname) lives in one place.
+DSN is sourced from a fresh ``Settings()`` instance(而不是 module-level
+``settings``)。這讓測試夾具(testcontainers)在 alembic 啟動前才設好的
+``DB_HOST`` / ``DB_PORT`` 等環境變數能被讀到 — 否則 pytest 啟動時
+``--cov=app`` 提早 import ``app.config``,``settings`` 已經用預設值固定下
+來,後續 testcontainers 改寫的環境變數就被忽略,migration 會連到不存在的
+``localhost:5432``。
 
 We import app.models so that every model is registered against Base.metadata
 before autogenerate runs.
@@ -11,7 +15,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from app.config import settings
+from app.config import Settings
 from app.models import Base
 import app.models  # noqa: F401  — ensure all models are loaded into Base.metadata
 
@@ -20,8 +24,9 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Inject runtime DSN (sync driver — psycopg v3)
-config.set_main_option("sqlalchemy.url", settings.SYNC_DATABASE_URL)
+# Inject runtime DSN(sync driver — psycopg v3),用「現在」的 env 重建 Settings,
+# 而不是 import 階段那份舊的 module-level singleton。
+config.set_main_option("sqlalchemy.url", Settings().SYNC_DATABASE_URL)
 
 target_metadata = Base.metadata
 

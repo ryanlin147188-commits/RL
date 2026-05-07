@@ -87,10 +87,12 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # DROP TABLE 在 Postgres 會 cascade 把 index 一起回收;不必先手動 drop_index
+    # (有些上線時 index 沒被成功 create,顯式 drop 會炸 UndefinedObject)。
     if _table_exists("wbs_links"):
-        op.drop_index("ix_wbs_links_wbs_item", table_name="wbs_links")
-        op.drop_index("ix_wbs_links_org", table_name="wbs_links")
         op.drop_table("wbs_links")
     if _table_exists("wbs_items") and _column_exists("wbs_items", "item_type"):
-        op.drop_index("ix_wbs_items_item_type", table_name="wbs_items")
+        op.drop_index(
+            "ix_wbs_items_item_type", table_name="wbs_items", if_exists=True
+        )
         op.drop_column("wbs_items", "item_type")

@@ -6,15 +6,73 @@ Layered so that:
   * function-scoped TRUNCATE so tests do not leak rows into each other
   * AsyncClient against the live ASGI app
   * helpers to mint two isolated organisations + admin tokens
+
+**Why eager testcontainer startup at module load time?**
+有些 test module(test_auth_flow.py / test_assignments.py …)在最頂端
+``from app.database import AsyncSessionLocal`` 直接 import。pytest collection
+階段就會載入這些模組;那一刻 ``app.config.settings = Settings()`` 也跟著被
+初始化,讀到的是 OS env 預設值(``localhost:5432``)而非 testcontainer 實際
+port,於是 ``app.database.engine`` 凍在錯誤的 URL 上,晚一步在 fixture 才
+overwrite ``DB_*`` 已經來不及。
+
+解法:在 conftest 模組載入(也就是 collection 開始之前)就先把 Postgres /
+Valkey 兩顆 container 啟好,把實際 host:port 寫進 ``os.environ``,再讓
+pytest 開始 collect。後面的 ``postgres_container`` / ``valkey_container``
+fixture 仍存在,只是改成 yield 已經啟好的 URL,不再二次啟動。
 """
 from __future__ import annotations
 
+import atexit
 import os
 import uuid
 from pathlib import Path
 from typing import AsyncIterator, Iterator
 
 import pytest
+
+
+# ── Eager testcontainer bootstrap(module-level,collection 之前)──────────
+def _bootstrap_eager_containers() -> None:
+    try:
+        from testcontainers.postgres import PostgresContainer
+        from testcontainers.redis import RedisContainer
+    except ImportError:
+        # 沒裝 testcontainers 就不啟,讓後面的 fixture 走 skip 路徑
+        return
+    try:
+        pg = PostgresContainer("postgres:16-alpine").start()
+        vk = RedisContainer("valkey/valkey:8-alpine").start()
+    except Exception:
+        # Docker 沒開、或 image pull 失敗,讓後面的 fixture 自己處理 skip
+        return
+
+    os.environ["DB_HOST"] = pg.get_container_host_ip()
+    os.environ["DB_PORT"] = str(pg.get_exposed_port(5432))
+    os.environ["DB_USER"] = pg.username
+    os.environ["DB_PASSWORD"] = pg.password
+    os.environ["DB_NAME"] = pg.dbname
+    os.environ["REDIS_URL"] = (
+        f"redis://{vk.get_container_host_ip()}:{vk.get_exposed_port(6379)}/0"
+    )
+
+    # 收尾:程式結束時(包含 pytest 全部跑完)才停容器
+    @atexit.register
+    def _stop_eager_containers() -> None:  # noqa: C901  — best-effort
+        try:
+            pg.stop()
+        except Exception:
+            pass
+        try:
+            vk.stop()
+        except Exception:
+            pass
+
+    # Stash 給後面 fixture 取用
+    globals()["_EAGER_PG"] = pg
+    globals()["_EAGER_VK"] = vk
+
+
+_bootstrap_eager_containers()
 
 
 # ── 0) Valkey/Redis testcontainer (session-scoped) ────────────────────────
@@ -26,6 +84,10 @@ import pytest
 
 @pytest.fixture(scope="session")
 def valkey_container() -> Iterator[str]:
+    eager = globals().get("_EAGER_VK")
+    if eager is not None:
+        yield os.environ["REDIS_URL"]
+        return
     try:
         from testcontainers.redis import RedisContainer
     except ImportError:
@@ -46,11 +108,23 @@ def valkey_container() -> Iterator[str]:
 
 @pytest.fixture(scope="session")
 def postgres_container() -> Iterator[str]:
-    """Boot a Postgres 16 container; yield an asyncpg DSN.
+    """Yield asyncpg DSN.
 
-    Skips the whole integration session if Docker is unavailable so a quick
-    ``pytest tests/unit`` still works on a contributor laptop without Docker.
+    優先使用 module-level 在 collection 之前就啟好的容器(避免 app.database
+    在 module-level import 被凍結到 default URL);沒成功啟到才走原本的
+    testcontainers context manager 兜底。
     """
+    eager = globals().get("_EAGER_PG")
+    if eager is not None:
+        host = eager.get_container_host_ip()
+        port = eager.get_exposed_port(5432)
+        url = (
+            f"postgresql+asyncpg://{eager.username}:{eager.password}"
+            f"@{host}:{port}/{eager.dbname}"
+        )
+        yield url
+        return
+
     try:
         from testcontainers.postgres import PostgresContainer
     except ImportError:
@@ -97,6 +171,69 @@ def _migrated_db(postgres_container: str, valkey_container: str) -> str:
     cfg.set_main_option("sqlalchemy.url", sync_url)
     command.upgrade(cfg, "head")
     return postgres_container
+
+
+# ── 2.5) 把 import-time 建好的 AsyncEngine 重建為 NullPool,綁到 session loop
+# `app.database.engine` 在 module import(collection 階段)就被 create_async_engine
+# 出來,connection pool 內部抓到的是 asyncio default loop;但 pytest-asyncio 啟動
+# 時會新開一個 session loop,兩者不同,asyncpg 會丟「Future attached to a
+# different loop」。
+#
+# 光 dispose() 不夠 — engine + sessionmaker 內部仍綁舊 loop。改成:用 NullPool
+# 建一顆新的 AsyncEngine(每次連線都即時新建,綁當前 loop),覆蓋
+# app.database.engine / AsyncSessionLocal,並把已經在 module level
+# `from app.database import AsyncSessionLocal` 的 test module 的 binding 一起
+# 換成新的。
+
+@pytest.fixture(scope="session", autouse=True)
+async def _rebind_engine_to_session_loop(_migrated_db: str) -> AsyncIterator[None]:
+    import sys
+
+    from sqlalchemy.ext.asyncio import (
+        AsyncSession,
+        async_sessionmaker,
+        create_async_engine,
+    )
+    from sqlalchemy.pool import NullPool
+
+    import app.database as db_mod
+    from app.config import Settings
+
+    try:
+        await db_mod.engine.dispose()
+    except Exception:
+        pass
+
+    new_engine = create_async_engine(
+        Settings().DATABASE_URL,
+        poolclass=NullPool,
+        pool_pre_ping=False,
+    )
+    new_session_factory = async_sessionmaker(
+        new_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autoflush=False,
+        autocommit=False,
+    )
+    db_mod.engine = new_engine
+    db_mod.AsyncSessionLocal = new_session_factory
+
+    # 同步換掉測試模組(module level import 早就抓到舊物件)的 binding
+    for mod_name in list(sys.modules.keys()):
+        if not mod_name.startswith("tests.integration."):
+            continue
+        mod = sys.modules.get(mod_name)
+        if mod is None:
+            continue
+        if getattr(mod, "AsyncSessionLocal", None) is not None:
+            mod.AsyncSessionLocal = new_session_factory
+        if getattr(mod, "engine", None) is not None:
+            mod.engine = new_engine
+
+    yield
+
+    await new_engine.dispose()
 
 
 # ── 3) Truncate between tests so state does not leak ──────────────────────
@@ -155,11 +292,16 @@ class OrgFixture:
 
 
 async def _make_org(slug_prefix: str) -> OrgFixture:
-    """Create an Organization, an admin User in it, and one Project."""
+    """Create an Organization, an admin User in it, and one Project.
+
+    也建一筆 ``ProjectMember`` row(status='active'),否則 admin 走
+    ``ensure_project_in_scope`` 會被擋(404 Not Found)— 這個 helper 要讓
+    回來的 admin 可以順利讀寫自己的 project。
+    """
     from sqlalchemy import select
     from app.auth.security import create_access_token, hash_password
     from app.database import AsyncSessionLocal
-    from app.models import Organization, Project, Role, User
+    from app.models import Organization, Project, ProjectMember, Role, User
 
     suffix = uuid.uuid4().hex[:8]
     slug = f"{slug_prefix}-{suffix}"
@@ -193,6 +335,18 @@ async def _make_org(slug_prefix: str) -> OrgFixture:
             organization_id=org.id,
         )
         session.add(project)
+        await session.flush()
+
+        # 沒有 ProjectMember active row,ensure_project_in_scope 會回 404
+        session.add(
+            ProjectMember(
+                id=str(uuid.uuid4()),
+                project_id=project.id,
+                username=username,
+                role_id=admin_role.id if admin_role else None,
+                status="active",
+            )
+        )
         await session.commit()
 
         org_id = org.id
