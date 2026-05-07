@@ -383,13 +383,15 @@ class RoleFixture:
 
 
 async def _make_user_in_org(org: OrgFixture, role_name: str) -> RoleFixture:
-    """Mint a non-superuser bound to ``role_name`` ('Admin'|'QA'|'Viewer')."""
+    """Mint a non-superuser bound to ``role_name`` ('Admin'|'QA'|'Viewer'),
+    並加一筆 ProjectMember row 讓使用者能通過 ensure_project_in_scope 的
+    membership 檢查(否則 project-scoped endpoint 都會回 404)。"""
     import uuid as _uuid
 
     from sqlalchemy import select
     from app.auth.security import create_access_token, hash_password
     from app.database import AsyncSessionLocal
-    from app.models import Role, User
+    from app.models import ProjectMember, Role, User
 
     suffix = _uuid.uuid4().hex[:8]
     username = f"{role_name.lower()}-{suffix}"
@@ -409,6 +411,16 @@ async def _make_user_in_org(org: OrgFixture, role_name: str) -> RoleFixture:
             is_active=True,
         )
         session.add(user)
+        await session.flush()
+        session.add(
+            ProjectMember(
+                id=_uuid.uuid4().hex,
+                project_id=org.project_id,
+                username=username,
+                role_id=role.id,
+                status="active",
+            )
+        )
         await session.commit()
 
     token = create_access_token(
