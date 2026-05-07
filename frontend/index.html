@@ -24,11 +24,76 @@
         import "/js/core/auth.js";
         import { apiFetch, ApiError } from "/js/core/api.js";
         import "/js/core/store.js";
+        import { getAccessToken, getRefreshToken, setTokens, clearTokens } from "/js/core/auth.js";
         // Perf B4: 把 modular apiFetch 暴露給 inline script 區塊內的 30+ callsite。
         // 這版會自動帶 Bearer token + 401 silent refresh,解掉 token 過期後的
         // silent-401 bug;同時刪除 index.html 內重複的 inline apiFetch。
         window.apiFetch = apiFetch;
         window.ApiError = ApiError;
+
+        // ── window.fetch monkey-patch(2026-05-07)──────────────────────
+        // index.html 內還有 100+ 個直接用 raw `fetch('/api/...')` 而非 apiFetch
+        // 的 callsite,那些不會自動帶 Bearer 也不會 401 silent refresh。本 patch
+        // 攔截所有 /api/* 的 fetch 呼叫,行為跟 apiFetch 一致:
+        //   1. 注入 Bearer token(若有 access token)
+        //   2. 401 收到時嘗試一次 refresh + 重打;
+        //   3. refresh 失敗 → clearTokens + dispatch `autotest:auth-required` 事件
+        //      讓 UI 跳出登入 modal。
+        // 不影響 fetch 對外部 URL 的行為(不是 /api/* 直接走原 fetch)。
+        const _origFetch = window.fetch.bind(window);
+        let _patchRefreshPromise = null;
+        async function _patchRefreshOnce() {
+            if (_patchRefreshPromise) return _patchRefreshPromise;
+            _patchRefreshPromise = (async () => {
+                const r = getRefreshToken();
+                if (!r) throw new Error("no refresh token");
+                const resp = await _origFetch("/api/auth/refresh", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ refresh_token: r }),
+                });
+                if (!resp.ok) throw new Error("refresh failed: " + resp.status);
+                const pair = await resp.json();
+                setTokens(pair);
+                return pair.access_token;
+            })().finally(() => { _patchRefreshPromise = null; });
+            return _patchRefreshPromise;
+        }
+        window.fetch = async function(input, init) {
+            // 拿到 path(支援 string / Request / URL 物件)
+            let url;
+            if (typeof input === "string") url = input;
+            else if (input instanceof Request) url = input.url;
+            else if (input && typeof input.toString === "function") url = String(input);
+            else url = "";
+            let path;
+            try { path = new URL(url, window.location.origin).pathname; }
+            catch { path = url; }
+            // 非 /api/* 不介入,維持原 fetch 行為(避免影響第三方 CDN / asset 請求)
+            if (!path.startsWith("/api/")) return _origFetch(input, init);
+
+            // 複製 init 與 headers,避免汙染 caller 的物件
+            init = init ? { ...init } : {};
+            init.headers = new Headers(init.headers || (input instanceof Request ? input.headers : undefined));
+
+            const token = getAccessToken();
+            if (token && !init.headers.has("Authorization")) {
+                init.headers.set("Authorization", "Bearer " + token);
+            }
+
+            let resp = await _origFetch(input, init);
+            if (resp.status === 401 && getRefreshToken()) {
+                try {
+                    const newToken = await _patchRefreshOnce();
+                    init.headers.set("Authorization", "Bearer " + newToken);
+                    resp = await _origFetch(input, init);
+                } catch {
+                    clearTokens();
+                    window.dispatchEvent(new CustomEvent("autotest:auth-required"));
+                }
+            }
+            return resp;
+        };
     </script>
     <script>
         tailwind.config = {

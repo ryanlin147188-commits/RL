@@ -31,6 +31,7 @@ from fastapi import (
     File,
     Form,
     HTTPException,
+    Request,
     UploadFile,
 )
 from fastapi.responses import FileResponse
@@ -62,9 +63,42 @@ from app.schemas.recording import (
 log = logging.getLogger(__name__)
 
 # Phase 1 docker 模式錄製的容器追蹤(in-memory,backend 重啟會孤兒)
-# key=session_id;value=dict(container_id / host_port / vnc_password / started_at)
+# key=session_id(WEB 模式)或 'api:'+session_id(API 模式);
+# value=dict(container_id / host_port / vnc_password / started_at / upload_token)
 # 後續若要持久化,改加 RecordingSession 對應欄位
 _recorder_containers: dict[str, dict] = {}
+
+
+async def authorize_recorder_upload(
+    request: Request,
+    session_id: str,
+    user: "Optional[User]" = Depends(get_optional_user),
+) -> "Optional[User]":
+    """錄製容器 upload endpoint 的雙軌 auth(回傳 User 或 None):
+      1. 已登入使用者(`Bearer` token via middleware → get_optional_user)→ 回傳 User,
+         route handler 可以再做 org scope 檢查。
+      2. 沒登入(recorder 容器內 anonymous curl)→ 必須帶 ?token=<random> query
+         參數,且要對得上 _recorder_containers[session_id]['upload_token'] 或
+         'api:'+session_id 的對應值。每個 session 拿到的 token 由 docker_start /
+         docker_start_api 產生,只有 backend 跟容器知道。回傳 None 表示 capability。
+
+    middleware 已把 /api/recordings/{uuid}/upload(-har)? 加進公開 whitelist 讓
+    請求進得到 handler;真正的 auth gate 在這個 dependency。
+    """
+    if user is not None:
+        return user
+    token = request.query_params.get("token")
+    if not token:
+        raise HTTPException(
+            status_code=401,
+            detail="未授權:錄製容器 upload 需要 ?token 參數或登入 Bearer token",
+        )
+    expected_web = (_recorder_containers.get(session_id) or {}).get("upload_token")
+    expected_api = (_recorder_containers.get("api:" + session_id) or {}).get("upload_token")
+    if token != expected_web and token != expected_api:
+        # 不洩漏 token 是否曾經有效;一律 403 防止 timing 試誤
+        raise HTTPException(status_code=403, detail="upload token 無效或已過期")
+    return None
 
 # Recorder image 自動 build 狀態(全域單例;同一時刻只會有一條 build 在跑)
 # status 流向:
@@ -384,20 +418,22 @@ async def upload_recording(
     script: Optional[UploadFile] = File(default=None),
     trace: Optional[UploadFile] = File(default=None),
     notes: Optional[str] = Form(default=None),  # noqa: ARG001 reserved
-    user: Optional[User] = Depends(get_optional_user),
+    user: Optional[User] = Depends(authorize_recorder_upload),
     db: AsyncSession = Depends(get_db),
 ):
     """接收 codegen 產生的檔案。任一檔案缺少均允許(部分上傳)。
 
-    auth:Recorder 容器 entrypoint 用 anonymous curl 上傳(沒帶 Bearer token),
-    所以這裡走 ``get_optional_user`` 接受匿名;UUID4 session_id ≈ 122-bit 熵,
-    當天然 token 用足夠安全。有帶 token 時仍會做 org scope 檢查。
+    auth:走 ``authorize_recorder_upload`` 雙軌
+      - Bearer token 路徑:user 物件(會做 org scope 檢查)
+      - Capability token 路徑:user=None,容器已用 ?token= 認證過自己
+    middleware whitelist 把這條 path 放行給 anonymous,真正的 gate 在 dep 裡。
     """
     session = await db.get(RecordingSession, session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Recording session not found")
     if user is not None:
-        # 有 user 才做 org scope 檢查;recorder 容器匿名 upload 直接信賴 session_id
+        # 有 user 才做 org scope 檢查;recorder 容器走 capability token 走的是
+        # session_id+token 的 binding,session 一定屬於這個容器當時 owning 的 org。
         await ensure_project_in_scope(
             db, session.project_id, user,
             not_found_detail="Recording session not found",
@@ -1259,7 +1295,14 @@ async def docker_start(
             pass
 
     vnc_password = secrets.token_urlsafe(12)
-    upload_url = f"{settings.RECORDER_INTERNAL_BASE_URL.rstrip('/')}/api/recordings/{session_id}/upload"
+    # session-bound capability token:容器內 anonymous curl 用 ?token=<...> 帶上,
+    # 後端 authorize_recorder_upload 對得上才放行。比起完全 anonymous 多一層
+    # service-to-service 認證,容器外的人就算猜中 session_id 也不夠。
+    upload_token = secrets.token_urlsafe(32)
+    upload_url = (
+        f"{settings.RECORDER_INTERNAL_BASE_URL.rstrip('/')}"
+        f"/api/recordings/{session_id}/upload?token={upload_token}"
+    )
     container_name = f"autotest-recorder-{session_id[:8]}"
 
     # Image 預檢:若 missing 直接觸發背景 build + 回 425 (Too Early),前端會
@@ -1364,6 +1407,7 @@ async def docker_start(
         "vnc_password": vnc_password,
         "started_at": started_at,
         "expires_at": expires_at,
+        "upload_token": upload_token,
     }
     session.status = "RECORDING"
     await db.flush()
@@ -1512,9 +1556,12 @@ async def api_docker_start(
         except Exception:
             pass
 
+    # session-bound capability token(同 WEB 模式邏輯)— 容器內 anonymous curl
+    # 透過 ?token=<...> 帶上,後端 authorize_recorder_upload 驗證才放行。
+    upload_token = secrets.token_urlsafe(32)
     upload_url = (
         f"{settings.RECORDER_INTERNAL_BASE_URL.rstrip('/')}"
-        f"/api/recordings/{session_id}/upload-har"
+        f"/api/recordings/{session_id}/upload-har?token={upload_token}"
     )
     container_name = f"autotest-recorder-api-{session_id[:8]}"
 
@@ -1563,6 +1610,7 @@ async def api_docker_start(
         "web_port": web_port,
         "started_at": started_at,
         "expires_at": expires_at,
+        "upload_token": upload_token,
     }
     session.status = "RECORDING"
     await db.flush()
@@ -1639,12 +1687,14 @@ async def api_docker_status(session_id: str):
 async def upload_har(
     session_id: str,
     har: UploadFile = File(...),
+    user: Optional[User] = Depends(authorize_recorder_upload),  # noqa: ARG001 — auth gate only
     db: AsyncSession = Depends(get_db),
 ):
     """容器內 SIGTERM 收尾時 curl 上傳的 HAR 檔。
 
     存到 SeaweedFS,session.script_text 同時填入解析後的 JSON 摘要供前端
-    convert 端點解析。
+    convert 端點解析。Auth 跟 /upload 同一條規則:Bearer token OR ?token=
+    capability(由容器啟動時生成、存在 _recorder_containers 的 in-memory map)。
     """
     import json as _json
     session = await db.get(RecordingSession, session_id)
