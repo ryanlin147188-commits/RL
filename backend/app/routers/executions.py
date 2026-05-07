@@ -18,6 +18,7 @@ from app.schemas.execution_report import (
     ExecutionRunResponse,
     ExecutionStatusResponse,
 )
+from app.services.execution_plan_service import collect_execution_plan
 from app.services.execution_service import collect_testcase_ids, create_report
 
 rest_router = APIRouter()
@@ -31,41 +32,52 @@ async def run_execution(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """觸發測試執行:
+      1. 解 payload:`node_ids`(多選)優先;無則退回舊 `node_id`
+      2. 用 collect_execution_plan 展開為 setup + main(含前置案例去重 / cycle 偵測)
+      3. 建立 execution_reports 紀錄(total_cases = setup + main)
+      4. 丟入 Celery 背景佇列;local mode 留給本機 agent 認領
     """
-    觸發測試執行:
-    1. 收集目標節點下所有 TESTCASE
-    2. 建立 execution_reports 紀錄
-    3. 丟入 Celery 背景佇列(非同步執行)
-    """
-    node = await db.get(TreeNode, payload.node_id)
-    await ensure_project_in_scope(
-        db, node.project_id if node else None, user, not_found_detail="Node not found"
-    )
+    raw_ids: list[str] = []
+    if payload.node_ids:
+        raw_ids = list(dict.fromkeys(payload.node_ids))
+    elif payload.node_id:
+        raw_ids = [payload.node_id]
+    if not raw_ids:
+        raise HTTPException(status_code=422, detail="node_id 或 node_ids 至少擇一")
 
-    testcase_ids = await collect_testcase_ids(db, payload.node_id)
-    if not testcase_ids:
-        raise HTTPException(
-            status_code=400,
-            detail="No TESTCASE nodes found under the given node",
-        )
+    plan = await collect_execution_plan(db, node_ids=raw_ids, user=user)
+    setup_ids: list[str] = plan["setup_testcase_ids"]
+    main_ids: list[str] = plan["main_testcase_ids"]
+    project_id: str = plan["project_id"]
 
+    total = len(setup_ids) + len(main_ids)
     task_id = str(uuid.uuid4())
+    # source_node_id:沿用第一個 input 當作報告的「來源節點」(報告頁需要)
+    source_node_id = raw_ids[0]
+    # source_node_ids:多選時保存完整清單,讓 local agent 認領時可重展開
+    multi_source = raw_ids if len(raw_ids) > 1 else None
     report = await create_report(
-        db, node.project_id, payload.trigger_type, len(testcase_ids), task_id,
+        db,
+        project_id,
+        payload.trigger_type,
+        total,
+        task_id,
         execution_mode=payload.execution_mode,
-        source_node_id=payload.node_id,
+        source_node_id=source_node_id,
+        source_node_ids=multi_source,
         ddt_expand=payload.ddt_expand,
         enable_recording=payload.enable_recording,
     )
 
-    # local 模式：不送 Celery，留給本機 agent 透過 /api/local-runner/claim 認領
     if (payload.execution_mode or "docker").lower() == "local":
         return ExecutionRunResponse(
             task_id=task_id,
             report_id=report.id,
             message=(
-                f"Local execution queued for {len(testcase_ids)} test case(s). "
-                "請確認本機 agent 已啟動（python local_agent.py）"
+                f"Local execution queued for {total} test case(s) "
+                f"(setup={len(setup_ids)}, main={len(main_ids)}). "
+                "請確認本機 agent 已啟動(python local_agent.py)"
             ),
         )
 
@@ -76,20 +88,23 @@ async def run_execution(
             kwargs={
                 "task_id": task_id,
                 "report_id": report.id,
-                "testcase_ids": testcase_ids,
+                # 合併送進 worker;worker 內讀回 setup_ids 知道哪些要先跑
+                "testcase_ids": setup_ids + main_ids,
+                "setup_testcase_ids": setup_ids,
                 "ddt_expand": bool(payload.ddt_expand),
                 "enable_recording": bool(payload.enable_recording),
             },
         )
     except Exception:
-        # Celery / Redis 未啟動時不阻擋 API 回應（開發期友善提示）
+        # Celery / Redis 未啟動時不阻擋 API 回應(開發期友善提示)
         pass
 
     return ExecutionRunResponse(
         task_id=task_id,
         report_id=report.id,
         message=(
-            f"Execution started for {len(testcase_ids)} test case(s). "
+            f"Execution started for {total} test case(s) "
+            f"(setup={len(setup_ids)}, main={len(main_ids)}). "
             f"Connect to WS /ws/v1/executions/{task_id}/logs for live logs."
         ),
     )

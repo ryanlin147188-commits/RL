@@ -55,6 +55,7 @@ async def create_report(
     task_id: str,
     execution_mode: str = "docker",
     source_node_id: str | None = None,
+    source_node_ids: list[str] | None = None,
     ddt_expand: bool = False,
     enable_recording: bool = True,
 ) -> ExecutionReport:
@@ -66,6 +67,7 @@ async def create_report(
         execution_mode=(execution_mode or "docker").lower(),
         total_cases=total_cases,
         source_node_id=source_node_id,
+        source_node_ids=list(source_node_ids) if source_node_ids else None,
         ddt_expand=bool(ddt_expand),
         enable_recording=bool(enable_recording),
     )

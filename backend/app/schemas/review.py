@@ -12,6 +12,9 @@ from app.models.review import ReviewableEntityType, ReviewAction, ReviewStatus
 class SubmitReviewRequest(BaseModel):
     entity_type: ReviewableEntityType
     entity_id: str = Field(..., min_length=1, max_length=64)
+    # 送審必選審核者 — 一般使用者(`user`)或群組(`group`)
+    assignee: str = Field(..., min_length=1, max_length=80)
+    assignee_type: str = Field(default="user", pattern="^(user|group)$")
 
 
 class RejectReviewRequest(BaseModel):
