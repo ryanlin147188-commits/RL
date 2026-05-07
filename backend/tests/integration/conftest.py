@@ -6,15 +6,73 @@ Layered so that:
   * function-scoped TRUNCATE so tests do not leak rows into each other
   * AsyncClient against the live ASGI app
   * helpers to mint two isolated organisations + admin tokens
+
+**Why eager testcontainer startup at module load time?**
+有些 test module(test_auth_flow.py / test_assignments.py …)在最頂端
+``from app.database import AsyncSessionLocal`` 直接 import。pytest collection
+階段就會載入這些模組;那一刻 ``app.config.settings = Settings()`` 也跟著被
+初始化,讀到的是 OS env 預設值(``localhost:5432``)而非 testcontainer 實際
+port,於是 ``app.database.engine`` 凍在錯誤的 URL 上,晚一步在 fixture 才
+overwrite ``DB_*`` 已經來不及。
+
+解法:在 conftest 模組載入(也就是 collection 開始之前)就先把 Postgres /
+Valkey 兩顆 container 啟好,把實際 host:port 寫進 ``os.environ``,再讓
+pytest 開始 collect。後面的 ``postgres_container`` / ``valkey_container``
+fixture 仍存在,只是改成 yield 已經啟好的 URL,不再二次啟動。
 """
 from __future__ import annotations
 
+import atexit
 import os
 import uuid
 from pathlib import Path
 from typing import AsyncIterator, Iterator
 
 import pytest
+
+
+# ── Eager testcontainer bootstrap(module-level,collection 之前)──────────
+def _bootstrap_eager_containers() -> None:
+    try:
+        from testcontainers.postgres import PostgresContainer
+        from testcontainers.redis import RedisContainer
+    except ImportError:
+        # 沒裝 testcontainers 就不啟,讓後面的 fixture 走 skip 路徑
+        return
+    try:
+        pg = PostgresContainer("postgres:16-alpine").start()
+        vk = RedisContainer("valkey/valkey:8-alpine").start()
+    except Exception:
+        # Docker 沒開、或 image pull 失敗,讓後面的 fixture 自己處理 skip
+        return
+
+    os.environ["DB_HOST"] = pg.get_container_host_ip()
+    os.environ["DB_PORT"] = str(pg.get_exposed_port(5432))
+    os.environ["DB_USER"] = pg.username
+    os.environ["DB_PASSWORD"] = pg.password
+    os.environ["DB_NAME"] = pg.dbname
+    os.environ["REDIS_URL"] = (
+        f"redis://{vk.get_container_host_ip()}:{vk.get_exposed_port(6379)}/0"
+    )
+
+    # 收尾:程式結束時(包含 pytest 全部跑完)才停容器
+    @atexit.register
+    def _stop_eager_containers() -> None:  # noqa: C901  — best-effort
+        try:
+            pg.stop()
+        except Exception:
+            pass
+        try:
+            vk.stop()
+        except Exception:
+            pass
+
+    # Stash 給後面 fixture 取用
+    globals()["_EAGER_PG"] = pg
+    globals()["_EAGER_VK"] = vk
+
+
+_bootstrap_eager_containers()
 
 
 # ── 0) Valkey/Redis testcontainer (session-scoped) ────────────────────────
@@ -26,6 +84,10 @@ import pytest
 
 @pytest.fixture(scope="session")
 def valkey_container() -> Iterator[str]:
+    eager = globals().get("_EAGER_VK")
+    if eager is not None:
+        yield os.environ["REDIS_URL"]
+        return
     try:
         from testcontainers.redis import RedisContainer
     except ImportError:
@@ -46,11 +108,23 @@ def valkey_container() -> Iterator[str]:
 
 @pytest.fixture(scope="session")
 def postgres_container() -> Iterator[str]:
-    """Boot a Postgres 16 container; yield an asyncpg DSN.
+    """Yield asyncpg DSN.
 
-    Skips the whole integration session if Docker is unavailable so a quick
-    ``pytest tests/unit`` still works on a contributor laptop without Docker.
+    優先使用 module-level 在 collection 之前就啟好的容器(避免 app.database
+    在 module-level import 被凍結到 default URL);沒成功啟到才走原本的
+    testcontainers context manager 兜底。
     """
+    eager = globals().get("_EAGER_PG")
+    if eager is not None:
+        host = eager.get_container_host_ip()
+        port = eager.get_exposed_port(5432)
+        url = (
+            f"postgresql+asyncpg://{eager.username}:{eager.password}"
+            f"@{host}:{port}/{eager.dbname}"
+        )
+        yield url
+        return
+
     try:
         from testcontainers.postgres import PostgresContainer
     except ImportError:
