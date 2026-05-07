@@ -22,7 +22,7 @@ pytestmark = pytest.mark.integration
 async def test_submit_creates_pending_record(client, org_a) -> None:
     resp = await client.post(
         "/api/reviews",
-        json={"entity_type": "document", "entity_id": "doc-abc"},
+        json={"entity_type": "document", "entity_id": "doc-abc", "assignee": org_a.username, "assignee_type": "user"},
         headers=org_a.headers,
     )
     assert resp.status_code == 201, resp.text
@@ -36,7 +36,7 @@ async def test_submit_creates_pending_record(client, org_a) -> None:
 async def test_submit_then_approve(client, org_a) -> None:
     submit = await client.post(
         "/api/reviews",
-        json={"entity_type": "testcase", "entity_id": "tc-1"},
+        json={"entity_type": "testcase", "entity_id": "tc-1", "assignee": org_a.username, "assignee_type": "user"},
         headers=org_a.headers,
     )
     record_id = submit.json()["id"]
@@ -54,7 +54,7 @@ async def test_submit_then_approve(client, org_a) -> None:
 async def test_reject_requires_reason(client, org_a) -> None:
     submit = await client.post(
         "/api/reviews",
-        json={"entity_type": "script", "entity_id": "s-1"},
+        json={"entity_type": "script", "entity_id": "s-1", "assignee": org_a.username, "assignee_type": "user"},
         headers=org_a.headers,
     )
     record_id = submit.json()["id"]
@@ -82,7 +82,7 @@ async def test_reject_requires_reason(client, org_a) -> None:
 async def test_resubmit_after_reject(client, org_a) -> None:
     submit = await client.post(
         "/api/reviews",
-        json={"entity_type": "report", "entity_id": "r-1"},
+        json={"entity_type": "report", "entity_id": "r-1", "assignee": org_a.username, "assignee_type": "user"},
         headers=org_a.headers,
     )
     record_id = submit.json()["id"]
@@ -95,7 +95,7 @@ async def test_resubmit_after_reject(client, org_a) -> None:
     # Re-submitting the same entity_type+entity_id puts it back to pending.
     re = await client.post(
         "/api/reviews",
-        json={"entity_type": "report", "entity_id": "r-1"},
+        json={"entity_type": "report", "entity_id": "r-1", "assignee": org_a.username, "assignee_type": "user"},
         headers=org_a.headers,
     )
     assert re.status_code == 201
@@ -108,7 +108,7 @@ async def test_revert_rejected_back_to_pending(client, org_a) -> None:
     re-queue it without requiring the original submitter to re-submit."""
     submit = await client.post(
         "/api/reviews",
-        json={"entity_type": "document", "entity_id": "d-rej-rev"},
+        json={"entity_type": "document", "entity_id": "d-rej-rev", "assignee": org_a.username, "assignee_type": "user"},
         headers=org_a.headers,
     )
     record_id = submit.json()["id"]
@@ -142,7 +142,7 @@ async def test_revert_pending_is_400(client, org_a) -> None:
     """Reverting a pending review is a no-op error — there's nothing to undo."""
     submit = await client.post(
         "/api/reviews",
-        json={"entity_type": "document", "entity_id": "d-already-pending"},
+        json={"entity_type": "document", "entity_id": "d-already-pending", "assignee": org_a.username, "assignee_type": "user"},
         headers=org_a.headers,
     )
     record_id = submit.json()["id"]
@@ -159,7 +159,7 @@ async def test_revert_pending_is_400(client, org_a) -> None:
 async def test_revert_requires_reason_and_unlocks(client, org_a) -> None:
     submit = await client.post(
         "/api/reviews",
-        json={"entity_type": "document", "entity_id": "d-rev"},
+        json={"entity_type": "document", "entity_id": "d-rev", "assignee": org_a.username, "assignee_type": "user"},
         headers=org_a.headers,
     )
     record_id = submit.json()["id"]
@@ -188,7 +188,7 @@ async def test_revert_requires_reason_and_unlocks(client, org_a) -> None:
 async def test_history_captures_full_chain(client, org_a) -> None:
     submit = await client.post(
         "/api/reviews",
-        json={"entity_type": "testcase", "entity_id": "tc-h"},
+        json={"entity_type": "testcase", "entity_id": "tc-h", "assignee": org_a.username, "assignee_type": "user"},
         headers=org_a.headers,
     )
     record_id = submit.json()["id"]
@@ -199,7 +199,7 @@ async def test_history_captures_full_chain(client, org_a) -> None:
     )
     await client.post(
         "/api/reviews",
-        json={"entity_type": "testcase", "entity_id": "tc-h"},
+        json={"entity_type": "testcase", "entity_id": "tc-h", "assignee": org_a.username, "assignee_type": "user"},
         headers=org_a.headers,
     )
     await client.post(f"/api/reviews/{record_id}/approve", headers=org_a.headers)
@@ -247,7 +247,7 @@ async def test_approved_testcase_cannot_be_edited(client, org_a) -> None:
     # Submit + approve a review for this testcase
     submit = await client.post(
         "/api/reviews",
-        json={"entity_type": "testcase", "entity_id": node_id},
+        json={"entity_type": "testcase", "entity_id": node_id, "assignee": org_a.username, "assignee_type": "user"},
         headers=org_a.headers,
     )
     rec = submit.json()["id"]
@@ -286,7 +286,7 @@ async def test_revert_unlocks_testcase(client, org_a) -> None:
 
     submit = await client.post(
         "/api/reviews",
-        json={"entity_type": "testcase", "entity_id": node_id},
+        json={"entity_type": "testcase", "entity_id": node_id, "assignee": org_a.username, "assignee_type": "user"},
         headers=org_a.headers,
     )
     rec = submit.json()["id"]
@@ -319,7 +319,7 @@ async def test_revert_unlocks_testcase(client, org_a) -> None:
 async def test_org_b_cannot_see_org_a_reviews(client, org_a, org_b) -> None:
     submit = await client.post(
         "/api/reviews",
-        json={"entity_type": "document", "entity_id": "secret-doc"},
+        json={"entity_type": "document", "entity_id": "secret-doc", "assignee": org_a.username, "assignee_type": "user"},
         headers=org_a.headers,
     )
     record_id = submit.json()["id"]
@@ -475,7 +475,7 @@ async def test_creating_non_testcase_node_does_not_autocreate(client, org_a) -> 
 async def test_viewer_cannot_approve(client, org_a, viewer_in_a) -> None:
     submit = await client.post(
         "/api/reviews",
-        json={"entity_type": "document", "entity_id": "vw-d"},
+        json={"entity_type": "document", "entity_id": "vw-d", "assignee": org_a.username, "assignee_type": "user"},
         headers=org_a.headers,   # admin submits
     )
     record_id = submit.json()["id"]
@@ -501,7 +501,7 @@ async def test_approve_notifies_submitter(client, org_a) -> None:
 
     submit = await client.post(
         "/api/reviews",
-        json={"entity_type": "document", "entity_id": "doc-notify-1"},
+        json={"entity_type": "document", "entity_id": "doc-notify-1", "assignee": org_a.username, "assignee_type": "user"},
         headers=org_a.headers,
     )
     record_id = submit.json()["id"]
@@ -526,7 +526,7 @@ async def test_reject_notifies_submitter_with_reason(client, org_a) -> None:
 
     submit = await client.post(
         "/api/reviews",
-        json={"entity_type": "document", "entity_id": "doc-notify-2"},
+        json={"entity_type": "document", "entity_id": "doc-notify-2", "assignee": org_a.username, "assignee_type": "user"},
         headers=org_a.headers,
     )
     record_id = submit.json()["id"]

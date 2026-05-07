@@ -44,21 +44,24 @@ def run_tests(
     testcase_ids: list[str],
     ddt_expand: bool = False,
     enable_recording: bool = True,
+    setup_testcase_ids: list[str] | None = None,
 ):
-    """
-    執行指定的 testcase_ids：
+    """執行指定的 testcase_ids:
       1. 從 testcase_contents 讀 steps_json + ddt_json
       2. 呼叫 Playwright runner 實際執行
       3. 將每步結果寫入 execution_steps_log
       4. 更新 execution_reports 統計與最終狀態
 
-    ddt_expand=False 時（預設）：只用 DDT 第一列當變數上下文，整個 testcase 只跑一次。
-    ddt_expand=True  時：依 DDT 每一列各自重跑一次 testcase。
+    setup_testcase_ids(v1.2):依排序先跑的「前置案例」。任一前置失敗 → 主案例
+    全部標 SKIPPED-fail,整個任務狀態 FAILED。
 
-    enable_recording=True 時（預設）：
-      - 啟用 Playwright Trace（trace.zip）與 Video（每案例一支 .webm + 每步驟切片）
-      - 對應 URL 會寫到 ExecutionStepLog 的 trace_url / video_url（案例級，僅第一個 step）
-        與 step_video_url（每個有 ffmpeg 切到的 step）
+    ddt_expand=False 時(預設):只用 DDT 第一列當變數上下文,整個 testcase 只跑一次。
+    ddt_expand=True  時:依 DDT 每一列各自重跑一次 testcase。
+
+    enable_recording=True 時(預設):
+      - 啟用 Playwright Trace(trace.zip)與 Video(每案例一支 .webm + 每步驟切片)
+      - 對應 URL 會寫到 ExecutionStepLog 的 trace_url / video_url(案例級,僅第一個 step)
+        與 step_video_url(每個有 ffmpeg 切到的 step)
     """
     import redis
 
@@ -150,15 +153,47 @@ def run_tests(
         failed_cases = 0
         start_ts = time.time()
 
+        setup_ids_set = set(setup_testcase_ids or [])
+        setup_failed = False
+
         for idx, tc_id in enumerate(testcase_ids, 1):
-            publish_log("INFO", f"▶ [{idx}/{len(testcase_ids)}] 案例 {tc_id[:8]}…")
+            is_setup = tc_id in setup_ids_set
+            phase_label = "🔧 SETUP" if is_setup else "▶"
+            publish_log(
+                "INFO",
+                f"{phase_label} [{idx}/{len(testcase_ids)}] 案例 {tc_id[:8]}…",
+            )
+
+            # 前置案例失敗後,主案例全部跳過(以失敗計)
+            if setup_failed and not is_setup:
+                publish_log(
+                    "WARN",
+                    f"⏭ 前置案例已失敗,跳過主案例 {tc_id[:8]}…",
+                )
+                failed_cases += 1
+                with SessionLocal() as db:
+                    db.add(
+                        ExecutionStepLog(
+                            id=str(uuid.uuid4()),
+                            report_id=report_id,
+                            testcase_node_id=tc_id,
+                            step_index=0,
+                            status=StepStatus.FAILED,
+                            duration_ms=0,
+                            error_message="Skipped: precondition testcase failed",
+                        )
+                    )
+                    db.commit()
+                continue
 
             with SessionLocal() as db:
                 content: Optional[TestcaseContent] = db.get(TestcaseContent, tc_id)
 
             if content is None or not content.steps_json:
-                publish_log("ERROR", f"❌ 案例 {idx} 缺少 steps_json，跳過")
+                publish_log("ERROR", f"❌ 案例 {idx} 缺少 steps_json,跳過")
                 failed_cases += 1
+                if is_setup:
+                    setup_failed = True
                 continue
 
             steps = content.steps_json or []
@@ -209,6 +244,12 @@ def run_tests(
             else:
                 failed_cases += 1
                 publish_log("ERROR", f"❌ 案例 {idx} 失敗")
+                if is_setup:
+                    setup_failed = True
+                    publish_log(
+                        "ERROR",
+                        f"🛑 前置案例 {tc_id[:8]} 失敗,後續主案例將全部跳過",
+                    )
 
             # DDT 多列：用 step_index = round*1000 + step 編碼
             with SessionLocal() as db:

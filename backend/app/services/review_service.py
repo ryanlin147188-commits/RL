@@ -139,9 +139,16 @@ async def submit(
     entity_id: str,
     submitted_by: str,
     organization_id: Optional[str],
+    assignee: Optional[str] = None,
+    assignee_type: Optional[str] = None,
 ) -> ReviewRecord:
     """Create a pending review for the entity, OR re-submit a previously
-    rejected one back into pending (rejected -> pending allowed)."""
+    rejected one back into pending (rejected -> pending allowed).
+
+    `assignee` / `assignee_type` 是 v1.2 新增的「送審必選審核者」;router 層
+    強制必填,service 內保留 Optional 簽名以利舊測試 / 內部 caller(autocreate
+    listener)維持原語意。
+    """
     existing = await get_record(
         db,
         entity_type=entity_type,
@@ -158,6 +165,10 @@ async def submit(
             submitted_by=submitted_by,
             submitted_at=now,
             organization_id=organization_id,
+            assigned_to=assignee,
+            assigned_to_type=(assignee_type or "user") if assignee else "user",
+            assigned_by=submitted_by if assignee else None,
+            assigned_at=now if assignee else None,
         )
         db.add(record)
         await db.flush()
@@ -198,6 +209,12 @@ async def submit(
     existing.current_reason = None
     existing.reviewed_by = None
     existing.reviewed_at = None
+    # 重新送審時若指定了新的 assignee 就覆蓋,沒給就保留原本的
+    if assignee:
+        existing.assigned_to = assignee
+        existing.assigned_to_type = assignee_type or "user"
+        existing.assigned_by = submitted_by
+        existing.assigned_at = now
     await _append_history(
         db,
         record=existing,

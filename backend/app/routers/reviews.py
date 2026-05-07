@@ -49,8 +49,9 @@ router = APIRouter()
 
 
 async def _ensure_admin(user: User, db: AsyncSession) -> None:
-    """Approve / reject / revert require Admin role or superuser; plain
-    users can still submit and read."""
+    """(legacy)`revert` 仍走純 Admin / superuser 的舊規則:revert 是把
+    通過/退回的審核重新拉回 pending 的決策動作,跟 assignee 無關,
+    交給 platform 管理員把關即可。"""
     if user.is_superuser:
         return
     if user.role_id is None:
@@ -76,6 +77,93 @@ async def _ensure_admin(user: User, db: AsyncSession) -> None:
     )
 
 
+async def _ensure_can_review(
+    user: User, db: AsyncSession, record: ReviewRecord
+) -> None:
+    """approve / reject 的權限規則:
+      1. superuser、Admin role:可覆蓋(平台管理員角色)
+      2. 否則送審者本人不可自審
+      3. 一般使用者必須具 `review.manage` 權限,且:
+         - assignee_type='user' → username 等於 record.assigned_to
+         - assignee_type='group' → 是該 group(含巢狀子群組)成員
+    """
+    if user.is_superuser:
+        return
+
+    from app.models.role import Role
+
+    role = None
+    if user.role_id is not None:
+        role = await db.get(Role, user.role_id)
+    role_perms = (role.permissions_json if role else None) or []
+    is_platform_admin = role is not None and role.name == "Admin"
+
+    # 1) Admin / superuser:覆蓋
+    if is_platform_admin:
+        return
+
+    # 2) 自審防呆
+    if record.submitted_by and record.submitted_by == user.username:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "self_review_forbidden",
+                "message": "送審者本人不可審核此筆紀錄",
+            },
+        )
+
+    # 3) 一般使用者:必須具 review.manage 才有資格進到 assignee 比對
+    if "review.manage" not in role_perms:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "permission_denied",
+                "missing_permissions": ["review.manage"],
+            },
+        )
+
+    assigned_to = record.assigned_to or ""
+    assigned_type = (record.assigned_to_type or "user").lower()
+    if not assigned_to:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "no_assignee",
+                "message": "此筆審核未指派審核者,請由 Admin 處理",
+            },
+        )
+
+    if assigned_type == "user":
+        if assigned_to != user.username:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "error": "not_assigned_reviewer",
+                    "message": "您不是被指派的審核者",
+                },
+            )
+        return
+
+    if assigned_type == "group":
+        from app.services.group_resolver import resolve_group_members
+
+        members = await resolve_group_members(db, assigned_to)
+        if user.username not in members:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "error": "not_in_assigned_group",
+                    "message": "您不是被指派群組的成員",
+                },
+            )
+        return
+
+    raise HTTPException(
+        status_code=400,
+        detail=f"未知的 assignee_type: {assigned_type}",
+    )
+
+
 @router.post(
     "/reviews",
     response_model=ReviewRecordResponse,
@@ -87,15 +175,57 @@ async def submit_review(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    # 校驗 assignee 真實存在(避免送出髒資料)
+    await _validate_assignee(db, payload.assignee, payload.assignee_type, user)
     record = await review_service.submit(
         db,
         entity_type=payload.entity_type,
         entity_id=payload.entity_id,
         submitted_by=user.username,
         organization_id=user.organization_id,
+        assignee=payload.assignee,
+        assignee_type=payload.assignee_type,
     )
     names = await _resolve_entity_names(db, [record])
     return _to_response(record, names)
+
+
+async def _validate_assignee(
+    db: AsyncSession, assignee: str, assignee_type: str, user: User
+) -> None:
+    """送審必選的 assignee 必須真的存在;user → users.username,group → groups.id。
+    不在同 org 也擋(避免跨租戶指派)。"""
+    if assignee_type == "user":
+        target = (
+            await db.execute(
+                select(User).where(User.username == assignee)
+            )
+        ).scalar_one_or_none()
+        if target is None:
+            raise HTTPException(404, f"assignee user not found: {assignee}")
+        if (
+            not user.is_superuser
+            and target.organization_id is not None
+            and user.organization_id is not None
+            and target.organization_id != user.organization_id
+        ):
+            raise HTTPException(403, "assignee not in your organization")
+        return
+    if assignee_type == "group":
+        from app.models.group import Group
+
+        target = await db.get(Group, assignee)
+        if target is None:
+            raise HTTPException(404, f"assignee group not found: {assignee}")
+        if (
+            not user.is_superuser
+            and getattr(target, "organization_id", None) is not None
+            and user.organization_id is not None
+            and target.organization_id != user.organization_id
+        ):
+            raise HTTPException(403, "assignee group not in your organization")
+        return
+    raise HTTPException(422, f"invalid assignee_type: {assignee_type}")
 
 
 async def _resolve_entity_names(
@@ -156,6 +286,7 @@ def _to_response(record: ReviewRecord, names: dict[tuple[str, str], str]) -> Rev
 async def list_reviews(
     status: Optional[str] = Query(None),
     entity_type: Optional[ReviewableEntityType] = Query(None),
+    mine: bool = Query(False, description="只看指派給我(含我所屬群組)的審核"),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -175,6 +306,29 @@ async def list_reviews(
         stmt = stmt.where(ReviewRecord.status == resolved_status)
     if entity_type is not None:
         stmt = stmt.where(ReviewRecord.entity_type == entity_type)
+    if mine:
+        # 指派給我:assignee_type='user' AND assigned_to=username
+        # OR assignee_type='group' AND assigned_to ∈ {我所在的全部群組(含巢狀)}
+        from sqlalchemy import or_
+        from app.models.group import GroupMembership
+
+        my_group_ids = (
+            await db.execute(
+                select(GroupMembership.group_id).where(
+                    GroupMembership.username == user.username
+                )
+            )
+        ).scalars().all()
+        clauses = [
+            (ReviewRecord.assigned_to_type == "user")
+            & (ReviewRecord.assigned_to == user.username),
+        ]
+        if my_group_ids:
+            clauses.append(
+                (ReviewRecord.assigned_to_type == "group")
+                & (ReviewRecord.assigned_to.in_(list(my_group_ids)))
+            )
+        stmt = stmt.where(or_(*clauses))
     rows = (await db.execute(stmt)).scalars().all()
     names = await _resolve_entity_names(db, list(rows))
     # Drop orphans whose underlying entity has been deleted. Until v1.1
@@ -291,8 +445,8 @@ async def approve_review(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _ensure_admin(user, db)
     record = await _load_for_action(db, record_id, user)
+    await _ensure_can_review(user, db, record)
     record = await review_service.approve(db, record=record, reviewer=user.username)
     # AB 表 hook:對齊 entity_versions 的 content_status,並記一筆 source='system' 的 snapshot,
     # 讓「review 通過 = 進入 approved 版本」這件事在版本歷史上看得到。
@@ -349,8 +503,8 @@ async def reject_review(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _ensure_admin(user, db)
     record = await _load_for_action(db, record_id, user)
+    await _ensure_can_review(user, db, record)
     record = await review_service.reject(
         db, record=record, reviewer=user.username, reason=payload.reason
     )

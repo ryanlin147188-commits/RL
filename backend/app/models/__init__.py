@@ -47,6 +47,8 @@ from .test_plan import TestPlan, TestPlanStatus
 from .test_round import TestRound
 from .test_version import TestVersion, VersionPlatform, VersionStatus
 from .testcase_content import TestcaseContent
+from .testcase_env_binding import TestcaseEnvBinding
+from .testcase_precondition_link import TestcasePreconditionLink
 from .todo_item import TodoItem, TodoItemType, TodoPriority, TodoStatus
 from .todo_link import ALLOWED_TARGET_TYPES, TodoLink
 from .tree_node import LevelType, TreeNode
@@ -59,6 +61,8 @@ __all__ = [
     "TreeNode",
     "LevelType",
     "TestcaseContent",
+    "TestcasePreconditionLink",
+    "TestcaseEnvBinding",
     "ExecutionReport",
     "ReportStatus",
     "ExecutionStepLog",

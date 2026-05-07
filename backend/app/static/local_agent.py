@@ -461,23 +461,30 @@ def run_case(
     case: dict[str, Any],
     server: str,
     report_id: str,
+    project_env_vars: dict[str, str] | None = None,
 ) -> tuple[bool, int, list[dict[str, Any]]]:
     """執行一整個 testcase。
 
-    回傳：(全部 passed?, 失敗步驟數, 每步記錄 list)
-    每步記錄欄位與 ExecutionStepLog 對齊：
+    回傳:(全部 passed?, 失敗步驟數, 每步記錄 list)
+    每步記錄欄位與 ExecutionStepLog 對齊:
         testcase_node_id / step_index / status / duration_ms / error_message
-        + pre_screenshot_url / post_screenshot_url（本機 agent 上傳後拿到的 URL）
-    step_index 沿用 Docker runner 的編碼：round_idx * 1000 + step_position
+        + pre_screenshot_url / post_screenshot_url(本機 agent 上傳後拿到的 URL)
+    step_index 沿用 Docker runner 的編碼:round_idx * 1000 + step_position
+
+    `project_env_vars`:專案環境變數,跟 DDT row 同名時 DDT row 優先(跟
+    docker runner 規則一致)。
     """
     steps = case.get("steps_json") or []
     ddt_contexts = build_ddt_context(case.get("ddt_json"))
+    env_map = project_env_vars or {}
     all_passed = True
     fail_count = 0
     step_logs: list[dict[str, Any]] = []
     tc_id = case.get("testcase_id") or "case"
     tc_short = (tc_id or "case")[:8]
-    for round_i, ctx in enumerate(ddt_contexts):
+    for round_i, ddt_ctx in enumerate(ddt_contexts):
+        # env 是底,DDT row 蓋上去(同名 key 由 DDT 定義者覆蓋專案層)
+        ctx = {**env_map, **ddt_ctx}
         log(f"  ─ Round {round_i + 1} / {len(ddt_contexts)} (ctx={list(ctx.keys()) or 'none'})")
         for i, step in enumerate(steps):
             desc = step.get("desc") or step.get("action") or f"step {i + 1}"
@@ -520,10 +527,16 @@ def process_job(job: dict[str, Any], server: str) -> None:
     report_id = job.get("report_id")
     task_id = job.get("task_id")
     cases = job.get("cases") or []
-    log(f"🚀 接到任務 task={task_id[:8]}…，共 {len(cases)} 個案例")
+    project_env_vars = job.get("project_env_vars") or {}
+    setup_ids = set(job.get("setup_testcase_ids") or [])
+    log(
+        f"🚀 接到任務 task={task_id[:8]}…,共 {len(cases)} 個案例 "
+        f"(setup={len(setup_ids)},env={len(project_env_vars)})"
+    )
 
     passed = 0
     failed = 0
+    setup_failed = False
     start_ts = time.time()
     all_step_logs: list[dict[str, Any]] = []
 
@@ -533,28 +546,53 @@ def process_job(job: dict[str, Any], server: str) -> None:
         page = context.new_page()
         try:
             for idx, case in enumerate(cases, 1):
-                log(f"▶ [{idx}/{len(cases)}] 案例 {case.get('testcase_id','')[:8]}…")
+                tc_id = case.get("testcase_id") or ""
+                is_setup = bool(case.get("is_setup")) or (tc_id in setup_ids)
+                phase_label = "🔧 SETUP" if is_setup else "▶"
+                log(f"{phase_label} [{idx}/{len(cases)}] 案例 {tc_id[:8]}…")
+
+                if setup_failed and not is_setup:
+                    log(f"⏭ 前置案例已失敗,跳過主案例 {tc_id[:8]}…", "WARN")
+                    failed += 1
+                    all_step_logs.append({
+                        "testcase_node_id": tc_id,
+                        "step_index": 0,
+                        "status": "FAILED",
+                        "duration_ms": 0,
+                        "error_message": "Skipped: precondition testcase failed",
+                    })
+                    continue
+
                 try:
-                    ok, fc, logs = run_case(page, case, server, report_id)
+                    ok, fc, logs = run_case(
+                        page, case, server, report_id,
+                        project_env_vars=project_env_vars,
+                    )
                     all_step_logs.extend(logs)
                     if ok:
                         passed += 1
                         log(f"✅ 案例 {idx} 通過")
                     else:
                         failed += 1
-                        log(f"❌ 案例 {idx} 失敗（{fc} 步）")
+                        log(f"❌ 案例 {idx} 失敗({fc} 步)")
+                        if is_setup:
+                            setup_failed = True
+                            log(f"🛑 前置案例 {tc_id[:8]} 失敗,後續主案例跳過", "ERROR")
                 except Exception as exc:  # 單一 case 異常不整體中止
                     failed += 1
-                    log(f"💥 案例 {idx} 執行器例外：{exc}", "ERROR")
+                    log(f"💥 案例 {idx} 執行器例外:{exc}", "ERROR")
                     traceback.print_exc()
                     # 也寫一筆失敗 step log 標記該案例出事
                     all_step_logs.append({
-                        "testcase_node_id": case.get("testcase_id"),
+                        "testcase_node_id": tc_id,
                         "step_index": 0,
                         "status": "FAILED",
                         "duration_ms": 0,
                         "error_message": f"Runner exception: {exc}",
                     })
+                    if is_setup:
+                        setup_failed = True
+                        log(f"🛑 前置案例 {tc_id[:8]} 例外,後續主案例跳過", "ERROR")
         finally:
             try:
                 context.close()

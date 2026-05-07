@@ -19,14 +19,18 @@ class PaginatedResponse(BaseModel, Generic[T]):
 
 # ── 觸發執行 ─────────────────────────────────────────────────
 class ExecutionRunRequest(BaseModel):
-    node_id: str
+    # 單選(舊呼叫端)。新呼叫端可用 node_ids,兩者擇一,皆有時 node_ids 優先。
+    node_id: Optional[str] = None
+    # 多選(批次執行,清單頁「執行已選」用)。每個 id 可以是 folder / scenario
+    # 容器或 leaf testcase;後端會展開為 leaf 並去重,跨 project 會被擋。
+    node_ids: list[str] = []
     trigger_type: str = "Manual"
-    # 執行環境："docker"（Celery 容器）或 "local"（本機標記）。預設 docker。
+    # 執行環境："docker"(Celery 容器)或 "local"(本機標記)。預設 docker。
     execution_mode: str = "docker"
-    # 是否把測試案例的 DDT 全部列依序執行。預設 False（只跑一次；只用第一列當變數）
+    # 是否把測試案例的 DDT 全部列依序執行。預設 False(只跑一次;只用第一列當變數)
     ddt_expand: bool = False
-    # 是否啟用 Trace（軌跡追蹤）+ Video（錄影）收集。預設 True；
-    # 關閉可加快執行速度並節省磁碟（不會產生 trace.zip / .webm）。
+    # 是否啟用 Trace(軌跡追蹤)+ Video(錄影)收集。預設 True;
+    # 關閉可加快執行速度並節省磁碟(不會產生 trace.zip / .webm)。
     enable_recording: bool = True
 
 

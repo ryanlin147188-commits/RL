@@ -61,12 +61,20 @@ class CaseJob(BaseModel):
     name: Optional[str] = None
     steps_json: list[dict[str, Any]] = Field(default_factory=list)
     ddt_json: Optional[dict[str, Any]] = None
+    # 是否為前置案例(在 main 之前先跑;失敗會讓 main 全部 SKIP)
+    is_setup: bool = False
 
 
 class ClaimResponse(BaseModel):
     report_id: str
     task_id: str
     cases: list[CaseJob]
+    # 專案環境變數 — agent 端用來把 ${VAR} 展開到 step 欄位
+    # (DDT row 同名值優先,跟 docker runner 規則一致)
+    project_env_vars: dict[str, str] = Field(default_factory=dict)
+    # 前置案例 id 清單(同時也會出現在 cases 內並 is_setup=True)
+    # 任一失敗,agent 必須把後續 main 案例全標 FAILED + skip
+    setup_testcase_ids: list[str] = Field(default_factory=list)
 
 
 class StepLogInput(BaseModel):
@@ -124,24 +132,41 @@ async def claim_local_job(
         from fastapi import Response
         return Response(status_code=204)
 
-    # 還原 testcase_ids
-    if not report.source_node_id:
-        raise HTTPException(status_code=500, detail="report 缺少 source_node_id，無法還原測試案例")
-    testcase_ids = await collect_testcase_ids(db, report.source_node_id)
-    if not testcase_ids:
-        # 沒有 TC 可執行，直接標記 FAILED
+    # 還原 testcase_ids — 用 execution_plan_service 展開,讓 setup / main 一致
+    # 多選(node_ids):優先讀 source_node_ids;否則退回單選 source_node_id
+    raw_node_ids: list[str] = list(report.source_node_ids or [])
+    if not raw_node_ids and report.source_node_id:
+        raw_node_ids = [report.source_node_id]
+    if not raw_node_ids:
+        raise HTTPException(status_code=500, detail="report 缺少 source_node_id(s),無法還原測試案例")
+    from app.services.execution_plan_service import _expand_inputs, _gather_preconditions
+
+    main_ids = await _expand_inputs(db, raw_node_ids)
+    if not main_ids:
         report.status = ReportStatus.FAILED
         await db.flush()
         raise HTTPException(status_code=404, detail="此 report 無可執行的測試案例")
+    setup_ids: list[str] = []
+    try:
+        pre_ids = await _gather_preconditions(db, main_ids)
+        main_set = set(main_ids)
+        setup_ids = [tid for tid in pre_ids if tid not in main_set]
+    except HTTPException:
+        # 循環前置:讓 agent 看到任務但 setup 為空,主案例仍照跑
+        # (cycle 會在 docker / api 觸發時就被擋,正常路徑跑不到這)
+        setup_ids = []
+
+    testcase_ids = setup_ids + main_ids
 
     # 為每個 testcase 抓 steps_json + ddt_json
-    # 若 report.ddt_expand=False → 把 DDT 的 rows 截到只有第一列（整個 testcase 只跑一次）
-    # TestcaseContent 的 primary key 是 node_id（不是 id）
+    # 若 report.ddt_expand=False → 把 DDT 的 rows 截到只有第一列(整個 testcase 只跑一次)
+    # TestcaseContent 的 primary key 是 node_id(不是 id)
     cases: list[CaseJob] = []
     rows_db = await db.execute(
         TenantQuery.for_(TestcaseContent).where(TestcaseContent.node_id.in_(testcase_ids))
     )
     tc_map = {t.node_id: t for t in rows_db.scalars()}
+    setup_set = set(setup_ids)
     for tid in testcase_ids:
         tc = tc_map.get(tid)
         ddt = (tc.ddt_json if tc else None) or {}
@@ -155,16 +180,29 @@ async def claim_local_job(
                 name=None,
                 steps_json=(tc.steps_json if tc and tc.steps_json else []),
                 ddt_json=ddt if ddt else None,
+                is_setup=tid in setup_set,
             )
         )
 
-    # 通知前端 Console：已被某個 agent 認領
+    # 撈 project_env_vars(同 docker runner 邏輯,讓 agent 端做 ${VAR} 展開)
+    from app.models.project_env_var import ProjectEnvVar
+
+    env_rows = (
+        await db.execute(
+            TenantQuery.for_(ProjectEnvVar).where(
+                ProjectEnvVar.project_id == report.project_id
+            )
+        )
+    ).scalars().all()
+    env_map = {row.name: row.value for row in env_rows}
+
+    # 通知前端 Console:已被某個 agent 認領
     _publish_ws(
         report.task_id or report.id,
         {
             "type": "log",
             "level": "INFO",
-            "message": f"🖥️  本機 Agent『{payload.agent_id}』已認領此任務，開始執行…",
+            "message": f"🖥️  本機 Agent『{payload.agent_id}』已認領此任務,開始執行…",
         },
     )
 
@@ -172,6 +210,8 @@ async def claim_local_job(
         report_id=report.id,
         task_id=report.task_id or report.id,
         cases=cases,
+        project_env_vars=env_map,
+        setup_testcase_ids=setup_ids,
     )
 
 
