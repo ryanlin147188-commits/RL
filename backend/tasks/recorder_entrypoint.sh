@@ -91,14 +91,32 @@ wait "$CODEGEN_PID" || true
 
 # 6) 自動上傳(best-effort;失敗也不擋容器退出)
 echo "[recorder] codegen exited;uploading to $UPLOAD_URL"
+if [ -f "$PY" ]; then
+    PY_SIZE=$(wc -c < "$PY")
+    echo "[recorder] script file: $PY ($PY_SIZE bytes)"
+else
+    echo "[recorder] WARNING: $PY not found — codegen may have crashed before writing"
+fi
+if [ -f "$TZ" ]; then
+    TZ_SIZE=$(wc -c < "$TZ")
+    echo "[recorder] trace file:  $TZ  ($TZ_SIZE bytes)"
+fi
 ARGS=()
 if [ -f "$PY" ]; then ARGS+=(-F "script=@$PY"); fi
 if [ -f "$TZ" ]; then ARGS+=(-F "trace=@$TZ"); fi
 if [ "${#ARGS[@]}" -eq 0 ]; then
     echo "[recorder] no output to upload — codegen may have crashed"
 else
-    curl -sS --max-time 60 "${ARGS[@]}" "$UPLOAD_URL" || \
-        echo "[recorder] upload failed (HTTP error or timeout)"
+    # -w 印 HTTP code 跟 response;-o 把 body 收到 /tmp 方便 debug
+    HTTP_CODE=$(curl -sS --max-time 60 -o /tmp/upload_resp.txt -w "%{http_code}" \
+        "${ARGS[@]}" "$UPLOAD_URL" 2>/tmp/upload_err.txt || echo "000")
+    if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ] || [ "$HTTP_CODE" = "204" ]; then
+        echo "[recorder] upload OK (HTTP $HTTP_CODE)"
+    else
+        echo "[recorder] upload FAILED — HTTP $HTTP_CODE"
+        echo "[recorder] curl stderr:"; cat /tmp/upload_err.txt 2>/dev/null || true
+        echo "[recorder] response body:"; head -c 500 /tmp/upload_resp.txt 2>/dev/null || true; echo ""
+    fi
 fi
 
 echo "[recorder] done"

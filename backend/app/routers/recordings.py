@@ -37,7 +37,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, get_optional_user
 from app.auth.scope import (
     ensure_project_in_scope,
     ensure_project_writable,
@@ -384,15 +384,24 @@ async def upload_recording(
     script: Optional[UploadFile] = File(default=None),
     trace: Optional[UploadFile] = File(default=None),
     notes: Optional[str] = Form(default=None),  # noqa: ARG001 reserved
-    user: User = Depends(get_current_user),
+    user: Optional[User] = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """接收 codegen 產生的檔案。任一檔案缺少均允許(部分上傳)。"""
+    """接收 codegen 產生的檔案。任一檔案缺少均允許(部分上傳)。
+
+    auth:Recorder 容器 entrypoint 用 anonymous curl 上傳(沒帶 Bearer token),
+    所以這裡走 ``get_optional_user`` 接受匿名;UUID4 session_id ≈ 122-bit 熵,
+    當天然 token 用足夠安全。有帶 token 時仍會做 org scope 檢查。
+    """
     session = await db.get(RecordingSession, session_id)
-    await ensure_project_in_scope(
-        db, session.project_id if session else None, user,
-        not_found_detail="Recording session not found",
-    )
+    if session is None:
+        raise HTTPException(status_code=404, detail="Recording session not found")
+    if user is not None:
+        # 有 user 才做 org scope 檢查;recorder 容器匿名 upload 直接信賴 session_id
+        await ensure_project_in_scope(
+            db, session.project_id, user,
+            not_found_detail="Recording session not found",
+        )
 
     if script is not None:
         content = await script.read()

@@ -42,7 +42,7 @@
                     }
                 }
             }
-        }
+        };
         // 載入時立即套用暗黑模式（避免切換時閃爍）
         (function applyStoredTheme() {
             try {
@@ -1006,6 +1006,23 @@
                 <button type="button" onclick="reviewCloseHistoryDrawer()" aria-label="關閉" title="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div id="reviewHistoryBody" class="p-5 text-sm space-y-3 overflow-y-auto"></div>
+        </div>
+    </div>
+
+    <!-- 審核詳情 popup modal (彙整 review record 全欄位 + 內嵌歷史軌跡) -->
+    <div id="reviewDetailModal" class="hidden fixed inset-0 z-[290] bg-black/40 flex items-center justify-center p-4"
+         onclick="if(event.target===this) reviewCloseDetail()">
+        <div class="bg-white w-full max-w-2xl max-h-[85vh] rounded-xl shadow-2xl ring-1 ring-violet-200 overflow-hidden flex flex-col"
+             onclick="event.stopPropagation()">
+            <div class="px-5 py-3 border-b border-stone-200 bg-violet-50/60 flex items-center justify-between flex-shrink-0">
+                <h3 class="font-bold text-stone-800 text-base flex items-center gap-2">
+                    <i class="fa-solid fa-circle-info text-violet-500"></i>
+                    <span data-i18n="review.detail.title">審核詳情</span>
+                </h3>
+                <button type="button" onclick="reviewCloseDetail()" aria-label="關閉" title="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div id="reviewDetailBody" class="p-5 text-sm overflow-y-auto"></div>
+            <div id="reviewDetailFooter" class="px-5 py-3 border-t border-stone-200 bg-stone-50 flex flex-wrap gap-2 justify-end"></div>
         </div>
     </div>
 
@@ -4009,17 +4026,23 @@ driver.swipe(100, 800, 100, 200, 500)"
             <!-- ── 測試看版 ── -->
             <div id="testKanbanWorkspace" class="flex-1 overflow-y-auto p-6 bg-amber-50/30 hidden">
                 <div class="max-w-7xl mx-auto">
-                    <!-- 工具列(entity tab + 新增待辦 + 重新整理) -->
+                    <!-- 工具列(新增待辦 + 重新整理) -->
                     <div class="bg-white rounded-lg border border-orange-100 shadow-sm p-2 mb-3 flex items-center gap-3 flex-wrap">
-                        <!-- entity-type tabs -->
-                        <div class="flex gap-1 flex-wrap">
-                            <button id="kanbanTabAll" onclick="kanbanSetEntity('')" class="px-3 py-1.5 text-xs font-medium rounded text-amber-700 bg-amber-50 border border-amber-300">全部</button>
-                            <button id="kanbanTabDefect" onclick="kanbanSetEntity('defect')" class="px-3 py-1.5 text-xs font-medium rounded text-stone-600 hover:bg-stone-50 border border-transparent">缺陷</button>
-                            <button id="kanbanTabTodo" onclick="kanbanSetEntity('todo')" class="px-3 py-1.5 text-xs font-medium rounded text-stone-600 hover:bg-stone-50 border border-transparent">待辦</button>
-                            <button id="kanbanTabTestcase" onclick="kanbanSetEntity('testcase')" class="px-3 py-1.5 text-xs font-medium rounded text-stone-600 hover:bg-stone-50 border border-transparent">案例</button>
-                            <button id="kanbanTabRequirement" onclick="kanbanSetEntity('requirement')" class="px-3 py-1.5 text-xs font-medium rounded text-stone-600 hover:bg-stone-50 border border-transparent">需求</button>
-                            <button id="kanbanTabDocument" onclick="kanbanSetEntity('document')" class="px-3 py-1.5 text-xs font-medium rounded text-stone-600 hover:bg-stone-50 border border-transparent">文件</button>
-                            <button id="kanbanTabReview" onclick="kanbanSetEntity('review')" class="px-3 py-1.5 text-xs font-medium rounded text-stone-600 hover:bg-stone-50 border border-transparent">審核</button>
+                        <!-- entity-type tabs 已移除(2026-05-07):全部塞進「全部」一個 view,
+                             同時拉缺陷 / 待辦 / 案例 / 需求 / 文件 / 審核 6 種 entity。 -->
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <i class="fa-solid fa-columns text-orange-500"></i>
+                            <span class="text-xs font-medium text-amber-700">全部</span>
+                            <!-- 各 entity 的目前筆數;0 = 該 entity 在此專案沒資料(不是壞掉)。
+                                 由 renderTestKanban 抓完資料後 fillin。 -->
+                            <div id="kanbanEntityCounts" class="flex items-center gap-1 text-[11px] flex-wrap">
+                                <span class="px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200" data-entity="defect"><i class="fa-solid fa-bug mr-1"></i>缺陷 <span class="font-mono" data-count>—</span></span>
+                                <span class="px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200" data-entity="todo"><i class="fa-solid fa-list-check mr-1"></i>待辦 <span class="font-mono" data-count>—</span></span>
+                                <span class="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200" data-entity="testcase"><i class="fa-solid fa-flask-vial mr-1"></i>案例 <span class="font-mono" data-count>—</span></span>
+                                <span class="px-1.5 py-0.5 rounded bg-cyan-50 text-cyan-700 border border-cyan-200" data-entity="requirement"><i class="fa-solid fa-diagram-project mr-1"></i>需求 <span class="font-mono" data-count>—</span></span>
+                                <span class="px-1.5 py-0.5 rounded bg-pink-50 text-pink-700 border border-pink-200" data-entity="document"><i class="fa-solid fa-file-lines mr-1"></i>文件 <span class="font-mono" data-count>—</span></span>
+                                <span class="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200" data-entity="review"><i class="fa-solid fa-clipboard-check mr-1"></i>審核 <span class="font-mono" data-count>—</span></span>
+                            </div>
                         </div>
                         <!-- 我的指派 / 全部 scope toggle UI 已移除;預設改為 scope='all'
                              以便新建未指派的缺陷 / 待辦也能立即在看板上看到。
@@ -4056,12 +4079,8 @@ driver.swipe(100, 800, 100, 200, 500)"
                                 </label>
                             </div>
                         </div>
-                        <div id="kanbanChips" class="flex flex-wrap gap-1.5 mt-3 text-xs">
-                            <button type="button" onclick="kanbanSetChip('active')"   data-chip="active"   class="drawer-backlog-chip is-active">未完成</button>
-                            <button type="button" onclick="kanbanSetChip('overdue')"  data-chip="overdue"  class="drawer-backlog-chip">過期</button>
-                            <button type="button" onclick="kanbanSetChip('due_soon')" data-chip="due_soon" class="drawer-backlog-chip">7 天內</button>
-                            <button type="button" onclick="kanbanSetChip('done')"     data-chip="done"     class="drawer-backlog-chip">已完成</button>
-                        </div>
+                        <!-- 狀態 chips 已移除(2026-05-07):預設顯示全部,避免拖移到「已完成」狀態時
+                             被 chip filter 隱藏,讓使用者誤以為「狀態沒變」。 -->
                     </div>
                     <h3 class="text-sm font-bold text-stone-500 uppercase tracking-wider mb-2 flex items-center gap-2">
                         <i class="fa-solid fa-columns text-orange-500"></i>
@@ -9942,7 +9961,66 @@ driver.swipe(100, 800, 100, 200, 500)"
                 showToast('儲存成功', 'success');
             } catch (err) {
                 console.error(err);
-                showToast(`儲存失敗：${err.message}`, 'error');
+                // 423 Locked = 此案例已通過審核,主表寫入被 review_service.ensure_not_approved 擋
+                // (RFC-Review-1 鎖定機制)。給使用者一個清楚的解釋 + 一鍵跳到審核中心退回。
+                if (err && err.status === 423) {
+                    showReviewLockedModalForTestcase(currentTestCase);
+                } else {
+                    showToast(`儲存失敗:${err.message}`, 'error');
+                }
+            }
+        }
+
+        // 423 Locked 專屬 modal:當 testcase 通過審核而被鎖定時提示使用者解鎖路徑。
+        // 內聯生成節點(沒有獨立 HTML)— 一次性使用,點按鈕 / 點背景就移除。
+        function showReviewLockedModalForTestcase(testcaseId) {
+            // 已存在就先移除,避免重疊
+            const old = document.getElementById('_reviewLockedModal');
+            if (old) old.remove();
+            const wrap = document.createElement('div');
+            wrap.id = '_reviewLockedModal';
+            wrap.className = 'fixed inset-0 z-[320] bg-black/40 flex items-center justify-center p-4';
+            wrap.onclick = (e) => { if (e.target === wrap) wrap.remove(); };
+            wrap.innerHTML = `
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-md border border-rose-200" onclick="event.stopPropagation()">
+                    <div class="px-5 py-3 border-b border-stone-200 bg-rose-50/60 flex items-center justify-between">
+                        <h3 class="font-bold text-stone-800 text-base flex items-center gap-2">
+                            <i class="fa-solid fa-lock text-rose-500"></i>
+                            <span>案例已鎖定</span>
+                        </h3>
+                        <button type="button" onclick="document.getElementById('_reviewLockedModal').remove()" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <div class="p-5 space-y-3 text-sm">
+                        <p class="text-stone-700">此案例已通過審核(<span class="font-mono text-[12px] text-stone-500">HTTP 423 Locked</span>),目前無法直接編輯。</p>
+                        <p class="text-stone-600">需要先在 <b>審核中心</b> 把這筆審核 <b>退回(revert)</b>,讓案例回到「待審核」,才能修改步驟 / AC / DDT。</p>
+                        <div class="bg-amber-50 border-l-4 border-amber-300 px-3 py-2 rounded text-xs text-amber-900">
+                            提醒:退回會把案例的 <code class="bg-stone-100 px-1 rounded">content_status</code> 設回 <code class="bg-stone-100 px-1 rounded">pending_review</code>;審核者要重新通過一次才會再被鎖。
+                        </div>
+                    </div>
+                    <div class="px-5 py-3 border-t border-stone-200 bg-stone-50 flex justify-end gap-2">
+                        <button type="button" onclick="document.getElementById('_reviewLockedModal').remove()" class="px-3 py-1.5 text-sm border border-stone-300 rounded-md hover:bg-stone-50">取消</button>
+                        <button type="button" id="_goToReviewBtn" class="px-3 py-1.5 text-sm bg-violet-500 hover:bg-violet-600 text-white rounded-md font-semibold flex items-center gap-1.5">
+                            <i class="fa-solid fa-stamp"></i> 前往審核中心
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(wrap);
+            const btn = document.getElementById('_goToReviewBtn');
+            if (btn) {
+                btn.onclick = async () => {
+                    wrap.remove();
+                    if (typeof showReviewView === 'function') {
+                        showReviewView();
+                        // 切到「已審核」分頁(approved 才會被鎖),若 reviewSetTab 存在就用它
+                        if (typeof reviewSetTab === 'function') {
+                            try { reviewSetTab('approved'); } catch(_) {}
+                        }
+                    } else {
+                        // 找不到 showReviewView 就跳通知,避免黑屏
+                        showToast('無法開啟審核中心,請手動切換', 'warning');
+                    }
+                };
             }
         }
 
@@ -11428,9 +11506,12 @@ driver.swipe(100, 800, 100, 200, 500)"
             // Name column: show the resolved entity name. UUIDs intentionally
             // dropped per 2026-04-30 UI feedback. The full id is kept as a
             // hover-tooltip on the name itself for ops debugging.
+            // 名稱本身可點擊 → 開「審核詳情」popup(也可以走右側操作欄的 eye icon)。
+            const nameClickAttrs = `onclick="reviewOpenDetail('${_esc(r.id)}')" role="button" tabindex="0"
+                onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();reviewOpenDetail('${_esc(r.id)}')}"`;
             const nameHtml = r.entity_name
-                ? `<div class="text-stone-800 font-medium text-sm" title="${_esc(r.entity_id)}">${_esc(r.entity_name)}</div>`
-                : `<div class="text-stone-400 italic text-xs" title="${_esc(r.entity_id)}">${lc==='en' ? 'entity deleted' : '實體已刪除'}</div>`;
+                ? `<div ${nameClickAttrs} class="text-stone-800 font-medium text-sm cursor-pointer hover:text-violet-600 hover:underline" title="${_esc(r.entity_id)} — ${lc==='en'?'click for details':'點擊查看詳情'}">${_esc(r.entity_name)}</div>`
+                : `<div ${nameClickAttrs} class="text-stone-400 italic text-xs cursor-pointer hover:text-violet-600 hover:underline" title="${_esc(r.entity_id)} — ${lc==='en'?'click for details':'點擊查看詳情'}">${lc==='en' ? 'entity deleted' : '實體已刪除'}</div>`;
             const checked = _reviewSelected.has(r.id) ? 'checked' : '';
             return `<tr class="hover:bg-violet-50/40 align-top">
                 <td class="p-3 text-center"><input type="checkbox" class="review-row-cb rounded border-stone-300 text-amber-500 focus:ring-amber-400" data-id="${_esc(r.id)}" ${checked} onchange="reviewToggleRow('${_esc(r.id)}', this.checked)"></td>
@@ -11450,6 +11531,9 @@ driver.swipe(100, 800, 100, 200, 500)"
         function _reviewActionsHtml(r) {
             const lc = _reviewLocale();
             const btns = [];
+            // 查看詳情(eye icon;點擊跳出彙整詳情 modal)— 跟「點名稱開詳情」是同一個入口,
+            // 加在這裡是為了在操作欄能直接點到、無障礙路徑也清楚。
+            btns.push(`<button type="button" onclick="reviewOpenDetail('${r.id}')" title="${lc==='en'?'View details':'查看詳情'}" class="px-2 py-1 text-xs border border-stone-300 rounded hover:bg-violet-50 text-violet-600"><i class="fa-solid fa-eye"></i></button>`);
             // 共用:歷史軌跡(改用驚嘆號圖示;點擊跳出 popup modal)
             btns.push(`<button type="button" onclick="reviewOpenHistory('${r.id}')" title="${lc==='en'?'History':'審核軌跡'}" class="px-2 py-1 text-xs border border-stone-300 rounded hover:bg-violet-50 text-violet-600"><i class="fa-solid fa-circle-exclamation"></i></button>`);
             // 指派:即使審核已通過,assignee 仍可改(metadata,不在 lock 範圍)
@@ -11589,6 +11673,121 @@ driver.swipe(100, 800, 100, 200, 500)"
 
         function reviewCloseHistoryDrawer() {
             document.getElementById('reviewHistoryDrawer').classList.add('hidden');
+        }
+
+        // ── 審核詳情 popup ─────────────────────────────────────────────
+        // 點「名稱欄」或「眼睛 icon」→ 彙整 review record 全欄位 + 內嵌歷史軌跡
+        // + 快速操作(通過/拒絕/退回 / 指派 / 開啟實體)。所有資料先用快取(_reviewRowsCache)
+        // 立即顯示,history 之後 lazy fetch。
+        async function reviewOpenDetail(recordId) {
+            const r = (_reviewRowsCache || []).find(x => x.id === recordId);
+            if (!r) { showToast(_reviewLocale()==='en'?'Record not found':'找不到審核紀錄', 'error'); return; }
+            const lc = _reviewLocale();
+            const tlbl = _REVIEW_TYPE_LABEL[r.entity_type] || { zh: r.entity_type, en: r.entity_type, cls: 'bg-stone-100 text-stone-600 border-stone-200' };
+            const slbl = _REVIEW_STATUS_LABEL[r.status]    || { zh: r.status, en: r.status, cls: 'bg-stone-100 text-stone-600' };
+
+            const _row = (k, v) => `<div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 py-1.5 border-b border-stone-100 last:border-b-0">
+                <div class="text-[11px] uppercase tracking-wide text-stone-500 sm:w-32 flex-shrink-0">${k}</div>
+                <div class="text-sm text-stone-800 break-all">${v ?? '<span class="text-stone-400 italic">—</span>'}</div>
+            </div>`;
+
+            const assigneeHtml = r.assigned_to
+                ? `<span class="font-medium ${r.assigned_to_type==='group'?'text-blue-700':'text-stone-800'}">${r.assigned_to_type==='group'?'👥 ':'<i class="fa-regular fa-user mr-1 text-stone-400"></i>'}${_esc(r.assigned_to)}</span>${r.assigned_by?` <span class="text-[11px] text-stone-500 ml-2">${lc==='en'?'by':'指派者'}: ${_esc(r.assigned_by)} · ${_reviewFmtTs(r.assigned_at)}</span>`:''}`
+                : null;
+
+            const reasonHtml = r.current_reason
+                ? `<div class="bg-amber-50 border-l-4 border-amber-300 px-3 py-2 rounded text-sm text-amber-900 italic">${_esc(r.current_reason)}</div>`
+                : null;
+
+            const entityIdRow = `<span class="font-mono text-[12px] text-stone-600">${_esc(r.entity_id)}</span>
+                <button type="button" onclick="navigator.clipboard?.writeText('${_esc(r.entity_id)}');showToast('${lc==='en'?'Copied':'已複製'}','info')" class="ml-2 text-[10px] px-1.5 py-0.5 border border-stone-300 rounded hover:bg-stone-50 text-stone-500"><i class="fa-regular fa-copy"></i></button>`;
+
+            const body = document.getElementById('reviewDetailBody');
+            body.innerHTML = `
+                <div class="space-y-4">
+                    <!-- 基本 -->
+                    <div class="bg-violet-50/40 rounded-lg p-3 border border-violet-100">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="inline-block px-2 py-0.5 rounded text-[11px] font-semibold border ${tlbl.cls}">${tlbl[lc]}</span>
+                            <span class="inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${slbl.cls}">${slbl[lc]}</span>
+                        </div>
+                        <div class="text-base font-semibold text-stone-800 mb-1">${r.entity_name ? _esc(r.entity_name) : `<span class="text-stone-400 italic">${lc==='en'?'entity deleted':'實體已刪除'}</span>`}</div>
+                        <div>${entityIdRow}</div>
+                    </div>
+
+                    <!-- 送審 / 審核 / 指派 -->
+                    <div>
+                        ${_row(lc==='en'?'Submitted by':'送審者', `${_esc(r.submitted_by||'—')} <span class="text-[11px] text-stone-500 ml-2">${_reviewFmtTs(r.submitted_at)}</span>`)}
+                        ${_row(lc==='en'?'Reviewed by':'審核者', r.reviewed_by ? `${_esc(r.reviewed_by)} <span class="text-[11px] text-stone-500 ml-2">${_reviewFmtTs(r.reviewed_at)}</span>` : null)}
+                        ${_row(lc==='en'?'Assigned to':'指派', assigneeHtml)}
+                        ${reasonHtml ? _row(lc==='en'?'Reason':'原因', reasonHtml) : ''}
+                        ${_row(lc==='en'?'Created':'建立時間', `<span class="text-[11px] font-mono text-stone-500">${_reviewFmtTs(r.created_at)}</span>`)}
+                        ${_row(lc==='en'?'Updated':'最後更新', `<span class="text-[11px] font-mono text-stone-500">${_reviewFmtTs(r.updated_at)}</span>`)}
+                    </div>
+
+                    <!-- 歷史軌跡(lazy load) -->
+                    <div>
+                        <div class="text-[11px] uppercase tracking-wide text-stone-500 mb-2 flex items-center gap-2">
+                            <i class="fa-solid fa-clock-rotate-left text-violet-400"></i>
+                            <span>${lc==='en'?'History':'審核軌跡'}</span>
+                        </div>
+                        <div id="reviewDetailHistory" class="space-y-2 text-stone-400 text-xs">${lc==='en'?'Loading…':'載入中…'}</div>
+                    </div>
+                </div>
+            `;
+
+            // Footer 動作按鈕(跟列表的快速動作對齊)
+            const footer = document.getElementById('reviewDetailFooter');
+            const actBtns = [];
+            actBtns.push(`<button type="button" onclick="reviewOpenAssign('${r.id}')" class="px-3 py-1.5 text-xs border border-amber-300 text-amber-700 rounded hover:bg-amber-50 font-semibold"><i class="fa-solid fa-user-tag"></i> ${lc==='en'?'Assign':'指派'}</button>`);
+            if (r.status === 'InReview' || r.status === 'pending') {
+                actBtns.push(`<button type="button" onclick="reviewCloseDetail();reviewApprove('${r.id}')" class="px-3 py-1.5 text-xs bg-emerald-500 hover:bg-emerald-600 text-white rounded font-semibold"><i class="fa-solid fa-check"></i> ${lc==='en'?'Approve':'通過'}</button>`);
+                actBtns.push(`<button type="button" onclick="reviewCloseDetail();reviewPromptReject('${r.id}')" class="px-3 py-1.5 text-xs bg-rose-500 hover:bg-rose-600 text-white rounded font-semibold"><i class="fa-solid fa-xmark"></i> ${lc==='en'?'Reject':'拒絕'}</button>`);
+            } else {
+                actBtns.push(`<button type="button" onclick="reviewCloseDetail();reviewPromptRevert('${r.id}')" class="px-3 py-1.5 text-xs bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold"><i class="fa-solid fa-undo"></i> ${lc==='en'?'Revert':'退回'}</button>`);
+            }
+            actBtns.push(`<button type="button" onclick="reviewCloseDetail()" class="px-3 py-1.5 text-xs border border-stone-300 rounded hover:bg-stone-50">${lc==='en'?'Close':'關閉'}</button>`);
+            footer.innerHTML = actBtns.join('');
+
+            document.getElementById('reviewDetailModal').classList.remove('hidden');
+
+            // Lazy-load 歷史軌跡(不擋 modal 打開)
+            try {
+                const entries = await apiFetch(`/api/reviews/${recordId}/history`);
+                const histBox = document.getElementById('reviewDetailHistory');
+                if (!histBox) return;  // modal 已被關掉
+                if (!entries.length) {
+                    histBox.innerHTML = `<div class="text-stone-400 italic">${lc==='en'?'No history':'無紀錄'}</div>`;
+                    return;
+                }
+                histBox.classList.remove('text-stone-400', 'text-xs');
+                histBox.innerHTML = entries.map(e => {
+                    const al = _REVIEW_ACTION_LABEL[e.action] || { zh: e.action, en: e.action, icon: 'fa-circle', cls: 'text-stone-500' };
+                    const er = e.reason ? `<div class="text-[12px] text-stone-700 mt-1 bg-stone-50 rounded px-2 py-1 border-l-2 border-violet-300 italic">${_esc(e.reason)}</div>` : '';
+                    const transit = e.previous_status
+                        ? `<span class="text-[10px] text-stone-400 ml-2">${e.previous_status} → ${e.new_status}</span>`
+                        : `<span class="text-[10px] text-stone-400 ml-2">→ ${e.new_status}</span>`;
+                    return `<div class="border-l-2 border-violet-200 pl-3 py-1">
+                        <div class="flex items-center gap-2 text-sm">
+                            <i class="fa-solid ${al.icon} ${al.cls}"></i>
+                            <span class="font-semibold ${al.cls}">${al[lc]}</span>
+                            ${transit}
+                        </div>
+                        <div class="text-[11px] text-stone-500 mt-0.5">
+                            <i class="fa-regular fa-user mr-1"></i>${_esc(e.actor)}
+                            <i class="fa-regular fa-clock ml-3 mr-1"></i>${_reviewFmtTs(e.acted_at)}
+                        </div>
+                        ${er}
+                    </div>`;
+                }).join('');
+            } catch (e) {
+                const histBox = document.getElementById('reviewDetailHistory');
+                if (histBox) histBox.innerHTML = `<div class="text-rose-500 text-xs">${e.message || e}</div>`;
+            }
+        }
+
+        function reviewCloseDetail() {
+            document.getElementById('reviewDetailModal').classList.add('hidden');
         }
 
         async function _reviewUpdatePendingBadge() {
@@ -17732,7 +17931,10 @@ gantt
         let _kanbanScope = 'all';      // 'mine' | 'all' — 預設顯示專案全部單據(避免新建未指派的缺陷看不到)
         let _kanbanItems = [];         // 統一 shape: {entity_type, id, label, status, project_id, due_date, assigned_to, assigned_to_type, assigned_by, assigned_at, severity?, code?, sprint_label?, parent_id?, item_type?}
         // 整合「我的工作」/「待辦清單」進來後的新 state(原兩個 view 的 chip / 搜尋 / sprint / 樹)
-        let _kanbanChip = 'active';            // 'active' | 'overdue' | 'due_soon' | 'done'
+        // chip 已從 UI 移除(2026-05-07);預設 'all' 顯示全部,避免拖到「已完成」狀態時
+        // 被 chip filter 過濾掉、看起來像「狀態沒變」。保留變數是因為內部還有幾處呼叫,
+        // 改成 'all' 後所有過濾分支都會 short-circuit。
+        let _kanbanChip = 'all';               // 'all' | 'active' | 'overdue' | 'due_soon' | 'done'
         let _kanbanSearch = '';
         let _kanbanAssigneeFilter = '';
         let _kanbanSprintFilter = '';
@@ -17985,8 +18187,8 @@ gantt
 
                 // 2) 拉 items
                 let items = [];
-                // chip='done' 時所有 list 端點都需要 include_done=true(否則拉不到完成的)
-                const includeDone = (_kanbanChip === 'done');
+                // chip 已移除,預設 'all' → 一律 include_done=true,看到全部單據。
+                const includeDone = (_kanbanChip === 'all' || _kanbanChip === 'done');
                 // entity=todo 且需要分群 / 父子樹 → 改打 /api/todos/tree(回傳含 sprint_label / children 的巢狀結構)
                 const todoNeedsTree = (
                     _kanbanEntity === 'todo' &&
@@ -18009,50 +18211,69 @@ gantt
                     items = (rows || []).map(_kanbanNormalizeFromMe);
                 } else {
                     _kanbanTodoTreeRaw = [];
-                    // 全部 — 視 entity tab 各別 fetch
-                    const wants = _kanbanEntity ? [_kanbanEntity] : ['defect', 'todo', 'requirement', 'review'];
-                    // testcase / document 走全部時不顯示(資料太多 + 沒 status,意義不大);使用者要看就切到「我的」
+                    // 「全部」模式(2026-05-07):一次拉 6 種 entity(defect / todo /
+                    // requirement / review / testcase / document)。entity tab UI 已移除,
+                    // _kanbanEntity 保留為 '' 表示全部;此處不再做 wants gate。
                     const fetchers = [];
-                    if (wants.includes('defect')) fetchers.push(
+                    fetchers.push(
                         fetch('/api/defects?project_id='+pid).then(r => r.json()).then(arr => arr.map(d => _kanbanNormalizeDefect(d, pid))).catch(() => [])
                     );
-                    if (wants.includes('todo')) {
-                        const todoParams = new URLSearchParams({ project_id: pid });
-                        if (includeDone) todoParams.set('include_done', 'true');
-                        fetchers.push(
-                            fetch('/api/todos?' + todoParams).then(r => r.json()).then(arr => arr.map(t => _kanbanNormalizeTodo(t, pid))).catch(() => [])
-                        );
-                    }
-                    if (wants.includes('requirement')) fetchers.push(
+                    const todoParams = new URLSearchParams({ project_id: pid });
+                    if (includeDone) todoParams.set('include_done', 'true');
+                    fetchers.push(
+                        fetch('/api/todos?' + todoParams).then(r => r.json()).then(arr => arr.map(t => _kanbanNormalizeTodo(t, pid))).catch(() => [])
+                    );
+                    fetchers.push(
                         fetch('/api/requirements?project_id='+pid).then(r => r.json()).then(arr => arr.map(rq => _kanbanNormalizeRequirement(rq, pid))).catch(() => [])
                     );
-                    if (wants.includes('review')) fetchers.push(
+                    fetchers.push(
                         fetch('/api/reviews?project_id='+pid).then(r => r.json()).then(arr => arr.map(rv => _kanbanNormalizeReview(rv, pid))).catch(() => [])
                     );
-                    if (wants.includes('testcase') && _kanbanEntity === 'testcase') {
-                        // 只有切到 testcase tab 才拉(全部 mode 不撈)
-                        fetchers.push(
-                            fetch('/api/projects/'+encodeURIComponent(pid)+'/tree').then(r => r.json()).then(tree => {
-                                const out = [];
-                                const walk = (nodes) => (nodes || []).forEach(n => {
-                                    if (n.level_type === 'TESTCASE') {
-                                        out.push({
-                                            entity_type: 'testcase', id: n.id, label: n.name || n.title,
-                                            status: '__all', project_id: pid, due_date: null,
-                                            assigned_to: n.assigned_to, assigned_to_type: n.assigned_to_type || 'user',
-                                            assigned_by: n.assigned_by, assigned_at: n.assigned_at,
-                                        });
-                                    }
-                                    walk(n.children);
-                                });
-                                walk(tree);
-                                return out;
-                            }).catch(() => [])
-                        );
-                    }
+                    // testcase — 從 project tree 抽 leaf TESTCASE 節點
+                    fetchers.push(
+                        fetch('/api/projects/'+encodeURIComponent(pid)+'/tree').then(r => r.json()).then(tree => {
+                            const out = [];
+                            const walk = (nodes) => (nodes || []).forEach(n => {
+                                if (n.level_type === 'TESTCASE') {
+                                    out.push({
+                                        entity_type: 'testcase', id: n.id, label: n.name || n.title,
+                                        status: '__all', project_id: pid, due_date: null,
+                                        assigned_to: n.assigned_to, assigned_to_type: n.assigned_to_type || 'user',
+                                        assigned_by: n.assigned_by, assigned_at: n.assigned_at,
+                                    });
+                                }
+                                walk(n.children);
+                            });
+                            walk(tree);
+                            return out;
+                        }).catch(() => [])
+                    );
+                    // document — /api/documents 是 test_document 列表
+                    fetchers.push(
+                        fetch('/api/documents?project_id='+pid).then(r => r.json()).then(arr => (arr || []).map(doc => ({
+                            entity_type: 'document', id: doc.id, label: doc.title || doc.code || doc.id,
+                            code: doc.code, status: '__all', project_id: pid, due_date: null,
+                            assigned_to: doc.assigned_to, assigned_to_type: doc.assigned_to_type || 'user',
+                            assigned_by: doc.assigned_by, assigned_at: doc.assigned_at,
+                        }))).catch(() => [])
+                    );
                     const arrs = await Promise.all(fetchers);
                     items = arrs.flat();
                 }
+
+                // 把 6 種 entity 的數量更新到工具列的徽章上(讓使用者一眼看到專案內各
+                // entity 各幾筆;0 = 該 entity 在此專案沒資料,不是壞掉)。
+                try {
+                    const counts = items.reduce((acc, it) => {
+                        acc[it.entity_type] = (acc[it.entity_type] || 0) + 1;
+                        return acc;
+                    }, {});
+                    document.querySelectorAll('#kanbanEntityCounts [data-entity]').forEach(el => {
+                        const k = el.getAttribute('data-entity');
+                        const span = el.querySelector('[data-count]');
+                        if (span) span.textContent = String(counts[k] || 0);
+                    });
+                } catch (_) { /* badge 失敗不擋 kanban 渲染 */ }
 
                 // ─── 整合 backlog 後的過濾管線:chip → search → assignee → sprint ───
                 const today = new Date().toISOString().slice(0, 10);
@@ -18064,7 +18285,9 @@ gantt
                     // 沒在 mapping 內(testcase / document)— fallback 看 status 字面
                     return ['Done','Closed','Verified','Cancelled','approved','rejected','Deprecated'].includes(x.status);
                 };
-                if (_kanbanChip === 'overdue') {
+                if (_kanbanChip === 'all') {
+                    // 'all'(預設,2026-05-07):不過濾,直接顯示全部單據。
+                } else if (_kanbanChip === 'overdue') {
                     items = items.filter(x => x.due_date && x.due_date < today && !isItemDone(x));
                 } else if (_kanbanChip === 'due_soon') {
                     items = items.filter(x => {
@@ -18075,7 +18298,7 @@ gantt
                 } else if (_kanbanChip === 'done') {
                     items = items.filter(isItemDone);
                 } else {
-                    // 'active' — 預設,排除已完成類
+                    // 'active' — 排除已完成類(legacy 路徑;chip UI 已移除,正常不會走這)
                     items = items.filter(x => !isItemDone(x));
                 }
                 // (b) 舊的「僅看過期」 checkbox 仍可疊加(隱藏但留著);若有勾就再 narrow 一次
@@ -18477,7 +18700,10 @@ gantt
                     try { const err = await res.json(); detail = err.detail || detail; } catch (_) {}
                     throw new Error(detail);
                 }
-                showToast(`狀態已改為「${_zh('unifiedStatus', newStatus) || newStatus}」`, 'success');
+                // chip filter 已移除,預設顯示全部 → 拖到任何狀態的卡片都會留在原地,
+                // 不再需要之前的「auto-switch to done chip」hack。
+                const _statusLabel = (_zh && _zh('unifiedStatus', newStatus)) || newStatus;
+                showToast(`狀態已改為「${_statusLabel}」`, 'success');
                 renderTestKanban();
             } catch (e) {
                 showToast('狀態更新失敗:' + e.message, 'error');
@@ -22734,9 +22960,18 @@ gantt
             sel.value = composite;
         }
 
-        function openTodoModal(id, defaultDue, defaultType) {
+        async function openTodoModal(id, defaultDue, defaultType) {
             _editingTodoId = id || null;
-            const t = id ? _homeTodos.find(x => x.id === id) : null;
+            // 編輯既有 todo 時,直接打 API 拿最新狀態 — 避免 _homeTodos cache 因
+            // kanban 拖移更新後 stale。fetch 失敗就 fallback 到 cache(離線 / 401 等)。
+            let t = null;
+            if (id) {
+                try {
+                    t = await apiFetch(`/api/todos/${encodeURIComponent(id)}`);
+                } catch (_) {
+                    t = (_homeTodos || []).find(x => x.id === id) || null;
+                }
+            }
             const typeLabel = t ? (BACKLOG_TYPE_LABEL[t.item_type] || t.item_type) : (BACKLOG_TYPE_LABEL[defaultType] || '新增待辦');
             document.getElementById('todoModalTitle').innerHTML = t
                 ? `<i class="fa-solid fa-list-check text-amber-500"></i> 編輯 ${_esc(typeLabel)}`
@@ -22921,6 +23156,14 @@ gantt
             const id = document.getElementById('todoLinkTargetId').value;
             const kind = document.getElementById('todoLinkKind')?.value || 'relates_to';
             if (!t || !id) { showToast('請選擇目標', 'error'); return; }
+            // 前置檢查:已連到同一個 (target_type, target_id, link_kind) 就不要再 POST,
+            // 直接告訴使用者重複(避免後端打 409 後跳難看的 HTTP 訊息)。
+            if ((_currentTodoLinks || []).some(L =>
+                L.target_type === t && L.target_id === id && (L.link_kind || 'relates_to') === kind
+            )) {
+                showToast('此連結已存在', 'warning');
+                return;
+            }
             try {
                 await apiFetch(`/api/todos/${_editingTodoId}/links`, {
                     method:'POST',
@@ -22929,7 +23172,15 @@ gantt
                 });
                 showToast('已連結', 'success');
                 _loadTodoLinks(_editingTodoId);
-            } catch (e) { showToast('連結失敗:'+(e.message||e), 'error'); }
+            } catch (e) {
+                // 競態:本機 cache 沒看到但後端 409,給清楚的中文訊息。
+                if (e && e.status === 409) {
+                    showToast('此連結已存在', 'warning');
+                    _loadTodoLinks(_editingTodoId);  // refresh 看真實狀態
+                } else {
+                    showToast('連結失敗:'+(e.message||e), 'error');
+                }
+            }
         }
 
         async function removeTodoLink(linkId) {
@@ -23123,7 +23374,7 @@ gantt
             try {
                 _kanbanScope = 'mine';
                 _kanbanEntity = 'todo';
-                _kanbanChip = 'active';
+                _kanbanChip = 'all';
             } catch (_) {}
             if (typeof showTestKanbanView === 'function') showTestKanbanView();
             // 同步 entity tab 顏色 + scope toggle UI
@@ -23149,7 +23400,7 @@ gantt
             try {
                 _kanbanScope = 'mine';
                 _kanbanEntity = '';
-                _kanbanChip = 'active';
+                _kanbanChip = 'all';
             } catch (_) {}
             if (typeof showTestKanbanView === 'function') showTestKanbanView();
             try { if (typeof kanbanSetEntity === 'function') kanbanSetEntity(''); } catch (_) {}

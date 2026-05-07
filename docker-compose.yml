@@ -154,10 +154,22 @@ services:
       AUTOTEST_ENV: ${AUTOTEST_ENV:-dev}
       # ── Docker 模式錄製(Phase 1) ──
       RECORDER_IMAGE: ${RECORDER_IMAGE:-autotest-recorder:1.1.0}
+      # API 錄製(mitmweb)與 MCP(Playwright MCP server)的 image tag 直通,
+      # 讓 .env 可以覆蓋預設值;不設則 fallback 到 app.config.Settings 的預設。
+      RECORDER_API_IMAGE: ${RECORDER_API_IMAGE:-autotest-recorder-api:1.1.0}
+      MCP_IMAGE: ${MCP_IMAGE:-autotest-mcp:1.1.0}
       RECORDER_NETWORK: ${RECORDER_NETWORK:-autotest_default}
       RECORDER_INTERNAL_BASE_URL: http://backend:8000
       RECORDER_IDLE_TIMEOUT_MIN: 30
       DOCKER_HOST: tcp://docker-proxy:2375
+    # /healthz 是公開、無需 auth 的就緒探測;讓 apisix(depends_on backend)
+    # 等到 backend 的 lifespan 跑完(含 alembic upgrade head)才往下走。
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     # 不對外 publish 8000;所有外部流量必須經 frontend nginx → APISIX → backend。
     # 同網路內(celery / apisix / recorder)以 backend:8000 解析,不需 host port。
     # 動態錄製容器會 publish 到 host 的 6080-6200 區段 port,不在 backend 區塊另外 expose。
@@ -225,7 +237,8 @@ services:
     container_name: autotest-apisix
     restart: unless-stopped
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     volumes:
       - ./apisix/config.yaml:/usr/local/apisix/conf/config.yaml:ro
       - ./apisix/apisix.yaml:/usr/local/apisix/conf/apisix.yaml:ro
@@ -272,17 +285,18 @@ services:
       # tail 的 position DB:重啟時從斷點繼續,不漏 log 也不重讀
       - fluent_bit_state:/fluent-bit/state
 
-  # ── RFC-8 觀察性堆疊(profile=obs:預設不啟動,docker compose --profile obs up)──
-  # Prometheus 抓取 /metrics、Jaeger 接 OTLP trace。兩者只開在 Docker
-  # 內網,host 對外仍只暴露 frontend 的 http://localhost/。
+  # ── RFC-8 觀察性堆疊(預設啟動)─────────────────────────────────────
+  # Prometheus 抓取 /metrics、Jaeger 接 OTLP trace。兩者只開在 Docker 內網,
+  # host 對外仍只暴露 frontend 的 http://localhost/。
   # 全 Apache-2.0 — 刻意不用 Grafana(AGPL-3.0)/ Tempo(AGPL-3.0)避免商用授權風險;
   # 換成「Prometheus 內部 UI 看 metrics」+「Jaeger 內部 UI 看 trace」
   # +「VictoriaLogs 內部 vmui 看 log」。host 對外入口固定只保留 http://localhost/。
+  # 不想跑這兩顆 → `docker compose up -d --scale prometheus=0 --scale jaeger=0`
+  # 或在 override 檔把它們再拉回 profile。
   prometheus:
     image: prom/prometheus:v2.55.1
     container_name: autotest-prometheus
     restart: unless-stopped
-    profiles: ["obs"]
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.retention.time=15d"
@@ -295,7 +309,6 @@ services:
     image: jaegertracing/all-in-one:1.62.0
     container_name: autotest-jaeger
     restart: unless-stopped
-    profiles: ["obs"]
     environment:
       COLLECTOR_OTLP_ENABLED: "true"     # 開 OTLP gRPC + HTTP receivers
       SPAN_STORAGE_TYPE: memory

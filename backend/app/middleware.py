@@ -47,7 +47,13 @@ _PUBLIC_PATTERNS: list[re.Pattern] = [
     # Artifact routes perform their own scoped token / access-token validation.
     re.compile(r"^/pics/"),
     re.compile(r"^/results/"),
-    # OPTIONS 預檢一律放行（CORS）
+    # Recorder 容器(WEB / API 模式)在 codegen / mitmweb 結束時用 anonymous curl
+    # 上傳 script_text / trace.zip / HAR;沒帶 Bearer token,容器靠 unguessable
+    # session_id (UUID4 ~122 bit 熵) 當 capability。route handler 內仍會驗證
+    # session 存在性,session_id 對不上一律 404。
+    re.compile(r"^/api/recordings/[0-9a-fA-F-]+/upload$"),
+    re.compile(r"^/api/recordings/[0-9a-fA-F-]+/upload-har$"),
+    # OPTIONS 預檢一律放行(CORS)
 ]
 
 
