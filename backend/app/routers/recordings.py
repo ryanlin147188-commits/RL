@@ -1465,7 +1465,12 @@ async def docker_stop(
         db, session_pre.project_id if session_pre else None, user,
         not_found_detail="Recording session not found",
     )
-    info = _recorder_containers.pop(session_id, None)
+    # 注意:這裡用 .get 而不是 .pop — 容器內 entrypoint trap 在 c.stop() 期間
+    # 會 curl 上傳腳本,authorize_recorder_upload 要查 _recorder_containers
+    # 拿 upload_token 驗證。如果先 pop 再 stop,map entry 在 curl 抵達之前
+    # 就被清掉 → 永遠 403 → upload 失敗 → user 看到「沒抓到腳本」。
+    # 只有 stop 完成(容器確定 exit)才把 entry pop 掉。
+    info = _recorder_containers.get(session_id)
     if not info:
         # 已經沒在跑了,不算錯誤
         return
@@ -1482,6 +1487,9 @@ async def docker_stop(
         # 容器可能已被 auto_remove 自然清掉(codegen 自然退出後),不算錯誤
         log.info("docker_stop:container %s already gone (auto_remove): %s",
                  info.get("container_name"), e)
+
+    # 容器停掉後才把 token + container info pop 掉(關鍵順序)
+    _recorder_containers.pop(session_id, None)
 
     # 回寫 session.status:若使用者中途停止且沒上傳成功,session 還是 PENDING
     session = await db.get(RecordingSession, session_id)
@@ -1633,8 +1641,14 @@ async def api_docker_start(
     tags=["E · 錄製"],
 )
 async def api_docker_stop(session_id: str, db: AsyncSession = Depends(get_db)):
-    """停止 mitmproxy 容器(SIGTERM 觸發 entrypoint 把 HAR 上傳)。"""
-    info = _recorder_containers.pop(_api_key(session_id), None)
+    """停止 mitmproxy 容器(SIGTERM 觸發 entrypoint 把 HAR 上傳)。
+
+    注意:跟 docker_stop 一樣,upload_token 必須在容器 stop 過程仍存在
+    `_recorder_containers` 才能讓 entrypoint 內 curl 通過 authorize_recorder_upload
+    驗證。所以這裡用 .get + 等 stop 完才 .pop,避免時序 race。
+    """
+    api_key = _api_key(session_id)
+    info = _recorder_containers.get(api_key)
     if not info:
         return
     docker_client = _get_docker_client()
@@ -1648,6 +1662,8 @@ async def api_docker_stop(session_id: str, db: AsyncSession = Depends(get_db)):
     except Exception as e:
         log.info("api_docker_stop:container %s already gone: %s",
                  info.get("container_name"), e)
+    # 容器 stop 完成後才 pop(token 此時已經用完)
+    _recorder_containers.pop(api_key, None)
 
 
 @router.get(
