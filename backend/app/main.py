@@ -400,9 +400,9 @@ install_sentry("backend")
 install_tracing()
 
 app = FastAPI(
-    title="AutoTest v1.0 API",
+    title="AutoTest v1.1 API",
     description="企業級自動化測試平台後端 API",
-    version="1.0.0",
+    version="1.1.0",
     lifespan=lifespan,
 )
 
@@ -482,7 +482,7 @@ app.include_router(assignments.router,     prefix="/api", tags=["AC · 指派"])
 
 @app.get("/", tags=["Health"])
 async def root():
-    return {"status": "ok", "service": "AutoTest v1.0 API"}
+    return {"status": "ok", "service": "AutoTest v1.1 API"}
 
 
 # RFC-8: split health probes.

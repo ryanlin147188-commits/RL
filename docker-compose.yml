@@ -105,7 +105,7 @@ services:
     restart: "no"
 
   backend:
-    image: autotest-backend:${AUTOTEST_TAG:-1.0.0}
+    image: autotest-backend:${AUTOTEST_TAG:-1.1.0}
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -153,7 +153,7 @@ services:
       SENTRY_DSN: ${SENTRY_DSN:-}
       AUTOTEST_ENV: ${AUTOTEST_ENV:-dev}
       # ── Docker 模式錄製(Phase 1) ──
-      RECORDER_IMAGE: ${RECORDER_IMAGE:-autotest-recorder:1.0.0}
+      RECORDER_IMAGE: ${RECORDER_IMAGE:-autotest-recorder:1.1.0}
       RECORDER_NETWORK: ${RECORDER_NETWORK:-autotest_default}
       RECORDER_INTERNAL_BASE_URL: http://backend:8000
       RECORDER_IDLE_TIMEOUT_MIN: 30
@@ -163,7 +163,7 @@ services:
     # 動態錄製容器會 publish 到 host 的 6080-6200 區段 port,不在 backend 區塊另外 expose。
 
   celery:
-    image: autotest-celery:${AUTOTEST_TAG:-1.0.0}
+    image: autotest-celery:${AUTOTEST_TAG:-1.1.0}
     build:
       context: ./backend
       dockerfile: Dockerfile.celery
@@ -196,13 +196,13 @@ services:
       # Celery worker 也會 import app.* 模組,需要相同的 secret(必填)
       AUTOTEST_JWT_SECRET: ${AUTOTEST_JWT_SECRET:?AUTOTEST_JWT_SECRET is required - run docker compose --profile init run --rm bootstrap}
       AUTOTEST_FERNET_KEY: ${AUTOTEST_FERNET_KEY:?AUTOTEST_FERNET_KEY is required - run docker compose --profile init run --rm bootstrap}
-      ROBOT_RUNNER_IMAGE: ${ROBOT_RUNNER_IMAGE:-autotest-robot-runner:1.0.0}
+      ROBOT_RUNNER_IMAGE: ${ROBOT_RUNNER_IMAGE:-autotest-robot-runner:1.1.0}
       # 與下方 networks.default.name 保持一致
       ROBOT_RUNNER_NETWORK: ${ROBOT_RUNNER_NETWORK:-autotest_default}
       DOCKER_HOST: tcp://docker-proxy:2375
 
   frontend:
-    image: autotest-frontend:${AUTOTEST_TAG:-1.0.0}
+    image: autotest-frontend:${AUTOTEST_TAG:-1.1.0}
     build:
       context: .
       dockerfile: frontend/Dockerfile
@@ -211,7 +211,9 @@ services:
     depends_on:
       - apisix
     ports:
-      - "127.0.0.1:80:80"
+      # 0.0.0.0:80 — 對 LAN 開放(本機部署也能 http://localhost/)。
+      # 公開 internet 部署請改回 127.0.0.1:80:80 並前面套 reverse proxy + TLS。
+      - "80:80"
     volumes:
       - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./frontend/index.html:/usr/share/nginx/html/index.html:ro
@@ -309,7 +311,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile.runner
-    image: autotest-robot-runner:1.0.0
+    image: autotest-robot-runner:1.1.0
     profiles: ["spawnable"]
     command: ["true"]   # never started; defensive no-op if profile is misused
     restart: "no"
@@ -318,7 +320,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile.recorder
-    image: autotest-recorder:1.0.0
+    image: autotest-recorder:1.1.0
     profiles: ["spawnable"]
     command: ["true"]
     restart: "no"
@@ -327,7 +329,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile.recorder-api
-    image: autotest-recorder-api:1.0.0
+    image: autotest-recorder-api:1.1.0
     profiles: ["spawnable"]
     command: ["true"]
     restart: "no"
@@ -336,7 +338,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile.mcp
-    image: autotest-mcp:1.0.0
+    image: autotest-mcp:1.1.0
     profiles: ["spawnable"]
     command: ["true"]
     restart: "no"

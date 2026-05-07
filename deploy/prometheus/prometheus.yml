@@ -1,4 +1,4 @@
-# Prometheus scrape config for AutoTest v1.0 (RFC-8).
+# Prometheus scrape config for AutoTest v1.1 (RFC-8).
 # Scrapes the backend /metrics + APISIX /apisix/prometheus/metrics.
 # Add Postgres / Valkey exporters by deploying their containers and
 # extending this file (kept minimal here so the obs profile boots clean).

@@ -1,6 +1,6 @@
 # AutoTest Helm chart (skeleton)
 
-This chart deploys AutoTest v1.0 on Kubernetes. **Status: scaffold.**
+This chart deploys AutoTest v1.1 on Kubernetes. **Status: scaffold.**
 The backend Deployment + Service + PDB + Secret + chart helpers are
 production-ready; the celery, frontend, apisix, postgres, valkey,
 seaweedfs, and ingress templates are tracked as future work in the

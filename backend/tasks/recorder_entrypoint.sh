@@ -34,7 +34,9 @@ cleanup() {
 trap cleanup TERM INT
 
 # 1) Xvfb 虛擬顯示
-Xvfb :99 -screen 0 1280x800x24 -ac +extension GLX +render -noreset >/tmp/xvfb.log 2>&1 &
+# 1980x1024:讓 Playwright Inspector + 被測網頁兩個視窗能完整並列,
+# noVNC 端再以 resize=scale 把整張畫面縮放鋪滿瀏覽器視窗(避免被截掉)。
+Xvfb :99 -screen 0 1980x1024x24 -ac +extension GLX +render -noreset >/tmp/xvfb.log 2>&1 &
 XVFB_PID=$!
 sleep 1
 export DISPLAY=:99

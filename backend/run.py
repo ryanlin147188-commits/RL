@@ -1,5 +1,5 @@
 """
-AutoTest v1.0 Backend – 啟動入口
+AutoTest v1.1 Backend – 啟動入口
 用法：python run.py
 """
 import uvicorn

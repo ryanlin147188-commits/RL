@@ -154,14 +154,25 @@ def _to_response(record: ReviewRecord, names: dict[tuple[str, str], str]) -> Rev
     tags=["AB · 審核"],
 )
 async def list_reviews(
-    status: Optional[ReviewStatus] = Query(None),
+    status: Optional[str] = Query(None),
     entity_type: Optional[ReviewableEntityType] = Query(None),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    stmt = TenantQuery.for_(ReviewRecord).order_by(ReviewRecord.updated_at.desc())
+    # 舊呼叫端(前端 / 第三方)仍會送 pending / approved / rejected,而 ReviewStatus
+    # 已統一為 7 值 enum (commit 85ef91e)。在此手動接受舊別名,免得 Pydantic 422。
+    resolved_status: Optional[ReviewStatus] = None
     if status is not None:
-        stmt = stmt.where(ReviewRecord.status == status)
+        legacy_alias = {"pending": "InReview", "approved": "Verified", "rejected": "Closed"}
+        canonical = legacy_alias.get(status, status)
+        try:
+            resolved_status = ReviewStatus(canonical)
+        except ValueError:
+            allowed = ", ".join([e.value for e in ReviewStatus])
+            raise HTTPException(422, f"Invalid status '{status}' (allowed: {allowed} or pending/approved/rejected)")
+    stmt = TenantQuery.for_(ReviewRecord).order_by(ReviewRecord.updated_at.desc())
+    if resolved_status is not None:
+        stmt = stmt.where(ReviewRecord.status == resolved_status)
     if entity_type is not None:
         stmt = stmt.where(ReviewRecord.entity_type == entity_type)
     rows = (await db.execute(stmt)).scalars().all()

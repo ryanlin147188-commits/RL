@@ -1368,10 +1368,14 @@ async def docker_start(
     # same /recorder/<short_id>/websockify route.
     from urllib.parse import quote
     short = session_id[:8]
+    # resize=scale 而非 remote:後者會請 X server 跟著瀏覽器視窗縮放,
+    # 容易讓 Playwright Inspector 視窗位置跑掉被截到;改用 scale 讓 X
+    # 桌面固定 1980x1024 (entrypoint 設定),由 noVNC 端把整張畫面縮放
+    # 鋪滿使用者的瀏覽器視窗,效果就像「預設全螢幕」。
     novnc_path = (
         f"/recorder/{short}/vnc_lite.html"
         f"?path=recorder/{short}/websockify"
-        f"&autoconnect=1&reconnect=1&resize=remote"
+        f"&autoconnect=1&reconnect=1&resize=scale"
         f"&password={quote(vnc_password)}"
     )
 
@@ -1739,7 +1743,7 @@ async def docker_status(session_id: str):
         vnc_password=info["vnc_password"],
         novnc_path=(
             f"/vnc_lite.html?path=websockify"
-            f"&autoconnect=1&reconnect=1&resize=remote"
+            f"&autoconnect=1&reconnect=1&resize=scale"
             f"&password={info['vnc_password']}"
         ),
         started_at=info["started_at"],

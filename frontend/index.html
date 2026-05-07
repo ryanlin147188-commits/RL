@@ -765,7 +765,7 @@
                         <path d="M 6 28 L 20 42 L 58 4" stroke="#000" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
                 </div>
-                <h1 class="font-bold text-base md:text-lg text-slate-800 tracking-tight whitespace-nowrap">RL<span class="hidden sm:inline text-[10px] text-amber-700 bg-amber-50 font-semibold ml-1.5 px-1.5 py-0.5 rounded border border-amber-200 align-middle">v1.0</span></h1>
+                <h1 class="font-bold text-base md:text-lg text-slate-800 tracking-tight whitespace-nowrap">RL<span class="hidden sm:inline text-[10px] text-amber-700 bg-amber-50 font-semibold ml-1.5 px-1.5 py-0.5 rounded border border-amber-200 align-middle">v1.1</span></h1>
             </button>
 
             <!-- 置中空白 (推右側動作群到最右邊) -->
@@ -2563,7 +2563,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                                     <text x="0"  y="44" font-family="Arial Black,sans-serif" font-size="52" font-weight="900" fill="#ef4444">R</text>
                                     <path d="M 6 28 L 20 42 L 58 4" stroke="#000" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
                                 </svg>
-                                RL v1.0
+                                RL v1.1
                             </div>
                             <h2 class="text-3xl font-bold" data-i18n="home.hero.platform">自動化測試平台</h2>
                         </div>
@@ -2717,163 +2717,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                     </div>
                     <div id="homeRecentCases" class="bg-white rounded-xl border border-amber-100 shadow-sm divide-y divide-stone-100">
                         <div class="p-6 text-center text-stone-400 text-sm">尚無測試案例，請先在左側目錄樹建立 Feature → Platform → Page → Scenario → TestCase。</div>
-                    </div>
-                </section>
-
-                <!-- 功能卡片:5 大類別 -->
-                <section class="max-w-6xl mx-auto mb-8">
-                    <h3 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
-                        <i class="fa-solid fa-compass text-blue-500"></i> <span data-i18n="home.quickNav">快速導覽</span>
-                    </h3>
-
-                    <!-- 1) 專案管理 -->
-                    <h4 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 mt-1 flex items-center gap-2">
-                        <i class="fa-solid fa-folder-open text-amber-500"></i>
-                        <span data-i18n="home.section.project">專案管理 · Project</span>
-                        <span class="text-slate-300 font-normal">·</span>
-                        <span class="text-slate-400 font-medium">6</span>
-                    </h4>
-                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
-                        <button onclick="showTestProjectsView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-amber-300 transition group">
-                            <div class="w-10 h-10 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-folder-tree"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.testProjects">測試專案</div>
-                            <div class="text-xs text-slate-500">專案卡片 / 起訖日 / 負責人</div>
-                        </button>
-                        <button onclick="showWbsView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-yellow-300 transition group">
-                            <div class="w-10 h-10 rounded-lg bg-yellow-100 text-yellow-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-sitemap"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5">WBS / 工作分解</div>
-                            <div class="text-xs text-slate-500">工作分解結構 / 進度追蹤</div>
-                        </button>
-                        <button onclick="showTestPlanView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300 transition group">
-                            <div class="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-clipboard-list"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.testPlan">測試計畫</div>
-                            <div class="text-xs text-slate-500">ISTQB 格式 / Markdown / Mermaid</div>
-                        </button>
-                        <button onclick="showTestMilestonesView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-teal-300 transition group">
-                            <div class="w-10 h-10 rounded-lg bg-teal-100 text-teal-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-regular fa-calendar"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.milestones">測試時程</div>
-                            <div class="text-xs text-slate-500">里程碑 / 時間軸概覽</div>
-                        </button>
-                        <button onclick="showTestVersionsView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-amber-300 transition group">
-                            <div class="w-10 h-10 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-tag"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.testVersions">測試版號</div>
-                            <div class="text-xs text-slate-500">WEB / API / APP 版號管理</div>
-                        </button>
-                        <button onclick="showTestKanbanView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-orange-300 transition group">
-                            <div class="w-10 h-10 rounded-lg bg-orange-100 text-orange-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-columns"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.kanban">測試看版</div>
-                            <div class="text-xs text-slate-500">統一狀態 Kanban + 我的指派</div>
-                        </button>
-                    </div>
-
-                    <!-- 2) 測試設計 -->
-                    <h4 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 mt-1 flex items-center gap-2">
-                        <i class="fa-solid fa-pen-ruler text-cyan-500"></i>
-                        <span data-i18n="home.section.design">測試設計 · Design</span>
-                        <span class="text-slate-300 font-normal">·</span>
-                        <span class="text-slate-400 font-medium">4</span>
-                    </h4>
-                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
-                        <button onclick="showRequirementsView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-cyan-300 transition group">
-                            <div class="w-10 h-10 rounded-lg bg-cyan-100 text-cyan-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-diagram-project"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5">需求 / RTM</div>
-                            <div class="text-xs text-slate-500">需求清單 + 追溯矩陣</div>
-                        </button>
-                        <button onclick="showTestCasesView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300 transition group">
-                            <div class="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-list-check"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.testCases">測試案例</div>
-                            <div class="text-xs text-slate-500">瀏覽 / 編輯所有 TESTCASE</div>
-                        </button>
-                        <button onclick="showTestDataSetsView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-violet-300 transition group">
-                            <div class="w-10 h-10 rounded-lg bg-violet-100 text-violet-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-table"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.dataSets">測試資料集</div>
-                            <div class="text-xs text-slate-500">DDT 資料表 (No / Key / Value)</div>
-                        </button>
-                        <button onclick="showTestDocumentsView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-pink-300 transition group">
-                            <div class="w-10 h-10 rounded-lg bg-pink-100 text-pink-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-file-lines"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.documents">測試文件</div>
-                            <div class="text-xs text-slate-500">Markdown WYSIWYG + Mermaid</div>
-                        </button>
-                    </div>
-
-                    <!-- 3) 測試環境 -->
-                    <h4 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 mt-1 flex items-center gap-2">
-                        <i class="fa-solid fa-server text-emerald-500"></i>
-                        <span data-i18n="home.section.env">測試環境 · Environment</span>
-                        <span class="text-slate-300 font-normal">·</span>
-                        <span class="text-slate-400 font-medium">4</span>
-                    </h4>
-                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
-                        <button onclick="showDevicesView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-rose-300 transition group">
-                            <div class="w-10 h-10 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-mobile-screen"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.devices">設備資訊</div>
-                            <div class="text-xs text-slate-500">Android / iOS 虛擬機管理</div>
-                        </button>
-                        <button onclick="showEnvVarsView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-300 transition group">
-                            <div class="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-key"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.envVars">環境變數</div>
-                            <div class="text-xs text-slate-500">全專案共用 Robot suite vars</div>
-                        </button>
-                        <button onclick="showDbConfigView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-300 transition group">
-                            <div class="w-10 h-10 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-database"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5">DB 資訊</div>
-                            <div class="text-xs text-slate-500">資料庫連線設定與 SQL 測試</div>
-                        </button>
-                        <button onclick="showMockView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-amber-300 transition group">
-                            <div class="w-10 h-10 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-plug"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5">Mock 設定</div>
-                            <div class="text-xs text-slate-500">REST Mock 端點管理</div>
-                        </button>
-                    </div>
-
-                    <!-- 4) 執行中心 -->
-                    <h4 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 mt-1 flex items-center gap-2">
-                        <i class="fa-solid fa-play text-purple-500"></i>
-                        <span data-i18n="home.section.execution">執行中心 · Execution</span>
-                        <span class="text-slate-300 font-normal">·</span>
-                        <span class="text-slate-400 font-medium">3</span>
-                    </h4>
-                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
-                        <button onclick="showTestRoundView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-purple-300 transition group">
-                            <div class="w-10 h-10 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-layer-group"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.testRound">測試回合</div>
-                            <div class="text-xs text-slate-500">具名案例集合彙總執行</div>
-                        </button>
-                        <button onclick="showScheduleView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-300 transition group">
-                            <div class="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-calendar-days"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.schedule">測試排程</div>
-                            <div class="text-xs text-slate-500">單次 / 每天 / 每週 / 每月</div>
-                        </button>
-                        <button onclick="showRecorderView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-rose-300 transition group">
-                            <div class="w-10 h-10 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-video"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.recorder">測試錄製</div>
-                            <div class="text-xs text-slate-500">WEB / API / APP 三種來源</div>
-                        </button>
-                    </div>
-
-                    <!-- 5) 品質追蹤 -->
-                    <h4 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 mt-1 flex items-center gap-2">
-                        <i class="fa-solid fa-shield-halved text-violet-500"></i>
-                        <span data-i18n="home.section.quality">品質追蹤 · Quality</span>
-                        <span class="text-slate-300 font-normal">·</span>
-                        <span class="text-slate-400 font-medium">3</span>
-                    </h4>
-                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                        <button onclick="showReportView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300 transition group">
-                            <div class="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-chart-pie"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.reports">測試報告</div>
-                            <div class="text-xs text-slate-500">Dashboard / 歷史 / Trace 檢視</div>
-                        </button>
-                        <button onclick="showDefectsView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-red-300 transition group">
-                            <div class="w-10 h-10 rounded-lg bg-red-100 text-red-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-bug"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.defects">缺陷管理</div>
-                            <div class="text-xs text-slate-500">缺陷列表 + 附件 + 工作流</div>
-                        </button>
-                        <button onclick="showReviewView()" class="text-left bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-300 transition group">
-                            <div class="w-10 h-10 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center mb-3 group-hover:scale-110 transition"><i class="fa-solid fa-clipboard-check"></i></div>
-                            <div class="font-semibold text-slate-800 mb-0.5" data-i18n="nav.review">審核中心</div>
-                            <div class="text-xs text-slate-500">案例 / 文件 / 腳本 / 報告 核可工作流</div>
-                        </button>
                     </div>
                 </section>
 
@@ -3126,12 +2969,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                             <input type="text" id="pmCuPassword" required minlength="6" autocomplete="new-password"
                                 class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm font-mono">
                             <p class="text-[10px] text-stone-500 mt-1">至少 6 字元;使用者第一次登入後會被強制修改。</p>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-semibold text-stone-600 mb-1">系統角色</label>
-                            <select id="pmCuRoleId" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm">
-                                <option value="">— 無角色 —</option>
-                            </select>
                         </div>
                         <label class="flex items-center gap-2 text-xs text-stone-600 cursor-pointer">
                             <input type="checkbox" id="pmCuAddToProject" checked class="rounded border-stone-300 text-emerald-500 focus:ring-emerald-400">
@@ -4184,7 +4021,9 @@ driver.swipe(100, 800, 100, 200, 500)"
                             <button id="kanbanTabDocument" onclick="kanbanSetEntity('document')" class="px-3 py-1.5 text-xs font-medium rounded text-stone-600 hover:bg-stone-50 border border-transparent">文件</button>
                             <button id="kanbanTabReview" onclick="kanbanSetEntity('review')" class="px-3 py-1.5 text-xs font-medium rounded text-stone-600 hover:bg-stone-50 border border-transparent">審核</button>
                         </div>
-                        <!-- 我的指派 / 全部 scope toggle 已移除;預設 scope='mine'。
+                        <!-- 我的指派 / 全部 scope toggle UI 已移除;預設改為 scope='all'
+                             以便新建未指派的缺陷 / 待辦也能立即在看板上看到。
+                             showBacklogView / showMyWorkView 仍會切回 'mine'。
                              保留 hidden 占位以避免 kanbanSetScope() 內部 querySelector 失敗。 -->
                         <span id="kanbanScopeMine" class="hidden"></span>
                         <span id="kanbanScopeAll" class="hidden"></span>
@@ -8348,7 +8187,7 @@ driver.swipe(100, 800, 100, 200, 500)"
         'AI 生成結果': 'AI result',
         'Android / iOS 虛擬機管理': 'Android / iOS device management',
         'Appium 腳本': 'Appium script',
-        'AutoTest v1.0 - 測試建構平台': 'RL — Test Building Platform',
+        'AutoTest v1.1 - 測試建構平台': 'RL — Test Building Platform',
         'AutoTest 首頁': 'RL Home',
         'RL 首頁': 'RL Home',
         'BASE_URL=https://staging.example.com\n               API_TOKEN=abc123\n               # 這是註解，會被略過\n               DB_PASSWORD=p@ssw0rd': 'BASE_URL=https://staging.example.com\n               API_TOKEN=abc123\n               # This line is a comment, skipped\n               DB_PASSWORD=p@ssw0rd',
@@ -11285,18 +11124,11 @@ driver.swipe(100, 800, 100, 200, 500)"
             }
         }
 
-        function changeUserPassword(ev) {
+        async function changeUserPassword(ev) {
             ev.preventDefault();
             const oldPwd = document.getElementById('usOldPwd').value;
             const newPwd = document.getElementById('usNewPwd').value;
             const newPwd2 = document.getElementById('usNewPwd2').value;
-            const uname = authCurrentUsername();
-            const users = _authReadUsers();
-            const idx = users.findIndex(x => x.username === uname);
-            if (idx < 0 || users[idx].password !== oldPwd) {
-                showToast('目前密碼不正確', 'error');
-                return false;
-            }
             if (newPwd !== newPwd2) {
                 showToast('兩次新密碼不一致', 'error');
                 return false;
@@ -11305,12 +11137,31 @@ driver.swipe(100, 800, 100, 200, 500)"
                 showToast('新密碼至少需 6 字元', 'error');
                 return false;
             }
-            users[idx].password = newPwd;
-            _authWriteUsers(users);
-            document.getElementById('usOldPwd').value = '';
-            document.getElementById('usNewPwd').value = '';
-            document.getElementById('usNewPwd2').value = '';
-            showToast('密碼已變更', 'success');
+            try {
+                const r = await window.fetch('/api/auth/change-password', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + (localStorage.getItem('autotest.auth.access_token') || ''),
+                    },
+                    body: JSON.stringify({ old_password: oldPwd, new_password: newPwd }),
+                });
+                if (!r.ok) {
+                    const j = await r.json().catch(() => ({}));
+                    const detail = j.detail;
+                    const msg = typeof detail === 'string'
+                        ? detail
+                        : (detail && (detail.message || JSON.stringify(detail))) || ('密碼變更失敗 (HTTP ' + r.status + ')');
+                    showToast(msg, 'error');
+                    return false;
+                }
+                document.getElementById('usOldPwd').value = '';
+                document.getElementById('usNewPwd').value = '';
+                document.getElementById('usNewPwd2').value = '';
+                showToast('密碼已變更', 'success');
+            } catch (e) {
+                showToast('密碼變更失敗:' + (e.message || e), 'error');
+            }
             return false;
         }
 
@@ -14120,14 +13971,6 @@ driver.swipe(100, 800, 100, 200, 500)"
         }
 
         async function pmOpenCreateUserModal() {
-            const sel = document.getElementById('pmCuRoleId');
-            sel.innerHTML = '<option value="">— 無角色 —</option>';
-            const roles = await _pmLoadAdminRoles();
-            roles.forEach(r => {
-                const opt = document.createElement('option');
-                opt.value = r.id; opt.textContent = r.name;
-                sel.appendChild(opt);
-            });
             ['pmCuUsername','pmCuDisplayName','pmCuEmail','pmCuPassword'].forEach(id => {
                 const el = document.getElementById(id); if (el) el.value = '';
             });
@@ -14148,7 +13991,6 @@ driver.swipe(100, 800, 100, 200, 500)"
             const display_name = document.getElementById('pmCuDisplayName').value.trim() || null;
             const email = document.getElementById('pmCuEmail').value.trim() || null;
             const password = document.getElementById('pmCuPassword').value;
-            const role_id = document.getElementById('pmCuRoleId').value || null;
             const addToProject = document.getElementById('pmCuAddToProject').checked && !!currentProjectId;
             if (!/^[A-Za-z0-9_]{3,32}$/.test(username)) {
                 showToast('使用者名稱格式不符(3-32 字元,英數底線)', 'error');
@@ -14161,7 +14003,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 const r = await fetch('/api/auth/users', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, display_name, email, password, role_id }),
+                    body: JSON.stringify({ username, display_name, email, password }),
                 });
                 if (!r.ok) {
                     const j = await r.json().catch(() => ({}));
@@ -15579,16 +15421,54 @@ driver.swipe(100, 800, 100, 200, 500)"
 
         async function recDockerStop() {
             if (!recCurrentSession || !recCurrentSession.id) return;
-            if (!confirm('確定停止錄製?容器會被關閉;若 codegen 還沒上傳,腳本會遺失。')) return;
+            if (!confirm('確定停止錄製?容器會關閉;codegen 目前產出的腳本會自動上傳並解析。')) return;
+            const status = document.getElementById('recDockerStatus');
+            const sessionId = recCurrentSession.id;
             try {
-                const r = await fetch(`/api/recordings/${encodeURIComponent(recCurrentSession.id)}/docker-stop`, {
+                if (status) status.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 停止中,等待容器把腳本上傳…';
+                // 後端 c.stop(timeout=…) 會 block 等容器 graceful exit;
+                // 容器 entrypoint 的 trap 會先 kill codegen → curl 上傳 → 退出。
+                // 所以這個 fetch 回來時,script_text 通常已經寫進 DB。
+                const r = await fetch(`/api/recordings/${encodeURIComponent(sessionId)}/docker-stop`, {
                     method: 'POST',
                 });
                 if (!r.ok && r.status !== 204) throw new Error('HTTP '+r.status);
                 _recDockerResetUI();
-                showToast('容器已停止', 'success');
+                // Refetch session 抓最新的 script_text;curl 上傳跟 c.stop() 之間
+                // 偶爾會有 < 1s race,所以 retry 3 次每次間 1s。
+                let fresh = null;
+                for (let i = 0; i < 3; i++) {
+                    try {
+                        const sr = await fetch(`/api/recordings/${encodeURIComponent(sessionId)}`);
+                        if (sr.ok) fresh = await sr.json();
+                    } catch (_) {}
+                    if (fresh && fresh.script_text) break;
+                    await new Promise(res => setTimeout(res, 1000));
+                }
+                if (fresh) recCurrentSession = fresh;
+                recRefreshList();
+                if (!recCurrentSession.script_text) {
+                    if (status) status.innerHTML = '<span class="text-amber-600"><i class="fa-solid fa-circle-exclamation"></i> 容器已停止,但沒抓到腳本(codegen 可能未產生輸出或上傳失敗,請重新錄製)</span>';
+                    showToast('容器已停止;沒抓到腳本', 'warning');
+                    return;
+                }
+                // 走跟 polling auto-trigger 同一條:解析 + 預覽 + 視 toggle 自動建案
+                try {
+                    await recConvertAndApply();
+                    document.getElementById('recPreviewSection')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    if (status) status.innerHTML = '<span class="text-emerald-600"><i class="fa-solid fa-circle-check"></i> 容器已停止;腳本已自動解析,請至下方選 .md 案例套用</span>';
+                    const autoEnabled = document.getElementById('recAutoCreate')?.checked;
+                    const scenarioId = document.getElementById('recAutoCreateScenario')?.value;
+                    if (autoEnabled && scenarioId && recLastSteps.length) {
+                        await _recAutoCreateNewCase(scenarioId);
+                    }
+                    showToast('容器已停止,腳本已上傳並解析', 'success');
+                } catch (e) {
+                    if (status) status.innerHTML = '<span class="text-amber-600">容器已停止,但自動解析失敗:' + _esc(e.message || String(e)) + '</span>';
+                    showToast('解析失敗:' + (e.message || e), 'error');
+                }
             } catch (e) {
-                showToast('停止失敗:' + e.message, 'error');
+                showToast('停止失敗:' + (e.message || e), 'error');
             }
         }
 
@@ -15980,6 +15860,13 @@ driver.swipe(100, 800, 100, 200, 500)"
 
         async function recConvertAndApply() {
             if (!recCurrentSession) { showToast('請先建立並上傳 session', 'error'); return; }
+            // session 沒有 script_text → 後端會 409。常見原因:docker recorder
+            // 容器結束時使用者沒有實際操作,沒產生 codegen 腳本 / HAR。給使用者
+            // 友善訊息並中止,而不是讓他看到 409 錯誤。
+            if (!recCurrentSession.script_text) {
+                showToast('此次錄製沒有抓到任何動作,請重新錄製', 'warning');
+                return;
+            }
             try {
                 const res = await fetch(`/api/recordings/${recCurrentSession.id}/convert`, { method: 'POST' });
                 if (!res.ok) {
@@ -17842,7 +17729,7 @@ gantt
         // ─── Tier F:多 entity 看板 ────────────────────────────────────
         // 狀態:entity tab(空字串=全部)+ scope ('mine' | 'all')
         let _kanbanEntity = '';        // '' | 'defect' | 'todo' | 'testcase' | 'requirement' | 'document' | 'review'
-        let _kanbanScope = 'mine';     // 'mine' | 'all'
+        let _kanbanScope = 'all';      // 'mine' | 'all' — 預設顯示專案全部單據(避免新建未指派的缺陷看不到)
         let _kanbanItems = [];         // 統一 shape: {entity_type, id, label, status, project_id, due_date, assigned_to, assigned_to_type, assigned_by, assigned_at, severity?, code?, sprint_label?, parent_id?, item_type?}
         // 整合「我的工作」/「待辦清單」進來後的新 state(原兩個 view 的 chip / 搜尋 / sprint / 樹)
         let _kanbanChip = 'active';            // 'active' | 'overdue' | 'due_soon' | 'done'

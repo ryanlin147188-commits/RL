@@ -39,11 +39,11 @@ class Settings(BaseSettings):
 
     # ─── Docker 模式錄製(Phase 1) ────────────────────────────────────
     # WEB:容器內透過此 image 跑 Xvfb + noVNC + Playwright codegen
-    RECORDER_IMAGE: str = "autotest-recorder:1.0.0"
+    RECORDER_IMAGE: str = "autotest-recorder:1.1.0"
     # API:容器內跑 mitmweb(HTTP proxy + web UI)+ HAR addon
-    RECORDER_API_IMAGE: str = "autotest-recorder-api:1.0.0"
+    RECORDER_API_IMAGE: str = "autotest-recorder-api:1.1.0"
     # MCP:Playwright MCP server,讓 LLM 透過 tool calling 操作 chromium
-    MCP_IMAGE: str = "autotest-mcp:1.0.0"
+    MCP_IMAGE: str = "autotest-mcp:1.1.0"
     # 啟動的容器加入 docker compose 的同一 network(讓 codegen 完成後 curl
     # 上傳能解析到 backend hostname);預設與 docker-compose.yml networks 一致
     RECORDER_NETWORK: str = "autotest_default"
