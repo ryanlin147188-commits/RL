@@ -173,19 +173,67 @@ def _migrated_db(postgres_container: str, valkey_container: str) -> str:
     return postgres_container
 
 
-# ── 2.5) 把 import-time 建好的 AsyncEngine 重綁到 pytest-asyncio session loop
+# ── 2.5) 把 import-time 建好的 AsyncEngine 重建為 NullPool,綁到 session loop
 # `app.database.engine` 在 module import(collection 階段)就被 create_async_engine
 # 出來,connection pool 內部抓到的是 asyncio default loop;但 pytest-asyncio 啟動
 # 時會新開一個 session loop,兩者不同,asyncpg 會丟「Future attached to a
-# different loop」。dispose 一次 → 之後任何使用都會在 session loop 上重新建 pool。
+# different loop」。
+#
+# 光 dispose() 不夠 — engine + sessionmaker 內部仍綁舊 loop。改成:用 NullPool
+# 建一顆新的 AsyncEngine(每次連線都即時新建,綁當前 loop),覆蓋
+# app.database.engine / AsyncSessionLocal,並把已經在 module level
+# `from app.database import AsyncSessionLocal` 的 test module 的 binding 一起
+# 換成新的。
 
 @pytest.fixture(scope="session", autouse=True)
 async def _rebind_engine_to_session_loop(_migrated_db: str) -> AsyncIterator[None]:
-    from app.database import engine as _engine
+    import sys
 
-    await _engine.dispose()
+    from sqlalchemy.ext.asyncio import (
+        AsyncSession,
+        async_sessionmaker,
+        create_async_engine,
+    )
+    from sqlalchemy.pool import NullPool
+
+    import app.database as db_mod
+    from app.config import Settings
+
+    try:
+        await db_mod.engine.dispose()
+    except Exception:
+        pass
+
+    new_engine = create_async_engine(
+        Settings().DATABASE_URL,
+        poolclass=NullPool,
+        pool_pre_ping=False,
+    )
+    new_session_factory = async_sessionmaker(
+        new_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autoflush=False,
+        autocommit=False,
+    )
+    db_mod.engine = new_engine
+    db_mod.AsyncSessionLocal = new_session_factory
+
+    # 同步換掉測試模組(module level import 早就抓到舊物件)的 binding
+    for mod_name in list(sys.modules.keys()):
+        if not mod_name.startswith("tests.integration."):
+            continue
+        mod = sys.modules.get(mod_name)
+        if mod is None:
+            continue
+        if getattr(mod, "AsyncSessionLocal", None) is not None:
+            mod.AsyncSessionLocal = new_session_factory
+        if getattr(mod, "engine", None) is not None:
+            mod.engine = new_engine
+
     yield
-    await _engine.dispose()
+
+    await new_engine.dispose()
 
 
 # ── 3) Truncate between tests so state does not leak ──────────────────────

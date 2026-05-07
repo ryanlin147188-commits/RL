@@ -50,15 +50,12 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    from app.models import Base, ReviewHistory, ReviewRecord
-
-    bind = op.get_bind()
-    Base.metadata.drop_all(
-        bind=bind,
-        tables=[ReviewHistory.__table__, ReviewRecord.__table__],
-        checkfirst=True,
-    )
-    # Drop the ENUM types last (no-op if other tables still reference them).
+    # 用顯式 DROP TABLE IF EXISTS 而不是 Base.metadata.drop_all — 後者在
+    # 2.0+ 會順手檢查整個 metadata 上的 PG ENUM types,把跟我們無關但仍被
+    # 其他表引用的 enum(例如 defectseverity)也送 DROP TYPE,結果踩到
+    # DependentObjectsStillExist。CASCADE 保證乾淨。
+    op.execute("DROP TABLE IF EXISTS review_history CASCADE")
+    op.execute("DROP TABLE IF EXISTS review_records CASCADE")
     op.execute("DROP TYPE IF EXISTS review_action")
     op.execute("DROP TYPE IF EXISTS review_status")
     op.execute("DROP TYPE IF EXISTS reviewable_entity_type")
