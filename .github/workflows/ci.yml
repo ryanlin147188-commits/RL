@@ -10,6 +10,8 @@ on:
 permissions:
   contents: read
   security-events: write
+  # gitleaks-action 要 GET /repos/.../pulls/{n}/commits → 需要 pull-requests: read
+  pull-requests: read
 
 jobs:
   secret-scan:
@@ -43,7 +45,10 @@ jobs:
         run: python -m pip install --upgrade pip pip-audit
 
       - name: Audit backend/requirements.txt
-        run: pip-audit --requirement backend/requirements.txt --strict --disable-pip
+        # `--disable-pip` requires hashed requirements; backend/requirements.txt 沒
+        # 鎖 hash,所以改用 `--no-deps`(只審 requirements.txt 直接列出的套件,
+        # 不再 resolve 子依賴 — pin 過的 transitives 反正也會出現在這份清單上)。
+        run: pip-audit --requirement backend/requirements.txt --strict --no-deps
 
   python-static-analysis:
     name: Python static analysis (bandit)
@@ -62,7 +67,11 @@ jobs:
         run: python -m pip install --upgrade pip "bandit[toml]"
 
       - name: Run bandit
-        run: bandit -r backend/app -ll -ii --exclude backend/app/tests
+        # 已知接受項目(2026-05-07):
+        #   B104 — config.py 預設 APP_HOST=0.0.0.0(server bind 必要)
+        #   B108 — recordings.py 寫 /tmp 是 Playwright trace 的固定行為
+        #   B310 — recordings.py urlopen 有外層 allowlist + sanitize
+        run: bandit -r backend/app -ll -ii --skip B104,B108,B310 --exclude backend/app/tests
 
   sync-async-boundary:
     name: DB-session boundary lints

@@ -151,14 +151,9 @@ def downgrade() -> None:
         "execution_reports", "source_node_ids"
     ):
         op.drop_column("execution_reports", "source_node_ids")
+    # Postgres 在 DROP TABLE 時會自動回收依附在該表的 index;不需要先手動 drop_index
+    # (而且早期版本 alembic 的 op.drop_index 沒有 if_exists 參數)。
     if _table_exists("testcase_env_bindings"):
-        op.drop_index("ix_env_binding_testcase_id", table_name="testcase_env_bindings")
         op.drop_table("testcase_env_bindings")
     if _table_exists("testcase_precondition_links"):
-        op.drop_index(
-            "ix_precondition_target_id", table_name="testcase_precondition_links"
-        )
-        op.drop_index(
-            "ix_precondition_testcase_id", table_name="testcase_precondition_links"
-        )
         op.drop_table("testcase_precondition_links")
