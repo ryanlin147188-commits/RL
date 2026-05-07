@@ -26,8 +26,26 @@ x11vnc -storepasswd "$VNC_PASSWORD" "$HOME/.vnc/passwd" >/dev/null 2>&1
 
 cleanup() {
     echo "[recorder] cleanup signal received"
-    # codegen 退出後本來就 exit;這裡只處理 docker stop(SIGTERM)情況
-    [ -n "${CODEGEN_PID:-}" ] && kill -TERM "$CODEGEN_PID" 2>/dev/null || true
+    # docker stop sends SIGTERM. Playwright codegen on SIGTERM exits without
+    # flushing the captured actions to the -o file → 「沒抓到腳本」. SIGINT
+    # (== user pressing Ctrl+C in the Inspector terminal) is the documented
+    # graceful-shutdown signal: codegen prints the script and exits 0.
+    # So we send SIGINT first, give Playwright a few seconds to flush, and
+    # only fall back to SIGTERM/SIGKILL if it stays alive.
+    if [ -n "${CODEGEN_PID:-}" ]; then
+        kill -INT "$CODEGEN_PID" 2>/dev/null || true
+        # Wait up to 8s for graceful exit. The outer `c.stop(timeout=15)` in
+        # backend gives us 15s before SIGKILL — leave 7s headroom.
+        for _ in 1 2 3 4 5 6 7 8; do
+            kill -0 "$CODEGEN_PID" 2>/dev/null || break
+            sleep 1
+        done
+        # still alive → escalate
+        if kill -0 "$CODEGEN_PID" 2>/dev/null; then
+            echo "[recorder] codegen survived SIGINT, escalating to SIGTERM"
+            kill -TERM "$CODEGEN_PID" 2>/dev/null || true
+        fi
+    fi
     [ -n "${NGINX_PID:-}" ]   && kill -TERM "$NGINX_PID"   2>/dev/null || true
     [ -n "${WS_PID:-}" ]      && kill -TERM "$WS_PID"      2>/dev/null || true
 }

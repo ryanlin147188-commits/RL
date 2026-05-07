@@ -86,9 +86,15 @@ async def authorize_recorder_upload(
     請求進得到 handler;真正的 auth gate 在這個 dependency。
     """
     if user is not None:
+        log.info("recorder.upload.auth: bearer-user=%s session=%s", user.username, session_id)
         return user
     token = request.query_params.get("token")
+    map_keys = list(_recorder_containers.keys())
     if not token:
+        log.warning(
+            "recorder.upload.auth.401: no token, session=%s, current map keys=%s",
+            session_id, map_keys,
+        )
         raise HTTPException(
             status_code=401,
             detail="未授權:錄製容器 upload 需要 ?token 參數或登入 Bearer token",
@@ -96,8 +102,16 @@ async def authorize_recorder_upload(
     expected_web = (_recorder_containers.get(session_id) or {}).get("upload_token")
     expected_api = (_recorder_containers.get("api:" + session_id) or {}).get("upload_token")
     if token != expected_web and token != expected_api:
-        # 不洩漏 token 是否曾經有效;一律 403 防止 timing 試誤
+        log.warning(
+            "recorder.upload.auth.403: token mismatch, session=%s, "
+            "got_token_prefix=%s, expected_web=%s, expected_api=%s, map_keys=%s",
+            session_id, token[:8] if token else None,
+            "set" if expected_web else "MISSING",
+            "set" if expected_api else "MISSING",
+            map_keys,
+        )
         raise HTTPException(status_code=403, detail="upload token 無效或已過期")
+    log.info("recorder.upload.auth.ok: capability-token session=%s", session_id)
     return None
 
 # Recorder image 自動 build 狀態(全域單例;同一時刻只會有一條 build 在跑)
@@ -1329,11 +1343,14 @@ async def docker_start(
             image=settings.RECORDER_IMAGE,
             name=container_name,
             detach=True,
-            # auto_remove=True:容器 process 結束(codegen 退出 + 自動 curl 上傳完)
-            # 後 docker daemon 自動 rm 容器,避免遺留 Exited 容器堆積。
-            # 缺點:exited 容器立即消失,無法 docker logs 除錯;若要 debug
-            # 把這個改成 False 即可。
-            auto_remove=True,
+            # auto_remove was True but it racked the SIGTERM trap: docker
+            # daemon scheduled the container for removal as soon as the main
+            # process exited, and any backend attempt to read logs/inspect the
+            # container during c.stop() got `409 Conflict (marked for
+            # removal)`. Now we remove explicitly in docker_stop AFTER scraping
+            # logs, so we can see whether the entrypoint's curl upload
+            # actually fired (and what HTTP code it got).
+            auto_remove=False,
             network=settings.RECORDER_NETWORK,
             ports={"6080/tcp": None},  # auto-assign host port
             environment={
@@ -1477,27 +1494,72 @@ async def docker_stop(
     docker_client = _get_docker_client()
     try:
         c = docker_client.containers.get(info["container_id"])
-        # 先 stop 給 entrypoint 機會 trap → upload(若還沒上傳);
-        # auto_remove=True 之下 stop 後容器會自動 remove,不需手動 remove。
+        # CRITICAL: c.stop / c.logs / c.remove are SYNC docker-py calls.
+        # Running them inside an async handler blocks the entire asyncio
+        # event loop for ~tens of seconds. While that loop is frozen, the
+        # recorder container's curl POST /upload (kicked off by the SIGTERM
+        # trap) gets a TCP connection but no HTTP response, and times out
+        # after curl --max-time 60. Result: 「沒抓到腳本」 even though the
+        # trap successfully wrote the .py and started uploading. Always
+        # wrap docker SDK calls in asyncio.to_thread so the loop stays free
+        # to handle that very upload request.
+        #
+        # Timeout 90s budget breakdown:
+        #   - cleanup() in entrypoint sends SIGINT, waits up to 8s for codegen
+        #     to flush the .py file + exit gracefully
+        #   - if codegen survives, escalates to SIGTERM
+        #   - curl --max-time 60 then uploads the .py + trace.zip
+        # 8 + 60 = 68 worst case; 90s leaves headroom for slow disks. If
+        # c.stop hits the limit, Docker daemon SIGKILLs and the upload is
+        # lost — exactly the bug we're chasing.
         try:
-            c.stop(timeout=15)
+            await asyncio.to_thread(c.stop, timeout=90)
         except Exception:
             pass
+        # Diagnostic: dump the recorder's stdout/stderr (entrypoint logs the
+        # upload HTTP code + curl errors) into backend log so we can see
+        # exactly why upload failed.
+        try:
+            raw = await asyncio.to_thread(
+                c.logs, tail=400, stdout=True, stderr=True,
+            )
+            tail = raw.decode("utf-8", "replace")
+            log.warning(
+                "recorder.container.logs session=%s container=%s\n----- BEGIN -----\n%s\n----- END -----",
+                session_id, info.get("container_name"), tail,
+            )
+        except Exception as _e:
+            log.warning(
+                "recorder.container.logs.unavailable session=%s container=%s err=%s",
+                session_id, info.get("container_name"), _e,
+            )
+        # Now actually remove the container (auto_remove=False above).
+        try:
+            await asyncio.to_thread(c.remove, force=True)
+        except Exception as _re:
+            log.info("docker_stop:remove failed (already gone?) %s: %s",
+                     info.get("container_name"), _re)
     except Exception as e:
-        # 容器可能已被 auto_remove 自然清掉(codegen 自然退出後),不算錯誤
-        log.info("docker_stop:container %s already gone (auto_remove): %s",
+        # 容器可能已被 daemon 移除過(罕見),不算錯誤
+        log.info("docker_stop:container %s already gone: %s",
                  info.get("container_name"), e)
 
     # 容器停掉後才把 token + container info pop 掉(關鍵順序)
     _recorder_containers.pop(session_id, None)
 
-    # 回寫 session.status:若使用者中途停止且沒上傳成功,session 還是 PENDING
-    session = await db.get(RecordingSession, session_id)
-    if session and session.status == "RECORDING":
-        # 如果已經 upload 過了 status 會被 upload endpoint 改成 UPLOADED
-        # 還在 RECORDING 代表沒成功上傳 → 退回 PENDING 讓使用者可重來
-        session.status = "PENDING"
-        await db.flush()
+    # 回寫 session.status:若使用者中途停止且沒上傳成功,session 還是 PENDING。
+    # IMPORTANT: this handler's session has session_pre cached in its Identity
+    # Map from the scope check at the top. The /upload endpoint just committed
+    # session.status="UPLOADED" in a SEPARATE transaction; without expiring
+    # the cached row we'd see the stale RECORDING value here and clobber the
+    # successful upload back to PENDING. Expire to force a fresh SELECT.
+    if session_pre is not None:
+        await db.refresh(session_pre)
+        if session_pre.status == "RECORDING":
+            # 如果已經 upload 過了 status 會被 upload endpoint 改成 UPLOADED
+            # 還在 RECORDING 代表沒成功上傳 → 退回 PENDING 讓使用者可重來
+            session_pre.status = "PENDING"
+            await db.flush()
 
 
 # ─────────────────────────────────────────────────────────
@@ -1578,7 +1640,9 @@ async def api_docker_start(
             image=settings.RECORDER_API_IMAGE,
             name=container_name,
             detach=True,
-            auto_remove=True,
+            # See WEB-mode docker_start: auto_remove=False so api_docker_stop
+            # can scrape container logs after SIGTERM trap completes.
+            auto_remove=False,
             network=settings.RECORDER_NETWORK,
             ports={
                 "8080/tcp": None,  # proxy
@@ -1655,10 +1719,33 @@ async def api_docker_stop(session_id: str, db: AsyncSession = Depends(get_db)):
     try:
         c = docker_client.containers.get(info["container_id"])
         try:
-            # timeout=20 給 entrypoint trap 跑 curl 上傳 HAR
-            c.stop(timeout=20)
+            # timeout=90 — same rationale as WEB-mode docker_stop: SIGINT-wait
+            # plus curl --max-time 60 for HAR upload could take ~68s in the
+            # worst case. Give docker daemon 90s before SIGKILL or the upload
+            # gets killed mid-flight. asyncio.to_thread for the same
+            # event-loop-deadlock reason: the trap's curl needs the loop free.
+            await asyncio.to_thread(c.stop, timeout=90)
         except Exception:
             pass
+        try:
+            raw = await asyncio.to_thread(
+                c.logs, tail=400, stdout=True, stderr=True,
+            )
+            tail = raw.decode("utf-8", "replace")
+            log.warning(
+                "recorder.api.container.logs session=%s container=%s\n----- BEGIN -----\n%s\n----- END -----",
+                session_id, info.get("container_name"), tail,
+            )
+        except Exception as _e:
+            log.warning(
+                "recorder.api.container.logs.unavailable session=%s container=%s err=%s",
+                session_id, info.get("container_name"), _e,
+            )
+        try:
+            await asyncio.to_thread(c.remove, force=True)
+        except Exception as _re:
+            log.info("api_docker_stop:remove failed %s: %s",
+                     info.get("container_name"), _re)
     except Exception as e:
         log.info("api_docker_stop:container %s already gone: %s",
                  info.get("container_name"), e)
@@ -1805,6 +1892,13 @@ async def docker_status(session_id: str):
         docker_client = _get_docker_client()
         c = docker_client.containers.get(info["container_id"])
         if c.status not in ("running", "created"):
+            # auto_remove=False: codegen exited naturally (user closed the
+            # Inspector window in noVNC) → container is in 'exited' state and
+            # docker_stop never ran. Reap it now so we don't leak.
+            try:
+                await asyncio.to_thread(c.remove, force=True)
+            except Exception:
+                pass
             _recorder_containers.pop(session_id, None)
             return None
     except Exception:

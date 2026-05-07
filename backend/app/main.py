@@ -1,9 +1,19 @@
 import asyncio
+import logging
 import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+# Root logger has no handlers by default in this image (uvicorn only configures
+# its own uvicorn.* loggers). App-level logger.info/.warning calls would silently
+# drop. Wire up a basic stderr handler at INFO so we can actually see them in
+# `docker compose logs backend`.
+logging.basicConfig(
+    level=os.environ.get("LOG_LEVEL", "INFO"),
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
 
 from app.config import settings
 from app.database import init_db
@@ -332,6 +342,17 @@ async def _ensure_default_admin() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # uvicorn's own dictConfig (run during server bootstrap, after the import-
+    # time basicConfig at the top of this module) leaves the root logger with
+    # no handlers — so app-level logger.info/.warning calls get dropped on the
+    # floor during request handling. Reapply with force=True here, AFTER
+    # uvicorn finishes its own setup, so /api/* request logs are actually
+    # visible in `docker compose logs backend`.
+    logging.basicConfig(
+        level=os.environ.get("LOG_LEVEL", "INFO"),
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        force=True,
+    )
     # Startup：建立 PIC 資料夾 + 自動建表 + 啟動排程背景任務
     os.makedirs(settings.PIC_FOLDER, exist_ok=True)
     # Storage backend is S3-only (SeaweedFS via S3-compatible API). The
@@ -350,7 +371,6 @@ async def lifespan(app: FastAPI):
     try:
         await _seed_default_roles()
     except Exception as e:  # 不要因為 seed 失敗而擋住服務啟動
-        import logging
         logging.getLogger(__name__).warning("seed default roles failed: %s", e)
     try:
         await _seed_default_org_and_backfill()
@@ -359,7 +379,6 @@ async def lifespan(app: FastAPI):
         # stack trace lands in container logs — a missing default org
         # cascades into 500s on /api/auth/register, so silent failures
         # here are nasty to debug.
-        import logging
         logging.getLogger(__name__).exception(
             "seed default org / backfill failed: %s", e,
         )
@@ -374,7 +393,6 @@ async def lifespan(app: FastAPI):
     try:
         await _ensure_default_admin()
     except Exception as e:
-        import logging
         logging.getLogger(__name__).exception(
             "default admin bootstrap failed: %s", e,
         )

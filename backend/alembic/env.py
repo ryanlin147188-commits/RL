@@ -22,7 +22,11 @@ import app.models  # noqa: F401  — ensure all models are loaded into Base.meta
 config = context.config
 
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # disable_existing_loggers=False: alembic.ini's [logger_root] section would
+    # otherwise reset every app-level logger to "disabled", silently swallowing
+    # log.info / log.warning calls from request handlers after the very first
+    # init_db() runs at startup.
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 # Inject runtime DSN(sync driver — psycopg v3),用「現在」的 env 重建 Settings,
 # 而不是 import 階段那份舊的 module-level singleton。
