@@ -173,6 +173,21 @@ def _migrated_db(postgres_container: str, valkey_container: str) -> str:
     return postgres_container
 
 
+# ── 2.5) 把 import-time 建好的 AsyncEngine 重綁到 pytest-asyncio session loop
+# `app.database.engine` 在 module import(collection 階段)就被 create_async_engine
+# 出來,connection pool 內部抓到的是 asyncio default loop;但 pytest-asyncio 啟動
+# 時會新開一個 session loop,兩者不同,asyncpg 會丟「Future attached to a
+# different loop」。dispose 一次 → 之後任何使用都會在 session loop 上重新建 pool。
+
+@pytest.fixture(scope="session", autouse=True)
+async def _rebind_engine_to_session_loop(_migrated_db: str) -> AsyncIterator[None]:
+    from app.database import engine as _engine
+
+    await _engine.dispose()
+    yield
+    await _engine.dispose()
+
+
 # ── 3) Truncate between tests so state does not leak ──────────────────────
 
 @pytest.fixture(autouse=True)

@@ -102,9 +102,10 @@ def upgrade() -> None:
 def downgrade() -> None:
     for tbl in _STATUS_TABLES:
         if _table_exists(tbl) and _column_exists(tbl, "content_status"):
-            op.drop_index(f"ix_{tbl}_content_status", table_name=tbl)
+            op.drop_index(
+                f"ix_{tbl}_content_status", table_name=tbl, if_exists=True
+            )
             op.drop_column(tbl, "content_status")
     if _table_exists("entity_versions"):
-        op.drop_index("ix_entity_versions_org", table_name="entity_versions")
-        op.drop_index("ix_entity_versions_lookup", table_name="entity_versions")
+        # DROP TABLE 在 Postgres 會 cascade 把 index 一起回收,不必先手動 drop_index。
         op.drop_table("entity_versions")

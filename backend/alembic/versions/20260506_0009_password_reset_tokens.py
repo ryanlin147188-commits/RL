@@ -66,6 +66,5 @@ def upgrade() -> None:
 def downgrade() -> None:
     if not _table_exists("password_reset_tokens"):
         return
-    op.drop_index("ix_password_reset_tokens_token", table_name="password_reset_tokens")
-    op.drop_index("ix_password_reset_tokens_username", table_name="password_reset_tokens")
+    # DROP TABLE 在 Postgres 會 cascade 把 index 一起回收。
     op.drop_table("password_reset_tokens")

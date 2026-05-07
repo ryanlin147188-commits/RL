@@ -193,9 +193,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_column("roles", "scope")
-    op.drop_index("ix_project_members_username", table_name="project_members")
-    op.drop_index("ix_project_members_project", table_name="project_members")
+    # DROP TABLE 在 Postgres 會 cascade 把 index 一起回收;省掉 op.drop_index
+    # (有些上線時 index 沒被成功 create,顯式 drop 會炸 UndefinedObject)。
     op.drop_table("project_members")
-    op.drop_index("ix_org_memberships_org", table_name="org_memberships")
-    op.drop_index("ix_org_memberships_username", table_name="org_memberships")
     op.drop_table("org_memberships")
