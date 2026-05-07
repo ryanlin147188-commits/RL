@@ -78,25 +78,24 @@ async def test_non_admin_cannot_approve_unless_assigned(client, org_a, qa_in_a) 
 
 
 async def test_mine_filter(client, org_a) -> None:
-    """list?mine=true 只回傳指派給呼叫者的 record。"""
-    # mine 的:assignee=org_a.username
+    """list?mine=true 只回傳指派給呼叫者的 record。
+    用 testcase entity 才不會被 list_reviews 的 orphan-filter 過濾掉
+    (那條 filter 會 drop 找不到對應 entity 的 row)。"""
+    tc = await _make_testcase(org_a, "mine-case")
     await client.post(
         "/api/reviews",
         json={
-            "entity_type": "document",
-            "entity_id": "mine-1",
+            "entity_type": "testcase",
+            "entity_id": tc,
             "assignee": org_a.username,
             "assignee_type": "user",
         },
         headers=org_a.headers,
     )
-    # 非 mine 的:assignee 指派給(其實也是 admin 自己,但變更 entity 模擬不同)
-    # 因為 _validate_assignee 要求 user 存在,只好還是 self-assign
-    # 改測 group 走向:沒 group 時 mine list 仍應只看到 user-assignment 的
     listing = await client.get("/api/reviews?mine=true", headers=org_a.headers)
     assert listing.status_code == 200
     rows = listing.json()
-    assert any(r["entity_id"] == "mine-1" for r in rows)
+    assert any(r["entity_id"] == tc for r in rows)
 
 
 # ── 2) Precondition CRUD 與 cycle 偵測 ────────────────────────────────

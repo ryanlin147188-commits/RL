@@ -292,11 +292,16 @@ class OrgFixture:
 
 
 async def _make_org(slug_prefix: str) -> OrgFixture:
-    """Create an Organization, an admin User in it, and one Project."""
+    """Create an Organization, an admin User in it, and one Project.
+
+    也建一筆 ``ProjectMember`` row(status='active'),否則 admin 走
+    ``ensure_project_in_scope`` 會被擋(404 Not Found)— 這個 helper 要讓
+    回來的 admin 可以順利讀寫自己的 project。
+    """
     from sqlalchemy import select
     from app.auth.security import create_access_token, hash_password
     from app.database import AsyncSessionLocal
-    from app.models import Organization, Project, Role, User
+    from app.models import Organization, Project, ProjectMember, Role, User
 
     suffix = uuid.uuid4().hex[:8]
     slug = f"{slug_prefix}-{suffix}"
@@ -330,6 +335,18 @@ async def _make_org(slug_prefix: str) -> OrgFixture:
             organization_id=org.id,
         )
         session.add(project)
+        await session.flush()
+
+        # 沒有 ProjectMember active row,ensure_project_in_scope 會回 404
+        session.add(
+            ProjectMember(
+                id=str(uuid.uuid4()),
+                project_id=project.id,
+                username=username,
+                role_id=admin_role.id if admin_role else None,
+                status="active",
+            )
+        )
         await session.commit()
 
         org_id = org.id
