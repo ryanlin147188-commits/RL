@@ -10,7 +10,7 @@
 [![Robot Framework](https://img.shields.io/badge/Engine-Robot%20Framework%207.x-blue.svg)](https://robotframework.org/)
 [![Docker](https://img.shields.io/badge/Deploy-Docker%20Compose-2496ED.svg)](https://docs.docker.com/compose/)
 [![Stack](https://img.shields.io/badge/Stack-FastAPI%20%2B%20PostgreSQL%20%2B%20SeaweedFS-0a7e07.svg)](#-技術架構)
-[![AI](https://img.shields.io/badge/AI-MCP%20%2B%20Vision%20%2B%2011%20providers-7c3aed.svg)](#-ai-原生:平台會自己寫案例-自己跑測試)
+[![AI](https://img.shields.io/badge/AI-Hermes%20ACP%20%2B%20mem0%20%2B%20MCP%20%2B%2011%20providers-7c3aed.svg)](#-ai-原生:平台會自己寫案例-自己跑測試)
 
 ---
 
@@ -31,16 +31,17 @@
 ## 🤖 AI 原生:平台會自己寫案例、自己跑測試
 
 RL **不是** 把 ChatGPT 嵌進對話框就叫 AI 化的傳統測試工具。
-v1.1 內建 **三條 AI 生產線**,把 LLM 當作平台第一公民:
+v1.1 內建 **四條 AI 生產線**,把 LLM 當作平台第一公民:
 
-### 1️⃣ AI Chat ⚡ 一鍵生成可執行案例
+### 1️⃣ Hermes AI 助理 ⚡ 一鍵生案例 + 持久記憶
+對話層改用 [hermes-agent](https://github.com/NousResearch/hermes-agent) 透過 ACP 協定跑 per-user 子進程,每個使用者一個獨立 LLM context:
 > 「我要測購物車從加入到結帳的完整流程」
 - 內建多輪 tool calling(OpenAI / Anthropic / Google 三家統一 schema)
 - 直接吐出 `steps_json` schema 化結構,**不是純文字**,平台立即可跑
+- **持久語意記憶**(走 [mem0](https://github.com/mem0ai/mem0) sidecar):per-user pgvector 庫、對話後自動抽 fact、LLM 對話中可主動 invoke `search_memory` MCP tool 回查偏好
 - 套用到當前案例 / 開新 SCENARIO 建新案例兩種選擇
-- 失敗自動 fallback 為傳統 markdown 模式,不會卡死
 
-### 2️⃣ AI 直接操作瀏覽器(MCP 整合)
+### 2️⃣ AI 直接操作瀏覽器(Playwright MCP)
 透過 [Model Context Protocol](https://modelcontextprotocol.io/) 串接 [Playwright MCP](https://github.com/microsoft/playwright-mcp),AI 變成可操作的 agent:
 - **per-user MCP 容器**:每個使用者開獨立 chromium,互不打架
 - **multi-turn tool calling 迴圈**:LLM → call browser tool → 看截圖 → 決定下一步 → 直到任務完成
@@ -55,6 +56,14 @@ v1.1 內建 **三條 AI 生產線**,把 LLM 當作平台第一公民:
 - 結果以 **diff view** 呈現,逐 step 接受 / 拒絕,不會直接污染原稿
 - 全程記入 audit log:「使用者接受了哪幾條 AI 建議」可追溯
 
+### 4️⃣ 持久語意記憶(mem0 sidecar)
+獨立 `mem0` 容器(FastAPI + pgvector),每個使用者各自的長期記憶:
+- **Pre-hook 自動召回**:每次 send_message 前先跑 `mem0.search`,top-5 過往記憶以 `<recalled_memory>` 注入 prompt
+- **Post-hook fire-and-forget 寫入**:對話完 LLM 自動抽 atomic fact,mem0 dedup + 落 pgvector
+- **`search_memory` MCP tool**:LLM 對話中也可以主動回查(例:「我之前有沒有提過 staging URL?」)
+- **per-user 隔離**:`org_id:username` partition key、X-Mem0-User-Id header 由 backend 設定,不能被 LLM tool args 偽造
+- **Graceful degrade**:circuit breaker、5s timeout、cache miss 回 friendly text;主對話絕不被 mem0 故障擋住
+
 ### 🎯 11 家 LLM provider + 完全本地化選項
 | 雲端 | 本地 / 自架 |
 |---|---|
@@ -63,6 +72,15 @@ v1.1 內建 **三條 AI 生產線**,把 LLM 當作平台第一公民:
 - **「用 token 拉模型清單」** 按鈕:輸入 API key 一鍵列出該 provider 全部可用模型
 - 自動偵測推理模型(o1 / o3 / GPT-5 / DeepSeek-R1 等)→ 啟用「思考程度」(low / medium / high)
 - API key / model id / 自架 base_url **Fernet 加密落地**,從不明文存 DB
+
+#### mem0 記憶層 provider 對應
+
+| 主對話 LLM | Embedder | 說明 |
+|---|---|---|
+| OpenAI | OpenAI `text-embedding-3-small` | 同把 token,不需額外設定 |
+| Gemini | Gemini `text-embedding-004` | 同把 token,不需額外設定 |
+| Anthropic (Claude) | OpenAI / Gemini fallback(同 org 任一把) | Anthropic 沒 embedder API — backend 自動挑同 org 內最便宜的 OpenAI/Gemini token 當 embedder。**設了 Claude 的同時加一把 OpenAI token 就能解鎖記憶功能** |
+| 純 Anthropic(沒 fallback) | — | 自動跳過記憶功能,主對話照常 |
 
 ---
 
@@ -358,6 +376,18 @@ docker compose up -d --build                         # 3) 啟動主服務(自動
        │ Lua 富化│  │ 含 container│  │ UI,host 不直接暴露   │
        │         │  │ _name 富化  │  │                     │
        └─────────┘  └─────────────┘  └─────────────────────┘
+
+  ┌──────────────────────────────────────────────────────────┐
+  │              AI sidecars(內網,不對外)                  │
+  │                                                          │
+  │  hermes:7800 — Hermes ACP supervisor                     │
+  │    └─ per-user ACP 子進程池(idle-evict)                │
+  │       └─ MCP HTTP client → mem0:7900/mcp/mcp             │
+  │                                                          │
+  │  mem0:7900   — 語意記憶層                                │
+  │    ├─ FastAPI proxy + FastMCP `search_memory` tool       │
+  │    └─ pgvector(mem0-postgres,per-user partition)       │
+  └──────────────────────────────────────────────────────────┘
 ```
 
 **架構亮點**:

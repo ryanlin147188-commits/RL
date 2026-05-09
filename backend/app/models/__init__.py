@@ -11,8 +11,10 @@ from .requirement import (
     RequirementStatus,
     RequirementTestcaseLink,
 )
-from .ai_conversation import AiConversation, AiMessage
 from .ai_token_config import AiProvider, AiTokenConfig
+from .hermes_gateway_credential import HermesGatewayCredential
+from .hermes_memory_consent import HermesMemoryConsent
+from .hermes_session import HermesSessionRef
 from .audit_log import AuditLog
 from .db_config import DbConfig
 from .email_config import EmailConfig
@@ -82,7 +84,9 @@ __all__ = [
     # Settings + todos
     "Role", "NotificationPreference", "Notification", "EmailConfig",
     "AiTokenConfig", "AiProvider",
-    "AiConversation", "AiMessage",
+    "HermesSessionRef",
+    "HermesGatewayCredential",
+    "HermesMemoryConsent",
     "TodoItem", "TodoItemType", "TodoStatus", "TodoPriority",
     "TodoLink", "ALLOWED_TARGET_TYPES",
     "User",

@@ -76,7 +76,9 @@ async def init_db() -> None:
     """
     # 確保所有 model 都已被 import，才能讓 metadata 認識它們
     from app.models import (  # noqa: F401
-        ai_conversation,
+        hermes_session,
+        hermes_gateway_credential,
+        hermes_memory_consent,
         db_config,
         execution_report,
         execution_step_log,

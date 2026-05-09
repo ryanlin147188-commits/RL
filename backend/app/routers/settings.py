@@ -745,6 +745,16 @@ async def create_ai_token(
         )
     await db.flush()
     await db.refresh(token)
+    # Hermes sidecar:這位 user 的 default token 可能換了,讓下次 hermes call
+    # 重 push provision(避免 sidecar 用舊 key)。新增也 invalidate — 因為新 token
+    # 可能就是 is_default=True 的那組。
+    from app.services.hermes_provisioning import (
+        invalidate_user_workspace,
+        sync_mem0_llm_config,
+    )
+    invalidate_user_workspace(user.username)
+    # mem0 sidecar 的 per-user llm_config cache 也跟著新狀態同步(push or clear)
+    await sync_mem0_llm_config(user, db)
     return _ai_token_to_response(token)
 
 
@@ -781,6 +791,15 @@ async def update_ai_token(
         )
         await db.flush()
     await db.refresh(t)
+    # Hermes sidecar:token 改了(api_key / base_url / is_default 任一)→ cache 失效,
+    # 下次 hermes call 觸發 ensure_user_workspace 會重 push 新 .env 給 sidecar。
+    from app.services.hermes_provisioning import (
+        invalidate_user_workspace,
+        sync_mem0_llm_config,
+    )
+    invalidate_user_workspace(user.username)
+    # mem0 sidecar 的 per-user llm_config cache 也跟著新狀態同步(push or clear)
+    await sync_mem0_llm_config(user, db)
     return _ai_token_to_response(t)
 
 
@@ -893,3 +912,11 @@ async def delete_ai_token(
     t = _check_ai_token_or_404(await db.get(AiTokenConfig, token_id), user)
     await db.delete(t)
     await db.flush()
+    # Hermes sidecar:刪掉的可能就是 default token,讓下次 hermes call 重挑一個。
+    from app.services.hermes_provisioning import (
+        invalidate_user_workspace,
+        sync_mem0_llm_config,
+    )
+    invalidate_user_workspace(user.username)
+    # mem0 sidecar 的 per-user llm_config cache 也跟著新狀態同步(push or clear)
+    await sync_mem0_llm_config(user, db)

@@ -10,7 +10,7 @@
 [![Robot Framework](https://img.shields.io/badge/Engine-Robot%20Framework%207.x-blue.svg)](https://robotframework.org/)
 [![Docker](https://img.shields.io/badge/Deploy-Docker%20Compose-2496ED.svg)](https://docs.docker.com/compose/)
 [![Stack](https://img.shields.io/badge/Stack-FastAPI%20%2B%20PostgreSQL%20%2B%20SeaweedFS-0a7e07.svg)](#tech-stack)
-[![AI](https://img.shields.io/badge/AI-MCP%20%2B%20Vision%20%2B%2011%20providers-7c3aed.svg)](#ai-native)
+[![AI](https://img.shields.io/badge/AI-Hermes%20ACP%20%2B%20mem0%20%2B%20MCP%20%2B%2011%20providers-7c3aed.svg)](#ai-native)
 
 ---
 
@@ -81,17 +81,17 @@ is disabled — additional users are created from **設定 → 專案協作成�
 
 ## <a id="ai-native"></a> AI-native: the platform writes and runs tests for itself
 
-RL is **not** a traditional test tool with a ChatGPT box bolted on. v1.1 ships **three AI pipelines** that treat the LLM as a first-class citizen of the platform:
+RL is **not** a traditional test tool with a ChatGPT box bolted on. v1.1 ships **four AI pipelines** that treat the LLM as a first-class citizen of the platform:
 
-### 1. AI Chat → executable cases in one click
-Ask `"Test the cart flow from add-to-cart through checkout"` and the assistant returns:
+### 1. Hermes AI assistant → executable cases + persistent memory
+The chat is now backed by [hermes-agent](https://github.com/NousResearch/hermes-agent) running as an isolated ACP subprocess per user. Ask `"Test the cart flow from add-to-cart through checkout"` and the assistant returns:
 
 - A schema-validated `steps_json` array (not free text — the platform can run it immediately).
-- Built-in multi-turn tool calling with a unified schema across OpenAI, Anthropic, and Google.
+- **Persistent semantic memory** via [mem0](https://github.com/mem0ai/mem0) — per-user pgvector store, automatic fact extraction post-conversation, and an MCP `search_memory` tool the LLM can invoke mid-conversation to recall past preferences.
+- Multi-turn tool calling with a unified schema across OpenAI, Anthropic (Claude), and Google (Gemini).
 - Apply to the current case, or open a new SCENARIO for a brand-new case.
-- Falls back to traditional Markdown mode if the LLM refuses tool use, never hard-fails.
 
-### 2. AI drives a real browser (MCP)
+### 2. AI drives a real browser (Playwright MCP)
 Wired to [Model Context Protocol](https://modelcontextprotocol.io/) and [Playwright MCP](https://github.com/microsoft/playwright-mcp), the AI becomes an executable agent:
 
 - **Per-user MCP containers** — each user gets an isolated Chromium; sessions don't collide.
@@ -108,11 +108,29 @@ A finished trace can be enriched by any vision-capable LLM (GPT-4o / Claude 3.5 
 - Results are shown in a **diff view** so you can accept / reject step by step — the original recording is never silently overwritten.
 - Every accepted suggestion is written to the audit log.
 
+### 4. Persistent semantic memory (mem0 sidecar)
+A dedicated `mem0` sidecar (FastAPI + pgvector) gives every user their own long-term memory:
+
+- **Pre-hook recall** — every `send_message` first runs `mem0.search` and injects top-5 past memories into the prompt as `<recalled_memory>`. The LLM doesn't have to ask twice.
+- **Post-hook write** — fact extraction runs fire-and-forget after each turn (LLM extracts atomic facts, mem0 dedups and stores).
+- **`search_memory` MCP tool** — the LLM can also actively query memory mid-conversation (e.g., *"do I have a saved staging URL for this client?"*).
+- **Per-user isolation** — `org_id:username` partition key; X-Mem0-User-Id header set by backend, not the LLM. No tenant data leakage.
+- **Graceful degrade** — circuit breaker, 5s timeouts, friendly error string on cache miss; main chat never blocks on memory.
+
 ### 11 LLM providers + fully local options
 
 | Cloud | Local / self-hosted |
 |---|---|
 | OpenAI · Anthropic · DeepSeek · Groq · OpenRouter · Together AI · Mistral · xAI · Google Gemini | Ollama · LM Studio · any OpenAI-compatible endpoint |
+
+**Memory (mem0) provider matrix** — fact extraction uses the user's chat LLM; vector embedding needs an embedder API:
+
+| Primary chat LLM | Embedder for memory | Notes |
+|---|---|---|
+| OpenAI | OpenAI `text-embedding-3-small` | Same token, no extra setup |
+| Gemini | Gemini `text-embedding-004` | Same token, no extra setup |
+| Anthropic (Claude) | OpenAI / Gemini fallback (any token in same org) | Anthropic has no embedder API — backend auto-picks the cheapest embedder-capable token in your org. Add an OpenAI key alongside Claude to unlock memory features. |
+| Anthropic alone (no fallback) | — | Memory features auto-disabled; main chat works normally. |
 
 ---
 
@@ -185,10 +203,22 @@ After the v1.0 baseline, seven focused UX-hardening rounds shipped to `main`. Ev
 │ SeaweedFS    │ │ Fluent Bit + │ │  (each in its own         │
 │ (S3, media)  │ │ VictoriaLogs │ │  short-lived container)   │
 └──────────────┘ └──────────────┘ └───────────────────────────┘
+
+  ┌──────────────────────────────────────────────────────────┐
+  │                AI sidecars (internal-only)               │
+  │                                                          │
+  │  hermes:7800 — Hermes ACP supervisor                     │
+  │    └─ per-user ACP subprocess pool (idle-evict)          │
+  │       └─ MCP HTTP client → mem0:7900/mcp/mcp             │
+  │                                                          │
+  │  mem0:7900  — semantic memory layer                      │
+  │    ├─ FastAPI proxy + FastMCP `search_memory` tool       │
+  │    └─ pgvector (mem0-postgres) — per-user partition      │
+  └──────────────────────────────────────────────────────────┘
 ```
 
-**Default compose**: 10 long-running services plus `seaweedfs-init` one-shot (postgres / valkey / seaweedfs / docker-proxy / backend / celery / frontend / apisix / fluent-bit / victoria-logs / seaweedfs-init).
-**Profile-gated**: 2 obs services (Prometheus + Jaeger), 4 spawn-time images (`robot-runner` / `recorder` / `recorder-api` / `mcp` — built once, run per session by backend), 1 bootstrap (one-shot `.env` generator). With `--profile obs`, Docker has 12 long-running containers plus `seaweedfs-init`; Docker Desktop may also count the Compose app group as one visible item.
+**Default compose**: 12 long-running services plus `seaweedfs-init` one-shot (postgres / valkey / seaweedfs / docker-proxy / backend / celery / frontend / apisix / fluent-bit / victoria-logs / **hermes** / **mem0** + mem0-postgres / seaweedfs-init).
+**Profile-gated**: 2 obs services (Prometheus + Jaeger), 4 spawn-time images (`robot-runner` / `recorder` / `recorder-api` / `mcp` — built once, run per session by backend), 1 bootstrap (one-shot `.env` + Fernet/JWT/sidecar-auth generator).
 **Bundle**: the same `docker-compose.yml` also supports preloaded app images via `docker compose up -d --no-build`.
 
 ---

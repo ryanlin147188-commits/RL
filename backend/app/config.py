@@ -52,6 +52,49 @@ class Settings(BaseSettings):
     # 預設 idle 多久後自動回收 recorder 容器(分鐘)
     RECORDER_IDLE_TIMEOUT_MIN: int = 30
 
+    # ─── Hermes Agent sidecar ───────────────────────────────────────
+    # 內網 service-name 解析,backend 在同 docker network。
+    HERMES_BASE_URL: str = "http://hermes:7800"
+    # 與 sidecar 共享的 secret(必填),由 bootstrap 自動產生寫入 .env
+    SIDECAR_AUTH_TOKEN: str = ""
+    # 同步 prompt 的整體 timeout — 與 sidecar 內 HERMES_RPC_TIMEOUT 對齊
+    HERMES_TIMEOUT_SEC: int = 60
+    # Streaming 等更慢的呼叫上限
+    HERMES_STREAM_TIMEOUT_SEC: int = 300
+    # Feature flag:false → router 全 503,sidecar 掛點時降級用
+    HERMES_ENABLED: bool = True
+
+    # ─── mem0 sidecar(語意記憶層)──────────────────────────────────
+    # 內網 service-name 解析,backend 跟 mem0 在同 docker network
+    MEM0_BASE_URL: str = "http://mem0:7900"
+    # 與 mem0 sidecar 共享 secret(必填,bootstrap 自動產;與 hermes SIDECAR_AUTH_TOKEN
+    # 邊界分離 — 兩個 sidecar 各自獨立 auth)
+    MEM0_SIDECAR_AUTH_TOKEN: str = ""
+    # 一般 add/list/delete 同步 timeout;search 走更短(在 client 內覆寫)
+    MEM0_TIMEOUT_SEC: int = 5
+    MEM0_SEARCH_TIMEOUT_SEC: int = 3
+    # Feature flag:false → 整 mem0 路徑跳過(post-hook 不觸發、router 略過 503)
+    MEM0_ENABLED: bool = True
+    # Per-user-per-day fact extraction 上限(plan §4 速率保護);PR3 暫不啟用,
+    # 留 env 給 PR4/PR5 接 valkey counter
+    MEM0_FACT_EXTRACTION_RATE_PER_DAY: int = 200
+    # Pre-hook(PR6):send_message 之前 search 過往記憶 → 注入 prompt 前綴。
+    # plan 使用者選「v1 同時做 read + write」,所以預設 True;false 時可獨立關掉
+    # 自動 RAG 但保留 post-hook 寫入。
+    MEM0_PREHOOK_ENABLED: bool = True
+    # Pre-hook search 召回上限(top-k);threshold 越低召回越多但雜訊也多
+    MEM0_PREHOOK_TOP_K: int = 5
+    MEM0_PREHOOK_THRESHOLD: float = 0.3
+    # ── Hermes ↔ mem0 MCP tool(讓 Hermes ACP 子進程的 LLM 可以主動 invoke
+    # `search_memory` tool,不再只靠 backend pre-hook 一次性注入)──────
+    # Feature flag:False → routers/hermes.py 不把 mcpServers 帶給 hermes;
+    # backend pre-hook + post-hook 仍正常運作(雙重安全網之一)
+    MEM0_HERMES_TOOL_ENABLED: bool = True
+    # Hermes ACP 子進程要連的 mem0 MCP endpoint(streamable HTTP transport)。
+    # mem0_proxy.py app.mount("/mcp", ...) 後,FastMCP 內部把 path 再 +"/mcp",
+    # 實際 tool call 進 /mcp/mcp。內網 service-name 解析(同 docker network)。
+    MEM0_HERMES_TOOL_URL: str = "http://mem0:7900/mcp/mcp"
+
     @property
     def DATABASE_URL(self) -> str:
         """Async URL 供 FastAPI / SQLAlchemy asyncio 使用（PostgreSQL via asyncpg）"""

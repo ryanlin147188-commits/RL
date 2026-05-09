@@ -23831,6 +23831,23 @@ curl -X POST http://localhost:8000/api/defects \\
                 class="w-7 h-7 flex items-center justify-center rounded hover:bg-rose-100 text-stone-500 hover:text-rose-600">
                 <i class="fa-solid fa-trash text-xs"></i>
             </button>
+            <!-- Hermes PR4/PR5:Skills / Memory / Cron 三個輔助面板 -->
+            <button type="button" onclick="hermesOpenSkills()" title="已裝技能"
+                class="w-7 h-7 flex items-center justify-center rounded hover:bg-violet-100 text-stone-500 hover:text-violet-600">
+                <i class="fa-solid fa-brain text-xs"></i>
+            </button>
+            <button type="button" onclick="hermesOpenMemory()" title="記憶搜尋"
+                class="w-7 h-7 flex items-center justify-center rounded hover:bg-violet-100 text-stone-500 hover:text-violet-600">
+                <i class="fa-solid fa-magnifying-glass text-xs"></i>
+            </button>
+            <button type="button" onclick="hermesOpenCron()" title="排程任務"
+                class="w-7 h-7 flex items-center justify-center rounded hover:bg-violet-100 text-stone-500 hover:text-violet-600">
+                <i class="fa-solid fa-clock text-xs"></i>
+            </button>
+            <button type="button" onclick="hermesOpenLlmConnection()" title="LLM 串接設定"
+                class="w-7 h-7 flex items-center justify-center rounded hover:bg-violet-100 text-stone-500 hover:text-violet-600">
+                <i class="fa-solid fa-plug text-xs"></i>
+            </button>
             <button type="button" onclick="aiChatToggle()" title="關閉"
                 class="w-7 h-7 flex items-center justify-center rounded hover:bg-stone-100 text-stone-500">
                 <i class="fa-solid fa-xmark text-sm"></i>
@@ -23854,6 +23871,12 @@ curl -X POST http://localhost:8000/api/defects \\
                 <textarea id="aiChatInput" rows="2" placeholder="按 Enter 送出 / Shift+Enter 換行"
                     class="flex-1 px-2 py-1.5 border border-stone-300 rounded text-sm resize-none focus:outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-200"
                     onkeydown="aiChatInputKey(event)"></textarea>
+                <!-- PR5:per-session 暫停記憶 toggle(60min)— 點下去後續訊息不抽 fact -->
+                <button type="button" id="aiChatPauseMemBtn" onclick="hermesPauseSessionMemory()"
+                    aria-label="暫停記憶" title="暫停此對話記憶 60 分鐘"
+                    class="w-10 h-10 shrink-0 rounded border border-stone-300 hover:bg-stone-100 text-stone-500 flex items-center justify-center disabled:opacity-50">
+                    <i class="fa-solid fa-eye-slash text-xs"></i>
+                </button>
                 <button type="button" id="aiChatSendBtn" aria-label="送出訊息" title="送出訊息" onclick="aiChatSend()"
                     class="w-10 h-10 shrink-0 rounded bg-violet-500 hover:bg-violet-600 text-white flex items-center justify-center disabled:opacity-50">
                     <i class="fa-solid fa-paper-plane text-xs"></i>
@@ -23888,6 +23911,26 @@ curl -X POST http://localhost:8000/api/defects \\
         </div>
     </aside>
 
+    <!-- ═════════════════════════════════════════════════════════════
+         Hermes Skills / Memory / Cron modals (PR4 / PR5)
+         ═════════════════════════════════════════════════════════════ -->
+    <div id="hermesModalRoot" class="fixed inset-0 z-[300] hidden bg-black/40 flex items-center justify-center"
+         onclick="hermesModalBackdrop(event)">
+        <div class="bg-white rounded-lg shadow-2xl max-w-lg w-full max-h-[80vh] flex flex-col" onclick="event.stopPropagation()">
+            <div class="px-4 py-3 border-b border-stone-200 flex items-center gap-2 bg-gradient-to-r from-indigo-50 to-violet-50 rounded-t-lg">
+                <i id="hermesModalIcon" class="fa-solid fa-brain text-violet-500"></i>
+                <span id="hermesModalTitle" class="font-bold text-stone-800 text-sm">Hermes</span>
+                <button type="button" class="ml-auto w-7 h-7 flex items-center justify-center rounded hover:bg-stone-100 text-stone-500"
+                        onclick="hermesCloseModal()" title="關閉">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div id="hermesModalBody" class="flex-1 overflow-y-auto p-3 text-sm">
+                載入中…
+            </div>
+        </div>
+    </div>
+
     <script>
     // ═════════════════════════════════════════════════════════════
     // AI 對話框邏輯
@@ -23910,7 +23953,7 @@ curl -X POST http://localhost:8000/api/defects \\
 
     async function aiChatLoadConversations() {
         try {
-            _aiChatConvs = await apiFetch('/api/ai/conversations');
+            _aiChatConvs = await apiFetch('/api/hermes/sessions');
         } catch (e) {
             _aiChatConvs = [];
             showToast('載入對話失敗:' + (e.message || e), 'error');
@@ -23945,7 +23988,7 @@ curl -X POST http://localhost:8000/api/defects \\
 
     async function aiChatLoadMessages(convId) {
         try {
-            const detail = await apiFetch(`/api/ai/conversations/${convId}`);
+            const detail = await apiFetch(`/api/hermes/sessions/${convId}`);
             _aiChatRenderMessages(detail.messages || []);
         } catch (e) {
             _aiChatRenderMessages([]);
@@ -23984,6 +24027,26 @@ curl -X POST http://localhost:8000/api/defects \\
         </div>`;
     }
 
+    // PR6:pre-hook 召回的記憶 chip。在 assistant 訊息前顯示「引用了 N 條記憶」
+    // 點開展開列出每條 fact。提供透明度 — 讓 user 能 verify AI 為什麼這樣回。
+    function _aiChatRecalledChip(memories) {
+        if (!memories || !memories.length) return '';
+        const items = memories.map(m =>
+            `<li class="text-stone-700">${_esc(String(m).slice(0, 200))}</li>`
+        ).join('');
+        return `<div class="flex justify-start">
+            <div class="text-[10px] text-stone-500 italic px-2 py-1 max-w-[85%]">
+                <details>
+                    <summary class="cursor-pointer hover:text-violet-700 select-none">
+                        <i class="fa-solid fa-brain text-violet-400"></i>
+                        引用了 ${memories.length} 條過往記憶
+                    </summary>
+                    <ul class="mt-1 ml-5 list-disc text-[11px] space-y-0.5">${items}</ul>
+                </details>
+            </div>
+        </div>`;
+    }
+
     function _aiChatRenderContent(text) {
         if (!text) return '';
         // escape HTML 後處理 ``` code block 跟 換行
@@ -24011,7 +24074,7 @@ curl -X POST http://localhost:8000/api/defects \\
 
     async function aiChatNewConversation() {
         try {
-            const conv = await apiFetch('/api/ai/conversations', {
+            const conv = await apiFetch('/api/hermes/sessions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({}),
@@ -24031,7 +24094,7 @@ curl -X POST http://localhost:8000/api/defects \\
         if (!_aiChatConvId) { showToast('沒有可刪除的對話', 'info'); return; }
         if (!confirm('確定刪除這個對話?整段訊息會一起消失。')) return;
         try {
-            await apiFetch(`/api/ai/conversations/${_aiChatConvId}`, { method: 'DELETE' });
+            await apiFetch(`/api/hermes/sessions/${_aiChatConvId}`, { method: 'DELETE' });
             _aiChatConvId = null;
             await aiChatLoadConversations();
             _aiChatRenderMessages([]);
@@ -24058,7 +24121,7 @@ curl -X POST http://localhost:8000/api/defects \\
         // 沒選對話 → 自動建一個
         if (!_aiChatConvId) {
             try {
-                const conv = await apiFetch('/api/ai/conversations', {
+                const conv = await apiFetch('/api/hermes/sessions', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({}),
@@ -24084,13 +24147,18 @@ curl -X POST http://localhost:8000/api/defects \\
         document.getElementById('aiChatSendBtn').disabled = true;
 
         try {
-            const resp = await apiFetch(`/api/ai/conversations/${_aiChatConvId}/messages`, {
+            const resp = await apiFetch(`/api/hermes/sessions/${_aiChatConvId}/messages`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ content: text }),
             });
             // 把 typing 換成真的 assistant 回覆
             document.getElementById('aiChatTyping')?.remove();
+            // PR6:若有 pre-hook 召回的記憶,在 assistant 回覆前插一條 chip
+            const recalled = resp.recalled_memories || [];
+            if (recalled.length && box) {
+                box.insertAdjacentHTML('beforeend', _aiChatRecalledChip(recalled));
+            }
             if (resp.assistant_message && box) {
                 box.insertAdjacentHTML('beforeend', _aiChatBubble(resp.assistant_message));
                 box.scrollTop = box.scrollHeight;
@@ -24112,6 +24180,565 @@ curl -X POST http://localhost:8000/api/defects \\
     document.addEventListener('keydown', (ev) => {
         if (ev.ctrlKey && ev.key === '/') { ev.preventDefault(); aiChatToggle(); }
     });
+
+    // ═════════════════════════════════════════════════════════════
+    // Hermes Skills / Memory / Cron modal helpers (PR4 / PR5)
+    // ═════════════════════════════════════════════════════════════
+    function _hermesShowModal(title, iconClass, bodyHtml) {
+        const root = document.getElementById('hermesModalRoot');
+        document.getElementById('hermesModalTitle').textContent = title;
+        document.getElementById('hermesModalIcon').className = iconClass + ' text-violet-500';
+        document.getElementById('hermesModalBody').innerHTML = bodyHtml;
+        root.classList.remove('hidden');
+    }
+    function hermesCloseModal() {
+        document.getElementById('hermesModalRoot').classList.add('hidden');
+    }
+    function hermesModalBackdrop(ev) {
+        if (ev.target.id === 'hermesModalRoot') hermesCloseModal();
+    }
+
+    // ── Skills ─────────────────────────────────────────────────────
+    async function hermesOpenSkills() {
+        _hermesShowModal('已裝技能', 'fa-solid fa-brain',
+            '<div class="text-center text-stone-400 italic py-8"><i class="fa-solid fa-circle-notch fa-spin"></i> 載入中…</div>');
+        try {
+            const data = await apiFetch('/api/hermes/skills');
+            const skills = data.skills || [];
+            const body = document.getElementById('hermesModalBody');
+            if (!skills.length) {
+                body.innerHTML = '<div class="text-center text-stone-400 italic py-8">尚未安裝任何 skill。<br><span class="text-[10px]">Skills 由 Hermes Agent 自動學習或手動裝入 <code class="bg-stone-100 px-1 rounded">~/.hermes/skills/</code></span></div>';
+                return;
+            }
+            body.innerHTML = skills.map(s => `
+                <div class="border border-stone-200 rounded p-2 mb-2">
+                    <div class="font-semibold text-stone-800">${_esc(s.name)}${s.namespace ? ` <span class="text-[10px] text-stone-400">(${_esc(s.namespace)})</span>` : ''}</div>
+                    ${s.description ? `<div class="text-xs text-stone-600 mt-1">${_esc(s.description)}</div>` : ''}
+                    ${s.platforms && s.platforms.length ? `<div class="mt-1 flex gap-1 flex-wrap">${s.platforms.map(p => `<span class="text-[9px] bg-stone-100 text-stone-600 rounded px-1.5 py-0.5">${_esc(p)}</span>`).join('')}</div>` : ''}
+                    <div class="text-[9px] text-stone-400 mt-1 font-mono">${_esc(s.path)}</div>
+                </div>
+            `).join('');
+        } catch (e) {
+            document.getElementById('hermesModalBody').innerHTML =
+                `<div class="text-rose-600 text-xs py-4">載入失敗:${_esc(e.message || String(e))}</div>`;
+        }
+    }
+
+    // ── Memory modal(PR4/PR5)── Lexical(FTS5)+ Semantic(mem0)tab ──
+    // PR3+PR4 後端有兩條 memory 路徑:
+    //   - Lexical:hermes 子進程的 SQLite FTS5(精確關鍵字、永遠可用)
+    //   - Semantic:mem0 sidecar 的 LLM-extracted fact(語意搜尋,要 token + embedder)
+    // mem0_up=false 或 user 沒 token 時 Semantic tab 顯示 degraded hint。
+    let _hermesMemSearchTimer = null;
+    let _hermesMemActiveTab = "lexical";  // "lexical" | "semantic"
+    let _hermesMemMem0Up = true;  // 由 health probe 設定
+
+    function hermesOpenMemory() {
+        _hermesShowModal('記憶搜尋', 'fa-solid fa-magnifying-glass', `
+            <div class="flex items-center gap-1 mb-3 border-b border-stone-200">
+                <button id="hermesMemTabLex" type="button" onclick="hermesMemorySwitchTab('lexical')"
+                    class="px-3 py-1.5 text-xs border-b-2 border-violet-500 text-violet-700 font-medium">
+                    <i class="fa-solid fa-magnifying-glass text-[10px]"></i> Lexical(FTS5)
+                </button>
+                <button id="hermesMemTabSem" type="button" onclick="hermesMemorySwitchTab('semantic')"
+                    class="px-3 py-1.5 text-xs border-b-2 border-transparent text-stone-500 hover:text-violet-600">
+                    <i class="fa-solid fa-brain text-[10px]"></i> Semantic(mem0)
+                </button>
+                <button type="button" onclick="hermesMemoryToggleSettings()" title="記憶設定"
+                    class="ml-auto w-7 h-7 flex items-center justify-center rounded hover:bg-stone-100 text-stone-500">
+                    <i class="fa-solid fa-gear text-xs"></i>
+                </button>
+            </div>
+            <div id="hermesMemSettings" class="hidden mb-3 border border-stone-200 rounded p-3 bg-stone-50/40 text-xs space-y-2">
+                <div class="flex items-center justify-between">
+                    <div class="flex-1">
+                        <div class="font-semibold text-stone-700">自動學習記憶(extraction)</div>
+                        <div class="text-[10px] text-stone-500">啟用 = AI 對話結束後自動抽事實存入 mem0(會額外消耗 default token 配額)</div>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer ml-2">
+                        <input id="hermesMemConsent" type="checkbox" class="sr-only peer" onchange="hermesMemoryToggleConsent()">
+                        <div class="w-9 h-5 bg-stone-200 rounded-full peer-checked:bg-violet-500 transition relative">
+                            <div class="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full transition peer-checked:translate-x-4"></div>
+                        </div>
+                    </label>
+                </div>
+                <div id="hermesMemConsentMeta" class="text-[10px] text-stone-400"></div>
+                <button type="button" onclick="hermesMemoryWipe()"
+                    class="w-full text-xs px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded">
+                    <i class="fa-solid fa-trash"></i> 清空全部 semantic 記憶
+                </button>
+            </div>
+            <input id="hermesMemQ" type="search" placeholder="搜尋過去訊息..." autocomplete="off"
+                class="w-full px-3 py-2 border border-stone-300 rounded text-sm focus:outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-200"
+                oninput="hermesMemorySearch()" />
+            <div id="hermesMemResults" class="mt-3 space-y-2">
+                <div class="text-center text-stone-400 italic py-8">載入中…</div>
+            </div>
+        `);
+        setTimeout(() => document.getElementById('hermesMemQ')?.focus(), 50);
+        // 初始化:probe mem0_up + load consent + 預設停在 Lexical(空查詢顯示提示)
+        hermesMemorySwitchTab('lexical');
+        _hermesMemoryProbeAndLoadConsent();
+    }
+
+    async function _hermesMemoryProbeAndLoadConsent() {
+        // 1) Probe /api/hermes/health 看 mem0 是否在線
+        try {
+            const h = await apiFetch('/api/hermes/health');
+            _hermesMemMem0Up = !!(h.mem0_enabled && h.mem0_up);
+        } catch (e) {
+            _hermesMemMem0Up = false;
+        }
+        // 2) 載入 consent 狀態
+        try {
+            const c = await apiFetch('/api/hermes/memory/consent');
+            const cb = document.getElementById('hermesMemConsent');
+            if (cb) cb.checked = !!c.extraction_enabled;
+            const meta = document.getElementById('hermesMemConsentMeta');
+            if (meta) {
+                const paused = c.paused_session_count || 0;
+                meta.textContent = paused > 0
+                    ? `目前有 ${paused} 個 session 暫停中`
+                    : '';
+            }
+        } catch (e) {
+            // consent 失敗不擋 modal,只關閉 toggle
+        }
+    }
+
+    function hermesMemoryToggleSettings() {
+        const panel = document.getElementById('hermesMemSettings');
+        if (panel) panel.classList.toggle('hidden');
+    }
+
+    function hermesMemorySwitchTab(tab) {
+        _hermesMemActiveTab = tab;
+        const tabLex = document.getElementById('hermesMemTabLex');
+        const tabSem = document.getElementById('hermesMemTabSem');
+        if (tab === 'lexical') {
+            tabLex?.classList.add('border-violet-500', 'text-violet-700', 'font-medium');
+            tabLex?.classList.remove('border-transparent', 'text-stone-500');
+            tabSem?.classList.remove('border-violet-500', 'text-violet-700', 'font-medium');
+            tabSem?.classList.add('border-transparent', 'text-stone-500');
+        } else {
+            tabSem?.classList.add('border-violet-500', 'text-violet-700', 'font-medium');
+            tabSem?.classList.remove('border-transparent', 'text-stone-500');
+            tabLex?.classList.remove('border-violet-500', 'text-violet-700', 'font-medium');
+            tabLex?.classList.add('border-transparent', 'text-stone-500');
+        }
+        const inp = document.getElementById('hermesMemQ');
+        if (inp) {
+            inp.placeholder = tab === 'lexical' ? '搜尋過去訊息(關鍵字)' : '搜尋過去事實(語意)';
+            inp.value = '';
+        }
+        // 切到 Semantic 時,沒查詢就 list_all;Lexical 沒查詢顯示提示
+        if (tab === 'semantic') {
+            _hermesMemorySemanticList();
+        } else {
+            const results = document.getElementById('hermesMemResults');
+            if (results) results.innerHTML =
+                '<div class="text-center text-stone-400 italic py-8">輸入關鍵字開始搜尋</div>';
+        }
+    }
+
+    function hermesMemorySearch() {
+        const q = (document.getElementById('hermesMemQ')?.value || '').trim();
+        if (_hermesMemSearchTimer) clearTimeout(_hermesMemSearchTimer);
+        if (!q) {
+            // Semantic tab 空查詢時顯示完整 list,Lexical 則顯示提示
+            if (_hermesMemActiveTab === 'semantic') {
+                _hermesMemorySemanticList();
+            } else {
+                const r = document.getElementById('hermesMemResults');
+                if (r) r.innerHTML = '<div class="text-center text-stone-400 italic py-8">輸入關鍵字開始搜尋</div>';
+            }
+            return;
+        }
+        // 300ms debounce 避免每打一字就 fetch
+        _hermesMemSearchTimer = setTimeout(() => {
+            if (_hermesMemActiveTab === 'lexical') {
+                _hermesMemoryLexicalSearch(q);
+            } else {
+                _hermesMemorySemanticSearch(q);
+            }
+        }, 300);
+    }
+
+    async function _hermesMemoryLexicalSearch(q) {
+        const results = document.getElementById('hermesMemResults');
+        if (!results) return;
+        results.innerHTML = '<div class="text-center text-stone-400 italic py-4"><i class="fa-solid fa-circle-notch fa-spin"></i></div>';
+        try {
+            const data = await apiFetch(`/api/hermes/memory/search?q=${encodeURIComponent(q)}&limit=20`);
+            const hits = data.results || [];
+            if (!hits.length) {
+                results.innerHTML = '<div class="text-center text-stone-400 italic py-8">沒有匹配的記憶</div>';
+                return;
+            }
+            results.innerHTML = hits.map(h => `
+                <div class="border border-stone-200 rounded p-2">
+                    <div class="flex items-center gap-2 text-[10px] text-stone-400">
+                        <span class="font-mono">${_esc(h.session_title || h.session_id)}</span>
+                        <span class="px-1.5 py-0.5 rounded ${h.role === 'user' ? 'bg-violet-100 text-violet-700' : 'bg-stone-100 text-stone-600'}">${_esc(h.role)}</span>
+                    </div>
+                    <div class="text-sm text-stone-700 mt-1 line-clamp-3">${_esc((h.content || '').slice(0, 300))}</div>
+                </div>
+            `).join('');
+        } catch (e) {
+            results.innerHTML = `<div class="text-rose-600 text-xs py-4">搜尋失敗:${_esc(e.message || String(e))}</div>`;
+        }
+    }
+
+    function _hermesMemoryDegradedHint(reason) {
+        if (reason === 'mem0_disabled' || !_hermesMemMem0Up) {
+            return '<div class="text-center text-amber-700 italic py-8 text-xs">'
+                + '<i class="fa-solid fa-circle-info"></i> 語意記憶服務暫時離線,請稍後再試</div>';
+        }
+        if (reason === 'no_token_configured') {
+            return '<div class="text-center text-amber-700 italic py-8 text-xs">'
+                + '<i class="fa-solid fa-key"></i> 語意記憶需先設定 default token<br>'
+                + '<a href="javascript:hermesCloseModal();aiChatToggle();showSettingsView();" class="text-violet-600 hover:underline">前往設定 → AI Token</a></div>';
+        }
+        if (reason === 'no_embedder') {
+            return '<div class="text-center text-amber-700 italic py-8 text-xs">'
+                + '<i class="fa-solid fa-triangle-exclamation"></i> 目前 default token 沒有 embedder(常見:純 Anthropic key)<br>'
+                + '請改用 OpenAI / OpenRouter / Gemini 等支援 embedder 的 provider</div>';
+        }
+        return null;
+    }
+
+    function _hermesMemorySemanticRenderHits(hits) {
+        if (!hits.length) {
+            return '<div class="text-center text-stone-400 italic py-8 text-xs">尚無學到的事實 — 跟 AI 對話後它會自動記住偏好</div>';
+        }
+        return hits.map(h => `
+            <div class="border border-stone-200 rounded p-2 flex items-start gap-2">
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm text-stone-700">${_esc(h.memory || '')}</div>
+                    <div class="flex items-center gap-2 mt-1 text-[10px] text-stone-400">
+                        <span class="font-mono truncate">${_esc(h.id)}</span>
+                        ${h.score != null ? `<span>score: ${Number(h.score).toFixed(3)}</span>` : ''}
+                        ${h.created_at ? `<span>${_esc(String(h.created_at).slice(0, 19))}</span>` : ''}
+                    </div>
+                </div>
+                <button type="button" onclick="hermesMemoryDeleteFact('${_esc(h.id)}')" title="刪除這條記憶"
+                    class="w-6 h-6 flex items-center justify-center rounded hover:bg-rose-100 text-stone-400 hover:text-rose-600">
+                    <i class="fa-solid fa-trash text-[10px]"></i>
+                </button>
+            </div>
+        `).join('');
+    }
+
+    async function _hermesMemorySemanticList() {
+        const results = document.getElementById('hermesMemResults');
+        if (!results) return;
+        results.innerHTML = '<div class="text-center text-stone-400 italic py-4"><i class="fa-solid fa-circle-notch fa-spin"></i></div>';
+        try {
+            const data = await apiFetch('/api/hermes/memory/semantic/list?limit=50');
+            const hint = _hermesMemoryDegradedHint(data.degraded_reason);
+            if (hint) { results.innerHTML = hint; return; }
+            results.innerHTML = _hermesMemorySemanticRenderHits(data.results || []);
+        } catch (e) {
+            // 503 = mem0 down
+            if ((e.status || 0) === 503) {
+                results.innerHTML = _hermesMemoryDegradedHint('mem0_disabled');
+            } else {
+                results.innerHTML = `<div class="text-rose-600 text-xs py-4">載入失敗:${_esc(e.message || String(e))}</div>`;
+            }
+        }
+    }
+
+    async function _hermesMemorySemanticSearch(q) {
+        const results = document.getElementById('hermesMemResults');
+        if (!results) return;
+        results.innerHTML = '<div class="text-center text-stone-400 italic py-4"><i class="fa-solid fa-circle-notch fa-spin"></i></div>';
+        try {
+            const data = await apiFetch(`/api/hermes/memory/semantic?q=${encodeURIComponent(q)}&limit=20`);
+            const hint = _hermesMemoryDegradedHint(data.degraded_reason);
+            if (hint) { results.innerHTML = hint; return; }
+            results.innerHTML = _hermesMemorySemanticRenderHits(data.results || []);
+        } catch (e) {
+            if ((e.status || 0) === 503) {
+                results.innerHTML = _hermesMemoryDegradedHint('mem0_disabled');
+            } else {
+                results.innerHTML = `<div class="text-rose-600 text-xs py-4">搜尋失敗:${_esc(e.message || String(e))}</div>`;
+            }
+        }
+    }
+
+    async function hermesMemoryDeleteFact(memoryId) {
+        if (!confirm('刪除這條記憶?無法復原。')) return;
+        try {
+            await apiFetch(`/api/hermes/memory/semantic/${encodeURIComponent(memoryId)}`, {
+                method: 'DELETE',
+            });
+            showToast('已刪除', 'success');
+            // 重整當前 view
+            const q = (document.getElementById('hermesMemQ')?.value || '').trim();
+            if (q) _hermesMemorySemanticSearch(q);
+            else _hermesMemorySemanticList();
+        } catch (e) {
+            showToast('刪除失敗:' + (e.message || e), 'error');
+        }
+    }
+
+    async function hermesMemoryToggleConsent() {
+        const cb = document.getElementById('hermesMemConsent');
+        if (!cb) return;
+        const enabled = cb.checked;
+        try {
+            await apiFetch('/api/hermes/memory/consent', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ extraction_enabled: enabled }),
+            });
+            showToast(enabled ? '已啟用自動學習' : '已關閉自動學習', 'success');
+        } catch (e) {
+            showToast('設定失敗:' + (e.message || e), 'error');
+            cb.checked = !enabled;  // 復原
+        }
+    }
+
+    // ── PR5:per-session pause(暫停 60 分;chat input 旁邊 eye-slash icon)──
+    async function hermesPauseSessionMemory() {
+        if (!_aiChatConvId) {
+            showToast('請先開啟一個對話', 'info');
+            return;
+        }
+        if (!confirm('暫停這個對話的記憶學習 60 分鐘?\n\n效果:後續訊息不會被學進語意記憶,但 AI 仍能正常回覆。\n60 分鐘後自動恢復。')) return;
+        try {
+            const data = await apiFetch(
+                `/api/hermes/sessions/${encodeURIComponent(_aiChatConvId)}/memory/pause?duration_minutes=60`,
+                { method: 'POST' },
+            );
+            // 改 icon 視覺(變色 + tooltip 改)
+            const btn = document.getElementById('aiChatPauseMemBtn');
+            if (btn) {
+                btn.classList.remove('text-stone-500', 'border-stone-300');
+                btn.classList.add('text-amber-600', 'border-amber-300', 'bg-amber-50');
+                btn.title = '此 session 已暫停記憶(60 分鐘)';
+            }
+            showToast('已暫停 60 分鐘', 'success');
+        } catch (e) {
+            showToast('暫停失敗:' + (e.message || e), 'error');
+        }
+    }
+
+    async function hermesMemoryWipe() {
+        if (!confirm('清空全部 semantic 記憶?\n所有學過的事實都會永久消失,無法復原。\n(對話歷史不受影響)')) return;
+        try {
+            // 注意:apiFetch 預設不送 X-Confirm-Wipe,要透過 headers override
+            await apiFetch('/api/hermes/memory/semantic', {
+                method: 'DELETE',
+                headers: { 'X-Confirm-Wipe': 'true' },
+            });
+            showToast('已清空 semantic 記憶', 'success');
+            _hermesMemorySemanticList();
+        } catch (e) {
+            showToast('清空失敗:' + (e.message || e), 'error');
+        }
+    }
+
+    // ── Cron ────────────────────────────────────────────────────────
+    async function hermesOpenCron() {
+        _hermesShowModal('排程任務', 'fa-solid fa-clock', `
+            <form onsubmit="event.preventDefault(); hermesCronAdd();" class="border border-stone-200 rounded p-2 mb-3 space-y-2">
+                <input id="hermesCronName" type="text" placeholder="任務名稱(選填)" class="w-full px-2 py-1 border border-stone-300 rounded text-xs" />
+                <input id="hermesCronSchedule" type="text" placeholder="cron expression — 例 '0 9 * * *' 每天 09:00" required
+                    class="w-full px-2 py-1 border border-stone-300 rounded text-xs font-mono" />
+                <textarea id="hermesCronPrompt" placeholder="要 AI 做什麼?例:幫我跑一次回歸並寄報告" required rows="2"
+                    class="w-full px-2 py-1 border border-stone-300 rounded text-xs"></textarea>
+                <button type="submit" class="w-full text-xs px-3 py-1 bg-violet-500 hover:bg-violet-600 text-white rounded">
+                    <i class="fa-solid fa-plus"></i> 新增排程
+                </button>
+            </form>
+            <div id="hermesCronList"><div class="text-center text-stone-400 italic py-4"><i class="fa-solid fa-circle-notch fa-spin"></i></div></div>
+        `);
+        await hermesCronReload();
+    }
+    async function hermesCronReload() {
+        const target = document.getElementById('hermesCronList');
+        if (!target) return;
+        try {
+            const data = await apiFetch('/api/hermes/cron');
+            const jobs = data.jobs || [];
+            if (!jobs.length) {
+                target.innerHTML = '<div class="text-center text-stone-400 italic py-6 text-xs">尚無排程任務</div>';
+                return;
+            }
+            target.innerHTML = jobs.map(j => `
+                <div class="border border-stone-200 rounded p-2 mb-2">
+                    <div class="flex items-start gap-2">
+                        <div class="flex-1 min-w-0">
+                            <div class="font-semibold text-stone-800 text-sm">${_esc(j.name || j.id)}</div>
+                            <div class="text-[10px] text-stone-500 font-mono mt-0.5">${_esc(j.schedule || '')}</div>
+                            ${j.prompt ? `<div class="text-xs text-stone-600 mt-1 line-clamp-2">${_esc(j.prompt)}</div>` : ''}
+                            <div class="flex gap-2 text-[10px] text-stone-400 mt-1">
+                                ${j.next_run_at ? `<span>下次:${_esc(j.next_run_at)}</span>` : ''}
+                                ${j.last_status ? `<span>上次:${_esc(j.last_status)}</span>` : ''}
+                            </div>
+                        </div>
+                        <button type="button" onclick="hermesCronDelete('${_esc(j.id)}')" title="刪除"
+                            class="w-6 h-6 flex items-center justify-center rounded hover:bg-rose-100 text-stone-500 hover:text-rose-600">
+                            <i class="fa-solid fa-trash text-xs"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        } catch (e) {
+            target.innerHTML = `<div class="text-rose-600 text-xs py-4">載入失敗:${_esc(e.message || String(e))}</div>`;
+        }
+    }
+    async function hermesCronAdd() {
+        const name = document.getElementById('hermesCronName')?.value.trim();
+        const schedule = document.getElementById('hermesCronSchedule')?.value.trim();
+        const prompt = document.getElementById('hermesCronPrompt')?.value.trim();
+        if (!schedule || !prompt) { showToast('schedule 與 prompt 都必填', 'warning'); return; }
+        try {
+            await apiFetch('/api/hermes/cron', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ schedule, prompt, name: name || null }),
+            });
+            showToast('已新增排程', 'success');
+            document.getElementById('hermesCronName').value = '';
+            document.getElementById('hermesCronSchedule').value = '';
+            document.getElementById('hermesCronPrompt').value = '';
+            await hermesCronReload();
+        } catch (e) {
+            showToast('新增失敗:' + (e.message || e), 'error');
+        }
+    }
+    async function hermesCronDelete(jobId) {
+        if (!confirm('刪除此排程?')) return;
+        try {
+            await apiFetch(`/api/hermes/cron/${encodeURIComponent(jobId)}`, { method: 'DELETE' });
+            showToast('已刪除', 'success');
+            await hermesCronReload();
+        } catch (e) {
+            showToast('刪除失敗:' + (e.message || e), 'error');
+        }
+    }
+
+    // ── LLM 串接設定 ────────────────────────────────────────────────
+    // 取代原本 Telegram messaging gateway。讓使用者:
+    //   * 看現在 AI 助理用哪個 ai_token_config(default + has_api_key 旗標)
+    //   * 切換 default token(復用 PUT /api/settings/ai-tokens/{id} {is_default:true})
+    //   * 強制重推給 sidecar(POST /api/hermes/reprovision)— 切完立即生效不用等 cache TTL
+    function hermesOpenLlmConnection() {
+        _hermesShowModal('LLM 串接設定', 'fa-solid fa-plug', `
+            <div id="hermesLlmBody">
+                <div class="text-center text-stone-400 italic py-8"><i class="fa-solid fa-circle-notch fa-spin"></i> 載入中…</div>
+            </div>
+        `);
+        hermesLlmConnectionReload();
+    }
+
+    async function hermesLlmConnectionReload() {
+        const target = document.getElementById('hermesLlmBody');
+        if (!target) return;
+        let tokens = [];
+        let sidecarUp = false;
+        try {
+            const [tokensResp, healthResp] = await Promise.all([
+                apiFetch('/api/settings/ai-tokens'),
+                apiFetch('/api/hermes/health').catch(() => ({ sidecar_up: false })),
+            ]);
+            tokens = Array.isArray(tokensResp) ? tokensResp : [];
+            sidecarUp = !!healthResp?.sidecar_up;
+        } catch (e) {
+            target.innerHTML = `<div class="text-rose-600 text-xs py-4">載入失敗:${_esc(e.message || String(e))}</div>`;
+            return;
+        }
+
+        const enabled = tokens.filter(t => t.enabled);
+        const def = enabled.find(t => t.is_default) || enabled[0] || null;
+        const others = enabled.filter(t => !def || t.id !== def.id);
+
+        const sidecarBadge = sidecarUp
+            ? `<span class="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded bg-emerald-100 text-emerald-700"><i class="fa-solid fa-circle-check"></i> sidecar 連線正常</span>`
+            : `<span class="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded bg-rose-100 text-rose-700"><i class="fa-solid fa-circle-xmark"></i> sidecar 連不上</span>`;
+
+        const defaultCard = def ? `
+            <div class="border-2 border-violet-300 bg-violet-50/40 rounded p-3 mb-3">
+                <div class="flex items-center gap-2 mb-1">
+                    <i class="fa-solid fa-circle-check text-violet-600"></i>
+                    <span class="font-semibold text-sm">${_esc(def.name)}</span>
+                    <span class="text-[10px] px-2 py-0.5 rounded bg-violet-200 text-violet-800">DEFAULT</span>
+                    ${def.has_api_key ? '' : '<span class="text-[10px] px-2 py-0.5 rounded bg-amber-100 text-amber-700">未設定 API key</span>'}
+                </div>
+                <div class="text-xs text-stone-600 ml-5">
+                    <div>Provider:<code class="bg-white px-1 rounded">${_esc(def.provider)}</code></div>
+                    ${def.model ? `<div>Model:<code class="bg-white px-1 rounded">${_esc(def.model)}</code></div>` : ''}
+                    ${def.base_url ? `<div class="truncate">Base URL:<code class="bg-white px-1 rounded">${_esc(def.base_url)}</code></div>` : ''}
+                </div>
+                <button type="button" onclick="hermesLlmReprovision()" class="mt-2 w-full text-xs px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded flex items-center justify-center gap-1">
+                    <i class="fa-solid fa-rotate"></i> 重新推送 token 給 AI 助理
+                </button>
+            </div>
+        ` : `
+            <div class="border-2 border-amber-300 bg-amber-50/40 rounded p-3 mb-3">
+                <div class="flex items-center gap-2 mb-1">
+                    <i class="fa-solid fa-triangle-exclamation text-amber-600"></i>
+                    <span class="font-semibold text-sm text-amber-800">尚未設定任何 AI Token</span>
+                </div>
+                <div class="text-xs text-stone-600 mt-1">AI 助理無法呼叫 LLM。請至「設定 → AI Token」加入並設為預設。</div>
+            </div>
+        `;
+
+        const otherCards = others.map(t => `
+            <div class="border border-stone-200 rounded p-2 mb-2 flex items-center gap-2">
+                <i class="fa-solid fa-circle text-stone-300 text-xs"></i>
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm font-medium text-stone-700 truncate">${_esc(t.name)}</div>
+                    <div class="text-[10px] text-stone-500">
+                        ${_esc(t.provider)}${t.model ? ` · ${_esc(t.model)}` : ''}
+                        ${t.has_api_key ? '' : ' · <span class="text-amber-600">無 API key</span>'}
+                    </div>
+                </div>
+                <button type="button" onclick="hermesLlmSetDefault('${_esc(t.id)}')" ${t.has_api_key ? '' : 'disabled'}
+                    class="text-xs px-2 py-1 bg-stone-100 hover:bg-violet-100 hover:text-violet-700 text-stone-700 rounded disabled:opacity-50 disabled:cursor-not-allowed">
+                    設為預設
+                </button>
+            </div>
+        `).join('');
+
+        target.innerHTML = `
+            <div class="flex items-center gap-2 mb-3 text-xs text-stone-500">
+                目前狀態:${sidecarBadge}
+            </div>
+            ${defaultCard}
+            ${others.length ? `<div class="text-[10px] text-stone-500 mb-1 px-1">其他可用 token:</div>${otherCards}` : ''}
+            <div class="text-[10px] text-stone-400 px-1 mt-3">
+                想新增、刪除或編輯 token?<a href="javascript:hermesCloseModal();aiChatToggle();showSettingsView();" class="text-violet-600 hover:underline">前往設定 → AI Token</a>
+            </div>
+        `;
+    }
+
+    async function hermesLlmSetDefault(tokenId) {
+        // 用 hermes 專屬 endpoint:語意是「全 org 唯一 default」(跟 settings 的
+        // per-provider default 不同),避免有 OpenAI default + Anthropic default
+        // 並存時 pick_token 抓錯。endpoint 會自動 invalidate cache + reprovision。
+        try {
+            await apiFetch(`/api/hermes/default-token/${encodeURIComponent(tokenId)}`, {
+                method: 'POST',
+            });
+            showToast('已切換並推送給 AI 助理', 'success');
+            await hermesLlmConnectionReload();
+        } catch (e) {
+            showToast('切換失敗:' + (e.message || e), 'error');
+        }
+    }
+
+    async function hermesLlmReprovision() {
+        try {
+            await apiFetch('/api/hermes/reprovision', { method: 'POST' });
+            showToast('已重新推送給 AI 助理', 'success');
+            await hermesLlmConnectionReload();
+        } catch (e) {
+            showToast('重推失敗:' + (e.message || e), 'error');
+        }
+    }
     </script>
 </body>
 </html>

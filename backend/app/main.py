@@ -17,7 +17,7 @@ logging.basicConfig(
 
 from app.config import settings
 from app.database import init_db
-from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings, schedules, local_runner, test_rounds, project_settings, screenshot_baselines, system, defects, test_milestones, test_plans, requirements, test_data_sets, test_documents, wbs_items, settings as app_settings, todos, todo_links, auth, ai, ai_chat, audit_logs, organizations, oidc, notifications, mock_endpoints, db_configs, groups, test_versions, reviews, assignments, artifacts, entity_versions
+from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings, schedules, local_runner, test_rounds, project_settings, screenshot_baselines, system, defects, test_milestones, test_plans, requirements, test_data_sets, test_documents, wbs_items, settings as app_settings, todos, todo_links, auth, ai, hermes, audit_logs, organizations, oidc, notifications, mock_endpoints, db_configs, groups, test_versions, reviews, assignments, artifacts, entity_versions
 # 確保新增 model 在 init_db() 前已 import 註冊到 Base.metadata
 from app.models import (  # noqa: F401
     Defect, TestMilestone, TestPlan, Requirement, RequirementTestcaseLink,
@@ -25,7 +25,9 @@ from app.models import (  # noqa: F401
     Role, NotificationPreference, Notification, EmailConfig, AiTokenConfig, TodoItem, TodoLink, User,
     Organization, AuditLog, OidcProvider,
     MockEndpoint, DbConfig,
-    AiConversation, AiMessage,
+    HermesSessionRef,
+    HermesGatewayCredential,
+    HermesMemoryConsent,
     Group, GroupMembership,
     OrgInvite,
     TestVersion,
@@ -400,6 +402,8 @@ async def lifespan(app: FastAPI):
     # Sprint 10.1 — MCP idle sweeper
     from app.routers.ai import _mcp_idle_sweeper_loop
     mcp_sweeper_task = asyncio.create_task(_mcp_idle_sweeper_loop())
+    # mem0 PR3:fire-and-forget post-hook task tracker(避免 GC 砍未完成 task)
+    app.state.background_tasks = set()
     try:
         yield
     finally:
@@ -410,6 +414,28 @@ async def lifespan(app: FastAPI):
                 await t
             except (asyncio.CancelledError, Exception):
                 pass
+        # Drain mem0 fire-and-forget tasks(10s 上限;讓正在跑的 add 寫完才結束)
+        pending = list(app.state.background_tasks)
+        if pending:
+            logging.getLogger(__name__).info(
+                "draining %d mem0 background tasks (10s timeout)", len(pending),
+            )
+            try:
+                await asyncio.wait(pending, timeout=10)
+            except Exception:
+                logging.getLogger(__name__).exception("drain background tasks error")
+        # 關掉 Hermes sidecar 的 httpx 連線池(singleton in services/hermes_client.py)
+        try:
+            from app.services.hermes_client import close_hermes_client
+            await close_hermes_client()
+        except Exception:
+            logging.getLogger(__name__).exception("close_hermes_client failed")
+        # 關掉 mem0 sidecar 的 httpx 連線池
+        try:
+            from app.services.mem0_client import close_mem0_client
+            await close_mem0_client()
+        except Exception:
+            logging.getLogger(__name__).exception("close_mem0_client failed")
 
 
 # RFC-8: observability bootstrap. Each call no-ops when its env switch is unset
@@ -484,7 +510,7 @@ app.include_router(todos.router,           prefix="/api", tags=["T · 待辦"])
 app.include_router(todo_links.router,      prefix="/api", tags=["T · 待辦"])
 app.include_router(auth.router,            prefix="/api", tags=["U · 認證"])
 app.include_router(ai.router,              prefix="/api", tags=["V · AI"])
-app.include_router(ai_chat.router,          prefix="/api", tags=["V · AI"])
+app.include_router(hermes.router,           prefix="/api", tags=["V · AI"])
 app.include_router(audit_logs.router,      prefix="/api", tags=["W · 審計"])
 app.include_router(organizations.router,   prefix="/api", tags=["X · 組織"])
 app.include_router(notifications.router,   prefix="/api", tags=["Y · 通知"])
