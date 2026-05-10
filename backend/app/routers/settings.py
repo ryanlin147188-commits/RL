@@ -809,6 +809,39 @@ class FetchModelsRequest(BaseModel):
     base_url: Optional[str] = None  # 進階自訂端點(覆蓋 ai_provider_map 預設)
 
 
+def _is_chat_capable_model(model_id: str) -> bool:
+    """判斷模型是否能跑「對話 / chat completions」用途。
+
+    Provider 的 /models 端點(尤其 OpenAI)會列出所有 product family 的模型 —
+    包含 whisper(語音轉文字)、dall-e(圖)、tts(文字轉語音)、embedding、
+    moderation、image generation 等都是 *非* chat 模型。直接灌進下拉會讓使用者
+    選到完全打不通的模型。
+
+    這裡用「黑名單前綴 / 子字串」過濾(維護成本低、跨 provider 相容):
+    新模型 family 出現時加在 `_NON_CHAT_PATTERNS` 即可,不需要白名單追新名字。
+    """
+    if not model_id:
+        return False
+    m = model_id.lower()
+    _NON_CHAT_PATTERNS = (
+        # OpenAI:語音 / 影像 / embedding
+        "whisper", "tts-", "tts_", "dall-e", "dalle",
+        "text-embedding", "-embedding", "embedding-",
+        "moderation", "omni-moderation", "image-",
+        "-image", "imagegen", "image_generation",
+        # OpenAI legacy completions(非 chat)
+        "davinci-002", "babbage-002",
+        # OpenAI 新型:realtime / audio
+        "realtime", "-audio", "audio-",
+        # 通用 vision-only / video-only(沒有 chat capability 的單純 modal model)
+        "stable-diffusion", "flux", "midjourney",
+    )
+    for pat in _NON_CHAT_PATTERNS:
+        if pat in m:
+            return False
+    return True
+
+
 def _detect_reasoning_support(model_id: str) -> bool:
     """判斷某個模型是否支援 OpenAI 風格的 `reasoning_effort` 參數。
 
@@ -891,6 +924,10 @@ async def fetch_models(
                 "owned_by": it.get("owned_by"),
             }
         else:
+            continue
+        # 篩掉 whisper / dall-e / embedding / tts 等非 chat 模型 — 它們即使在
+        # OpenAI 列表也存在,但放進下拉會讓使用者選到打不通的目標。
+        if not _is_chat_capable_model(entry["id"]):
             continue
         entry["supports_reasoning_effort"] = _detect_reasoning_support(entry["id"])
         out.append(entry)

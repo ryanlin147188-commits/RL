@@ -404,38 +404,54 @@ async def lifespan(app: FastAPI):
     mcp_sweeper_task = asyncio.create_task(_mcp_idle_sweeper_loop())
     # mem0 PR3:fire-and-forget post-hook task tracker(避免 GC 砍未完成 task)
     app.state.background_tasks = set()
-    try:
-        yield
-    finally:
-        # Shutdown:停掉所有背景 task
-        for t in (scheduler_task, mcp_sweeper_task):
-            t.cancel()
-            try:
-                await t
-            except (asyncio.CancelledError, Exception):
-                pass
-        # Drain mem0 fire-and-forget tasks(10s 上限;讓正在跑的 add 寫完才結束)
-        pending = list(app.state.background_tasks)
-        if pending:
-            logging.getLogger(__name__).info(
-                "draining %d mem0 background tasks (10s timeout)", len(pending),
+    # Platform MCP server:FastMCP streamable_http_app() 要求 session_manager 必須在
+    # ASGI lifespan 內 enter,否則第一次 request 會炸 "Task group is not initialized"
+    # (mcp 1.27.x 行為,同 mem0_proxy.py 的設計)。AsyncExitStack 用來統一管理
+    # 「啟動時 enter / 結束時 exit」,失敗 fallback 到舊行為(等同 mem0/hermes 沒掛)。
+    from contextlib import AsyncExitStack
+    async with AsyncExitStack() as _stack:
+        try:
+            from app.routers.platform_mcp import get_mcp_server
+            _platform_mcp = get_mcp_server()
+            if _platform_mcp is not None:
+                await _stack.enter_async_context(_platform_mcp.session_manager.run())
+                logging.getLogger(__name__).info("Platform MCP session_manager started")
+        except Exception:
+            logging.getLogger(__name__).exception(
+                "Platform MCP session_manager failed to start"
             )
+        try:
+            yield
+        finally:
+            # Shutdown:停掉所有背景 task
+            for t in (scheduler_task, mcp_sweeper_task):
+                t.cancel()
+                try:
+                    await t
+                except (asyncio.CancelledError, Exception):
+                    pass
+            # Drain mem0 fire-and-forget tasks(10s 上限;讓正在跑的 add 寫完才結束)
+            pending = list(app.state.background_tasks)
+            if pending:
+                logging.getLogger(__name__).info(
+                    "draining %d mem0 background tasks (10s timeout)", len(pending),
+                )
+                try:
+                    await asyncio.wait(pending, timeout=10)
+                except Exception:
+                    logging.getLogger(__name__).exception("drain background tasks error")
+            # 關掉 Hermes sidecar 的 httpx 連線池(singleton in services/hermes_client.py)
             try:
-                await asyncio.wait(pending, timeout=10)
+                from app.services.hermes_client import close_hermes_client
+                await close_hermes_client()
             except Exception:
-                logging.getLogger(__name__).exception("drain background tasks error")
-        # 關掉 Hermes sidecar 的 httpx 連線池(singleton in services/hermes_client.py)
-        try:
-            from app.services.hermes_client import close_hermes_client
-            await close_hermes_client()
-        except Exception:
-            logging.getLogger(__name__).exception("close_hermes_client failed")
-        # 關掉 mem0 sidecar 的 httpx 連線池
-        try:
-            from app.services.mem0_client import close_mem0_client
-            await close_mem0_client()
-        except Exception:
-            logging.getLogger(__name__).exception("close_mem0_client failed")
+                logging.getLogger(__name__).exception("close_hermes_client failed")
+            # 關掉 mem0 sidecar 的 httpx 連線池
+            try:
+                from app.services.mem0_client import close_mem0_client
+                await close_mem0_client()
+            except Exception:
+                logging.getLogger(__name__).exception("close_mem0_client failed")
 
 
 # RFC-8: observability bootstrap. Each call no-ops when its env switch is unset
@@ -446,7 +462,7 @@ install_tracing()
 app = FastAPI(
     title="AutoTest v1.1 API",
     description="企業級自動化測試平台後端 API",
-    version="1.1.0",
+    version="1.1.1",
     lifespan=lifespan,
 )
 
@@ -522,6 +538,13 @@ app.include_router(test_versions.router,   prefix="/api", tags=["TV · 測試版
 app.include_router(reviews.router,         prefix="/api", tags=["AB · 審核"])
 app.include_router(entity_versions.router, prefix="/api", tags=["AC · 版本歷史"])
 app.include_router(assignments.router,     prefix="/api", tags=["AC · 指派"])
+
+# ── Platform MCP server(讓 Hermes ACP LLM 透過 streamable HTTP 呼叫平台 API)──
+# 掛在 /platform-mcp/mcp(裡層 FastMCP 自己又補一層 /mcp);只接受帶 X-Sidecar-Auth
+# + X-Platform-User 的請求。失敗時 mount_platform_mcp 不會 raise(只 log + 跳過),
+# 確保 backend 啟動不被這個 optional feature 卡住。
+from app.routers.platform_mcp import mount_platform_mcp  # noqa: E402
+mount_platform_mcp(app)
 
 
 @app.get("/", tags=["Health"])

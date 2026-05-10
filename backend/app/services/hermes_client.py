@@ -204,12 +204,16 @@ class HermesHttpClient(HermesClient):
         api_key: str,
         base_url: Optional[str] = None,
         system_prompt: Optional[str] = None,
+        model: Optional[str] = None,
     ) -> None:
         body: dict[str, Any] = {"provider": provider, "api_key": api_key}
         if base_url:
             body["base_url"] = base_url
         if system_prompt:
             body["system_prompt"] = system_prompt
+        if model:
+            # 顯式落 model.default 進 sidecar config.yaml,避免 Hermes 預設用 openrouter。
+            body["model"] = model
         await self._request(
             "POST",
             f"/admin/users/{workspace_id}/provision",

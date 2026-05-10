@@ -105,7 +105,7 @@ services:
     restart: "no"
 
   backend:
-    image: autotest-backend:${AUTOTEST_TAG:-1.1.0}
+    image: autotest-backend:${AUTOTEST_TAG:-1.1.1}
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -153,11 +153,11 @@ services:
       SENTRY_DSN: ${SENTRY_DSN:-}
       AUTOTEST_ENV: ${AUTOTEST_ENV:-dev}
       # ── Docker 模式錄製(Phase 1) ──
-      RECORDER_IMAGE: ${RECORDER_IMAGE:-autotest-recorder:1.1.0}
+      RECORDER_IMAGE: ${RECORDER_IMAGE:-autotest-recorder:1.1.1}
       # API 錄製(mitmweb)與 MCP(Playwright MCP server)的 image tag 直通,
       # 讓 .env 可以覆蓋預設值;不設則 fallback 到 app.config.Settings 的預設。
-      RECORDER_API_IMAGE: ${RECORDER_API_IMAGE:-autotest-recorder-api:1.1.0}
-      MCP_IMAGE: ${MCP_IMAGE:-autotest-mcp:1.1.0}
+      RECORDER_API_IMAGE: ${RECORDER_API_IMAGE:-autotest-recorder-api:1.1.1}
+      MCP_IMAGE: ${MCP_IMAGE:-autotest-mcp:1.1.1}
       RECORDER_NETWORK: ${RECORDER_NETWORK:-autotest_default}
       RECORDER_INTERNAL_BASE_URL: http://backend:8000
       RECORDER_IDLE_TIMEOUT_MIN: 30
@@ -194,7 +194,7 @@ services:
     # 動態錄製容器會 publish 到 host 的 6080-6200 區段 port,不在 backend 區塊另外 expose。
 
   celery:
-    image: autotest-celery:${AUTOTEST_TAG:-1.1.0}
+    image: autotest-celery:${AUTOTEST_TAG:-1.1.1}
     build:
       context: ./backend
       dockerfile: Dockerfile.celery
@@ -227,7 +227,7 @@ services:
       # Celery worker 也會 import app.* 模組,需要相同的 secret(必填)
       AUTOTEST_JWT_SECRET: ${AUTOTEST_JWT_SECRET:?AUTOTEST_JWT_SECRET is required - run docker compose --profile init run --rm bootstrap}
       AUTOTEST_FERNET_KEY: ${AUTOTEST_FERNET_KEY:?AUTOTEST_FERNET_KEY is required - run docker compose --profile init run --rm bootstrap}
-      ROBOT_RUNNER_IMAGE: ${ROBOT_RUNNER_IMAGE:-autotest-robot-runner:1.1.0}
+      ROBOT_RUNNER_IMAGE: ${ROBOT_RUNNER_IMAGE:-autotest-robot-runner:1.1.1}
       # 與下方 networks.default.name 保持一致
       ROBOT_RUNNER_NETWORK: ${ROBOT_RUNNER_NETWORK:-autotest_default}
       DOCKER_HOST: tcp://docker-proxy:2375
@@ -330,7 +330,7 @@ services:
     # 不對外 publish 5432;mem0 sidecar 是唯一 client。
 
   frontend:
-    image: autotest-frontend:${AUTOTEST_TAG:-1.1.0}
+    image: autotest-frontend:${AUTOTEST_TAG:-1.1.1}
     build:
       context: .
       dockerfile: frontend/Dockerfile
@@ -440,7 +440,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile.runner
-    image: autotest-robot-runner:1.1.0
+    image: autotest-robot-runner:1.1.1
     profiles: ["spawnable"]
     command: ["true"]   # never started; defensive no-op if profile is misused
     restart: "no"
@@ -449,7 +449,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile.recorder
-    image: autotest-recorder:1.1.0
+    image: autotest-recorder:1.1.1
     profiles: ["spawnable"]
     command: ["true"]
     restart: "no"
@@ -458,7 +458,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile.recorder-api
-    image: autotest-recorder-api:1.1.0
+    image: autotest-recorder-api:1.1.1
     profiles: ["spawnable"]
     command: ["true"]
     restart: "no"
@@ -467,7 +467,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile.mcp
-    image: autotest-mcp:1.1.0
+    image: autotest-mcp:1.1.1
     profiles: ["spawnable"]
     command: ["true"]
     restart: "no"

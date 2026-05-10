@@ -81,6 +81,17 @@
                 init.headers.set("Authorization", "Bearer " + token);
             }
 
+            // 把使用者選的語系帶給 backend(localStorage["autotest.locale"]:zh-TW / en)。
+            // backend 用來決定 AI 助理 system prompt 的回覆語言、未來其他 i18n 端點也共用。
+            // 已有 Accept-Language 就尊重 caller(避免覆蓋自定義值)。
+            if (!init.headers.has("Accept-Language")) {
+                try {
+                    const loc = localStorage.getItem("autotest.locale");
+                    if (loc === "en") init.headers.set("Accept-Language", "en");
+                    else if (loc === "zh-TW" || loc === "zh") init.headers.set("Accept-Language", "zh-TW");
+                } catch (_) { /* localStorage blocked → 不送,backend 自行 fallback */ }
+            }
+
             let resp = await _origFetch(input, init);
             if (resp.status === 401 && getRefreshToken()) {
                 try {
@@ -91,6 +102,18 @@
                     clearTokens();
                     window.dispatchEvent(new CustomEvent("autotest:auth-required"));
                 }
+            }
+            // 任何 /api/* 收到 403 + detail.code=must_change_password,
+            // 視同 auth-required:踢回登入頁。改密碼 modal 由 /api/auth/login 的
+            // 回應(must_change_password=true)觸發 — 不要從背景 fetch 直接 pop,
+            // 那會讓使用者跳過「輸入帳密」這一步,流程錯亂。
+            if (resp.status === 403) {
+                try {
+                    const data = await resp.clone().json();
+                    if (data && data.detail && data.detail.code === "must_change_password") {
+                        window.dispatchEvent(new CustomEvent("autotest:auth-required"));
+                    }
+                } catch (_) { /* body 不是 JSON 就忽略 */ }
             }
             return resp;
         };
@@ -830,7 +853,7 @@
                         <path d="M 6 28 L 20 42 L 58 4" stroke="#000" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
                 </div>
-                <h1 class="font-bold text-base md:text-lg text-slate-800 tracking-tight whitespace-nowrap">RL<span class="hidden sm:inline text-[10px] text-amber-700 bg-amber-50 font-semibold ml-1.5 px-1.5 py-0.5 rounded border border-amber-200 align-middle">v1.1</span></h1>
+                <h1 class="font-bold text-base md:text-lg text-slate-800 tracking-tight whitespace-nowrap">RL<span class="hidden sm:inline text-[10px] text-amber-700 bg-amber-50 font-semibold ml-1.5 px-1.5 py-0.5 rounded border border-amber-200 align-middle">v1.1.1</span></h1>
             </button>
 
             <!-- 置中空白 (推右側動作群到最右邊) -->
@@ -2645,7 +2668,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                                     <text x="0"  y="44" font-family="Arial Black,sans-serif" font-size="52" font-weight="900" fill="#ef4444">R</text>
                                     <path d="M 6 28 L 20 42 L 58 4" stroke="#000" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
                                 </svg>
-                                RL v1.1
+                                RL v1.1.1
                             </div>
                             <h2 class="text-3xl font-bold" data-i18n="home.hero.platform">自動化測試平台</h2>
                         </div>
@@ -10322,7 +10345,8 @@ driver.swipe(100, 800, 100, 200, 500)"
             // 第一步：檢查登入狀態。未登入 → 顯示認證覆蓋層並停止初始化。
             authBootstrap();
             if (!authIsLoggedIn()) {
-                authShowOverlay();
+                // 帶 #testkanban 之類的受保護 hash 過來但沒登入 → 清掉 hash 再跳 overlay
+                authForceReauth();
                 return;
             }
             // 已登入。Phase B(proactive refresh):若 access token 在 90 秒內過期,
@@ -10352,7 +10376,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                     email: me.email || s.email || '',
                 });
             } catch (_) {
-                authShowOverlay();
+                authForceReauth();
                 return;
             }
             // 通過驗證 → 正常初始化平台
@@ -10473,10 +10497,8 @@ driver.swipe(100, 800, 100, 200, 500)"
                     resp = await _origFetch(input, init);
                 }
                 if (resp.status === 401) {
-                    // refresh 也失敗 → 清 token + 顯示登入畫面
-                    authClearTokens();
-                    _authWriteSession(null);
-                    try { authShowOverlay(); } catch (_) {}
+                    // refresh 也失敗 → 走統一的「踢回登入頁」流程
+                    authForceReauth();
                 }
             }
             return resp;
@@ -10650,6 +10672,35 @@ driver.swipe(100, 800, 100, 200, 500)"
             };
         }
 
+        // 統一「踢回登入頁」流程:清 token、把 URL hash 拿掉(避免 reload 後 _dispatchFromHash
+        // 又跳回 #testkanban 之類的受保護視圖),最後顯示登入 overlay。
+        // 來源:(a) inline fetch wrapper 401-refresh 失敗、(b) `autotest:auth-required` 事件
+        // (module wrapper 與 js/core/api.js 都會派這個事件)。
+        let _authReauthInflight = false;
+        function authForceReauth() {
+            if (_authReauthInflight) return;
+            _authReauthInflight = true;
+            try {
+                try { authClearTokens(); } catch (_) {}
+                try { _authWriteSession(null); } catch (_) {}
+                // 把 hash 拿掉,讓使用者「視覺上」也回到登入頁,而不是停在 #testkanban
+                // 之類的受保護視圖,避免重新登入後 _dispatchFromHash 又跳回去。
+                try {
+                    if (window.location.hash) {
+                        history.replaceState(null, '', window.location.pathname + window.location.search);
+                    }
+                } catch (_) {}
+                try { authShowOverlay(); } catch (_) {}
+                try { switchAuthTab('login'); } catch (_) {}
+            } finally {
+                // 下一個 tick 釋放,避免短時間多筆 401 重複觸發、又不會卡死後續流程
+                setTimeout(() => { _authReauthInflight = false; }, 500);
+            }
+        }
+        // 任何地方派的 autotest:auth-required(module wrapper / api.js / 自家程式碼)
+        // 都走同一個流程,確保「URL 不再停在受保護的 hash + overlay 跳出」一致。
+        window.addEventListener('autotest:auth-required', authForceReauth);
+
         function authShowOverlay() {
             document.getElementById('authOverlay').classList.remove('hidden');
             // Pair with the pre-paint script's data-auth attribute on <html>:
@@ -10766,6 +10817,11 @@ driver.swipe(100, 800, 100, 200, 500)"
             const m = document.getElementById('forcePwdModal');
             if (m) m.classList.add('hidden');
         }
+        // 註:改密碼 modal 只在「使用者剛輸入帳密、login response 帶 must_change_password=true」
+        // 時 pop(見 handleLogin)。背景 /api/* 收到 403 must_change_password 時改派
+        // autotest:auth-required(由 fetch wrapper 處理),走 authForceReauth → 清 token、
+        // 清 URL hash、回到登入頁。使用者重新輸入帳密後,login 流程才會帶 must_change_password
+        // 進入點 1 把 modal 叫出來 — 順序與既有登入流程一致。
         async function forcePwdHandleSubmit(ev) {
             ev.preventDefault();
             const oldPwd = document.getElementById('forcePwdOld').value;
@@ -23808,18 +23864,18 @@ curl -X POST http://localhost:8000/api/defects \\
          ═════════════════════════════════════════════════════════════ -->
     <button type="button" id="aiChatFab" onclick="aiChatToggle()"
         class="fixed bottom-6 right-6 z-[200] w-14 h-14 rounded-full bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 text-white shadow-xl hover:shadow-2xl hover:scale-105 transition flex items-center justify-center"
-        title="AI 對話 (Ctrl+/)" aria-label="AI 對話">
+        title="助理 (Ctrl+/)" aria-label="助理">
         <i class="fa-solid fa-robot text-xl"></i>
         <span class="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-white animate-pulse" aria-hidden="true"></span>
     </button>
 
-    <!-- AI Chat 面板(從右側滑入)-->
+    <!-- 助理面板(從右側滑入)-->
     <aside id="aiChatPanel" class="fixed top-0 right-0 z-[210] h-full w-full sm:w-[420px] bg-white shadow-2xl border-l border-stone-200 transform translate-x-full transition-transform duration-300 flex flex-col">
         <!-- header -->
         <div class="px-4 py-3 border-b border-stone-200 bg-gradient-to-r from-indigo-50 to-violet-50 flex items-center gap-2 shrink-0">
             <i class="fa-solid fa-robot text-violet-500"></i>
-            <span class="font-bold text-stone-800 text-sm">AI 助理</span>
-            <select id="aiChatConvSel" aria-label="AI 對話" onchange="aiChatSwitchConv(this.value)"
+            <span class="font-bold text-stone-800 text-sm">助理</span>
+            <select id="aiChatConvSel" aria-label="對話" onchange="aiChatSwitchConv(this.value)"
                 class="ml-auto flex-1 max-w-[180px] text-xs px-2 py-1 border border-stone-300 rounded bg-white">
                 <option value="">— 載入中 —</option>
             </select>
@@ -23831,7 +23887,7 @@ curl -X POST http://localhost:8000/api/defects \\
                 class="w-7 h-7 flex items-center justify-center rounded hover:bg-rose-100 text-stone-500 hover:text-rose-600">
                 <i class="fa-solid fa-trash text-xs"></i>
             </button>
-            <!-- Hermes PR4/PR5:Skills / Memory / Cron 三個輔助面板 -->
+            <!-- 已裝技能 / 記憶搜尋(排程任務 / LLM 串接設定按鈕已移除,過於進階) -->
             <button type="button" onclick="hermesOpenSkills()" title="已裝技能"
                 class="w-7 h-7 flex items-center justify-center rounded hover:bg-violet-100 text-stone-500 hover:text-violet-600">
                 <i class="fa-solid fa-brain text-xs"></i>
@@ -23839,14 +23895,6 @@ curl -X POST http://localhost:8000/api/defects \\
             <button type="button" onclick="hermesOpenMemory()" title="記憶搜尋"
                 class="w-7 h-7 flex items-center justify-center rounded hover:bg-violet-100 text-stone-500 hover:text-violet-600">
                 <i class="fa-solid fa-magnifying-glass text-xs"></i>
-            </button>
-            <button type="button" onclick="hermesOpenCron()" title="排程任務"
-                class="w-7 h-7 flex items-center justify-center rounded hover:bg-violet-100 text-stone-500 hover:text-violet-600">
-                <i class="fa-solid fa-clock text-xs"></i>
-            </button>
-            <button type="button" onclick="hermesOpenLlmConnection()" title="LLM 串接設定"
-                class="w-7 h-7 flex items-center justify-center rounded hover:bg-violet-100 text-stone-500 hover:text-violet-600">
-                <i class="fa-solid fa-plug text-xs"></i>
             </button>
             <button type="button" onclick="aiChatToggle()" title="關閉"
                 class="w-7 h-7 flex items-center justify-center rounded hover:bg-stone-100 text-stone-500">
@@ -23857,7 +23905,7 @@ curl -X POST http://localhost:8000/api/defects \\
         <div id="aiChatMessages" class="flex-1 overflow-y-auto p-3 space-y-2 bg-stone-50/40">
             <div class="text-center text-xs text-stone-400 italic py-8" id="aiChatEmpty">
                 <i class="fa-solid fa-sparkles text-violet-400 text-2xl mb-2 block"></i>
-                嗨!我是你的 AI 助理,可以協助:<br>
+                嗨!我是你的助理,可以協助:<br>
                 ‧ 設計測試案例 / Robot Framework 語法<br>
                 ‧ 撰寫 BDD / AC<br>
                 ‧ 分析缺陷 / API 自動化<br>
@@ -23868,46 +23916,14 @@ curl -X POST http://localhost:8000/api/defects \\
         <!-- input -->
         <div class="p-3 border-t border-stone-200 bg-white shrink-0">
             <div class="flex gap-2 items-end">
-                <textarea id="aiChatInput" rows="2" placeholder="按 Enter 送出 / Shift+Enter 換行"
+                <textarea id="aiChatInput" rows="2" placeholder="輸入訊息後點擊右側送出按鈕"
                     class="flex-1 px-2 py-1.5 border border-stone-300 rounded text-sm resize-none focus:outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-200"
                     onkeydown="aiChatInputKey(event)"></textarea>
-                <!-- PR5:per-session 暫停記憶 toggle(60min)— 點下去後續訊息不抽 fact -->
-                <button type="button" id="aiChatPauseMemBtn" onclick="hermesPauseSessionMemory()"
-                    aria-label="暫停記憶" title="暫停此對話記憶 60 分鐘"
-                    class="w-10 h-10 shrink-0 rounded border border-stone-300 hover:bg-stone-100 text-stone-500 flex items-center justify-center disabled:opacity-50">
-                    <i class="fa-solid fa-eye-slash text-xs"></i>
-                </button>
                 <button type="button" id="aiChatSendBtn" aria-label="送出訊息" title="送出訊息" onclick="aiChatSend()"
                     class="w-10 h-10 shrink-0 rounded bg-violet-500 hover:bg-violet-600 text-white flex items-center justify-center disabled:opacity-50">
                     <i class="fa-solid fa-paper-plane text-xs"></i>
                 </button>
             </div>
-            <div class="mt-1 flex items-center gap-1 flex-wrap justify-end">
-                <!-- Sprint 11.4 — chat toolbar:取代 result bubble 內按鈕,集中在 MCP 左側 -->
-                <button type="button" onclick="aiChatToolbarGenerate()" class="text-[10px] px-2 py-0.5 rounded bg-amber-500 hover:bg-amber-600 text-white flex items-center gap-1" title="把上方 textarea 內容當需求,讓 AI 生測試案例(會涵蓋正向/反向/邊界三類)">
-                    <i class="fa-solid fa-bolt"></i> 生成案例
-                </button>
-                <button type="button" onclick="aiChatToolbarApply()" class="text-[10px] px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1" title="把勾選的第一筆寫進當前打開的測試案例編輯器(未存 DB,可手動修改後再儲存)">
-                    <i class="fa-solid fa-pen"></i> 套用
-                </button>
-                <button type="button" onclick="aiChatToolbarCreate()" class="text-[10px] px-2 py-0.5 rounded bg-violet-600 hover:bg-violet-700 text-white flex items-center gap-1" title="把勾選的案例逐一建為新 TESTCASE(直接寫 DB)">
-                    <i class="fa-solid fa-plus"></i> 建立
-                </button>
-                <button type="button" onclick="aiChatToolbarRun()" class="text-[10px] px-2 py-0.5 rounded bg-orange-600 hover:bg-orange-700 text-white flex items-center gap-1" title="建立勾選的案例後立即送 /api/executions 並跳測試報告">
-                    <i class="fa-solid fa-rocket"></i> 執行
-                </button>
-                <!-- Sprint 11.7 — AI 輔助錄製:啟動 MCP 瀏覽器 + 截圖 + 補斷言條件,協助使用者 -->
-                <button type="button" onclick="aiChatRunMcpLoop({mode:'assist'})" class="text-[10px] px-2 py-0.5 rounded bg-sky-500 hover:bg-sky-600 text-white flex items-center gap-1" title="AI 啟動 MCP 瀏覽器,輔助錄製:導頁 + 截圖 + 補 Capture 變數抓取 + 補多條件斷言(不替代你跑完整流程)">
-                    <i class="fa-solid fa-user-pen"></i> AI 輔助
-                </button>
-                <!-- Sprint 7 — MCP 自動操作入口 -->
-                <button type="button" onclick="aiChatRunMcpLoop()" class="text-[10px] px-2 py-0.5 rounded bg-fuchsia-500 hover:bg-fuchsia-600 text-white flex items-center gap-1" title="把上方 textarea 的內容當需求,讓 AI 透過 MCP 自動操作瀏覽器產生案例(支援 GPT / Claude / Gemini / Local;模型需有 function calling)">
-                    <i class="fa-solid fa-robot"></i> MCP 自動操作
-                </button>
-            </div>
-            <p class="text-[9px] text-stone-400 mt-1">
-                Provider 設定:<a href="javascript:showSettingsView();aiChatToggle();" class="text-violet-600 hover:underline">設定 → AI Token</a>
-            </p>
         </div>
     </aside>
 
@@ -24105,11 +24121,9 @@ curl -X POST http://localhost:8000/api/defects \\
     }
 
     function aiChatInputKey(ev) {
-        // Enter 送出,Shift+Enter 換行
-        if (ev.key === 'Enter' && !ev.shiftKey) {
-            ev.preventDefault();
-            aiChatSend();
-        }
+        // 設計上不再用 Enter 送出 — 一律走右側「送出」按鈕,避免使用者
+        // 在 textarea 中按 Enter 換行時誤送。Enter / Shift+Enter 都當換行處理。
+        // (函式留著沒拔是為了 onkeydown="..." 屬性不變、未來要加快捷鍵預留位置。)
     }
 
     async function aiChatSend() {
@@ -24673,7 +24687,7 @@ curl -X POST http://localhost:8000/api/defects \\
                     ${def.base_url ? `<div class="truncate">Base URL:<code class="bg-white px-1 rounded">${_esc(def.base_url)}</code></div>` : ''}
                 </div>
                 <button type="button" onclick="hermesLlmReprovision()" class="mt-2 w-full text-xs px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded flex items-center justify-center gap-1">
-                    <i class="fa-solid fa-rotate"></i> 重新推送 token 給 AI 助理
+                    <i class="fa-solid fa-rotate"></i> 重新推送 token 給助理
                 </button>
             </div>
         ` : `
@@ -24682,7 +24696,7 @@ curl -X POST http://localhost:8000/api/defects \\
                     <i class="fa-solid fa-triangle-exclamation text-amber-600"></i>
                     <span class="font-semibold text-sm text-amber-800">尚未設定任何 AI Token</span>
                 </div>
-                <div class="text-xs text-stone-600 mt-1">AI 助理無法呼叫 LLM。請至「設定 → AI Token」加入並設為預設。</div>
+                <div class="text-xs text-stone-600 mt-1">助理無法呼叫 LLM。請至「設定 → AI Token」加入並設為預設。</div>
             </div>
         `;
 
@@ -24723,7 +24737,7 @@ curl -X POST http://localhost:8000/api/defects \\
             await apiFetch(`/api/hermes/default-token/${encodeURIComponent(tokenId)}`, {
                 method: 'POST',
             });
-            showToast('已切換並推送給 AI 助理', 'success');
+            showToast('已切換並推送給助理', 'success');
             await hermesLlmConnectionReload();
         } catch (e) {
             showToast('切換失敗:' + (e.message || e), 'error');
@@ -24733,7 +24747,7 @@ curl -X POST http://localhost:8000/api/defects \\
     async function hermesLlmReprovision() {
         try {
             await apiFetch('/api/hermes/reprovision', { method: 'POST' });
-            showToast('已重新推送給 AI 助理', 'success');
+            showToast('已重新推送給助理', 'success');
             await hermesLlmConnectionReload();
         } catch (e) {
             showToast('重推失敗:' + (e.message || e), 'error');

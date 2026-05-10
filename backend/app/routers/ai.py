@@ -157,6 +157,81 @@ def _get_user_mcp_state(username: str) -> dict:
     return _mcp_state_by_user[username]
 
 
+def _parse_mcp_response(text: str) -> dict:
+    """MCP HTTP 可能回 JSON 或 SSE event-stream。統一解出 jsonrpc payload。"""
+    if text.startswith("event:") or text.startswith("data:"):
+        for line in text.splitlines():
+            if line.startswith("data:"):
+                try:
+                    return json.loads(line[5:].strip())
+                except json.JSONDecodeError:
+                    continue
+        return {}
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return {}
+
+
+async def _mcp_ensure_session(state: dict, mcp_url: str, timeout: float = 10.0) -> str:
+    """確保 state 有有效的 mcp_session_id;沒有就走 initialize handshake。
+
+    Playwright MCP @0.0.69 用 Streamable HTTP transport(MCP spec 2025-03-26),
+    第一次 POST 必須是 `initialize`;server 在 response header `mcp-session-id`
+    回 session 識別碼,後續所有 RPC 都要帶 `Mcp-Session-Id` header,否則回
+    400 "Server not initialized"。
+
+    handshake 完還必須送 `notifications/initialized`(無 id 的 notification),
+    server 才會把 session 切到「ready」狀態,之後 tools/list / tools/call 才會通。
+    """
+    sid = state.get("mcp_session_id")
+    if sid:
+        return sid
+
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json, text/event-stream",
+    }
+    init_payload = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2025-03-26",
+            "capabilities": {},
+            "clientInfo": {"name": "autotest-backend", "version": "1.1"},
+        },
+    }
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        r = await client.post(mcp_url, json=init_payload, headers=headers)
+        r.raise_for_status()
+        sid = r.headers.get("mcp-session-id") or r.headers.get("Mcp-Session-Id")
+        if not sid:
+            raise RuntimeError(
+                "MCP initialize response 沒帶 mcp-session-id header(server 版本不對?)"
+            )
+        # 必須送 initialized notification 才會切到 ready 狀態
+        ready_payload = {
+            "jsonrpc": "2.0",
+            "method": "notifications/initialized",
+            "params": {},
+        }
+        ready_headers = {**headers, "Mcp-Session-Id": sid}
+        try:
+            await client.post(mcp_url, json=ready_payload, headers=ready_headers)
+        except Exception:
+            # notifications 失敗不致命,後續 tools/* 真的不通才報錯
+            pass
+
+    state["mcp_session_id"] = sid
+    return sid
+
+
+def _mcp_invalidate_session(state: dict) -> None:
+    """tool/* 回 4xx 時清掉 cached session,讓下次重新 handshake。"""
+    state.pop("mcp_session_id", None)
+
+
 # Sprint 9.2 — Run loop abort flag,key = username
 _mcp_run_abort_flags: dict[str, bool] = {}
 
@@ -370,48 +445,40 @@ async def trigger_mcp_image_build():
     )
 
 
-@router.post("/ai/mcp/start", response_model=McpStatus, tags=["V · AI"])
-async def mcp_start(user: User = Depends(get_current_user)):
-    """啟一個 Playwright MCP server 容器(per-user;若該 user 已有跑著的不重啟,直接回現狀)。"""
-    state = _get_user_mcp_state(user.username)
+async def ensure_user_mcp_running(username: str) -> Optional[dict]:
+    """確保某 user 的 Playwright MCP container 跑著(供非 HTTP context 用)。
+
+    回傳 state dict(含 container_id / container_name / sse_port / ...)。
+    錯誤(image missing / docker 連不上 / 啟動失敗)回 None,呼叫端自行判斷
+    要 fallback 還是讓 Hermes 帶不上 playwright tools。
+
+    主流程沿用 `mcp_start` HTTP 端點的邏輯,只是不 raise HTTPException —
+    讓 Hermes provision / platform_mcp 可以 fire-and-forget 嘗試。
+    """
+    state = _get_user_mcp_state(username)
+    # 1. 已有跑著的 → 直接回(同 mcp_start 行為)
     if state.get("container_id"):
-        # 驗證仍 alive
         try:
             client = _get_mcp_docker()
             c = client.containers.get(state["container_id"])
             if c.status in ("running", "created"):
-                return McpStatus(
-                    running=True,
-                    container_id=state["container_id"],
-                    container_name=state.get("container_name"),
-                    sse_port=state.get("sse_port"),
-                    sse_url=f"/mcp/sse?port={state.get('sse_port')}",
-                    started_at=state.get("started_at"),
-                )
+                return state
         except Exception:
             state.clear()
 
-    client = _get_mcp_docker()
+    # 2. 確保 image 存在(沒就觸發背景 build,但這次 cycle 還是回 None)
     try:
-        client.images.get(_settings.MCP_IMAGE)
+        client = _get_mcp_docker()
+        try:
+            client.images.get(_settings.MCP_IMAGE)
+        except Exception:
+            await _trigger_mcp_build_if_needed()
+            return None
     except Exception:
-        # Sprint 6.1 — image missing 時觸發背景 build,前端 polling /image-status
-        new_status = await _trigger_mcp_build_if_needed()
-        if new_status != "ready":
-            raise HTTPException(
-                status_code=425,
-                detail={
-                    "code": "mcp_image_building",
-                    "message": (
-                        f"MCP image 還沒 build 完(image={_settings.MCP_IMAGE});"
-                        "後端已自動開始 build,請 polling /api/ai/mcp/image-status 等 ready 後重試"
-                    ),
-                    "status": new_status,
-                },
-            )
+        return None
 
-    # Sprint 9.1 — container name 加 user-safe slug,避免不同 user 撞名
-    user_slug = re.sub(r"[^A-Za-z0-9_-]", "_", user.username)[:24]
+    # 3. 啟新容器
+    user_slug = re.sub(r"[^A-Za-z0-9_-]", "_", username)[:24]
     name = f"autotest-mcp-{user_slug}-{secrets.token_hex(4)}"
     try:
         c = client.containers.run(
@@ -423,17 +490,19 @@ async def mcp_start(user: User = Depends(get_current_user)):
             ports={"8931/tcp": None},
             labels={
                 "autotest.role": "mcp",
-                "autotest.user": user.username,
+                "autotest.user": username,
             },
         )
-    except Exception as e:
-        raise HTTPException(500, f"啟動 MCP 容器失敗:{e}")
+    except Exception:
+        return None
     c.reload()
     port_info = (c.attrs.get("NetworkSettings", {}).get("Ports") or {}).get("8931/tcp")
     if not port_info:
-        try: c.remove(force=True)
-        except Exception: pass
-        raise HTTPException(500, "MCP 容器啟動但 8931 未對外映射")
+        try:
+            c.remove(force=True)
+        except Exception:
+            pass
+        return None
     sse_port = int(port_info[0]["HostPort"])
     started_at = datetime.utcnow()
     state.update({
@@ -441,15 +510,39 @@ async def mcp_start(user: User = Depends(get_current_user)):
         "container_name": name,
         "sse_port": sse_port,
         "started_at": started_at,
-        "last_active_at": started_at,  # Sprint 10.1
+        "last_active_at": started_at,
+        "mcp_session_id": None,
     })
+    return state
+
+
+@router.post("/ai/mcp/start", response_model=McpStatus, tags=["V · AI"])
+async def mcp_start(user: User = Depends(get_current_user)):
+    """啟一個 Playwright MCP server 容器(per-user;若該 user 已有跑著的不重啟,直接回現狀)。"""
+    state = await ensure_user_mcp_running(user.username)
+    if state is None:
+        # ensure_user_mcp_running 回 None 通常是 image 還沒 build 完,給前端 425
+        status = _mcp_image_state.get("status", "unknown")
+        if status != "ready":
+            raise HTTPException(
+                status_code=425,
+                detail={
+                    "code": "mcp_image_building",
+                    "message": (
+                        f"MCP image 還沒 build 完(image={_settings.MCP_IMAGE});"
+                        "後端已自動開始 build,請 polling /api/ai/mcp/image-status 等 ready 後重試"
+                    ),
+                    "status": status,
+                },
+            )
+        raise HTTPException(500, "啟動 MCP 容器失敗(請看 backend log)")
     return McpStatus(
         running=True,
-        container_id=c.id,
-        container_name=name,
-        sse_port=sse_port,
-        sse_url=f"/mcp/sse?port={sse_port}",
-        started_at=started_at,
+        container_id=state["container_id"],
+        container_name=state.get("container_name"),
+        sse_port=state.get("sse_port"),
+        sse_url=f"/mcp/sse?port={state.get('sse_port')}",
+        started_at=state.get("started_at"),
     )
 
 
@@ -496,34 +589,30 @@ async def mcp_tools(user: User = Depends(get_current_user)):
 
     # 從 backend 容器內走 internal docker network 連 MCP server(用 container_name 當 hostname)
     mcp_url = f"http://{state['container_name']}:8931/mcp"
-    payload = {
-        "jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {},
-    }
     headers = {
         "Content-Type": "application/json",
         # MCP SSE protocol 接受 JSON 回應或 SSE event-stream
         "Accept": "application/json, text/event-stream",
     }
-    try:
+    payload = {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}
+
+    async def _post_with_session(retry_on_invalid: bool = True) -> dict:
+        sid = await _mcp_ensure_session(state, mcp_url)
         async with httpx.AsyncClient(timeout=10.0) as client:
-            r = await client.post(mcp_url, json=payload, headers=headers)
+            r = await client.post(
+                mcp_url, json=payload,
+                headers={**headers, "Mcp-Session-Id": sid},
+            )
+            # session 過期 / mcp 容器重啟 → 400 "Server not initialized"
+            # 清 cached session 重 handshake 一次。
+            if r.status_code == 400 and retry_on_invalid:
+                _mcp_invalidate_session(state)
+                return await _post_with_session(retry_on_invalid=False)
             r.raise_for_status()
-            # MCP server 可能回 JSON-RPC response 或 SSE event 包裹的 JSON
-            text = r.text
-            data: dict
-            if text.startswith("event:") or text.startswith("data:"):
-                # SSE:抓 data: 後的 JSON line
-                for line in text.splitlines():
-                    if line.startswith("data:"):
-                        try:
-                            data = json.loads(line[5:].strip())
-                            break
-                        except json.JSONDecodeError:
-                            continue
-                else:
-                    return McpToolsResponse(running=True, error="無法解析 SSE 回應")
-            else:
-                data = r.json()
+            return _parse_mcp_response(r.text)
+
+    try:
+        data = await _post_with_session()
     except httpx.HTTPError as e:
         return McpToolsResponse(running=True, error=f"MCP server 連線失敗:{e}")
     except Exception as e:
@@ -580,23 +669,22 @@ async def mcp_call(payload: McpCallRequest, user: User = Depends(get_current_use
         "Accept": "application/json, text/event-stream",
     }
     timeout = max(5, min(payload.timeout or 30, 120))
-    try:
+
+    async def _call_with_session(retry_on_invalid: bool = True) -> dict:
+        sid = await _mcp_ensure_session(state, mcp_url)
         async with httpx.AsyncClient(timeout=timeout) as client:
-            r = await client.post(mcp_url, json=payload_rpc, headers=headers)
+            r = await client.post(
+                mcp_url, json=payload_rpc,
+                headers={**headers, "Mcp-Session-Id": sid},
+            )
+            if r.status_code == 400 and retry_on_invalid:
+                _mcp_invalidate_session(state)
+                return await _call_with_session(retry_on_invalid=False)
             r.raise_for_status()
-            text = r.text
-            data: dict
-            if text.startswith("event:") or text.startswith("data:"):
-                data = {}
-                for line in text.splitlines():
-                    if line.startswith("data:"):
-                        try:
-                            data = json.loads(line[5:].strip())
-                            break
-                        except json.JSONDecodeError:
-                            continue
-            else:
-                data = r.json()
+            return _parse_mcp_response(r.text)
+
+    try:
+        data = await _call_with_session()
     except httpx.HTTPError as e:
         return McpCallResponse(ok=False, tool=payload.tool, error=f"MCP server 連線失敗:{e}")
     except Exception as e:
@@ -678,26 +766,35 @@ def _mcp_tools_to_openai_schema(mcp_tools: list[dict]) -> list[dict]:
 
 
 async def _mcp_jsonrpc(method: str, params: dict, *, username: str, timeout: int = 30) -> dict:
-    """純 JSON-RPC 呼叫 MCP server(共用工具,Sprint 9.1 改成 per-user)。"""
+    """純 JSON-RPC 呼叫 MCP server(共用工具,Sprint 9.1 改成 per-user)。
+
+    Streamable HTTP transport:第一次必須 initialize(由 _mcp_ensure_session 處理),
+    之後每次都帶 Mcp-Session-Id。session 過期 → 400 Server not initialized → 自動重 handshake 一次。
+    """
     state = _get_user_mcp_state(username)
     if not state.get("container_name"):
         raise RuntimeError("MCP server 沒在跑")
     mcp_url = f"http://{state['container_name']}:8931/mcp"
-    payload = {"jsonrpc": "2.0", "id": 1, "method": method, "params": params}
+    payload = {"jsonrpc": "2.0", "id": 2, "method": method, "params": params}
     headers = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        r = await client.post(mcp_url, json=payload, headers=headers)
-        r.raise_for_status()
-        text = r.text
-        if text.startswith("event:") or text.startswith("data:"):
-            for line in text.splitlines():
-                if line.startswith("data:"):
-                    try:
-                        return json.loads(line[5:].strip())
-                    except json.JSONDecodeError:
-                        continue
-            raise RuntimeError("無法解析 SSE 回應")
-        return r.json()
+
+    async def _do(retry_on_invalid: bool = True) -> dict:
+        sid = await _mcp_ensure_session(state, mcp_url, timeout=min(timeout, 15))
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            r = await client.post(
+                mcp_url, json=payload,
+                headers={**headers, "Mcp-Session-Id": sid},
+            )
+            if r.status_code == 400 and retry_on_invalid:
+                _mcp_invalidate_session(state)
+                return await _do(retry_on_invalid=False)
+            r.raise_for_status()
+            data = _parse_mcp_response(r.text)
+            if not data:
+                raise RuntimeError("無法解析 MCP 回應")
+            return data
+
+    return await _do()
 
 
 def _extract_steps_from_text(text: str) -> list[dict]:

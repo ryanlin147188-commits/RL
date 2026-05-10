@@ -59,6 +59,27 @@ if not SIDECAR_AUTH_TOKEN:
 
 
 # ── Provider → .env mapping ──────────────────────────────────────────
+def _normalize_provider(provider: str) -> str:
+    """Map 我們的 provider 字串 → Hermes config 的 provider key。
+
+    Hermes (NousResearch fork) 的 PROVIDER_REGISTRY 故意**沒有** "openai"
+    entry — 他們假設一般 OpenAI 用戶都走 OpenRouter。所以我們對 OpenAI 必須
+    報 "custom" + 顯式 base_url=https://api.openai.com/v1 才會打到真 OpenAI。
+
+    其他第三方 OpenAI-compatible(deepseek/groq/lmstudio/...)為了不假設 user
+    填的 base_url 是否與 Hermes registry 對得上,一律走 "custom" 路徑。
+    "anthropic" / "gemini" 在 Hermes registry 有對應 entry,直接沿用。
+    """
+    p = (provider or "").lower().strip()
+    if p == "anthropic":
+        return "anthropic"
+    if p in ("google", "gemini"):
+        return "gemini"
+    # openai / deepseek / groq / openrouter / lmstudio / ollama / azure-openai /
+    # 其他自訂 OpenAI-compatible:全部走 custom,由 base_url 決定真正端點。
+    return "custom"
+
+
 def provider_env_lines(provider: str, api_key: str, base_url: Optional[str]) -> list[str]:
     """把 (provider, api_key, base_url) 攤平成 .env 行。
 
@@ -74,9 +95,116 @@ def provider_env_lines(provider: str, api_key: str, base_url: Optional[str]) -> 
         lines.append(f"GOOGLE_API_KEY={api_key}")
     else:
         lines.append(f"OPENAI_API_KEY={api_key}")
-        if base_url:
-            lines.append(f"OPENAI_BASE_URL={base_url}")
+        # Hermes Agent 的 detect_provider() 看到「OPENAI_API_KEY 但沒 OPENAI_BASE_URL」
+        # 會誤判成 openrouter(NousResearch 預設第三方代理),把 key 送到
+        # https://openrouter.ai/api/v1 → 401 Missing Authentication header。
+        # provider="openai" 沒給 base_url 時必須顯式落真正 OpenAI 端點;其他
+        # OpenAI-compatible 第三方(deepseek/groq/openrouter/lmstudio/...)
+        # 預期 user 自帶 base_url,不在這層假設。
+        effective_base_url = base_url
+        if not effective_base_url and p == "openai":
+            effective_base_url = "https://api.openai.com/v1"
+        if effective_base_url:
+            lines.append(f"OPENAI_BASE_URL={effective_base_url}")
     return lines
+
+
+_RL_PROVIDER_PREFIX = "rl-"
+
+# 平台只開放這幾類 tool — 對齊 system_prompt 的「平台內運作」邊界。
+# memory / todo / session_search / clarify / safe = 內部用、不會跳出平台。
+# MCP server 的 mcp-* toolsets 由 _expand_acp_enabled_toolsets 動態加,不在這層擋。
+# 其他全部黑名單(web/browser/terminal/file/code_execution/...等)— 這些 tool
+# 即使被 LLM 呼叫,Hermes 也不會把它們的 schema 餵給 LLM,從根本不出現在
+# tool_calls 候選裡。
+_PLATFORM_ALLOWED_TOOLSETS = {
+    "memory", "todo", "session_search", "clarify", "safe",
+}
+# 完整黑名單列在這 — 對應 toolsets.py 裡的 toolset name。新版 Hermes 加了 toolset
+# 但沒加進這份清單時,fallback 是「除了 _PLATFORM_ALLOWED_TOOLSETS 之外全 disable」
+# (見 _platform_disabled_toolsets)。
+_PLATFORM_DISABLED_TOOLSETS = (
+    "web", "search",
+    "terminal", "process",
+    "browser",
+    "file",
+    "code_execution", "delegation",
+    "vision", "video", "image_gen", "tts",
+    "moa", "skills",
+    "messaging", "homeassistant", "kanban",
+    "discord", "discord_admin",
+    "yuanbao", "feishu_doc", "feishu_drive", "spotify",
+    "debugging", "cronjob", "rl",
+)
+
+
+def _platform_disabled_toolsets() -> list[str]:
+    """回傳要塞進 config.yaml 的 agent.disabled_toolsets。
+
+    用「明確黑名單」而不是「allowlist 反推」,因為 toolsets.py 的清單會隨 Hermes
+    版本擴張,反推可能誤殺新加的內部 tool;明確黑名單更可預測,新版要再評估。
+    """
+    return list(_PLATFORM_DISABLED_TOOLSETS)
+
+
+def _build_config_yaml(provider: str, base_url: Optional[str], model: Optional[str],
+                       system_prompt: Optional[str]) -> dict:
+    """組整份 config.yaml(model + providers + system_prompt)。
+
+    需要解決兩個 Hermes 預設行為:
+    1) 沒明確 model.provider 時 fall back 到 openrouter(打到 openrouter.ai → 401)。
+    2) base_url=api.openai.com 自動 detect 成 api_mode=codex_responses(GPT-5+ 才
+       支援 Responses API,gpt-4 / gpt-4o 用 codex_responses 會 400 "Encrypted
+       content is not supported with this model")。
+
+    解法:
+    - anthropic / gemini 是 Hermes registry 內建,直接用 model.provider=<name>。
+    - 其他(openai 含直連 / deepseek / groq / openrouter / 自架 / ...)走 named
+      custom provider:在 `providers:` 加一條 entry,顯式寫 base_url + key_env +
+      api_mode=chat_completions(與所有 OpenAI-compatible 服務相容,規避 codex_responses
+      陷阱),model.provider 指到該 entry name。
+    """
+    p_orig = (provider or "").lower().strip()
+    out: dict = {}
+
+    if p_orig == "anthropic":
+        out["model"] = {"provider": "anthropic"}
+        if model:
+            out["model"]["default"] = model
+    elif p_orig in ("google", "gemini"):
+        out["model"] = {"provider": "gemini"}
+        if model:
+            out["model"]["default"] = model
+    else:
+        # OpenAI-compatible(含直連 OpenAI、DeepSeek、Groq、自架 vLLM/Ollama 等)
+        # 統一走 named custom provider 路徑,避開 Hermes 的 codex_responses 自動偵測。
+        custom_name = _RL_PROVIDER_PREFIX + (p_orig or "openai")
+        eff_base_url = base_url
+        if not eff_base_url and p_orig == "openai":
+            eff_base_url = "https://api.openai.com/v1"
+        provider_entry = {
+            "key_env": "OPENAI_API_KEY",
+            # api_mode: chat_completions — 對所有 OpenAI-compatible 服務相容,
+            # 規避 base_url=api.openai.com 被自動 detect 成 codex_responses。
+            "api_mode": "chat_completions",
+        }
+        if eff_base_url:
+            provider_entry["api"] = eff_base_url
+        if model:
+            provider_entry["default_model"] = model
+        out["providers"] = {custom_name: provider_entry}
+        out["model"] = {"provider": custom_name}
+        if model:
+            out["model"]["default"] = model
+
+    if system_prompt:
+        out["system_prompt"] = system_prompt
+
+    # 把「跳出平台」的 toolset 全部 disable;Hermes 啟動時 tools_config.py
+    # 會從 enabled set 扣掉 disabled,這些 tool 的 schema 就不會餵給 LLM,
+    # LLM 自然連 tool_call 都做不出來。第二道防線(第一道是 system_prompt)。
+    out["agent"] = {"disabled_toolsets": _platform_disabled_toolsets()}
+    return out
 
 
 def _normalize_mcp_server(s: dict) -> dict:
@@ -155,8 +283,15 @@ class ACPClient:
                 # Hermes 自己會讀,但顯式指定避免 fallback 路徑差異
                 env["HERMES_DOTENV"] = str(env_file)
             LOG.info("spawn ACP workspace=%s home=%s", self.workspace_id, self.home)
+            # 走 acp_lockdown wrapper:在 acp_adapter.entry 跑之前 monkey-patch
+            # 把 config.yaml 的 agent.disabled_toolsets 套到 LLM 看到的 tool list,
+            # ACP path 預設不接這條邏輯(只 gateway/CLI 接),wrapper 補上去。
+            # PYTHONPATH 加 /opt/hermes 讓 python 找得到 acp_lockdown 模組。
+            env["PYTHONPATH"] = "/opt/hermes" + (
+                ":" + env["PYTHONPATH"] if env.get("PYTHONPATH") else ""
+            )
             self.proc = await asyncio.create_subprocess_exec(
-                sys.executable, "-m", "acp_adapter.entry",
+                sys.executable, "-m", "acp_lockdown",
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
@@ -568,6 +703,7 @@ async def handle_provision(request: web.Request) -> web.Response:
     api_key = body.get("api_key") or ""
     base_url = body.get("base_url") or None
     system_prompt = body.get("system_prompt") or ""
+    model = (body.get("model") or "").strip() or None
     if not provider or not api_key:
         raise web.HTTPBadRequest(reason="provider_and_api_key_required")
     home = HERMES_DATA_ROOT / ws
@@ -578,12 +714,32 @@ async def handle_provision(request: web.Request) -> web.Response:
     env_path = home / ".env"
     env_path.write_text("\n".join(env_lines) + "\n")
     env_path.chmod(0o600)
+    # config.yaml:寫 model + providers + system_prompt。
+    # 用 yaml.safe_dump 確保所有 section(含巢狀 providers)正確 quote。
     config_path = home / "config.yaml"
-    if system_prompt:
-        # JSON-quoted string is also valid YAML
-        config_path.write_text(f"system_prompt: {json.dumps(system_prompt)}\n")
-    elif not config_path.exists():
+    config_dict = _build_config_yaml(provider, base_url, model, system_prompt)
+    if not config_dict:
         config_path.write_text("# Hermes per-workspace config\n")
+    else:
+        try:
+            import yaml as _yaml  # 延遲 import:避免 yaml 缺失時 import 期就掛掉
+            config_path.write_text(_yaml.safe_dump(config_dict, sort_keys=False, allow_unicode=True))
+        except ImportError:
+            # fallback:不安裝 PyYAML 時用手刻 JSON-as-YAML(扁平結構)
+            lines: list[str] = []
+            for top_k, top_v in config_dict.items():
+                if isinstance(top_v, dict):
+                    lines.append(f"{top_k}:")
+                    for k, v in top_v.items():
+                        if isinstance(v, dict):
+                            lines.append(f"  {k}:")
+                            for kk, vv in v.items():
+                                lines.append(f"    {kk}: {json.dumps(vv)}")
+                        else:
+                            lines.append(f"  {k}: {json.dumps(v)}")
+                else:
+                    lines.append(f"{top_k}: {json.dumps(top_v)}")
+            config_path.write_text("\n".join(lines) + "\n")
     config_path.chmod(0o600)
     pool: ProcessPool = request.app["pool"]
     await pool.evict(ws)  # 強制下次冷啟讀新 env

@@ -261,6 +261,42 @@ class HermesGatewayEnableResponse(BaseModel):
 
 
 # ── 輔助 ──────────────────────────────────────────────────────────────
+def _resolve_locale(request: Request) -> str:
+    """從 request 的 Accept-Language header 解出 zh-TW / en;沒帶就回 ''。
+
+    前端 fetch wrapper 會把 localStorage["autotest.locale"] 對應的 zh-TW / en
+    放進 Accept-Language。Backend 用這個決定 AI 助理當輪要用什麼語言回。
+    """
+    raw = request.headers.get("accept-language", "")
+    if not raw:
+        return ""
+    # Accept-Language 可能含 quality 與多語(en-US,en;q=0.9,zh-TW;q=0.8)。
+    # 我們只取第一個 token,broad-match 到 zh / en 兩類。
+    first = raw.split(",")[0].strip().split(";")[0].strip().lower()
+    if first.startswith("zh"):
+        return "zh-TW"
+    if first.startswith("en"):
+        return "en"
+    return ""
+
+
+def _language_directive(locale: str) -> str:
+    """組 per-request 語言指示 prefix(用 XML tag 標示,不會被誤當對話內容)。"""
+    if locale == "zh-TW":
+        return (
+            "<language_directive>\n"
+            "請務必使用「繁體中文」回答此輪訊息(無論前文如何)。\n"
+            "</language_directive>\n\n"
+        )
+    if locale == "en":
+        return (
+            "<language_directive>\n"
+            "Reply to this turn in English (regardless of prior conversation language).\n"
+            "</language_directive>\n\n"
+        )
+    return ""
+
+
 async def _check_session_or_404(
     db: AsyncSession, sid: str, user: User,
 ) -> HermesSessionRef:
@@ -386,29 +422,69 @@ async def _build_mem0_mcp_servers(
     user: User,
     db: AsyncSession,
 ) -> list[dict]:
-    """為 hermes create_session 組出 mcp_servers list(空 = 不啟用)。
+    """為 hermes create_session 組出 mcp_servers list。
 
-    返回空 list 的條件(任何一條成立都不啟用):
-    - MEM0_HERMES_TOOL_ENABLED=False / MEM0_ENABLED=False(feature flag)
-    - resolve_mem0_configs 回 None(沒 token / 純 Anthropic 且 org 內沒 OpenAI/
-      Gemini fallback embedder)
+    內含兩個 MCP 來源(任一可獨立 enable / disable):
+    - memory:mem0 sidecar 的 search_memory(跨 session 語意記憶)
+    - platform:backend 自家的 platform_mcp(create_project / list_projects 等
+      平台動作 — 讓 LLM 真的能「幫使用者建專案」而不是只描述步驟)
 
-    Headers 帶 X-Sidecar-Auth + X-Mem0-User-Id;LLM key 永不出現在這裡(在 mem0
-    sidecar cache 內,由 ensure_user_workspace 或 settings.update_ai_token 推進去)。
+    Headers 帶共用 X-Sidecar-Auth + 個別 user-id 識別 header;LLM key 永遠不出現在
+    這層(各 sidecar 自己解析)。
     """
-    if not (settings.MEM0_HERMES_TOOL_ENABLED and settings.MEM0_ENABLED):
-        return []
-    if await resolve_mem0_configs(db, user) is None:
-        return []
+    servers: list[dict] = []
 
-    return [{
-        "name": "memory",
-        "url": settings.MEM0_HERMES_TOOL_URL,
-        "headers": [
-            {"name": "X-Sidecar-Auth",  "value": settings.MEM0_SIDECAR_AUTH_TOKEN},
-            {"name": "X-Mem0-User-Id",  "value": mem0_user_id(user)},
-        ],
-    }]
+    # ── memory ──────────────────────────────────────────────
+    mem0_ready = (
+        settings.MEM0_HERMES_TOOL_ENABLED
+        and settings.MEM0_ENABLED
+        and (await resolve_mem0_configs(db, user)) is not None
+    )
+    if mem0_ready:
+        servers.append({
+            "name": "memory",
+            "url": settings.MEM0_HERMES_TOOL_URL,
+            "headers": [
+                {"name": "X-Sidecar-Auth",  "value": settings.MEM0_SIDECAR_AUTH_TOKEN},
+                {"name": "X-Mem0-User-Id",  "value": mem0_user_id(user)},
+            ],
+        })
+
+    # ── platform(讓 LLM 能呼叫平台 API) ────────────────────
+    if settings.PLATFORM_MCP_ENABLED:
+        servers.append({
+            "name": "platform",
+            "url": settings.PLATFORM_MCP_URL,
+            "headers": [
+                # 與 hermes / mem0 共用同一個 sidecar secret(內網限定)
+                {"name": "X-Sidecar-Auth",   "value": settings.SIDECAR_AUTH_TOKEN},
+                # platform_mcp 用這個解出 ORM User → 在 user 的 org / 權限下執行
+                {"name": "X-Platform-User",  "value": user.username},
+            ],
+        })
+
+    # ── playwright(per-user autotest-mcp 容器,給 LLM 真正操作瀏覽器) ──
+    # ensure_user_mcp_running 是 best-effort:image 還在 build / docker 連不上時
+    # 回 None,我們就跳過(LLM 拿不到 browser_* tools,使用者下次再要時前端
+    # 「啟動 MCP」按鈕會看到一致的 building progress)。
+    if settings.PLAYWRIGHT_MCP_HERMES_ENABLED:
+        try:
+            from app.routers.ai import ensure_user_mcp_running
+            mcp_state = await ensure_user_mcp_running(user.username)
+        except Exception:  # noqa: BLE001
+            LOG.exception("playwright mcp ensure failed user=%s", user.username)
+            mcp_state = None
+        if mcp_state and mcp_state.get("container_name"):
+            servers.append({
+                "name": "playwright",
+                # 容器在同一個 docker network,用 service-name:port 連
+                "url": f"http://{mcp_state['container_name']}:8931/mcp",
+                # Playwright MCP 自身沒驗證(--allowed-hosts '*' 內網限定),
+                # headers 只給 noop;但保留 list 以便未來加 capability token。
+                "headers": [],
+            })
+
+    return servers
 
 
 # ── Routes ────────────────────────────────────────────────────────────
@@ -1358,6 +1434,14 @@ async def send_message(
             # 記憶失敗 = 沒記憶但對話正常 — 不影響主流程
             recalled = []
             augmented_content = content
+
+    # ── Language directive(per-request,override session-level system_prompt)──
+    # 前端會透過 fetch wrapper 把使用者選的 locale 帶進 Accept-Language;這裡讀出來
+    # 在 prompt 最前面塞一段 <language_directive>,讓 LLM 當輪用對應語言回覆。
+    # 這樣使用者改語言不必 reprovision Hermes,即時生效。
+    locale = _resolve_locale(request)
+    if locale:
+        augmented_content = _language_directive(locale) + augmented_content
 
     hermes = get_hermes_client()
     try:

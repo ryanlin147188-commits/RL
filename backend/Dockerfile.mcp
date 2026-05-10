@@ -32,4 +32,8 @@ EXPOSE 8931
 
 # 預設啟 SSE 模式;backend 啟容器時可 override 端口
 # --port 8931:SSE 監聽;--host 0.0.0.0 讓外部連得進
-ENTRYPOINT ["sh", "-c", "exec npx -y @playwright/mcp@${PLAYWRIGHT_MCP_VERSION} --port 8931 --host 0.0.0.0"]
+# --allowed-hosts '*':Playwright MCP 預設只 serve「bind host」(防 DNS rebinding),
+#   backend 用 docker 內部 DNS 連(例:autotest-mcp-admin-xxx:8931)不在 allowed list,
+#   會被回 403 Forbidden。MCP 容器只跑在 docker internal network、沒對外曝露,放開
+#   host check 是安全的。
+ENTRYPOINT ["sh", "-c", "exec npx -y @playwright/mcp@${PLAYWRIGHT_MCP_VERSION} --port 8931 --host 0.0.0.0 --allowed-hosts '*'"]

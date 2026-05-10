@@ -158,7 +158,45 @@ RL 鎖定 **15–500 人規模、有自動化測試需求但被工具鏈拖累**
 
 ---
 
-## 🆕 v1.0 連續 7 輪 UX 強化(A → G)
+## 🆕 v1.1.1 — 助理 × 平台動作工具 × 真瀏覽器
+
+v1.1.0 把 Hermes ACP sidecar + mem0 語意記憶接進來,v1.1.1 把這條鏈**真的串通**了:
+
+- **Platform MCP server**(新)— backend 自掛 `/platform-mcp/mcp` FastMCP 子 app,把
+  專案 / 測試案例 / 缺陷 / 文件 / 需求 / 時程 / 版號 / 計畫 / 待辦 / 錄製 / 執行
+  共 **27 個** action 露給 Hermes LLM。使用者說「幫我建 Kapito 專案」→ 助理直接
+  `create_project` 而非反問技術棧細節。
+- **Per-user Playwright MCP** — Hermes provision 時自動 spin `autotest-mcp`
+  container,LLM 收到 22 個 `browser_*` tool(navigate / click / type / snapshot /
+  get_images / 等),真的能操作瀏覽器探索網站、產生案例、執行驗證。
+- **`platform_help(topic?)` 知識庫** — 不污染 mem0 個人記憶,把「平台有什麼功能」
+  做成助理隨時可 query 的 module-level 字典。
+- **執行串接** — `execute_testcase` / `get_execution_status` / `list_executions`
+  從助理一句話跑完整條 docker 模式測試。
+- **語言追隨平台 i18n** — 前端 fetch wrapper 帶 `Accept-Language`(zh-TW / en),
+  backend 在每輪訊息前注入 `<language_directive>`,使用者切語言**即時生效**,
+  不必 reprovision Hermes session。
+- **助理 UI 簡化** — 移除排程任務 / LLM 串接 / 暫停記憶 / 案例工具列等進階入口,
+  「AI 助理」改名為「助理」,Enter 不再誤送、改點傳送鈕。
+- **錄製鏈修補** — `start_recording_session` 透過 MCP 建 DB row,`convert_recording_to_steps`
+  解析 Playwright codegen / HAR 為 step 陣列。
+- **多輪 bug 修法**(全部已 ship):`0005` migration 對 fresh DB 的 ai_conversations 索引修正、
+  全 API auth 流程的 401/403 + must_change_password URL clear、`POST /api/hermes/sessions`
+  的 provider mapping(OpenAI → custom + base_url + api_mode=chat_completions)、
+  Playwright MCP 的 Streamable HTTP `initialize` handshake、Docker Desktop bind-mount
+  舊 inode 截斷修補。
+- **AI Token 模型清單** — 過濾掉 whisper / dall-e / embedding / tts 等非 chat 模型。
+- **平台限制邊界**(雙層) — `acp_lockdown.py` monkey-patch 把 `web` / `terminal` /
+  `file` / `code_execution` / `delegation` 等跳出平台的 toolset 從 LLM tool list 整批
+  拿掉;system_prompt 第二道防線教 LLM 拒絕越界要求。
+
+升級提醒:此版本含 0001 → 0018 共 18 條 alembic migration。**fresh DB 部署**直接
+`./deploy.sh`(會跑 alembic upgrade head);**舊 v1.1.0 升級**請先停 stack、`docker
+compose pull` / `build`、再 up,backend lifespan 會自動 alembic upgrade。
+
+---
+
+## v1.0 連續 7 輪 UX 強化(A → G)
 
 進入 v1.0 後針對「使用者每天會碰到的痛點」做 7 輪密集打磨,全部已 ship 到 main:
 
@@ -220,11 +258,11 @@ docker compose up -d --build
 
 ### 不想本機 build?用預先打包的 image
 
-從 [GitHub Releases](https://github.com/ryanlin147188-commits/RL_TMP/releases) 下載 `autotest-images-1.1.0.tar`(離線散佈包,含 backend / celery / runner / mcp / frontend 等 image),在你的 VM 上:
+從 [GitHub Releases](https://github.com/ryanlin147188-commits/RL_TMP/releases) 下載 `autotest-images-1.1.1.tar`(離線散佈包,含 backend / celery / runner / mcp / frontend 等 image),在你的 VM 上:
 
 ```bash
 # 1) 載入 image(2.6 GB,需要幾分鐘)
-docker load -i autotest-images-1.1.0.tar
+docker load -i autotest-images-1.1.1.tar
 
 # 2) 取得單一 docker-compose.yml + apisix/、fluent-bit/ 設定檔(repo 根目錄裡都有)
 git clone https://github.com/ryanlin147188-commits/RL_TMP.git && cd RL_TMP

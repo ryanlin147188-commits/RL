@@ -95,6 +95,19 @@ class Settings(BaseSettings):
     # 實際 tool call 進 /mcp/mcp。內網 service-name 解析(同 docker network)。
     MEM0_HERMES_TOOL_URL: str = "http://mem0:7900/mcp/mcp"
 
+    # ── Platform MCP tool(讓 Hermes ACP LLM 直接呼叫平台 API:create_project /
+    # list_projects / 等)。Backend mount /platform-mcp/mcp;auth 同樣走 SIDECAR_AUTH_TOKEN
+    # + 多帶一層 X-Platform-User 識別呼叫者。
+    PLATFORM_MCP_ENABLED: bool = True
+    PLATFORM_MCP_URL: str = "http://backend:8000/platform-mcp/mcp"
+
+    # ── Playwright MCP(per-user autotest-mcp 容器,讓助理真的能操作瀏覽器)──
+    # True → ensure_user_workspace 時會 lazy-spin autotest-mcp container 並
+    # 把它加進 Hermes 的 mcp_servers list;LLM 收到 browser_navigate / click /
+    # snapshot 等 22 個 Playwright tool。第一次啟可能慢(image build),失敗
+    # 不擋主流程 — 助理 fallback 到只用平台/記憶 tool。
+    PLAYWRIGHT_MCP_HERMES_ENABLED: bool = True
+
     @property
     def DATABASE_URL(self) -> str:
         """Async URL 供 FastAPI / SQLAlchemy asyncio 使用（PostgreSQL via asyncpg）"""

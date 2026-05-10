@@ -36,7 +36,7 @@ RUN useradd -m -u 10000 -s /bin/bash hermes \
 
 WORKDIR /opt/hermes
 
-COPY --chown=hermes:hermes supervisor.py entrypoint.sh /opt/hermes/
+COPY --chown=hermes:hermes supervisor.py entrypoint.sh acp_lockdown.py /opt/hermes/
 RUN chmod +x /opt/hermes/entrypoint.sh
 
 USER hermes

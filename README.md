@@ -156,7 +156,55 @@ See [操作說明.md](操作說明.md) (Chinese) for an end-to-end user guide. E
 
 ---
 
-## 🆕 What changed since v1.0 (7 consecutive UX rounds, A → G)
+## 🆕 v1.1.1 — Assistant × Platform Action Tools × Real Browser
+
+v1.1.0 wired Hermes ACP + mem0 in; v1.1.1 actually **closes the loop** so the
+assistant can act on the platform end-to-end:
+
+- **Platform MCP server (new)** — backend self-mounts `/platform-mcp/mcp` (FastMCP
+  sub-app) exposing **27 action tools** to the Hermes LLM (projects / testcases /
+  defects / documents / requirements / milestones / versions / plans / todos /
+  recordings / executions). When a user says "create a Kapito project", the
+  assistant calls `create_project` directly instead of asking about tech-stack
+  details.
+- **Per-user Playwright MCP** — Hermes provisioning auto-spins the
+  `autotest-mcp` container; the LLM receives 22 `browser_*` tools (navigate /
+  click / type / snapshot / get_images / etc.) and can actually drive a browser
+  to explore a site, propose test cases, and verify them.
+- **`platform_help(topic?)` knowledge tool** — a module-level catalog (not in
+  mem0, to avoid polluting personal memory) the LLM queries to discover what
+  the platform can do.
+- **Execution chain** — `execute_testcase` / `get_execution_status` /
+  `list_executions` let the assistant kick off and track a real docker-mode run
+  in one breath.
+- **Language follows the UI** — frontend fetch wrapper sends `Accept-Language`
+  (zh-TW / en); backend injects a per-turn `<language_directive>` so toggling
+  the locale takes effect **instantly**, no Hermes reprovision needed.
+- **Assistant UI cleanup** — removed advanced toolbar items (scheduled
+  tasks / LLM connection / pause-memory / case-toolbar); renamed "AI 助理" to
+  "助理"; Enter no longer auto-sends — explicit send button only.
+- **Recording chain** — `start_recording_session` creates the DB row via MCP;
+  `convert_recording_to_steps` parses Playwright codegen / HAR into step arrays.
+- **Bug-fix sweep** (shipped): `0005` migration ai_conversations index fix
+  for fresh DBs; full-API auth 401/403 + must_change_password URL-clear flow;
+  Hermes `POST /api/hermes/sessions` provider-mapping fix (OpenAI → custom +
+  base_url + api_mode=chat_completions); Playwright MCP Streamable HTTP
+  `initialize` handshake; Docker Desktop bind-mount stale-inode mitigation.
+- **AI Token model list** — filters out whisper / dall-e / embedding / tts
+  (non-chat models leak into OpenAI's `/v1/models`).
+- **Two-tier platform-only sandbox** — `acp_lockdown.py` monkey-patch removes
+  `web` / `terminal` / `file` / `code_execution` / `delegation` toolsets from
+  the LLM's tool surface; the system prompt is a second defence telling the
+  LLM to refuse anything that would leave the platform.
+
+Upgrade notes: this release ships 18 alembic migrations (0001 → 0018). For a
+**fresh DB**, just run `./deploy.sh` (lifespan calls `alembic upgrade head`).
+For an **upgrade from v1.1.0**, stop the stack, `docker compose pull` /
+`build`, then `up`; the backend will migrate on next start.
+
+---
+
+## What changed since v1.0 (7 consecutive UX rounds, A → G)
 
 After the v1.0 baseline, seven focused UX-hardening rounds shipped to `main`. Every round is backend-additive (no breaking schema changes — the one column rename in tier D ships behind a reversible Alembic migration):
 
