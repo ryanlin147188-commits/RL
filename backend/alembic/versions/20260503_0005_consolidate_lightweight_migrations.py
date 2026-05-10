@@ -73,9 +73,9 @@ MIGRATION_STMTS: tuple[str, ...] = (
     "CREATE INDEX IF NOT EXISTS ix_todo_links_todo ON todo_links (todo_id)",
     "CREATE INDEX IF NOT EXISTS ix_todo_links_target ON todo_links (target_type, target_id)",
     "CREATE INDEX IF NOT EXISTS ix_todo_links_org ON todo_links (organization_id)",
-    "CREATE INDEX IF NOT EXISTS ix_ai_conversations_owner ON ai_conversations (owner)",
-    "CREATE INDEX IF NOT EXISTS ix_ai_conversations_org ON ai_conversations (organization_id)",
-    "CREATE INDEX IF NOT EXISTS ix_ai_messages_conv ON ai_messages (conversation_id)",
+    # ai_conversations / ai_messages 在 0016 才會被 drop;新部署的 baseline 從未建立它們,
+    # 因此這幾條索引只對「升級自舊版」的部署有意義,fresh DB 直接跳過。
+    # 條件由 upgrade() 中以 information_schema 判斷後執行。
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(500)",
     "ALTER TABLE ai_token_configs ADD COLUMN IF NOT EXISTS reasoning_effort VARCHAR(10)",
     "ALTER TABLE ai_token_configs ALTER COLUMN provider TYPE VARCHAR(40) USING provider::text",
@@ -98,10 +98,31 @@ MIGRATION_STMTS: tuple[str, ...] = (
 )
 
 
+_LEGACY_AI_INDEX_STMTS: tuple[tuple[str, str], ...] = (
+    ("ai_conversations", "CREATE INDEX IF NOT EXISTS ix_ai_conversations_owner ON ai_conversations (owner)"),
+    ("ai_conversations", "CREATE INDEX IF NOT EXISTS ix_ai_conversations_org ON ai_conversations (organization_id)"),
+    ("ai_messages", "CREATE INDEX IF NOT EXISTS ix_ai_messages_conv ON ai_messages (conversation_id)"),
+)
+
+
+def _table_exists(bind, name: str) -> bool:
+    row = bind.execute(
+        text(
+            "SELECT 1 FROM information_schema.tables "
+            "WHERE table_schema = current_schema() AND table_name = :n"
+        ),
+        {"n": name},
+    ).first()
+    return row is not None
+
+
 def upgrade() -> None:
     bind = op.get_bind()
     for stmt in MIGRATION_STMTS:
         bind.execute(text(stmt))
+    for table_name, stmt in _LEGACY_AI_INDEX_STMTS:
+        if _table_exists(bind, table_name):
+            bind.execute(text(stmt))
 
 
 def downgrade() -> None:
