@@ -66,7 +66,7 @@ async def status(req: web.Request) -> web.Response:
     workspaces = []
     if OPENCLAW_DATA_ROOT.is_dir():
         for ws_dir in OPENCLAW_DATA_ROOT.iterdir():
-            if ws_dir.is_dir() and (ws_dir / ".openclaw" / "openclaw.json").is_file():
+            if ws_dir.is_dir() and (ws_dir / ".env").is_file():
                 workspaces.append(ws_dir.name)
 
     reasons = []
@@ -84,25 +84,16 @@ async def status(req: web.Request) -> web.Response:
     })
 
 
-def _build_openclaw_json(oauth_token: str) -> dict:
-    """組 ~/.openclaw/openclaw.json 內容。
-
-    讀 docs/llms.txt 推測的結構:
-      {
-        "agents": { "defaults": { "skipBootstrap": true } },
-        "providers": { "openai": { "apiKey": "..." } }
-      }
-    若實際 schema 不同,supervisor 在 /v1/chat 拿到 openclaw 子進程 stderr 後會
-    把錯誤往回傳;backend graceful fallback 不會 break。
-    """
-    return {
-        "agents": {"defaults": {"skipBootstrap": True}},
-        "providers": {"openai": {"apiKey": oauth_token}},
-    }
-
-
 async def provision(req: web.Request) -> web.Response:
-    """POST /v1/provision — 寫 workspace 內的 .openclaw/openclaw.json + .env。"""
+    """POST /v1/provision — 寫 workspace 內 .env(只存 OPENAI_API_KEY)。
+
+    用 `openclaw agent --local --json` 路徑時(supervisor 走這條),CLI 只讀
+    `OPENAI_API_KEY` 環境變數 — 完全不需要 ~/.openclaw/openclaw.json。所以
+    這個函式只寫 .env 給 /v1/chat spawn 子進程時 source 用。
+
+    若日後切到 gateway 模式(支援 multi-channel / canvas 等),才需要寫
+    openclaw.json 並先跑 `openclaw setup` / `openclaw config set gateway.mode`。
+    """
     _require_auth(req)
     try:
         body = await req.json()
@@ -117,16 +108,6 @@ async def provision(req: web.Request) -> web.Response:
     home.mkdir(parents=True, exist_ok=True)
     home.chmod(0o700)
 
-    # openclaw CLI 預期 ~/.openclaw/openclaw.json — 我們透過 HOME=$workspace
-    # 在 spawn 時 redirect ~/ 過來。
-    cfg_dir = home / ".openclaw"
-    cfg_dir.mkdir(exist_ok=True)
-    cfg_dir.chmod(0o700)
-    cfg_path = cfg_dir / "openclaw.json"
-    cfg_path.write_text(json.dumps(_build_openclaw_json(token), indent=2))
-    cfg_path.chmod(0o600)
-
-    # .env 留一份 plain text 給日後維運 / 未來換 daemon 模式時讀
     env_path = home / ".env"
     env_path.write_text(f"OPENAI_API_KEY={token}\nOPENCLAW_HOME={home}\n")
     env_path.chmod(0o600)
@@ -165,8 +146,8 @@ async def chat(req: web.Request) -> web.Response:
         raise web.HTTPBadRequest(reason="workspace_id_and_prompt_required")
 
     home = OPENCLAW_DATA_ROOT / ws
-    cfg_path = home / ".openclaw" / "openclaw.json"
-    if not cfg_path.is_file():
+    env_file = home / ".env"
+    if not env_file.is_file():
         return web.json_response(
             {
                 "error": "workspace_not_provisioned",
@@ -175,14 +156,35 @@ async def chat(req: web.Request) -> web.Response:
             status=400,
         )
 
+    # 從 workspace .env 讀 OPENAI_API_KEY(provision 時寫的)
+    api_key = ""
+    for line in env_file.read_text().splitlines():
+        if line.startswith("OPENAI_API_KEY="):
+            api_key = line.split("=", 1)[1].strip()
+            break
+    if not api_key:
+        return web.json_response(
+            {"error": "missing_api_key", "message": "workspace .env 缺 OPENAI_API_KEY"},
+            status=500,
+        )
+
     env = dict(os.environ)
-    env["HOME"] = str(home)  # 讓 openclaw CLI 讀 workspace 內的 ~/.openclaw
+    env["OPENAI_API_KEY"] = api_key
     env["OPENCLAW_HOME"] = str(home)
+    # 對齊 doctor 建議的低資源啟動參數(supervisor 容器內每 chat spawn 一次,
+    # respawn overhead 不必要)
+    env["OPENCLAW_NO_RESPAWN"] = "1"
 
     LOG.info("openclaw chat ws=%s prompt_len=%d", ws, len(prompt))
     try:
+        # --local:embedded agent,不需 gateway setup
+        # --json :結構化輸出,supervisor 不必 parse plain text
         proc = await asyncio.create_subprocess_exec(
-            bin_path, "agent", "--message", prompt,
+            bin_path, "agent",
+            "--local",                # embedded agent(不需要 gateway daemon)
+            "--json",                 # 結構化 stdout
+            "--session-id", ws,       # 用 workspace_id 當 session — 跨 chat 保留上下文
+            "--message", prompt,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             env=env,
@@ -225,7 +227,34 @@ async def chat(req: web.Request) -> web.Response:
             status=502,
         )
 
-    return web.json_response({"content": stdout, "stderr": stderr[:500] if stderr else None})
+    # --json 模式下 openclaw 吐 JSON object;parse 出 assistant content。
+    # 失敗(非 JSON / 格式變動)就把 raw stdout 當 content,避免 break。
+    content = stdout
+    usage = {}
+    try:
+        parsed = json.loads(stdout)
+        if isinstance(parsed, dict):
+            # openclaw --json 的 schema(觀察:有 reply / content / message 等
+            # 候選欄位,版本不同可能微調)。挑第一個非空字串。
+            for key in ("reply", "content", "message", "text", "output"):
+                v = parsed.get(key)
+                if isinstance(v, str) and v:
+                    content = v
+                    break
+            else:
+                # 都沒中 → JSON 形式但找不到內容欄,把整個 JSON 字串吐回(讓 client 看)
+                pass
+            if isinstance(parsed.get("usage"), dict):
+                usage = parsed["usage"]
+    except (ValueError, TypeError):
+        # 不是 JSON;把 stdout 當 plain text 傳
+        pass
+
+    return web.json_response({
+        "content": content,
+        "usage": usage,
+        "stderr": stderr[:500] if stderr else None,
+    })
 
 
 def build_app() -> web.Application:
