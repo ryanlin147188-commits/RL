@@ -107,11 +107,19 @@
             // 視同 auth-required:踢回登入頁。改密碼 modal 由 /api/auth/login 的
             // 回應(must_change_password=true)觸發 — 不要從背景 fetch 直接 pop,
             // 那會讓使用者跳過「輸入帳密」這一步,流程錯亂。
+            //
+            // 例外:強制改密 modal 已經開著時,使用者正在「正確的流程」裡 —
+            // 此時若某個背景請求(notif badge poll 等)拿著合法新 token 撞上 403,
+            // 把 token 清掉只會讓 modal 的 submit 變空 Bearer 而 401。直接吞掉。
             if (resp.status === 403) {
                 try {
                     const data = await resp.clone().json();
                     if (data && data.detail && data.detail.code === "must_change_password") {
-                        window.dispatchEvent(new CustomEvent("autotest:auth-required"));
+                        const modal = document.getElementById("forcePwdModal");
+                        const modalOpen = modal && !modal.classList.contains("hidden");
+                        if (!modalOpen) {
+                            window.dispatchEvent(new CustomEvent("autotest:auth-required"));
+                        }
                     }
                 } catch (_) { /* body 不是 JSON 就忽略 */ }
             }
@@ -2291,6 +2299,24 @@ driver.swipe(100, 800, 100, 200, 500)"
                         <h3 class="font-bold text-slate-700 flex items-center gap-2"><i class="fa-solid fa-gear text-amber-500"></i> 前置動作 (Pre-Setup)</h3>
                     </div>
                     <textarea id="setupTextarea" onchange="updateSetup(this.value)" aria-label="前置動作" placeholder="例：建立測試資料庫 seed、預先取得 API token、啟動 mock server..." class="w-full text-sm p-3 border border-slate-200 rounded-md focus:ring-2 focus:ring-amber-100 focus:border-amber-400 outline-none resize-none text-slate-600 leading-relaxed" rows="3"></textarea>
+                    <!-- 前置案例:跑此案例前先跑哪些 testcase(對應 testcase_precondition_links)-->
+                    <div class="mt-4 pt-4 border-t border-slate-200">
+                        <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
+                            <label class="text-xs font-semibold text-slate-600 flex items-center gap-1">
+                                <i class="fa-solid fa-link text-amber-500"></i>
+                                前置案例(執行前先跑)
+                            </label>
+                            <div class="flex gap-2 items-center">
+                                <select id="preconditionPicker" class="text-xs px-2 py-1 border border-slate-300 rounded bg-white max-w-[260px]" aria-label="選擇前置案例">
+                                    <option value="">-- 選擇要加入的案例 --</option>
+                                </select>
+                                <button type="button" onclick="addPreconditionFromPicker()" class="text-xs px-2 py-1 bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 rounded transition">
+                                    <i class="fa-solid fa-plus"></i> 加入
+                                </button>
+                            </div>
+                        </div>
+                        <div id="preconditionList" class="space-y-1 text-sm"></div>
+                    </div>
                 </section>
 
                 <section class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
@@ -4838,8 +4864,12 @@ driver.swipe(100, 800, 100, 200, 500)"
 
             <!-- AI 生成結果 modal 已移除(2026-04 改為 AI 對話框,見右下角 FAB)-->
 
-            <!-- 執行終端機面板 -->
-            <div id="terminalPanel" class="absolute bottom-0 left-0 right-0 h-64 bg-slate-900 border-t-4 border-green-500 transform translate-y-full transition-transform duration-300 ease-in-out flex flex-col z-20 shadow-2xl">
+            <!-- 執行終端機面板:
+                 改成 flex 流內元素(原本是 `absolute bottom-0` 會蓋住內容)。
+                 - 預設 `h-0 border-t-0`:不佔空間、不顯示綠線
+                 - 開啟時切到 `h-64 border-t-4`,內容區自然被擠上去
+                 - 動畫走 `transition-[height]` -->
+            <div id="terminalPanel" class="h-0 border-t-0 overflow-hidden shrink-0 transition-[height] duration-300 ease-in-out bg-slate-900 border-green-500 flex flex-col shadow-2xl">
                 <div class="flex items-center justify-between px-4 py-2 bg-slate-800 border-b border-slate-700 shrink-0">
                     <span class="text-xs font-mono text-slate-300"><i class="fa-solid fa-terminal mr-2"></i>Test Execution Console</span>
                     <div class="flex gap-3 items-center">
@@ -4848,7 +4878,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                             <i class="fa-solid fa-stop"></i> 停止
                         </button>
                         <button type="button" onclick="clearTerminal()" class="text-slate-400 hover:text-white text-xs"><i class="fa-solid fa-eraser"></i> 清除</button>
-                        <button type="button" onclick="closeTerminal()" aria-label="關閉終端機面板" class="text-slate-400 hover:text-red-400"><i class="fa-solid fa-xmark"></i></button>
+                        <button type="button" onclick="closeTerminal()" aria-label="關閉終端機面板 (Esc)" title="關閉 (Esc)" class="text-xs px-2 py-1 rounded bg-slate-700 hover:bg-red-600 text-slate-200 hover:text-white flex items-center gap-1"><i class="fa-solid fa-xmark"></i> 關閉</button>
                     </div>
                 </div>
                 <div id="terminalOutput" class="p-4 font-mono text-sm text-slate-300 overflow-y-auto flex-1 space-y-1 bg-[#0f172a]">
@@ -4861,7 +4891,7 @@ driver.swipe(100, 800, 100, 200, 500)"
 
     <!-- ==================== 彈出視窗 (Modals) ==================== -->
 
-    <!-- 完整錄影 Modal（案例完整錄影 .webm）-->
+    <!-- 完整錄影 Modal(案例完整錄影 .webm)— 保留;Trace Viewer 嵌入式 modal 已移除,改走外部分頁 -->
     <div id="fullVideoModal" class="fixed inset-0 bg-slate-900/70 hidden z-[160] flex items-center justify-center opacity-0 transition-opacity">
         <div class="bg-white rounded-lg shadow-xl w-[960px] max-w-[95vw] transform scale-95 transition-transform">
             <div class="flex items-center justify-between p-3 border-b border-slate-200">
@@ -4873,20 +4903,6 @@ driver.swipe(100, 800, 100, 200, 500)"
             <div class="p-3 bg-black">
                 <video id="fullVideoPlayer" controls class="w-full max-h-[70vh] rounded"></video>
             </div>
-        </div>
-    </div>
-
-    <!-- Trace Viewer 嵌入式 Modal（iframe 載入 trace.playwright.dev）-->
-    <div id="traceViewerModal" class="fixed inset-0 bg-slate-900/70 hidden z-[160] flex items-center justify-center opacity-0 transition-opacity">
-        <div class="bg-white rounded-lg shadow-xl w-[95vw] h-[90vh] flex flex-col transform scale-95 transition-transform">
-            <div class="flex items-center justify-between p-3 border-b border-slate-200 shrink-0">
-                <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
-                    <i class="fa-solid fa-route text-purple-500"></i> Trace Viewer
-                    <span class="text-xs font-normal text-slate-400">由 trace.playwright.dev 提供；需 trace.zip 對外可達</span>
-                </h3>
-                <button onclick="closeTraceViewer()" aria-label="關閉" class="text-slate-400 hover:text-red-500"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-            <iframe id="traceViewerIframe" title="Playwright Trace Viewer" class="flex-1 w-full border-0 rounded-b-lg"></iframe>
         </div>
     </div>
 
@@ -5538,7 +5554,9 @@ driver.swipe(100, 800, 100, 200, 500)"
         // ==================== 1. 終端機功能 ====================
         async function runTest() {
             const panel = document.getElementById('terminalPanel');
-            panel.classList.remove('translate-y-full');
+            // 展開 panel:加 h-64 + border-t-4(關閉時是 h-0 / border-t-0)
+            panel.classList.remove('h-0', 'border-t-0');
+            panel.classList.add('h-64', 'border-t-4');
             const output = document.getElementById('terminalOutput');
             output.innerHTML = '';
 
@@ -5854,8 +5872,29 @@ driver.swipe(100, 800, 100, 200, 500)"
         }
 
         function closeTerminal() {
-            document.getElementById('terminalPanel').classList.add('translate-y-full');
+            const panel = document.getElementById('terminalPanel');
+            if (!panel) return;
+            // 收回 panel:回到 h-0 + border-t-0,把空間還給上方內容
+            panel.classList.remove('h-64', 'border-t-4');
+            panel.classList.add('h-0', 'border-t-0');
+            // 關閉時也順手停掉串流(若還在跑),避免日誌持續灌到 hidden DOM,
+            // 也讓使用者直覺上「關掉=結束這次觀察」。
+            try {
+                if (typeof _execLogStream !== 'undefined' && _execLogStream) {
+                    _execLogStream.close();
+                    _execLogStream = null;
+                }
+            } catch (_) {}
         }
+
+        // ESC 一鍵收掉執行 console — 避免 X 按鈕被視覺忽略時還是能關。
+        document.addEventListener('keydown', (e) => {
+            if (e.key !== 'Escape') return;
+            const panel = document.getElementById('terminalPanel');
+            if (panel && !panel.classList.contains('h-0')) {
+                closeTerminal();
+            }
+        });
 
         function clearTerminal() {
             document.getElementById('terminalOutput').innerHTML = '';
@@ -5930,7 +5969,135 @@ driver.swipe(100, 800, 100, 200, 500)"
 
             renderSteps();
             renderDDT();
+            // 前置案例:獨立 API,不在 testcase content 內,單獨拉
+            loadPreconditionsUI(currentTestCase).catch(() => {});
             updateSaveIndicator();
+        }
+
+        // ── 前置案例 (Preconditions) UI ──────────────────────────────────
+        // 對應 testcase_precondition_links。執行時 backend 會把這裡列的 testcase
+        // 排到 setup 階段先跑;sort_order 決定順序、enabled 可暫時關掉、on_failure=stop
+        // 表示前置失敗就讓主案例 SKIP。
+        function _collectTestcaseNodes(nodes, out) {
+            if (!Array.isArray(nodes)) return;
+            for (const n of nodes) {
+                if (n.level_type === 'TESTCASE') out.push({ id: n.id, label: n.name });
+                if (n.children && n.children.length) _collectTestcaseNodes(n.children, out);
+            }
+        }
+        async function loadPreconditionsUI(testcaseId) {
+            const list = document.getElementById('preconditionList');
+            const picker = document.getElementById('preconditionPicker');
+            if (!list || !picker) return;
+            if (!testcaseId) { list.innerHTML = ''; return; }
+            const candidates = [];
+            _collectTestcaseNodes(activeTreeData || [], candidates);
+            picker.innerHTML = '<option value="">-- 選擇要加入的案例 --</option>'
+                + candidates
+                    .filter(c => c.id !== testcaseId)
+                    .map(c => `<option value="${c.id}">${c.label.replace(/"/g, '&quot;')}</option>`)
+                    .join('');
+            try {
+                const r = await fetch(`/api/testcases/${testcaseId}/preconditions`);
+                if (!r.ok) { list.innerHTML = `<div class="text-xs text-rose-500">載入失敗 HTTP ${r.status}</div>`; return; }
+                _renderPreconditionList(await r.json(), candidates);
+            } catch (e) {
+                list.innerHTML = `<div class="text-xs text-rose-500">載入失敗:${e.message}</div>`;
+            }
+        }
+        function _renderPreconditionList(items, candidates) {
+            const list = document.getElementById('preconditionList');
+            if (!list) return;
+            if (!items || items.length === 0) {
+                list.innerHTML = '<div class="text-xs text-slate-400 italic">(無)</div>';
+                return;
+            }
+            const byId = Object.fromEntries((candidates || []).map(c => [c.id, c.label]));
+            list.innerHTML = items.map(item => {
+                const name = byId[item.precondition_testcase_id] || (item.precondition_testcase_id.slice(0, 8) + '…');
+                return `
+                    <div class="flex items-center gap-2 px-2 py-1.5 bg-slate-50 border border-slate-200 rounded">
+                        <i class="fa-solid fa-link text-amber-400 text-xs"></i>
+                        <span class="flex-1 text-sm text-slate-700">${name}</span>
+                        <label class="text-xs text-slate-500 flex items-center gap-1 cursor-pointer">
+                            <input type="checkbox" ${item.enabled ? 'checked' : ''} onchange="togglePreconditionEnabled('${item.id}', this.checked)">
+                            啟用
+                        </label>
+                        <button type="button" onclick="removePrecondition('${item.id}')" class="text-xs text-rose-500 hover:text-rose-700" aria-label="移除">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </div>`;
+            }).join('');
+        }
+        async function _fetchPreconditions(testcaseId) {
+            const r = await fetch(`/api/testcases/${testcaseId}/preconditions`);
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            return r.json();
+        }
+        async function _putPreconditions(testcaseId, items) {
+            const r = await fetch(`/api/testcases/${testcaseId}/preconditions`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ items }),
+            });
+            if (!r.ok) {
+                const j = await r.json().catch(() => ({}));
+                const msg = (j.detail && (j.detail.message || j.detail)) || `HTTP ${r.status}`;
+                throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
+            }
+            return r.json();
+        }
+        function _toInputItems(arr) {
+            return arr.map(c => ({
+                precondition_testcase_id: c.precondition_testcase_id,
+                sort_order: c.sort_order,
+                enabled: c.enabled,
+                on_failure: c.on_failure,
+            }));
+        }
+        async function addPreconditionFromPicker() {
+            if (!currentTestCase) { showToast('先選一個測試案例', 'error'); return; }
+            const picker = document.getElementById('preconditionPicker');
+            const preId = picker.value;
+            if (!preId) { showToast('請先選一個前置案例', 'error'); return; }
+            try {
+                const current = await _fetchPreconditions(currentTestCase);
+                if (current.some(x => x.precondition_testcase_id === preId)) {
+                    showToast('該案例已是前置', 'error'); return;
+                }
+                const items = _toInputItems(current);
+                items.push({ precondition_testcase_id: preId, sort_order: items.length, enabled: true, on_failure: 'stop' });
+                await _putPreconditions(currentTestCase, items);
+                await loadPreconditionsUI(currentTestCase);
+                picker.value = '';
+                showToast('已加入前置案例', 'success');
+            } catch (e) {
+                showToast(`加入失敗:${e.message}`, 'error');
+            }
+        }
+        async function togglePreconditionEnabled(linkId, enabled) {
+            if (!currentTestCase) return;
+            try {
+                const current = await _fetchPreconditions(currentTestCase);
+                const items = _toInputItems(current.map(c => c.id === linkId ? { ...c, enabled } : c));
+                await _putPreconditions(currentTestCase, items);
+                await loadPreconditionsUI(currentTestCase);
+            } catch (e) {
+                showToast(`更新失敗:${e.message}`, 'error');
+            }
+        }
+        async function removePrecondition(linkId) {
+            if (!currentTestCase) return;
+            if (!confirm('確定要移除這個前置案例?')) return;
+            try {
+                const current = await _fetchPreconditions(currentTestCase);
+                const items = _toInputItems(current.filter(c => c.id !== linkId));
+                await _putPreconditions(currentTestCase, items);
+                await loadPreconditionsUI(currentTestCase);
+                showToast('已移除', 'success');
+            } catch (e) {
+                showToast(`移除失敗:${e.message}`, 'error');
+            }
         }
 
         // 測試步驟模式切換邏輯
@@ -5958,8 +6125,8 @@ driver.swipe(100, 800, 100, 200, 500)"
         // 若此處要新增動作，需同步擴充 runner 的對應邏輯，否則執行階段會 Fail
         const ACTION_OPTIONS_BY_PLATFORM = {
             WEB: [
-                // 導航
-                'Navigate', 'Reload', 'GoBack', 'GoForward',
+                // 導航 — Goto / Navigate 等價(backend _translate_step 把兩者都對到 Browser Library 的 Go To)
+                'Goto', 'Navigate', 'Reload', 'GoBack', 'GoForward',
                 // 點擊/輸入
                 'Click', 'DoubleClick', 'RightClick', 'ClickAt', 'CanvasClick',
                 'Hover', 'Focus',
@@ -5997,7 +6164,7 @@ driver.swipe(100, 800, 100, 200, 500)"
             // E2E：跨領域端到端測試，包含 WEB + API + APP（Mobile）所有動作
             E2E: [
                 // ── Browser（同 WEB 全部）──
-                'Navigate', 'Reload', 'GoBack', 'GoForward',
+                'Goto', 'Navigate', 'Reload', 'GoBack', 'GoForward',
                 'Click', 'DoubleClick', 'RightClick', 'ClickAt', 'CanvasClick',
                 'Hover', 'Focus',
                 'Fill', 'Type', 'Clear', 'Press', 'Select', 'Check', 'Uncheck',
@@ -6032,7 +6199,7 @@ driver.swipe(100, 800, 100, 200, 500)"
             ],
             // UI：純瀏覽器互動 + Playwright screenshot diff
             UI: [
-                'Navigate', 'Reload', 'GoBack', 'GoForward',
+                'Goto', 'Navigate', 'Reload', 'GoBack', 'GoForward',
                 'Click', 'DoubleClick', 'RightClick', 'ClickAt', 'CanvasClick',
                 'Hover', 'Focus',
                 'Fill', 'Type', 'Clear', 'Press', 'Select', 'Check', 'Uncheck',
@@ -7274,7 +7441,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 try { stepPlayer.load(); } catch (_) {}
             }
 
-            // 動態組裝按鈕
+            // 動態組裝按鈕(只保留「完整錄影」inline modal;Trace 的「嵌入檢視」已移除,改走外部 Trace Viewer)
             actions.innerHTML = '';
             const btnCls = 'px-3 py-1.5 text-xs font-medium rounded border transition flex items-center gap-1.5';
             if (step.videoUrl) {
@@ -7301,8 +7468,8 @@ driver.swipe(100, 800, 100, 200, 500)"
                 dlTraceBtn.innerHTML = '<i class="fa-solid fa-download"></i> 下載 Trace';
                 actions.appendChild(dlTraceBtn);
 
-                // trace.playwright.dev 是跨網域 viewer，必須給絕對 URL；否則它用自己的 origin 當 base 會 404。
-                // 後端 artifact proxy 會驗證短效 token，並提供 trace viewer 需要的 CORS header。
+                // trace.playwright.dev 是跨網域 viewer,必須給絕對 URL;否則它用自己的 origin 當 base 會 404。
+                // 後端 artifact proxy 會驗證短效 token,並提供 trace viewer 需要的 CORS header。
                 const absTraceUrl = /^https?:/i.test(step.traceUrl) ? step.traceUrl : (window.location.origin + step.traceUrl);
                 const viewerUrl = `https://trace.playwright.dev/?trace=${encodeURIComponent(absTraceUrl)}`;
                 const openExtBtn = document.createElement('a');
@@ -7312,18 +7479,12 @@ driver.swipe(100, 800, 100, 200, 500)"
                 openExtBtn.rel = 'noreferrer';
                 openExtBtn.innerHTML = '<i class="fa-solid fa-arrow-up-right-from-square"></i> Trace Viewer';
                 actions.appendChild(openExtBtn);
-
-                const embedBtn = document.createElement('button');
-                embedBtn.className = `${btnCls} bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100`;
-                embedBtn.innerHTML = '<i class="fa-solid fa-window-maximize"></i> 嵌入檢視';
-                embedBtn.onclick = () => openTraceViewer(viewerUrl);
-                actions.appendChild(embedBtn);
             }
 
             empty.classList.toggle('hidden', !!(step.stepVideoUrl || step.videoUrl || step.traceUrl));
         }
 
-        // ── 完整錄影 / Trace Viewer Modal ──
+        // ── 完整錄影 inline modal(保留)──
         function openFullVideo(url) {
             const m = document.getElementById('fullVideoModal');
             const p = document.getElementById('fullVideoPlayer');
@@ -7340,21 +7501,10 @@ driver.swipe(100, 800, 100, 200, 500)"
             m.classList.add('hidden', 'opacity-0');
             if (p) { try { p.pause(); } catch (_) {} p.removeAttribute('src'); try { p.load(); } catch (_) {} }
         }
-        function openTraceViewer(url) {
-            const m = document.getElementById('traceViewerModal');
-            const f = document.getElementById('traceViewerIframe');
-            if (!m || !f || !url) return;
-            f.src = url;
-            m.classList.remove('hidden');
-            requestAnimationFrame(() => m.classList.remove('opacity-0'));
-        }
-        function closeTraceViewer() {
-            const m = document.getElementById('traceViewerModal');
-            const f = document.getElementById('traceViewerIframe');
-            if (!m) return;
-            m.classList.add('hidden', 'opacity-0');
-            if (f) f.src = 'about:blank';
-        }
+        // ── Trace Viewer 嵌入式 modal 已移除 ── 改走外部 trace.playwright.dev 開新分頁。
+        // 留 no-op 殼避免舊呼叫端噴 ReferenceError。
+        function openTraceViewer() { /* removed: use external trace.playwright.dev */ }
+        function closeTraceViewer() { /* removed */ }
 
         // ── Screenshot Baseline Modal ───────────────────
         // 開啟編輯某個 step 的 baseline；step 必須有穩定的 UUID id
@@ -19914,9 +20064,7 @@ gantt
             const reasonEl = document.getElementById('agentReasonText');
             if (!sel) return;
             try {
-                const r = await fetch('/api/users/me/preferred-agent', {
-                    headers: { 'Authorization': 'Bearer ' + (window.getAccessToken ? getAccessToken() : '') },
-                });
+                const r = await fetch('/api/users/me/preferred-agent');
                 if (!r.ok) throw new Error('HTTP '+r.status);
                 const d = await r.json();
                 // 重建下拉:固定首項「自動」+ 每個 runtime
@@ -19948,10 +20096,7 @@ gantt
             try {
                 const r = await fetch('/api/users/me/preferred-agent', {
                     method: 'PATCH',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + (window.getAccessToken ? getAccessToken() : ''),
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ preferred_agent: val }),
                 });
                 if (!r.ok) throw new Error('HTTP '+r.status);

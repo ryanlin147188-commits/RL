@@ -154,50 +154,94 @@ def run_tests(
         start_ts = time.time()
 
         setup_ids_set = set(setup_testcase_ids or [])
-        setup_failed = False
+
+        # ── Precondition continuity(v1.2.1): 把每個 main 的 setup chain 直接
+        # 「inline」進 main 的 steps,一起送進同一個 runner 容器執行 — 才能讓
+        # browser context / cookie / storage 在 setup 與 main 之間延續(不會
+        # 因為換容器就遺失登入 state)。standalone 的 setup 迭代則跳過。
+        from app.models.testcase_precondition_link import TestcasePreconditionLink
+        from sqlalchemy import select as _select
+
+        def _setup_chain_for(db, main_id: str, visited: set | None = None) -> list[str]:
+            """BFS 展開 main 的 setup chain(含巢狀 precondition),deduped。"""
+            visited = visited if visited is not None else set()
+            chain: list[str] = []
+            rows = db.execute(
+                _select(TestcasePreconditionLink)
+                .where(
+                    TestcasePreconditionLink.testcase_id == main_id,
+                    TestcasePreconditionLink.enabled.is_(True),
+                )
+                .order_by(
+                    TestcasePreconditionLink.sort_order,
+                    TestcasePreconditionLink.id,
+                )
+            ).scalars().all()
+            for link in rows:
+                pre = link.precondition_testcase_id
+                if pre in visited:
+                    continue
+                visited.add(pre)
+                chain.extend(_setup_chain_for(db, pre, visited))
+                chain.append(pre)
+            return chain
+
+        main_to_setup_chain: dict[str, list[str]] = {}
+        with SessionLocal() as db:
+            for tc_id in testcase_ids:
+                if tc_id in setup_ids_set:
+                    continue  # 純 setup 不直接跑、它會被 inline 進相依的 main
+                main_to_setup_chain[tc_id] = _setup_chain_for(db, tc_id)
 
         for idx, tc_id in enumerate(testcase_ids, 1):
-            is_setup = tc_id in setup_ids_set
-            phase_label = "🔧 SETUP" if is_setup else "▶"
+            if tc_id in setup_ids_set:
+                # 這個 setup 會在某個 main 的 inline chain 裡跑到,不單獨建立 runner
+                continue
+
+            chain = main_to_setup_chain.get(tc_id, [])
+            phase_label = "▶"
+            if chain:
+                publish_log(
+                    "INFO",
+                    f"🔗 案例 {tc_id[:8]}… 前置 {len(chain)} 筆(在同一容器內串接執行)",
+                )
             publish_log(
                 "INFO",
                 f"{phase_label} [{idx}/{len(testcase_ids)}] 案例 {tc_id[:8]}…",
             )
 
-            # 前置案例失敗後,主案例全部跳過(以失敗計)
-            if setup_failed and not is_setup:
-                publish_log(
-                    "WARN",
-                    f"⏭ 前置案例已失敗,跳過主案例 {tc_id[:8]}…",
-                )
-                failed_cases += 1
-                with SessionLocal() as db:
-                    db.add(
-                        ExecutionStepLog(
-                            id=str(uuid.uuid4()),
-                            report_id=report_id,
-                            testcase_node_id=tc_id,
-                            step_index=0,
-                            status=StepStatus.FAILED,
-                            duration_ms=0,
-                            error_message="Skipped: precondition testcase failed",
-                        )
-                    )
-                    db.commit()
-                continue
-
+            # 載入 main 內容
             with SessionLocal() as db:
                 content: Optional[TestcaseContent] = db.get(TestcaseContent, tc_id)
 
             if content is None or not content.steps_json:
                 publish_log("ERROR", f"❌ 案例 {idx} 缺少 steps_json,跳過")
                 failed_cases += 1
-                if is_setup:
-                    setup_failed = True
                 continue
 
-            steps = content.steps_json or []
+            main_steps = list(content.steps_json or [])
             ddt = content.ddt_json or {}
+
+            # 依 chain 順序把 setup 的 steps 接在 main 前面;每條 step 標 _src_tc_id
+            # 給 listener 之後可能用得到。標的同時不影響 robot_runner 的翻譯(它只
+            # 讀 action / locator / input / 等已知欄位)。
+            steps: list[dict] = []
+            with SessionLocal() as db:
+                for sid in chain:
+                    sc = db.get(TestcaseContent, sid)
+                    if not sc or not sc.steps_json:
+                        publish_log("WARN", f"⚠ 前置案例 {sid[:8]} 缺 steps_json,跳過")
+                        continue
+                    for s in (sc.steps_json or []):
+                        ss = dict(s)
+                        ss["_src_tc_id"] = sid
+                        ss["_phase"] = "setup"
+                        steps.append(ss)
+            for s in main_steps:
+                ss = dict(s)
+                ss["_src_tc_id"] = tc_id
+                ss["_phase"] = "main"
+                steps.append(ss)
             # ddt_expand=False → 最多只跑一輪（以 DDT 第一列當變數）
             if not ddt_expand and ddt and isinstance(ddt, dict):
                 rows = ddt.get("rows") or []
@@ -244,11 +288,10 @@ def run_tests(
             else:
                 failed_cases += 1
                 publish_log("ERROR", f"❌ 案例 {idx} 失敗")
-                if is_setup:
-                    setup_failed = True
+                if chain:
                     publish_log(
-                        "ERROR",
-                        f"🛑 前置案例 {tc_id[:8]} 失敗,後續主案例將全部跳過",
+                        "INFO",
+                        f"   (含 {len(chain)} 條前置步驟,任一前置失敗會讓整個案例 fail)",
                     )
 
             # DDT 多列：用 step_index = round*1000 + step 編碼

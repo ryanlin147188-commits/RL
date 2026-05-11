@@ -348,6 +348,17 @@ def _translate_step(step: dict, ctx: dict) -> list[str]:
                 result.append(b)
         return result
 
+    def out_w(*body: list[str] | str) -> list[str]:
+        """跟 out() 一樣,但先 prepend 一條 Wait For Elements State(60s)。
+        Browser Library 的 Get Text / Fill Text / Get Property 等 keyword 預設
+        不會等元素出現,SPA 場景常導致瞬間 fail。對於有 locator 的讀寫動作,
+        強制先等元素 visible 比較穩。沒有 locator 的呼叫端不要用這個 helper。
+        """
+        if not locator:
+            return out(*body)
+        wait = line("Wait For Elements State", locator, "visible", "timeout=60s")
+        return out(wait, *body)
+
     # ── Browser Library（預設）────────────────────────
     # 導航
     if action in ("goto", "navigate", "open"):
@@ -361,45 +372,55 @@ def _translate_step(step: dict, ctx: dict) -> list[str]:
         return out(line("Go Forward"))
 
     # 點擊 / 輸入
-    # ★ 所有 Click 動作之前都先 Wait For Elements State ... visible timeout=10s，
+    # ★ 所有 Click 動作之前都先 Wait For Elements State ... visible timeout=60s，
     #   避免目標元素找不到時整個 test 卡住（Browser Library 的 Click 預設 timeout 會跟隨 suite timeout，
     #   在舊版 .robot 裡可能是 30s～無上限）。
     if action == "click":
         return out(
-            line("Wait For Elements State", locator, "visible", "timeout=10s"),
+            line("Wait For Elements State", locator, "visible", "timeout=60s"),
             line("Click", locator),
         )
     if action in ("doubleclick", "dblclick"):
         return out(
-            line("Wait For Elements State", locator, "visible", "timeout=10s"),
+            line("Wait For Elements State", locator, "visible", "timeout=60s"),
             line("Click", locator, "clickCount=2"),
         )
     if action == "rightclick":
         return out(
-            line("Wait For Elements State", locator, "visible", "timeout=10s"),
+            line("Wait For Elements State", locator, "visible", "timeout=60s"),
             line("Click", locator, "button=right"),
         )
     if action in ("fill", "input"):
-        return out(line("Fill Text", locator, value))
+        # 預設只填字;若 expected 有值,fill 完再 Get Property value 比對,
+        # 讓使用者在 UI 設的 compare+expected 真的會 fail(原本被吞掉導致一律 pass)。
+        body = [line("Fill Text", locator, value)]
+        if expected:
+            body.append(line("${actual}=", "Get Property", locator, "value"))
+            body.append(compare_line("${actual}", compare or "Equals", expected))
+        return out_w(*body)
     if action == "type":
-        return out(line("Type Text", locator, value))
+        body = [line("Type Text", locator, value)]
+        if expected:
+            body.append(line("${actual}=", "Get Property", locator, "value"))
+            body.append(compare_line("${actual}", compare or "Equals", expected))
+        return out_w(*body)
     if action == "clear":
-        return out(line("Clear Text", locator))
+        return out_w(line("Clear Text", locator))
     if action == "press":
-        return out(line("Press Keys", locator, value or "Enter"))
+        return out_w(line("Press Keys", locator, value or "Enter"))
     if action == "hover":
-        return out(line("Hover", locator))
+        return out_w(line("Hover", locator))
     if action == "focus":
-        return out(line("Focus", locator))
+        return out_w(line("Focus", locator))
     if action == "check":
-        return out(line("Check Checkbox", locator))
+        return out_w(line("Check Checkbox", locator))
     if action == "uncheck":
-        return out(line("Uncheck Checkbox", locator))
+        return out_w(line("Uncheck Checkbox", locator))
     if action == "select":
-        return out(line("Select Options By", locator, "value", value))
+        return out_w(line("Select Options By", locator, "value", value))
     if action == "upload":
         # value = 檔案路徑（容器內可讀）
-        return out(line("Upload File By Selector", locator, value))
+        return out_w(line("Upload File By Selector", locator, value))
     if action == "download":
         # 下載檔案：locator = 觸發下載的連結/按鈕；value = 儲存到 worker 容器內的檔案路徑
         # 使用 Browser Library 的 Promise / Wait For 模式：先下 promise，再點擊，再等它完成
@@ -418,7 +439,7 @@ def _translate_step(step: dict, ctx: dict) -> list[str]:
         parts = [p for p in parts if p]
         x, y = (parts + ["0", "0"])[:2]
         return out(
-            line("Wait For Elements State", locator, "visible", "timeout=10s"),
+            line("Wait For Elements State", locator, "visible", "timeout=60s"),
             line("Click With Options", locator, f"position_x={x}", f"position_y={y}"),
         )
 
@@ -463,26 +484,26 @@ def _translate_step(step: dict, ctx: dict) -> list[str]:
 
     # 斷言
     if action in ("assertvisible", "shouldbevisible"):
-        return out(line("Wait For Elements State", locator, "visible"))
+        return out(line("Wait For Elements State", locator, "visible", "timeout=60s"))
     if action in ("asserthidden", "shouldbehidden"):
-        return out(line("Wait For Elements State", locator, "hidden"))
+        return out(line("Wait For Elements State", locator, "hidden", "timeout=60s"))
     if action == "assertchecked":
-        return out(
+        return out_w(
             line("${state}=", "Get Checkbox State", locator),
             line("Should Be True", "${state}"),
         )
     if action == "assertenabled":
-        return out(line("Wait For Elements State", locator, "enabled"))
+        return out(line("Wait For Elements State", locator, "enabled", "timeout=60s"))
     if action == "assertdisabled":
-        return out(line("Wait For Elements State", locator, "disabled"))
+        return out(line("Wait For Elements State", locator, "disabled", "timeout=60s"))
     if action == "asserttext":
         # 文字比對預設使用 Contains（比 Equals 實用）
-        return out(
+        return out_w(
             line("${actual}=", "Get Text", locator),
             compare_line("${actual}", compare or "Contains", expected),
         )
     if action == "assertvalue":
-        return out(
+        return out_w(
             line("${actual}=", "Get Property", locator, "value"),
             compare_line("${actual}", compare or "Equals", expected),
         )
@@ -503,7 +524,7 @@ def _translate_step(step: dict, ctx: dict) -> list[str]:
         )
     if action == "assertattribute":
         # value = 屬性名；expected = 期望值
-        return out(
+        return out_w(
             line("${attr}=", "Get Attribute", locator, value or "value"),
             compare_line("${attr}", compare or "Equals", expected),
         )
@@ -511,7 +532,7 @@ def _translate_step(step: dict, ctx: dict) -> list[str]:
         # 檢查 <img> 是否真的載入完成（complete=true && naturalWidth>0），
         # 避免破圖被當成「顯示」通過
         return out(
-            line("Wait For Elements State", locator, "visible", "timeout=10s"),
+            line("Wait For Elements State", locator, "visible", "timeout=60s"),
             line(
                 "${loaded}=",
                 "Evaluate JavaScript",
@@ -533,7 +554,7 @@ def _translate_step(step: dict, ctx: dict) -> list[str]:
         ex, ey, ew, eh = parts[:4]
         tol = expected or "2"
         return out(
-            line("Wait For Elements State", locator, "visible", "timeout=10s"),
+            line("Wait For Elements State", locator, "visible", "timeout=60s"),
             line("${bb}=", "Get Boundingbox", locator),
             line("Should Be True", f"abs(${{bb}}[\"x\"] - {ex}) <= {tol}"),
             line("Should Be True", f"abs(${{bb}}[\"y\"] - {ey}) <= {tol}"),
@@ -867,12 +888,22 @@ def _build_robot_file(
     video_dir_p = _posix(video_dir) if enable_recording else ""
     trace_dir_p = _posix(trace_dir) if enable_recording else ""
 
+    # AppiumLibrary 跟 Browser Library 有同名 keyword(Get Text / Click / 等),
+    # RF 的 `WITH NAME` 只改 library 別名,不會把短名稱從查找移除,所以兩者一起
+    # 載入時所有 `Get Text` 之類的短呼叫都會 ambiguous。改為「只在這個案例真的
+    # 有用到 Mobile.* 動作時才 import」,純 WEB / API / DB 不載入。
+    has_mobile_action = any(
+        (s.get("action") or "").strip().lower().startswith("mobile.")
+        for s in steps
+    )
+
     lines: list[str] = []
     lines.append("*** Settings ***")
     lines.append("Library    Browser    auto_closing_level=TEST")
     lines.append("Library    RequestsLibrary")
     lines.append("Library    DatabaseLibrary")
-    lines.append("Library    AppiumLibrary")
+    if has_mobile_action:
+        lines.append("Library    AppiumLibrary")
     lines.append("Library    Collections")
     lines.append("Library    OperatingSystem")
     lines.append("Library    String")
@@ -947,8 +978,8 @@ def _build_robot_file(
     lines.append("    New Context    " + "    ".join(nc_args))
     lines.append("    New Page")
     # 預設所有 Browser Library 動作（Click / Fill / Wait For Elements State / ...）
-    # 超過 30 秒就算失敗，避免找不到元素時整個 test 卡住無限等。
-    lines.append("    Set Browser Timeout    30s")
+    # 超過 60 秒就算失敗,避免找不到元素時整個 test 卡住無限等。
+    lines.append("    Set Browser Timeout    60s")
     # 把錄影起始時間（epoch 秒）寫入 RECORDING_START；listener 用此計算每步的 video offset
     lines.append("    ${RECORDING_START}=    Get Time    epoch")
     lines.append("    Set Suite Variable    ${RECORDING_START}")

@@ -28,6 +28,9 @@ RUN dnf install -y xorg-x11-server-Xvfb procps-ng \
 # pydantic-settings：app.config 需要
 # aiofiles + fastapi：app.services.storage_service import 鏈上會用到
 # Pillow + numpy：tasks.assert_screenshot_lib 的像素 diff 用
+# robotframework-appiumlibrary：行動端(iOS/Android)測試用;.robot 模板無條件
+#   `Library AppiumLibrary`,沒裝會被 RF 降為 warning,雖不擋 web case 但每次跑
+#   都會在 log 出現 ModuleNotFoundError。Appium server 本身由使用者提供。
 RUN pip3 install --no-cache-dir \
         boto3==1.35.36 \
         redis==5.1.1 \
@@ -37,7 +40,8 @@ RUN pip3 install --no-cache-dir \
         aiofiles==24.1.0 \
         'fastapi[standard]==0.115.0' \
         Pillow==11.0.0 \
-        numpy==2.1.3
+        numpy==2.1.3 \
+        robotframework-appiumlibrary==2.1.0
 
 # 把 backend/ 的程式碼放到 /app（與 celery image 結構一致，避免 listener import path 不同）
 WORKDIR /app
