@@ -114,10 +114,88 @@ def _apply_lockdown() -> None:
         logger.warning("acp_lockdown: failed to patch SessionManager: %s", e)
 
 
+def _readonly_paths() -> List[str]:
+    """從 env 讀 RL_AI_READONLY_PATHS(冒號分隔)。supervisor.py 在 provision
+    時寫進 .env;沒設 → 空 list(無 path policy,僅靠 OS perm 擋)。
+    """
+    raw = (os.environ.get("RL_AI_READONLY_PATHS") or "").strip()
+    if not raw:
+        return []
+    out = []
+    for p in raw.split(":"):
+        p = p.strip()
+        if not p:
+            continue
+        try:
+            out.append(str(Path(p).resolve()))
+        except Exception:
+            continue
+    return out
+
+
+def _path_under_readonly(target: str, readonly_roots: List[str]) -> bool:
+    """target 是否在任一 readonly root 底下(含 target 本身就是 root)。"""
+    try:
+        rt = Path(target).resolve()
+    except Exception:
+        return False
+    for root in readonly_roots:
+        try:
+            rt.relative_to(root)
+            return True
+        except ValueError:
+            continue
+    return False
+
+
+def _apply_path_policy() -> None:
+    """讓 model_tools 內若有任何 fs write 函式(就算 toolset 是 disabled)在
+    被呼叫時也會檢查 path。Phase 2 主要靠 OS perm + toolset 黑名單擋;這層
+    是「未來新 toolset 沒進黑名單時的 last resort」。
+    """
+    roots = _readonly_paths()
+    if not roots:
+        logger.info("acp_lockdown.path_policy: no read-only roots configured")
+        return
+    logger.info("acp_lockdown.path_policy: read-only roots=%s", roots)
+
+    try:
+        import model_tools as _mt
+    except Exception as e:
+        logger.warning("acp_lockdown.path_policy: model_tools unavailable: %s", e)
+        return
+
+    # 包裝候選的 fs write 函式;沒對應名稱就跳過(版本不同名)。
+    for fn_name in ("write_file", "edit_file", "multi_edit_file", "delete_file"):
+        orig = getattr(_mt, fn_name, None)
+        if not callable(orig):
+            continue
+        def _make_guarded(fn_orig, fn_label):
+            def _guarded(*args, **kwargs):
+                # 候選參數:path/file_path/target_path
+                p = kwargs.get("path") or kwargs.get("file_path") or kwargs.get("target_path")
+                if p is None and args:
+                    p = args[0] if isinstance(args[0], (str, bytes)) else None
+                if p and _path_under_readonly(str(p), roots):
+                    logger.error(
+                        "acp_lockdown.path_policy: BLOCKED %s(%s) — readonly root match",
+                        fn_label, p,
+                    )
+                    raise PermissionError(
+                        f"Path '{p}' falls under read-only root; AI tools may write only to "
+                        f"RL_AI_WRITABLE_PATHS (see workspace generated/)."
+                    )
+                return fn_orig(*args, **kwargs)
+            return _guarded
+        setattr(_mt, fn_name, _make_guarded(orig, fn_name))
+        logger.info("acp_lockdown.path_policy: wrapped model_tools.%s", fn_name)
+
+
 def main() -> None:
     # 在 acp_adapter.entry import 之前先把 patch 套上 — 確保 agent 建出來
     # 看到的 tool list 已經是過濾後的。
     _apply_lockdown()
+    _apply_path_policy()
 
     # 接著走原本的 entry。entry 用 sys.argv 跟 stdio,所以 import 後直接 run。
     from acp_adapter import entry as _entry  # noqa: F401
