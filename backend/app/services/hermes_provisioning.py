@@ -21,7 +21,7 @@ import hashlib
 import logging
 from typing import Optional
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -181,8 +181,16 @@ async def pick_token_for_user(
       2) 同 org 內 is_default=True 的設定(若多筆 — settings 是 per-provider
          唯一 default,不是全 org 唯一 — 取最近 updated_at 的)
       3) 同 org 內任何 enabled=True 的設定(以建立時間排序)
+
+    Hermes runtime 不認 OpenClaw 用的 `openai-oauth` provider(那是 OAuth flow
+    跑的 token,沒 raw API key 給 Hermes 用)。所以這個函式預設排除 oauth
+    系列 provider — Phase 3 走 OpenClaw 路徑的呼叫方會繞過本函式直接讀 token。
     """
-    stmt = select(AiTokenConfig).where(AiTokenConfig.enabled.is_(True))
+    stmt = select(AiTokenConfig).where(
+        AiTokenConfig.enabled.is_(True),
+        # 排除 OAuth provider(Phase 3 OpenClaw 專用,Hermes 用不到)
+        func.lower(AiTokenConfig.provider) != "openai-oauth",
+    )
     if user.organization_id:
         stmt = stmt.where(AiTokenConfig.organization_id == user.organization_id)
 

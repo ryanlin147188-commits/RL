@@ -3437,6 +3437,21 @@ driver.swipe(100, 800, 100, 200, 500)"
 
                     <!-- ─── Pane 6: AI Token ─── -->
                     <div id="setPaneAi" class="hidden space-y-4">
+                        <!-- Phase 1: Agent Runtime picker (token-capability gated) -->
+                        <section class="bg-white rounded-xl border border-indigo-100 shadow-sm p-4">
+                            <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
+                                <h3 class="font-bold text-stone-700 text-base flex items-center gap-2"><i class="fa-solid fa-shuffle text-indigo-500"></i> 預設 AI Agent</h3>
+                                <span id="agentEffectiveBadge" class="text-[10px] px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-normal hidden">目前生效:<span id="agentEffectiveKey">-</span></span>
+                            </div>
+                            <p class="text-xs text-stone-500 mb-3">選你慣用的 agent runtime;下拉選項會依「現有 token 能力」自動 enable/disable。選「自動」由系統依 token 挑第一個能跑的。</p>
+                            <div class="flex items-center gap-3 flex-wrap">
+                                <select id="preferredAgentSelect" onchange="savePreferredAgent()" class="px-3 py-2 border border-stone-300 rounded-md text-sm bg-white min-w-[220px]">
+                                    <option value="">自動(系統依 token 挑)</option>
+                                </select>
+                                <span id="agentReasonText" class="text-xs text-stone-500"></span>
+                            </div>
+                        </section>
+
                         <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-4">
                             <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
                                 <h3 class="font-bold text-stone-700 text-base flex items-center gap-2"><i class="fa-solid fa-robot text-amber-500"></i> AI Token 管理</h3>
@@ -19886,8 +19901,66 @@ gantt
             // lazy load 各分頁資料
             if (name === 'notif') loadNotificationPrefs();
             else if (name === 'email') loadEmailConfig();
-            else if (name === 'ai') renderAiTokensList();
+            else if (name === 'ai') { renderAiTokensList(); loadPreferredAgent(); }
             else if (name === 'projectMembers') pmReload();
+        }
+
+        // ─── Agent Runtime preference (Phase 1) ─────────────────────────
+        async function loadPreferredAgent() {
+            const sel = document.getElementById('preferredAgentSelect');
+            const badge = document.getElementById('agentEffectiveBadge');
+            const badgeKey = document.getElementById('agentEffectiveKey');
+            const reasonEl = document.getElementById('agentReasonText');
+            if (!sel) return;
+            try {
+                const r = await fetch('/api/users/me/preferred-agent', {
+                    headers: { 'Authorization': 'Bearer ' + (window.getAccessToken ? getAccessToken() : '') },
+                });
+                if (!r.ok) throw new Error('HTTP '+r.status);
+                const d = await r.json();
+                // 重建下拉:固定首項「自動」+ 每個 runtime
+                const opts = ['<option value="">自動(系統依 token 挑)</option>'];
+                (d.available || []).forEach(a => {
+                    const disabled = a.supported ? '' : ' disabled';
+                    const title = a.supported ? a.description : (a.reason || a.description);
+                    opts.push(`<option value="${a.key}"${disabled} title="${title.replace(/"/g,'&quot;')}">${a.label}${a.supported ? '' : ' (token 不足)'}</option>`);
+                });
+                sel.innerHTML = opts.join('');
+                sel.value = d.preferred_agent || '';
+                if (badge && badgeKey) {
+                    badgeKey.textContent = d.effective_agent || '-';
+                    badge.classList.remove('hidden');
+                }
+                if (reasonEl) {
+                    const cur = (d.available || []).find(x => x.key === (d.preferred_agent || d.effective_agent));
+                    reasonEl.textContent = cur ? cur.description : '';
+                }
+            } catch (e) {
+                console.warn('loadPreferredAgent failed', e);
+            }
+        }
+
+        async function savePreferredAgent() {
+            const sel = document.getElementById('preferredAgentSelect');
+            if (!sel) return;
+            const val = sel.value || null;
+            try {
+                const r = await fetch('/api/users/me/preferred-agent', {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + (window.getAccessToken ? getAccessToken() : ''),
+                    },
+                    body: JSON.stringify({ preferred_agent: val }),
+                });
+                if (!r.ok) throw new Error('HTTP '+r.status);
+                const d = await r.json();
+                if (typeof showToast === 'function') showToast('預設 Agent 已更新:' + (d.effective_agent || '自動'), 'success');
+                // refresh 顯示 (effective + reason)
+                loadPreferredAgent();
+            } catch (e) {
+                if (typeof showToast === 'function') showToast('更新失敗:' + e.message, 'error');
+            }
         }
 
         // ─── 權限清單（唯讀） ─────────────────────────────────────────

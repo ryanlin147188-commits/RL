@@ -29,9 +29,16 @@ from app.schemas.settings import (
     EmailConfigUpdate,
     NotificationPreferenceResponse,
     NotificationPreferenceUpdate,
+    PreferredAgentResponse,
+    PreferredAgentUpdate,
     RoleCreate,
     RoleResponse,
     RoleUpdate,
+)
+from app.services.agent_runtimes import (
+    AGENT_RUNTIMES,
+    check_agent_capabilities,
+    resolve_preferred_agent,
 )
 
 router = APIRouter()
@@ -957,3 +964,62 @@ async def delete_ai_token(
     invalidate_user_workspace(user.username)
     # mem0 sidecar 的 per-user llm_config cache 也跟著新狀態同步(push or clear)
     await sync_mem0_llm_config(user, db)
+
+
+# ── Agent Runtime preference (Phase 1) ────────────────────────────────
+
+async def _list_user_org_tokens(db: AsyncSession, user: User) -> list[AiTokenConfig]:
+    stmt = select(AiTokenConfig)
+    if not user.is_superuser:
+        if user.organization_id is None:
+            stmt = stmt.where(AiTokenConfig.organization_id.is_(None))
+        else:
+            stmt = stmt.where(AiTokenConfig.organization_id == user.organization_id)
+    return list((await db.execute(stmt)).scalars().all())
+
+
+@router.get(
+    "/users/me/preferred-agent",
+    response_model=PreferredAgentResponse,
+    tags=["S · 設定"],
+)
+async def get_preferred_agent(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    tokens = await _list_user_org_tokens(db, user)
+    available = check_agent_capabilities(tokens)
+    return PreferredAgentResponse(
+        preferred_agent=user.preferred_agent,
+        effective_agent=resolve_preferred_agent(user.preferred_agent, tokens),
+        available=available,  # type: ignore[arg-type]
+    )
+
+
+@router.patch(
+    "/users/me/preferred-agent",
+    response_model=PreferredAgentResponse,
+    tags=["S · 設定"],
+)
+async def update_preferred_agent(
+    payload: PreferredAgentUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    new_pref = payload.preferred_agent
+    if new_pref is not None:
+        valid_keys = {spec.key for spec in AGENT_RUNTIMES}
+        if new_pref not in valid_keys:
+            raise HTTPException(400, f"未知 agent runtime: {new_pref}")
+    user.preferred_agent = new_pref
+    await db.flush()
+    # 切 agent 後 Hermes sidecar 仍可能仍跑(下次請求才路由),這裡讓 workspace
+    # 重 provision 確保 token/config 是當前生效那組。
+    from app.services.hermes_provisioning import invalidate_user_workspace
+    invalidate_user_workspace(user.username)
+    tokens = await _list_user_org_tokens(db, user)
+    return PreferredAgentResponse(
+        preferred_agent=user.preferred_agent,
+        effective_agent=resolve_preferred_agent(user.preferred_agent, tokens),
+        available=check_agent_capabilities(tokens),  # type: ignore[arg-type]
+    )

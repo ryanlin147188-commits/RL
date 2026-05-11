@@ -171,3 +171,27 @@ class TodoItemResponse(TodoItemBase):
     # 額外運算欄位：是否過期、距離到期天數
     is_overdue: bool = False
     days_to_due: Optional[int] = None
+
+
+# ── Agent Runtime (Phase 1) ───────────────────────────────────────────
+
+class AgentRuntimeCapability(BaseModel):
+    """前端下拉每個選項對應一筆。supported=False 時 reason 給 tooltip。"""
+    key: str
+    label: str
+    description: str
+    required: str
+    supported: bool
+    reason: Optional[str] = None
+
+
+class PreferredAgentResponse(BaseModel):
+    """GET /users/me/preferred-agent 回傳:儲存的偏好 + 實際解析後會用的 runtime。"""
+    preferred_agent: Optional[str] = None
+    effective_agent: str
+    available: list[AgentRuntimeCapability]
+
+
+class PreferredAgentUpdate(BaseModel):
+    # None 表示「自動」(刪除偏好,讓系統依 token 能力挑)
+    preferred_agent: Optional[str] = None
