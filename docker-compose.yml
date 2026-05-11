@@ -329,6 +329,38 @@ services:
       start_period: 30s
     # 不對外 publish 5432;mem0 sidecar 是唯一 client。
 
+  # ── openclaw sidecar (Phase 3 scaffold — opt-in via profile) ────────
+  # OpenClaw (https://github.com/openclaw/openclaw, MIT) — 第二個 agent
+  # runtime 選項,使用者在 Settings → AI 下拉可挑(需綁定 ChatGPT OAuth)。
+  # Scaffold 階段:supervisor.py 只有 /healthz + /v1/provision + /v1/chat(回 501)。
+  # 真正 spawn openclaw daemon + OAuth flow 留 Phase 3.5。
+  #
+  # 不在 default profile — 還沒人有 OpenClaw 需求就不必每次 up 都吃資源。
+  # 啟用:`docker compose --profile openclaw up -d openclaw`。
+  openclaw:
+    image: autotest-openclaw:0.1.0
+    profiles: ["openclaw"]
+    build:
+      context: ./openclaw
+      dockerfile: Dockerfile
+    container_name: autotest-openclaw
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Taipei
+      OPENCLAW_DATA_ROOT: /opt/openclaw-data
+      # 與 hermes(SIDECAR_AUTH_TOKEN)/ mem0(MEM0_SIDECAR_AUTH_TOKEN)隔離
+      # 各自獨立 secret 邊界;bootstrap 自動產一份(Phase 3.5 補)。
+      OPENCLAW_SIDECAR_AUTH_TOKEN: ${OPENCLAW_SIDECAR_AUTH_TOKEN:-}
+    volumes:
+      - openclaw_data:/opt/openclaw-data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:7950/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    # 不對外 publish 7950;backend 以 openclaw:7950 內網解析。
+
   frontend:
     image: autotest-frontend:${AUTOTEST_TAG:-1.1.1}
     build:
@@ -534,6 +566,7 @@ volumes:
   fluent_bit_state:
   hermes_data:
   mem0_pg_data:
+  openclaw_data:
 
 # SeaweedFS S3 IAM 設定:從 .env 注入,docker compose 會在啟動時做變數替換。
 # 修改後須 docker compose down -v 並 up 才能重新生效(SeaweedFS 啟動時讀一次)。
