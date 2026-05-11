@@ -11,6 +11,7 @@
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 from typing import Optional
@@ -82,9 +83,13 @@ class OpenClawClient:
                 return await r.json()
 
     async def chat(self, workspace_id: str, prompt: str) -> dict:
-        """POST /v1/chat — Phase 3.5 才會通。目前 sidecar 回 501,client 把錯誤
-        包成 OpenClawError 讓 caller(ai_chat router)能 graceful fallback 回
-        Hermes 或回友善訊息。"""
+        """POST /v1/chat — spawn openclaw CLI 於 sidecar。
+
+        成功回 `{"content": "<stdout>", "stderr": ...}`。
+        Sidecar 端任何錯誤(openclaw 沒裝 / workspace 沒 provision / cli 失敗 /
+        timeout)都會以非 2xx HTTP 回來;這裡統一 raise OpenClawError 讓 caller
+        graceful fallback 回 Hermes。
+        """
         url = f"{self.base_url}/v1/chat"
         async with aiohttp.ClientSession(timeout=self.timeout) as session:
             async with session.post(
@@ -93,12 +98,16 @@ class OpenClawClient:
                 json={"workspace_id": workspace_id, "prompt": prompt},
             ) as r:
                 body_text = await r.text()
-                if r.status == 501:
-                    raise OpenClawError(
-                        "openclaw_chat_not_yet_wired: " + body_text[:200]
-                    )
                 if r.status >= 400:
-                    raise OpenClawError(f"chat: HTTP {r.status} — {body_text[:200]}")
+                    # 把 sidecar 結構化錯誤往上吐(json parse 失敗就 raw text)
+                    try:
+                        err = json.loads(body_text)
+                        code = err.get("error", f"http_{r.status}")
+                        msg = err.get("message") or err.get("stderr") or body_text
+                    except Exception:
+                        code = f"http_{r.status}"
+                        msg = body_text[:300]
+                    raise OpenClawError(f"{code}: {msg}")
                 return await r.json()
 
 
@@ -111,3 +120,69 @@ def get_openclaw_client() -> OpenClawClient:
     if _GLOBAL_CLIENT is None:
         _GLOBAL_CLIENT = OpenClawClient()
     return _GLOBAL_CLIENT
+
+
+# ── User-level provisioning helper ────────────────────────────────────
+# 對齊 hermes_provisioning.ensure_user_workspace 的 cache 模式。OpenClaw 路徑
+# 用 user 的 openai-oauth token push 給 sidecar。
+
+import time
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession  # noqa: F401
+    from app.models.user import User  # noqa: F401
+
+_OC_PROVISIONED_CACHE: dict[str, float] = {}
+_OC_CACHE_TTL_SEC = 300
+
+
+def invalidate_openclaw_workspace(username: str) -> None:
+    _OC_PROVISIONED_CACHE.pop(username, None)
+
+
+async def ensure_openclaw_provisioned(
+    user, db, *, force: bool = False,
+) -> tuple[str, str]:
+    """確保 user 的 OpenClaw workspace 已 provision。
+
+    回 (workspace_id, oauth_token_first8_for_log)。失敗 raise OpenClawError —
+    caller (hermes router send_message) 接到後 graceful fallback 回 Hermes。
+
+    workspace_id 沿用 hermes_provisioning.workspace_id_for_user 同個 sha256 hash —
+    跨 sidecar 一致(方便 debug 對照 + 未來合管理 UI)。
+    """
+    from app.services.hermes_provisioning import workspace_id_for_user
+    from app.models.ai_token_config import AiTokenConfig
+    from sqlalchemy import select
+
+    ws = workspace_id_for_user(user)
+    now = time.monotonic()
+    cached_at = _OC_PROVISIONED_CACHE.get(user.username)
+    if not force and cached_at and now - cached_at < _OC_CACHE_TTL_SEC:
+        return ws, "cached"
+
+    # 撈該 user (or org) 的 openai-oauth token
+    stmt = select(AiTokenConfig).where(
+        AiTokenConfig.enabled.is_(True),
+    )
+    if user.organization_id:
+        stmt = stmt.where(AiTokenConfig.organization_id == user.organization_id)
+    rows = (await db.execute(stmt)).scalars().all()
+    cfg = next(
+        (t for t in rows if (t.provider or "").lower() == "openai-oauth" and t.api_key),
+        None,
+    )
+    if not cfg:
+        raise OpenClawError("no_openclaw_token_configured")
+
+    client = get_openclaw_client()
+    try:
+        await client.provision(workspace_id=ws, oauth_token=cfg.api_key or "")
+    except OpenClawError:
+        # 不 cache 失敗的 provision — 下次重試
+        raise
+
+    _OC_PROVISIONED_CACHE[user.username] = now
+    LOG.info("provisioned openclaw workspace user=%s ws=%s", user.username, ws)
+    return ws, (cfg.api_key or "")[:8] + "***"

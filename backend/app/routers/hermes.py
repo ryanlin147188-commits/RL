@@ -1444,19 +1444,48 @@ async def send_message(
         augmented_content = _language_directive(locale) + augmented_content
 
     hermes = get_hermes_client()
-    try:
-        # ensure 在這裡也跑一次 — 處理「create_session 後 cache TTL 過期」的情況
-        ws = await ensure_user_workspace(user, db, hermes)
-        result = await hermes.send_message(ws, sid, augmented_content)
-    except HermesError as e:
-        if str(e) in ("no_token_configured", "token_missing_api_key"):
-            raise HTTPException(
-                400,
-                detail={"error": "no_token_configured",
-                        "message": "尚未設定任何 AI provider;請至設定 → AI Token "
-                                   "加入一個並設為預設"},
+    # ── Phase 3.5: runtime fork on user.preferred_agent ──────────────
+    # 預設(NULL / 'hermes')走原本路徑;'openclaw' 試 OpenClaw,失敗 graceful
+    # fallback 回 Hermes 並在回應前 prepend 一則警告(讓使用者知道發生 fallback)。
+    fallback_notice: Optional[str] = None
+    runtime = (getattr(user, "preferred_agent", None) or "hermes").lower()
+    if runtime == "openclaw":
+        from app.services.openclaw_client import (
+            OpenClawError,
+            ensure_openclaw_provisioned,
+            get_openclaw_client,
+        )
+        oc = get_openclaw_client()
+        try:
+            oc_ws, _key_preview = await ensure_openclaw_provisioned(user, db)
+            oc_resp = await oc.chat(workspace_id=oc_ws, prompt=augmented_content)
+            result = {"content": oc_resp.get("content") or "", "usage": {}}
+        except OpenClawError as oe:
+            LOG.warning("openclaw chat failed user=%s reason=%s — falling back to hermes",
+                        user.username, str(oe))
+            fallback_notice = (
+                "⚠️ OpenClaw runtime 不可用("
+                + str(oe).split(":", 1)[0].strip()
+                + "),已自動 fallback 回 Hermes。請至「設定 → AI」確認 OpenClaw token / sidecar 狀態,或切回 Hermes 為預設。\n\n"
             )
-        raise _hermes_error_to_http(e)
+            runtime = "hermes"
+
+    if runtime == "hermes":
+        try:
+            # ensure 在這裡也跑一次 — 處理「create_session 後 cache TTL 過期」的情況
+            ws = await ensure_user_workspace(user, db, hermes)
+            result = await hermes.send_message(ws, sid, augmented_content)
+        except HermesError as e:
+            if str(e) in ("no_token_configured", "token_missing_api_key"):
+                raise HTTPException(
+                    400,
+                    detail={"error": "no_token_configured",
+                            "message": "尚未設定任何 AI provider;請至設定 → AI Token "
+                                       "加入一個並設為預設"},
+                )
+            raise _hermes_error_to_http(e)
+    if fallback_notice and isinstance(result, dict):
+        result["content"] = fallback_notice + (result.get("content") or "")
 
     assistant_text = result.get("content") or ""
     usage = result.get("usage") or {}

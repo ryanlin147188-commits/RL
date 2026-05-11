@@ -62,6 +62,10 @@ _PROVIDERS: dict[str, ProviderSpec] = {
     ),
     "ollama":     ProviderSpec("http://host.docker.internal:11434/v1", "openai-compat"),
     "lmstudio":   ProviderSpec("http://host.docker.internal:1234/v1", "openai-compat"),
+    # OpenClaw via OAuth / ChatGPT subscription — provider 標識 only,實際路徑由
+    # openclaw_client 走 sidecar CLI,不打 OpenAI Chat Completions API。base_url
+    # 寫 OpenAI 官方僅給「拉模型清單」按鈕用(共用 OpenAI 列表)。
+    "openai-oauth": ProviderSpec("https://api.openai.com/v1", "openai-compat"),
 }
 
 
@@ -90,8 +94,12 @@ def known_providers() -> list[dict]:
     仍保留在 _PROVIDERS dict 中以相容既存資料,但不再讓使用者新建。
     """
     return [
-        {"value": "OpenAI",    "label": "GPT (OpenAI)"},
-        {"value": "Anthropic", "label": "Claude (Anthropic)"},
-        {"value": "Google",    "label": "Gemini (Google)"},
-        {"value": "Ollama",    "label": "本地 (Ollama / LM Studio)"},
+        {"value": "OpenAI",       "label": "GPT (OpenAI)"},
+        {"value": "Anthropic",    "label": "Claude (Anthropic)"},
+        {"value": "Google",       "label": "Gemini (Google)"},
+        {"value": "Ollama",       "label": "本地 (Ollama / LM Studio)"},
+        # Phase 3.5:OpenClaw runtime 用 — 走 ChatGPT 訂閱 / OAuth credential。
+        # 使用者在 token 表填 OpenAI ChatGPT 的 session/refresh token,搭配 settings
+        # 頁 agent 下拉切到 OpenClaw 才會走 sidecar 對話路徑。
+        {"value": "openai-oauth", "label": "OpenClaw (ChatGPT 訂閱)"},
     ]

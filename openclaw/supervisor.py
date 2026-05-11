@@ -1,24 +1,21 @@
-"""OpenClaw sidecar supervisor (Phase 3 scaffold).
+"""OpenClaw sidecar supervisor (Phase 3.5 — real CLI invocation).
 
-跑在 :7950(僅 internal docker network),用 aiohttp 提供:
-  - GET  /healthz          — 健康檢查(永遠 200,看 daemon ready 旗標另外回)
-  - GET  /v1/status        — 回 ready 旗標 + 缺少的東西(OAuth credential / model)
-  - POST /v1/chat          — Phase 3 scaffold:501 Not Implemented(待 Phase 3.5 wire
-                              到實際 openclaw 子進程)
+Endpoints (on :7950, internal docker network):
+  GET  /healthz       — liveness;永遠 200
+  GET  /v1/status     — readiness:openclaw CLI 找得到嗎?workspace 有 token 嗎?
+  POST /v1/provision  — backend 把 user 的 OpenAI credential 推進來
+                        (寫 ~/.openclaw/openclaw.json + workspace .env)
+  POST /v1/chat       — spawn `openclaw agent --message ...` 子進程,回 stdout
 
 設計取捨:
-- 不在這層 spawn `openclaw onboard --install-daemon` — OpenClaw 需要 ChatGPT OAuth
-  device flow,跨 container 操作 OAuth 沒意義(token 也存不下來)。OAuth flow 應該
-  在 backend 收回 callback,把 credential 推進來,我們才 spawn daemon。
-- /v1/status 讀 RL_OPENCLAW_OAUTH_TOKEN env(supervisor restart 後由 backend 推進來)
-  判 ready。沒 token = ready False + reason。
-- X-Sidecar-Auth 對齊 hermes/mem0 兩個 sidecar 的鑒權 pattern。
-
-Phase 3.5 要做的:
-- /v1/chat:把 prompt 餵給 openclaw daemon(stdio 子進程或 HTTP gateway:18789),
-  回收 response stream
-- /v1/sessions:create/list session
-- OAuth callback handler 在 backend 端,push token 到此 sidecar
+- 把每個 user 的 credential 寫到自己的 workspace 目錄(/opt/openclaw-data/<ws>/),
+  不共用 ~/.openclaw — 因為 supervisor 容器是 multi-tenant(per-process per-user
+  spawn)。supervisor 在 spawn 子進程時 set HOME=<workspace> 讓 openclaw CLI 讀
+  workspace 內的 .openclaw/openclaw.json。
+- subprocess 用 asyncio.create_subprocess_exec + 60s timeout — 對話超時保護。
+- stdout 用作回應內容、stderr 紀錄到 supervisor log;非 zero exit 直接回 502。
+- 不真的跑 `openclaw gateway daemon` — 假設 `openclaw agent --message` 能 one-shot
+  運作(README 範例直接這樣用);實際運作模型若不同,supervisor 回 503 + reason。
 """
 from __future__ import annotations
 
@@ -26,7 +23,9 @@ import asyncio
 import json
 import logging
 import os
+import shutil
 from pathlib import Path
+from typing import Optional
 
 from aiohttp import web
 
@@ -39,46 +38,71 @@ logging.basicConfig(
 LISTEN_PORT = int(os.environ.get("OPENCLAW_PORT", "7950"))
 SIDECAR_AUTH = os.environ.get("OPENCLAW_SIDECAR_AUTH_TOKEN", "").strip()
 OPENCLAW_DATA_ROOT = Path(os.environ.get("OPENCLAW_DATA_ROOT", "/opt/openclaw-data"))
+CHAT_TIMEOUT_SEC = float(os.environ.get("OPENCLAW_CHAT_TIMEOUT_SEC", "60"))
+
+
+def _openclaw_bin() -> Optional[str]:
+    """找 openclaw CLI 路徑;npm install 失敗時 image build 不會擋,所以這裡判存在。"""
+    return shutil.which("openclaw")
 
 
 def _require_auth(req: web.Request) -> None:
     if not SIDECAR_AUTH:
-        return  # dev mode:沒設 secret 就不驗(對齊 hermes/mem0 早期 PR pattern)
+        return  # dev mode
     got = req.headers.get("X-Sidecar-Auth", "")
     if got != SIDECAR_AUTH:
         raise web.HTTPUnauthorized(reason="bad_sidecar_auth")
 
 
 async def healthz(_req: web.Request) -> web.Response:
-    """Liveness — 永遠 200。Readiness 看 /v1/status。"""
+    """Liveness — 永遠 200。"""
     return web.json_response({"status": "ok"})
 
 
 async def status(req: web.Request) -> web.Response:
-    """Readiness — 依 OAuth token / data root 判 ready。"""
+    """Readiness — CLI 裝起來了沒?哪些 workspace 已 provision?"""
     _require_auth(req)
-    oauth_token = (os.environ.get("RL_OPENCLAW_OAUTH_TOKEN") or "").strip()
-    has_data_root = OPENCLAW_DATA_ROOT.is_dir()
+    bin_path = _openclaw_bin()
+    workspaces = []
+    if OPENCLAW_DATA_ROOT.is_dir():
+        for ws_dir in OPENCLAW_DATA_ROOT.iterdir():
+            if ws_dir.is_dir() and (ws_dir / ".openclaw" / "openclaw.json").is_file():
+                workspaces.append(ws_dir.name)
+
     reasons = []
-    if not oauth_token:
-        reasons.append("missing ChatGPT OAuth credential — backend should push via /v1/provision")
-    if not has_data_root:
-        reasons.append(f"data root {OPENCLAW_DATA_ROOT} not mounted")
-    ready = not reasons
+    if not bin_path:
+        reasons.append("openclaw CLI not installed (npm install -g openclaw failed during image build)")
+    if not OPENCLAW_DATA_ROOT.is_dir():
+        reasons.append(f"data root {OPENCLAW_DATA_ROOT} missing")
+
     return web.json_response({
-        "ready": ready,
-        "phase": "3-scaffold",  # /v1/chat 還沒 wire — 之後 phase 3.5 改 'live'
+        "ready": bool(bin_path) and not reasons,
+        "phase": "3.5-cli-shim",
+        "openclaw_bin": bin_path,
+        "provisioned_workspaces": workspaces,
         "reasons": reasons,
     })
 
 
-async def provision(req: web.Request) -> web.Response:
-    """Phase 3 scaffold:接收 backend 推來的 OAuth credential。
+def _build_openclaw_json(oauth_token: str) -> dict:
+    """組 ~/.openclaw/openclaw.json 內容。
 
-    Backend 完成 ChatGPT device-flow 後 POST 過來,寫進 workspace .env(由
-    openclaw daemon 之後讀)。Phase 3.5 才真的 spawn daemon;此版只接收 + 持
-    久化讓 /v1/status 反映 ready。
+    讀 docs/llms.txt 推測的結構:
+      {
+        "agents": { "defaults": { "skipBootstrap": true } },
+        "providers": { "openai": { "apiKey": "..." } }
+      }
+    若實際 schema 不同,supervisor 在 /v1/chat 拿到 openclaw 子進程 stderr 後會
+    把錯誤往回傳;backend graceful fallback 不會 break。
     """
+    return {
+        "agents": {"defaults": {"skipBootstrap": True}},
+        "providers": {"openai": {"apiKey": oauth_token}},
+    }
+
+
+async def provision(req: web.Request) -> web.Response:
+    """POST /v1/provision — 寫 workspace 內的 .openclaw/openclaw.json + .env。"""
     _require_auth(req)
     try:
         body = await req.json()
@@ -88,27 +112,120 @@ async def provision(req: web.Request) -> web.Response:
     token = (body.get("oauth_token") or "").strip()
     if not ws or not token:
         raise web.HTTPBadRequest(reason="workspace_id_and_oauth_token_required")
+
     home = OPENCLAW_DATA_ROOT / ws
     home.mkdir(parents=True, exist_ok=True)
     home.chmod(0o700)
+
+    # openclaw CLI 預期 ~/.openclaw/openclaw.json — 我們透過 HOME=$workspace
+    # 在 spawn 時 redirect ~/ 過來。
+    cfg_dir = home / ".openclaw"
+    cfg_dir.mkdir(exist_ok=True)
+    cfg_dir.chmod(0o700)
+    cfg_path = cfg_dir / "openclaw.json"
+    cfg_path.write_text(json.dumps(_build_openclaw_json(token), indent=2))
+    cfg_path.chmod(0o600)
+
+    # .env 留一份 plain text 給日後維運 / 未來換 daemon 模式時讀
     env_path = home / ".env"
-    env_path.write_text(f"OPENAI_OAUTH_TOKEN={token}\nOPENCLAW_HOME={home}\n")
+    env_path.write_text(f"OPENAI_API_KEY={token}\nOPENCLAW_HOME={home}\n")
     env_path.chmod(0o600)
+
     LOG.info("provisioned openclaw workspace=%s", ws)
     return web.json_response({"workspace_id": ws, "status": "provisioned"})
 
 
 async def chat(req: web.Request) -> web.Response:
-    """Phase 3 scaffold:回 501 + 解釋。Phase 3.5 才 wire 到真正 daemon。"""
+    """POST /v1/chat — spawn `openclaw agent --message ...`、parse stdout。
+
+    成功 (returncode 0)  → 200  {"content": "<stdout>"}
+    openclaw 沒裝          → 503  {"error": "openclaw_not_installed", ...}
+    workspace 沒 provision → 400  {"error": "workspace_not_provisioned", ...}
+    timeout                → 504  {"error": "openclaw_timeout"}
+    non-zero exit         → 502  {"error": "openclaw_failed", "stderr": "..."}
+    """
     _require_auth(req)
-    return web.json_response(
-        {
-            "error": "not_implemented",
-            "message": "OpenClaw chat is Phase 3.5 — 目前只完成 sidecar scaffold + provision flow,實際對話路徑尚未接通。請暫用 Hermes runtime。",
-            "phase": "3-scaffold",
-        },
-        status=501,
-    )
+    bin_path = _openclaw_bin()
+    if not bin_path:
+        return web.json_response(
+            {
+                "error": "openclaw_not_installed",
+                "message": "openclaw CLI 未安裝 — image build 階段 npm install -g openclaw 失敗",
+            },
+            status=503,
+        )
+
+    try:
+        body = await req.json()
+    except Exception:
+        raise web.HTTPBadRequest(reason="invalid_json")
+    ws = (body.get("workspace_id") or "").strip()
+    prompt = (body.get("prompt") or "").strip()
+    if not ws or not prompt:
+        raise web.HTTPBadRequest(reason="workspace_id_and_prompt_required")
+
+    home = OPENCLAW_DATA_ROOT / ws
+    cfg_path = home / ".openclaw" / "openclaw.json"
+    if not cfg_path.is_file():
+        return web.json_response(
+            {
+                "error": "workspace_not_provisioned",
+                "message": f"workspace {ws} 尚未 provision — 請先 POST /v1/provision",
+            },
+            status=400,
+        )
+
+    env = dict(os.environ)
+    env["HOME"] = str(home)  # 讓 openclaw CLI 讀 workspace 內的 ~/.openclaw
+    env["OPENCLAW_HOME"] = str(home)
+
+    LOG.info("openclaw chat ws=%s prompt_len=%d", ws, len(prompt))
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            bin_path, "agent", "--message", prompt,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            env=env,
+            cwd=str(home),
+        )
+        try:
+            stdout_b, stderr_b = await asyncio.wait_for(
+                proc.communicate(), timeout=CHAT_TIMEOUT_SEC,
+            )
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.wait()
+            return web.json_response(
+                {"error": "openclaw_timeout", "message": f"openclaw agent did not respond within {CHAT_TIMEOUT_SEC}s"},
+                status=504,
+            )
+    except FileNotFoundError:
+        return web.json_response(
+            {"error": "openclaw_not_installed", "message": "openclaw CLI binary disappeared at runtime"},
+            status=503,
+        )
+    except Exception as e:  # noqa: BLE001
+        LOG.exception("openclaw spawn failed ws=%s", ws)
+        return web.json_response(
+            {"error": "openclaw_spawn_failed", "message": str(e)},
+            status=500,
+        )
+
+    stdout = (stdout_b or b"").decode("utf-8", errors="replace").strip()
+    stderr = (stderr_b or b"").decode("utf-8", errors="replace").strip()
+
+    if proc.returncode != 0:
+        LOG.warning("openclaw agent rc=%s stderr=%s", proc.returncode, stderr[:500])
+        return web.json_response(
+            {
+                "error": "openclaw_failed",
+                "returncode": proc.returncode,
+                "stderr": stderr[:2000],
+            },
+            status=502,
+        )
+
+    return web.json_response({"content": stdout, "stderr": stderr[:500] if stderr else None})
 
 
 def build_app() -> web.Application:
