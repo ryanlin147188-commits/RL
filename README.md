@@ -1,4 +1,4 @@
-# RL — Enterprise Test Automation Platform
+# RL — Test Automation Platform
 
 > 🌐 **Languages**: **English** · [繁體中文](README.zh-TW.md)
 
