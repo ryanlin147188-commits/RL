@@ -33,8 +33,8 @@ AGENT_RUNTIMES: list[AgentRuntimeSpec] = [
     AgentRuntimeSpec(
         key="openclaw",
         label="OpenClaw",
-        description="本地 personal-assistant runtime,走 OpenClaw Gateway。需綁定 ChatGPT 訂閱(OAuth)。",
-        required="provider=`openai-oauth` 的 AI Token(綁定 ChatGPT 訂閱)",
+        description="本地 personal-assistant runtime,走 OpenClaw CLI(內部以 OPENAI_API_KEY 呼叫 OpenAI-compatible API)。沒 OpenAI token 時實際 chat 會 fallback 回 Hermes。",
+        required="provider=`OpenAI` 的 AI Token(sk-...);也接受 `openai-oauth` 若日後接通 OAuth",
     ),
 ]
 
@@ -46,9 +46,12 @@ def _token_supports_hermes(t: AiTokenConfig) -> bool:
 
 
 def _token_supports_openclaw(t: AiTokenConfig) -> bool:
-    # OpenClaw 用 ChatGPT 訂閱(OAuth);我們在 ai_token_configs 用 provider 字串
-    # 標記 'openai-oauth' 區分一般 API key。Phase 3 會加 OAuth flow 寫入 token。
-    return bool(t.enabled and (t.provider or "").lower() == "openai-oauth")
+    # OpenClaw sidecar 真的只能餵 OPENAI_API_KEY(supervisor 走 openclaw agent
+    # --local,讀 OPENAI_API_KEY env)。Anthropic / Google 的 key 格式不相容,
+    # 所以只認 provider=OpenAI(以及 openai-oauth,若日後接通)。
+    if not t.enabled or not t.api_key:
+        return False
+    return (t.provider or "").lower() in {"openai", "openai-oauth"}
 
 
 def check_agent_capabilities(tokens: Iterable[AiTokenConfig]) -> list[dict]:

@@ -689,6 +689,20 @@ def _check_ai_token_or_404(t: Optional[AiTokenConfig], user: User) -> AiTokenCon
     return t
 
 
+# 已停用的 provider — 前端下拉拔掉了,後端也不接受新增/編輯成這些值。
+# 比對用 lower-case + strip,擋掉「Ollama / OLLAMA / ollama 」等變體。
+_DISABLED_AI_PROVIDERS = frozenset({"ollama", "local", "openai-oauth"})
+
+
+def _reject_disabled_ai_provider(provider: str) -> None:
+    p = (provider or "").strip().lower()
+    if p in _DISABLED_AI_PROVIDERS:
+        raise HTTPException(
+            400,
+            f"provider 不支援:{provider}(本地 Ollama / LM Studio 與 OpenClaw OAuth 已停用,請改用 OpenAI / Anthropic / Google)",
+        )
+
+
 @router.get(
     "/settings/ai-tokens",
     response_model=list[AiTokenConfigResponse],
@@ -725,6 +739,7 @@ async def create_ai_token(
     provider_str = (payload.provider or "OpenAI").strip()
     if not provider_str:
         raise HTTPException(400, "provider 不能為空")
+    _reject_disabled_ai_provider(provider_str)
     token = AiTokenConfig(
         name=payload.name,
         organization_id=user.organization_id,
@@ -783,6 +798,7 @@ async def update_ai_token(
         data.pop("api_key")
     if "provider" in data and data["provider"] is not None:
         data["provider"] = (data["provider"] or "").strip() or t.provider
+        _reject_disabled_ai_provider(data["provider"])
     for k, v in data.items():
         setattr(t, k, v)
     await db.flush()

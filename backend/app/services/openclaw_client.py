@@ -156,19 +156,31 @@ async def ensure_openclaw_provisioned(
     if not force and cached_at and now - cached_at < _OC_CACHE_TTL_SEC:
         return ws, "cached"
 
-    # 撈該 user (or org) 的 openai-oauth token
+    # 撈該 user (or org) 可餵給 openclaw CLI 的 token。
+    # OpenClaw sidecar(supervisor.py)實際只把 token 寫成 `OPENAI_API_KEY` env var
+    # 餵給 `openclaw agent --local`,CLI 走 OpenAI-compatible 路徑 —— 所以一般
+    # `provider="OpenAI"` 的 sk-... API key 就能用,不必走 ChatGPT OAuth flow。
+    # 也仍接受 `openai-oauth`(若日後真的接 OAuth callback 時用)。
+    # 優先序:is_default → provider=OpenAI → 任一可用。
     stmt = select(AiTokenConfig).where(
         AiTokenConfig.enabled.is_(True),
     )
     if user.organization_id:
         stmt = stmt.where(AiTokenConfig.organization_id == user.organization_id)
     rows = (await db.execute(stmt)).scalars().all()
-    cfg = next(
-        (t for t in rows if (t.provider or "").lower() == "openai-oauth" and t.api_key),
-        None,
-    )
-    if not cfg:
-        raise OpenClawError("no_openclaw_token_configured")
+    candidates = [
+        t for t in rows
+        if (t.provider or "").lower() in {"openai", "openai-oauth"}
+        and t.api_key
+    ]
+    if not candidates:
+        raise OpenClawError("no_openai_token_configured")
+    candidates.sort(key=lambda t: (
+        0 if t.is_default else 1,
+        0 if (t.provider or "").lower() == "openai-oauth" else 1,
+        t.name or "",
+    ))
+    cfg = candidates[0]
 
     client = get_openclaw_client()
     try:
