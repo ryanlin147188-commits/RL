@@ -3,7 +3,7 @@ import json
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
-from sqlalchemy import select
+from sqlalchemy import insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
@@ -173,11 +173,61 @@ async def cancel_execution(
         # Celery 無法連線也不要擋 API；至少先把 DB 狀態修好
         pass
 
+    # 1b. 砍掉這個 task 派生的 robot-runner 容器(SIGTERM 殺 celery worker
+    # 不會自動把 docker run 出來的容器也帶走 → 否則就會變成孤兒容器繼續跑、
+    # 而 step log 一筆都沒寫進 DB)。容器命名規則:robot-<task[:8]>-<case[:8]>。
+    killed_containers: list[str] = []
+    try:
+        import docker  # type: ignore
+
+        dclient = docker.from_env()
+        prefix = f"robot-{task_id[:8]}-"
+        for c in dclient.containers.list():
+            if c.name.startswith(prefix):
+                try:
+                    c.kill()
+                    try:
+                        c.remove(force=True)
+                    except Exception:
+                        pass
+                    killed_containers.append(c.name)
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
     # 2. 更新 report 狀態
     if report.status.value == "RUNNING":
         from app.models.execution_report import ReportStatus
 
         report.status = ReportStatus.FAILED
+        await db.flush()
+
+    # 2b. 若 report 目前一條 step log 都沒有,寫一條 synthetic FAILED 進去
+    # —— 避免使用者打開取消過的報告看到一片空白。
+    from app.models.execution_step_log import ExecutionStepLog, StepStatus
+    existing = (await db.execute(
+        select(ExecutionStepLog).where(
+            ExecutionStepLog.report_id == report.id
+        ).limit(1)
+    )).scalar_one_or_none()
+    if existing is None:
+        import uuid as _uuid
+
+        await db.execute(
+            insert(ExecutionStepLog).values(
+                id=str(_uuid.uuid4()),
+                report_id=report.id,
+                testcase_node_id=report.source_node_id,
+                step_index=0,
+                status=StepStatus.FAILED,
+                duration_ms=0,
+                error_message=(
+                    "🛑 使用者取消執行 — 任務尚未跑完任何步驟就被中止"
+                    + (f"(已強制中止 {len(killed_containers)} 個 runner 容器)" if killed_containers else "")
+                ),
+            )
+        )
         await db.flush()
 
     # 3. 額外送一個「cancelled」訊息到 WS log channel，讓前端可以看到
@@ -191,12 +241,17 @@ async def cancel_execution(
             f"task:{task_id}:logs",
             _json.dumps({"type": "log", "level": "WARN", "message": "🛑 使用者取消執行"}),
         )
+        if killed_containers:
+            r.publish(
+                f"task:{task_id}:logs",
+                _json.dumps({"type": "log", "level": "WARN", "message": f"已強制中止 {len(killed_containers)} 個 runner 容器"}),
+            )
         r.publish(f"task:{task_id}:logs", _json.dumps({"type": "done", "status": "CANCELLED"}))
         r.close()
     except Exception:
         pass
 
-    return {"ok": True, "task_id": task_id, "status": "FAILED"}
+    return {"ok": True, "task_id": task_id, "status": "FAILED", "killed_runners": killed_containers}
 
 
 # WS 11. WS /ws/v1/executions/{task_id}/logs  （掛在 /ws/v1 prefix 下）

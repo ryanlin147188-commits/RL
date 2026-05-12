@@ -281,47 +281,90 @@ def run_tests(
                     db.commit()
                 continue
 
-            case_passed = all(rr.passed for rr in round_results)
+            # ── Per-testcase 歸屬 ─────────────────────────────────────
+            # 因為 setup chain 跟 main 都 inline 進同一份 steps,RF 看到的是
+            # 「合併後的 step index」(0..N-1)。但 DB 要按 source testcase 拆回去,
+            # 否則 main 只 3 步、report 顯示「step 7」,前端找不到對應步驟內容。
+            #
+            # 構造 owner_map: combined_idx → (src_tc_id, local_idx),local_idx
+            # 是 step 在「該 source testcase 內」的順序(從 0 開始)。
+            owner_map: list[tuple[str, int]] = []
+            _local_counter: dict[str, int] = {}
+            for s in steps:
+                src = s.get("_src_tc_id") or tc_id
+                local = _local_counter.get(src, 0)
+                owner_map.append((src, local))
+                _local_counter[src] = local + 1
+
+            # Per-testcase pass/fail:任一步 FAILED → 該 testcase 算 FAILED
+            per_tc_failed: dict[str, bool] = {sid: False for sid in _local_counter.keys()}
+            for rr in round_results:
+                for i, sr in enumerate(rr.steps):
+                    if sr.status != "FAILED":
+                        continue
+                    if i < len(owner_map):
+                        per_tc_failed[owner_map[i][0]] = True
+                    else:
+                        per_tc_failed[tc_id] = True
+
+            # 計入總計:chain 內每條 setup + main 各算一個 case
+            for sid, fail in per_tc_failed.items():
+                if fail:
+                    failed_cases += 1
+                else:
+                    passed_cases += 1
+
+            case_passed = not per_tc_failed.get(tc_id, False)
             if case_passed:
-                passed_cases += 1
                 publish_log("INFO", f"✅ 案例 {idx} 通過")
             else:
-                failed_cases += 1
                 publish_log("ERROR", f"❌ 案例 {idx} 失敗")
-                if chain:
-                    publish_log(
-                        "INFO",
-                        f"   (含 {len(chain)} 條前置步驟,任一前置失敗會讓整個案例 fail)",
-                    )
+            if chain:
+                fail_n = sum(1 for sid in chain if per_tc_failed.get(sid))
+                pass_n = len(chain) - fail_n
+                publish_log(
+                    "INFO",
+                    f"   前置 {len(chain)} 條:通過 {pass_n} / 失敗 {fail_n}",
+                )
 
-            # DDT 多列：用 step_index = round*1000 + step 編碼
+            # DDT 多列：用 step_index = round*1000 + local_idx 編碼,每個 source
+            # testcase 內 local_idx 從 0 重新算
             with SessionLocal() as db:
                 for round_idx, round_res in enumerate(round_results):
-                    # 找出本輪「第一個會被寫入 DB 的 step」(非 SKIPPED) 以掛 case 級欄位
-                    first_persisted_step: Optional[int] = next(
-                        (i for i, s in enumerate(round_res.steps) if s.status != "SKIPPED"),
-                        None,
-                    )
+                    # 找出本輪「main 第一個被寫入 DB 的 step」以掛 case 級 trace/video
+                    main_first_persisted_idx: Optional[int] = None
+                    for i, s in enumerate(round_res.steps):
+                        if s.status == "SKIPPED":
+                            continue
+                        owner = owner_map[i][0] if i < len(owner_map) else tc_id
+                        if owner == tc_id:
+                            main_first_persisted_idx = i
+                            break
                     for step_i, sr in enumerate(round_res.steps):
                         # SKIPPED 不寫入 DB（來自 Robot Framework 失敗後中止的順位步驟）
                         if sr.status == "SKIPPED":
                             continue
-                        is_case_anchor = step_i == first_persisted_step
+                        if step_i < len(owner_map):
+                            owner_tc, local_idx = owner_map[step_i]
+                        else:
+                            owner_tc, local_idx = tc_id, step_i
+                        is_main_anchor = (owner_tc == tc_id and step_i == main_first_persisted_idx)
                         db.add(
                             ExecutionStepLog(
                                 id=str(uuid.uuid4()),
                                 report_id=report_id,
-                                testcase_node_id=tc_id,
-                                step_index=round_idx * 1000 + step_i,
+                                testcase_node_id=owner_tc,
+                                step_index=round_idx * 1000 + local_idx,
                                 status=StepStatus(sr.status),
                                 duration_ms=sr.duration_ms,
                                 error_message=sr.error_message,
                                 pre_screenshot_url=sr.pre_screenshot_url,
                                 post_screenshot_url=sr.post_screenshot_url,
                                 target_highlight_json=sr.target_highlight_json,
-                                # case 級 trace / video 只掛在本輪第一個被持久化的 step 上
-                                trace_url=round_res.trace_url if is_case_anchor else None,
-                                video_url=round_res.video_url if is_case_anchor else None,
+                                # case 級 trace / video 只掛在 main 案例的第一個 step 上
+                                # (setup 步驟的 trace 包在同一份檔案內,從 main 入口看就行)
+                                trace_url=round_res.trace_url if is_main_anchor else None,
+                                video_url=round_res.video_url if is_main_anchor else None,
                                 step_video_url=sr.step_video_url,
                                 screenshot_baseline_url=sr.screenshot_baseline_url,
                                 screenshot_diff_url=sr.screenshot_diff_url,

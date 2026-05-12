@@ -121,10 +121,15 @@ routes:
       request-id:
         include_in_response: true
       cors:
-        allow_origins: "http://localhost"
+        # 開到 same-host 的 http / https 兩種(LAN 部署常見 IP / hostname):
+        # Trace Viewer 走 HTTPS 後會從 https://<host>/trace-viewer/ fetch
+        # https://<host>/results/<...>.zip;以前 allow_origins=http://localhost
+        # 直接擋掉。token 走 query param 不靠 cookie 所以 credential 關掉即可
+        # 用 ** wildcard。
+        allow_origins: "**"
         allow_methods: "GET,HEAD,OPTIONS"
         allow_headers: "**"
-        allow_credential: true
+        allow_credential: false
       limit-count:
         count: 1200
         time_window: 60

@@ -286,6 +286,39 @@ def _looks_named(s: str) -> bool:
 # action → Robot keyword 轉譯
 # ════════════════════════════════════════════════════════════════
 
+# Click 前的「清除 overlay」JS:在大多數 SPA / UI framework 下涵蓋常見場景:
+#   * Bootstrap / MUI / AntD / SweetAlert / Offcanvas 等 modal backdrop
+#   * Body / html 鎖捲動的 class(modal-open / sidebar-open / no-scroll)
+#   * App-sidebar(metismenu 等)/ drawer overlay / Toast 通知
+# 全部寫成單行 JS,讓 Robot Framework 用 4-space tokenize 時當成單一參數。
+_OVERLAY_CLEANUP_JS = (
+    "() => {"
+    "['modal-open','sidebar-open','sidebar-mobile-open','no-scroll','overflow-hidden']"
+    ".forEach(c => { document.body.classList.remove(c); document.documentElement.classList.remove(c); });"
+    "document.querySelectorAll('.modal-backdrop,.MuiBackdrop-root,.ant-modal-mask,.ant-modal-wrap,"
+    ".swal2-container,.popover-backdrop,.offcanvas-backdrop,.toast-container,.cdk-overlay-backdrop')"
+    ".forEach(el => { try { el.remove(); } catch(e) {} });"
+    "document.querySelectorAll('.app-sidebar,.sidebar-shadow,.sidebar-overlay,.drawer-backdrop,"
+    ".metismenu-overlay,[data-overlay-dismiss]')"
+    ".forEach(el => { el.style.pointerEvents = 'none'; });"
+    "document.querySelectorAll('[role=\"dialog\"][aria-modal=\"true\"] [aria-label*=\"close\" i],"
+    "[role=\"dialog\"][aria-modal=\"true\"] [aria-label*=\"關閉\"],"
+    ".modal.show [data-bs-dismiss=\"modal\"],.modal.in [data-dismiss=\"modal\"]')"
+    ".forEach(el => { try { el.click(); } catch(e) {} });"
+    "}"
+)
+
+
+def _overlay_cleanup_line() -> str:
+    """產生「點 click 前先收掉常見 overlay」的 Robot 行;Run Keyword And Ignore Error
+    包起來,失敗也不擋下一步,只是 best-effort 清乾淨點擊區。"""
+    return "    " + "    ".join([
+        "Run Keyword And Ignore Error",
+        "Evaluate JavaScript",
+        "${None}",
+        _OVERLAY_CLEANUP_JS,
+    ])
+
 
 def _translate_step(step: dict, ctx: dict) -> list[str]:
     """
@@ -356,14 +389,18 @@ def _translate_step(step: dict, ctx: dict) -> list[str]:
         """
         if not locator:
             return out(*body)
-        wait = line("Wait For Elements State", locator, "visible", "timeout=60s")
+        wait = line("Wait For Elements State", locator, "visible", "timeout=20s")
         return out(wait, *body)
 
     # ── Browser Library（預設）────────────────────────
     # 導航
     if action in ("goto", "navigate", "open"):
         target = value or expected or locator
-        return out(line("Go To", target))
+        # wait_until=domcontentloaded:DOM 解析完就返回,不等 page 上所有 XHR /
+        # image / 第三方 script 都載完才繼續(預設 'load' 在 SPA 內常因某個慢
+        # XHR 而 hang)。timeout=30s 明確上限,避免被 docker-socket-proxy 600s
+        # idle limit 攔成奇怪的容器 timeout。
+        return out(line("Go To", target, "wait_until=domcontentloaded", "timeout=30s"))
     if action == "reload":
         return out(line("Reload"))
     if action == "goback":
@@ -372,22 +409,29 @@ def _translate_step(step: dict, ctx: dict) -> list[str]:
         return out(line("Go Forward"))
 
     # 點擊 / 輸入
-    # ★ 所有 Click 動作之前都先 Wait For Elements State ... visible timeout=60s，
-    #   避免目標元素找不到時整個 test 卡住（Browser Library 的 Click 預設 timeout 會跟隨 suite timeout，
-    #   在舊版 .robot 裡可能是 30s～無上限）。
+    # ★ Click 前的隱性等待 + 自動關閉 overlay:
+    #   1) Run JS 清掉常見的 modal backdrop / drawer / sidebar overlay / toast,
+    #      避免 Playwright 因為「目標元素上面有東西蓋住」而拒絕 click。
+    #   2) Wait For Elements State stable timeout=20s — 等元素 visible 且 200ms
+    #      內不再位移(動畫穩了)才動手。
+    #   3) Click 走正常路徑(不用 force=True;這版 Browser Library 的 Click 也
+    #      不支援 force kwarg)。
     if action == "click":
         return out(
-            line("Wait For Elements State", locator, "visible", "timeout=60s"),
+            _overlay_cleanup_line(),
+            line("Wait For Elements State", locator, "stable", "timeout=20s"),
             line("Click", locator),
         )
     if action in ("doubleclick", "dblclick"):
         return out(
-            line("Wait For Elements State", locator, "visible", "timeout=60s"),
+            _overlay_cleanup_line(),
+            line("Wait For Elements State", locator, "stable", "timeout=20s"),
             line("Click", locator, "clickCount=2"),
         )
     if action == "rightclick":
         return out(
-            line("Wait For Elements State", locator, "visible", "timeout=60s"),
+            _overlay_cleanup_line(),
+            line("Wait For Elements State", locator, "stable", "timeout=20s"),
             line("Click", locator, "button=right"),
         )
     if action in ("fill", "input"):
@@ -439,7 +483,7 @@ def _translate_step(step: dict, ctx: dict) -> list[str]:
         parts = [p for p in parts if p]
         x, y = (parts + ["0", "0"])[:2]
         return out(
-            line("Wait For Elements State", locator, "visible", "timeout=60s"),
+            line("Wait For Elements State", locator, "visible", "timeout=20s"),
             line("Click With Options", locator, f"position_x={x}", f"position_y={y}"),
         )
 
@@ -484,18 +528,18 @@ def _translate_step(step: dict, ctx: dict) -> list[str]:
 
     # 斷言
     if action in ("assertvisible", "shouldbevisible"):
-        return out(line("Wait For Elements State", locator, "visible", "timeout=60s"))
+        return out(line("Wait For Elements State", locator, "visible", "timeout=20s"))
     if action in ("asserthidden", "shouldbehidden"):
-        return out(line("Wait For Elements State", locator, "hidden", "timeout=60s"))
+        return out(line("Wait For Elements State", locator, "hidden", "timeout=20s"))
     if action == "assertchecked":
         return out_w(
             line("${state}=", "Get Checkbox State", locator),
             line("Should Be True", "${state}"),
         )
     if action == "assertenabled":
-        return out(line("Wait For Elements State", locator, "enabled", "timeout=60s"))
+        return out(line("Wait For Elements State", locator, "enabled", "timeout=20s"))
     if action == "assertdisabled":
-        return out(line("Wait For Elements State", locator, "disabled", "timeout=60s"))
+        return out(line("Wait For Elements State", locator, "disabled", "timeout=20s"))
     if action == "asserttext":
         # 文字比對預設使用 Contains（比 Equals 實用）
         return out_w(
@@ -532,7 +576,7 @@ def _translate_step(step: dict, ctx: dict) -> list[str]:
         # 檢查 <img> 是否真的載入完成（complete=true && naturalWidth>0），
         # 避免破圖被當成「顯示」通過
         return out(
-            line("Wait For Elements State", locator, "visible", "timeout=60s"),
+            line("Wait For Elements State", locator, "visible", "timeout=20s"),
             line(
                 "${loaded}=",
                 "Evaluate JavaScript",
@@ -554,7 +598,7 @@ def _translate_step(step: dict, ctx: dict) -> list[str]:
         ex, ey, ew, eh = parts[:4]
         tol = expected or "2"
         return out(
-            line("Wait For Elements State", locator, "visible", "timeout=60s"),
+            line("Wait For Elements State", locator, "visible", "timeout=20s"),
             line("${bb}=", "Get Boundingbox", locator),
             line("Should Be True", f"abs(${{bb}}[\"x\"] - {ex}) <= {tol}"),
             line("Should Be True", f"abs(${{bb}}[\"y\"] - {ey}) <= {tol}"),
@@ -911,8 +955,10 @@ def _build_robot_file(
     # ── Screenshot diff（自製 Python library；spawn 容器內已 COPY 進 /app/tasks/）──
     lines.append("Library    tasks.assert_screenshot_lib    WITH NAME    AssertScreenshot")
     lines.append("")
-    # 保留 tag：讓所有 test 在 keyword 失敗後仍繼續執行剩餘步驟
-    # （測試最終狀態仍會是 FAIL，但不會中斷後續 step）
+    # continue-on-failure:任一 step 失敗 RF 仍繼續跑剩下的 step。整個 test
+    # 最終 status 還是 FAIL,但錄影 / trace 不會在第一個錯就終止,使用者能看
+    # 到後續步驟的實際畫面。Cascade fail(前面失敗導致後面找不到元素)會出
+    # 現「後段影片大多是靜止的頁面」,這是 SPA 狀態錯亂的自然結果、無法繞。
     lines.append("Test Tags    robot:continue-on-failure")
     lines.append("")
     # Http.* 動作所使用的共用 suite 變數（SetHeader / SetBaseURL / SetAuth 寫入；
@@ -978,8 +1024,9 @@ def _build_robot_file(
     lines.append("    New Context    " + "    ".join(nc_args))
     lines.append("    New Page")
     # 預設所有 Browser Library 動作（Click / Fill / Wait For Elements State / ...）
-    # 超過 60 秒就算失敗,避免找不到元素時整個 test 卡住無限等。
-    lines.append("    Set Browser Timeout    60s")
+    # 超過 20 秒就算失敗;之前 60s 在 cascade fail 場景下會讓每步白等 60s,
+    # 58 步 = 1 小時靜止畫面。20s 對正常 SPA 元素足夠,fail 也快很多。
+    lines.append("    Set Browser Timeout    20s")
     # 把錄影起始時間（epoch 秒）寫入 RECORDING_START；listener 用此計算每步的 video offset
     lines.append("    ${RECORDING_START}=    Get Time    epoch")
     lines.append("    Set Suite Variable    ${RECORDING_START}")
@@ -1150,6 +1197,10 @@ def run_testcase(
     # ── 3) Spawn 容器 ─────────────────────────────────
     image = os.environ.get("ROBOT_RUNNER_IMAGE", "autotest-robot-runner:1.1.0")
     network = os.environ.get("ROBOT_RUNNER_NETWORK", "autotest_default")
+    # 容器執行上限,預設 30 分鐘;可由 env var 覆寫。
+    # 容器內 robot subprocess 預留 120s 緩衝給寫 result JSON + S3 上傳。
+    runner_timeout_sec = int(os.environ.get("RUNNER_CONTAINER_TIMEOUT_SEC", "1800"))
+    robot_subprocess_timeout = max(60, runner_timeout_sec - 120)
     container_env = {
         "JOB_TASK_ID": task_id,
         "JOB_REPORT_ID": report_id,
@@ -1166,11 +1217,14 @@ def run_testcase(
         "AUTOTEST_TASK_ID": task_id,
         "AUTOTEST_REPORT_ID": report_id,
         "ENABLE_RECORDING": "1" if enable_recording else "0",
+        # robot subprocess 的逾時設定(由 robot_container.py 讀取)
+        "ROBOT_SUBPROCESS_TIMEOUT_SEC": str(robot_subprocess_timeout),
     }
 
     publish_log("INFO", f"  🐳 啟動容器 image={image} (network={network})")
     case_start = time.time()
     rc = -1
+    timed_out = False
     try:
         import docker  # type: ignore
 
@@ -1185,17 +1239,51 @@ def run_testcase(
         )
     except Exception as e:
         publish_log("ERROR", f"  💥 docker run 失敗: {e}")
-        return [CaseResult(passed=False, steps=[], duration_ms=0)]
+        return [CaseResult(
+            passed=False,
+            steps=[StepResult(
+                status="FAILED",
+                duration_ms=0,
+                error_message=f"Runner container 啟動失敗: {e}",
+                pre_screenshot_url=None,
+                post_screenshot_url=None,
+                target_highlight_json=None,
+            )],
+            duration_ms=0,
+        )]
 
+    # 用短輪詢取代 container.wait() long-poll:
+    # docker-socket-proxy (haproxy) 預設 server timeout 10m 會切斷長連線,造成我們的
+    # runner_timeout_sec(1800s 或更長)實際打不到 — 容器在 600s 就被誤判逾時。
+    # 改成每 2 秒 reload 一次容器狀態,每次都是短 HTTP,proxy idle 永遠不會觸發。
+    poll_interval = 2.0
+    poll_start = time.time()
     try:
-        wait_result = container.wait(timeout=600)
-        rc = wait_result.get("StatusCode", -1)
-    except Exception as e:
-        publish_log("ERROR", f"  ⏱ 容器逾時或 wait 失敗: {e}")
-        try:
-            container.kill()
-        except Exception:
-            pass
+        while True:
+            try:
+                container.reload()
+            except Exception as e:
+                # proxy / docker daemon 連線瞬斷:再試一次,別直接判逾時
+                publish_log("WARN", f"  ⚠ docker reload 失敗,重試: {e}")
+                time.sleep(poll_interval)
+                continue
+            state = (container.attrs or {}).get("State") or {}
+            status = state.get("Status") or ""
+            if status in ("exited", "dead"):
+                rc = int(state.get("ExitCode", -1) or -1)
+                break
+            if time.time() - poll_start > runner_timeout_sec:
+                publish_log(
+                    "ERROR",
+                    f"  ⏱ 容器逾時(>{runner_timeout_sec}s),強制中止",
+                )
+                timed_out = True
+                try:
+                    container.kill()
+                except Exception:
+                    pass
+                break
+            time.sleep(poll_interval)
     finally:
         # 印出容器最後 30 行 stdout/stderr 方便除錯
         try:
@@ -1230,7 +1318,39 @@ def run_testcase(
         publish_log("ERROR", f"  💥 下載 step_results.json 失敗: {e}")
 
     if not step_records:
-        return [CaseResult(passed=False, steps=[], duration_ms=case_dur)]
+        # 沒拿到 step 結果 — 通常是「容器逾時被砍」或「robot listener 沒寫完 JSON」。
+        # 寫一條 synthetic FAILED step 進去,免得 report 看起來完全空白、讓使用者
+        # 找不到失敗原因。
+        if timed_out:
+            elapsed_sec = case_dur // 1000
+            msg = (
+                f"Runner 容器在 {elapsed_sec}s 被中止(我端設定 timeout="
+                f"{runner_timeout_sec}s,但 docker-socket-proxy 預設 server "
+                f"timeout 600s 會更早切斷 long-polling)。可能原因:"
+                f"(1) Goto 的目標頁卡在某個 XHR 載入(預設 wait_until=load,SPA "
+                f"常因內部 API 不通而 hang;新版改用 wait_until=domcontentloaded "
+                f"+ 30s timeout 已修);"
+                f"(2) 測試步驟太多 + 元素 60s wait 累積;"
+                f"(3) 頁面 / 元素卡 loading。"
+            )
+        else:
+            msg = (
+                f"Runner 容器 rc={rc} 但沒產出 step_results.json — "
+                f"通常表示 robot listener 在寫入前 crash 或 S3 上傳失敗。"
+                f"檢查容器最後 30 行 log(上面 INFO ┃ 開頭)。"
+            )
+        return [CaseResult(
+            passed=False,
+            steps=[StepResult(
+                status="FAILED",
+                duration_ms=case_dur,
+                error_message=msg,
+                pre_screenshot_url=None,
+                post_screenshot_url=None,
+                target_highlight_json=None,
+            )],
+            duration_ms=case_dur,
+        )]
 
     # ── 6) 解析成 CaseResult（保留原本邏輯，但所有 URL 都來自 step_records）──
     rows = (ddt or {}).get("rows") or []

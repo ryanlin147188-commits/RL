@@ -7176,7 +7176,7 @@ driver.swipe(100, 800, 100, 200, 500)"
             const timelineContainer = document.getElementById('detailStepsTimeline');
             timelineContainer.innerHTML = '';
 
-            report.cases.forEach(c => {
+            report.cases.forEach((c, caseIdx) => {
                 const caseHeader = document.createElement('div');
                 caseHeader.className = 'font-bold text-slate-800 text-sm mb-3 flex items-center gap-2 bg-slate-100 p-2 rounded';
                 caseHeader.innerHTML = `<i class="fa-regular fa-file-lines text-blue-500"></i> ${c.name}`;
@@ -7189,7 +7189,9 @@ driver.swipe(100, 800, 100, 200, 500)"
                     const item = document.createElement('div');
                     item.className = 'step-item relative pl-8 py-2 cursor-pointer group';
                     item.id = `timeline_step_${step.id}`;
-                    item.onclick = () => selectReportStep(reportId, 0, index);
+                    // 點 step → 用該 step 真正所屬的 case index(原本寫死 0,setup+main
+                    // 多 case 時所有 step 都指向 cases[0] → 右邊永遠顯示 setup 的內容)
+                    item.onclick = () => selectReportStep(reportId, caseIdx, index);
                     item.innerHTML = `
                         <div class="step-timeline"></div>
                         <div class="absolute left-1 top-3.5 text-[14px]">${statusIcon}</div>
@@ -7205,8 +7207,20 @@ driver.swipe(100, 800, 100, 200, 500)"
                 });
             });
 
-            const failIndex = report.cases[0].steps.findIndex(s => s.status === 'Failed');
-            selectReportStep(reportId, 0, failIndex > -1 ? failIndex : 0);
+            // 預設選「第一個失敗 step」— 跨所有 case 找,找不到才退回 cases[0].steps[0]
+            let defaultCaseIdx = 0;
+            let defaultStepIdx = 0;
+            outer: for (let i = 0; i < report.cases.length; i++) {
+                const steps = report.cases[i].steps || [];
+                for (let j = 0; j < steps.length; j++) {
+                    if (steps[j].status === 'Failed') {
+                        defaultCaseIdx = i;
+                        defaultStepIdx = j;
+                        break outer;
+                    }
+                }
+            }
+            selectReportStep(reportId, defaultCaseIdx, defaultStepIdx);
         }
 
         function selectReportStep(reportId, caseIdx, stepIdx) {
@@ -7466,16 +7480,46 @@ driver.swipe(100, 800, 100, 200, 500)"
                 dlTraceBtn.innerHTML = '<i class="fa-solid fa-download"></i> 下載 Trace';
                 actions.appendChild(dlTraceBtn);
 
-                // trace.playwright.dev 是跨網域 viewer,必須給絕對 URL;否則它用自己的 origin 當 base 會 404。
-                // 後端 artifact proxy 會驗證短效 token,並提供 trace viewer 需要的 CORS header。
-                const absTraceUrl = /^https?:/i.test(step.traceUrl) ? step.traceUrl : (window.location.origin + step.traceUrl);
-                const viewerUrl = `https://trace.playwright.dev/?trace=${encodeURIComponent(absTraceUrl)}`;
-                const openExtBtn = document.createElement('a');
+                // Trace Viewer:直接走「下載 .zip + 開官方 trace.playwright.dev」
+                // 拖放工作流。為什麼不自托管:
+                //   * 自托管 viewer 需要 Service Worker 攔截 trace 內 snapshot 資源,
+                //     SW 對 cert 有硬性要求(self-signed 接受警告也不夠),用 LAN 自簽
+                //     cert 一定卡住 "Failed to register a ServiceWorker / SSL cert error"。
+                //   * 官方 trace.playwright.dev 是合法 HTTPS、SW + SAB 都正常,但它無法
+                //     從外部 fetch 我們 LAN 的 zip(mixed content)。
+                //   * 解法:點下去 → 自動下載 trace.zip + 開 trace.playwright.dev,
+                //     使用者把剛下載的檔案拖進去就行,完全不用裝 cert / 不用 chrome flag。
+                const openExtBtn = document.createElement('button');
+                openExtBtn.type = 'button';
                 openExtBtn.className = `${btnCls} bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100`;
-                openExtBtn.href = viewerUrl;
-                openExtBtn.target = '_blank';
-                openExtBtn.rel = 'noreferrer';
                 openExtBtn.innerHTML = '<i class="fa-solid fa-arrow-up-right-from-square"></i> Trace Viewer';
+                openExtBtn.title = '下載 trace.zip 並開啟 trace.playwright.dev,拖檔入新分頁即可檢視';
+                openExtBtn.onclick = async () => {
+                    try {
+                        const resp = await fetch(step.traceUrl, { credentials: 'omit' });
+                        if (!resp.ok) throw new Error(`下載失敗 HTTP ${resp.status}`);
+                        const blob = await resp.blob();
+                        // 觸發下載
+                        const a = document.createElement('a');
+                        const blobUrl = URL.createObjectURL(blob);
+                        a.href = blobUrl;
+                        const m = /([^/?]+\.zip)/.exec(step.traceUrl);
+                        a.download = (m ? m[1] : 'trace.zip');
+                        document.body.appendChild(a);
+                        a.click();
+                        a.remove();
+                        setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+                        // 開 trace.playwright.dev
+                        window.open('https://trace.playwright.dev/', '_blank', 'noopener');
+                        if (typeof showToast === 'function') {
+                            showToast('trace.zip 已下載 → 拖到剛開的 trace.playwright.dev 分頁', 'success');
+                        }
+                    } catch (e) {
+                        if (typeof showToast === 'function') {
+                            showToast(`Trace 下載失敗:${e.message}`, 'error');
+                        }
+                    }
+                };
                 actions.appendChild(openExtBtn);
             }
 
@@ -15826,8 +15870,28 @@ driver.swipe(100, 800, 100, 200, 500)"
                         // Sprint 2.2 — 自動建案模式:有勾選且選了 SCENARIO → 直接建為新案例
                         const autoEnabled = document.getElementById('recAutoCreate')?.checked;
                         const scenarioId = document.getElementById('recAutoCreateScenario')?.value;
-                        if (autoEnabled && scenarioId && recLastSteps.length) {
-                            await _recAutoCreateNewCase(scenarioId);
+                        if (autoEnabled) {
+                            // 勾選後,任何「沒能建出案例」的情況都要跳明顯錯誤視窗,
+                            // 不要 silent 跳過讓使用者誤以為錄製成功了。
+                            if (!scenarioId) {
+                                alert(
+                                    '⚠ 自動建案模式失敗\n\n' +
+                                    '沒有選擇 SCENARIO 節點 — 案例會建在哪不知道,跳過建立。\n\n' +
+                                    '請在「自動建案模式」勾選旁的下拉選一個 SCENARIO,或手動點「直接建為新案例」。'
+                                );
+                            } else if (!recLastSteps.length) {
+                                alert(
+                                    '⚠ 自動建案模式失敗 — 沒建到任何案例\n\n' +
+                                    '錄製有結束、但沒抓到任何測試步驟,無法產出案例。\n\n' +
+                                    '可能原因:\n' +
+                                    '  • 錄製期間沒有任何頁面互動(沒 click / fill 等動作)\n' +
+                                    '  • Playwright codegen 沒產出 .js 內容(看上面 toast)\n' +
+                                    '  • 解析階段失敗,recLastSteps 是空的\n\n' +
+                                    '建議重錄一次,確保至少有一個操作步驟。'
+                                );
+                            } else {
+                                await _recAutoCreateNewCase(scenarioId);
+                            }
                         }
                     }
                 } catch(_) {}
@@ -15836,7 +15900,10 @@ driver.swipe(100, 800, 100, 200, 500)"
 
         // Sprint 2.2 helper — 容器結束後自動建為新案例(免按按鈕)
         async function _recAutoCreateNewCase(scenarioId) {
-            if (!scenarioId || !recLastSteps.length) return;
+            if (!scenarioId || !recLastSteps.length) {
+                alert('⚠ 自動建案模式失敗\n\nscenarioId 或 recLastSteps 為空 — 不應該走到這(caller 應該已經擋掉)。');
+                return;
+            }
             const sid = (recCurrentSession && recCurrentSession.id) ? recCurrentSession.id.slice(0, 8) : 'session';
             const dateStr = new Date().toISOString().slice(0, 10);
             const name = `錄製_${sid}_${dateStr}.md`;
@@ -15845,31 +15912,41 @@ driver.swipe(100, 800, 100, 200, 500)"
                     method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ project_id: currentProjectId, parent_id: scenarioId, name }),
                 });
-                if (created && created.id) {
-                    const steps = recLastSteps.map((s, i) => recMapStep(s, i));
-                    await apiFetch(`/api/testcases/${encodeURIComponent(created.id)}`, {
-                        method: 'PUT',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({
-                            ac_text: '',
-                            steps_json: steps,
-                            ddt_json: { headers: [], rows: [] },
-                        }),
-                    });
-                    showToast(`已自動建立新案例「${name}」(${steps.length} 個步驟)`, 'success');
-                    await switchProject(currentProjectId, { goHome: false });
-                    if (typeof loadTestCase === 'function') {
-                        await loadTestCase(created.id);
-                        currentTestCase = created.id;
-                        _hideAllWorkspaces();
-                        document.getElementById('editorWorkspace')?.classList.remove('hidden');
-                        document.getElementById('mainActions')?.classList.remove('hidden');
-                        if (typeof renderEditor === 'function') renderEditor();
-                        else if (typeof renderSteps === 'function') renderSteps();
-                    }
+                if (!created || !created.id) {
+                    alert(
+                        '⚠ 自動建案模式失敗 — 沒建到任何案例\n\n' +
+                        'POST /api/nodes 回傳成功但沒拿到新案例的 id。\n' +
+                        '請手動點「直接建為新案例」。'
+                    );
+                    return;
+                }
+                const steps = recLastSteps.map((s, i) => recMapStep(s, i));
+                await apiFetch(`/api/testcases/${encodeURIComponent(created.id)}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        ac_text: '',
+                        steps_json: steps,
+                        ddt_json: { headers: [], rows: [] },
+                    }),
+                });
+                showToast(`已自動建立新案例「${name}」(${steps.length} 個步驟)`, 'success');
+                await switchProject(currentProjectId, { goHome: false });
+                if (typeof loadTestCase === 'function') {
+                    await loadTestCase(created.id);
+                    currentTestCase = created.id;
+                    _hideAllWorkspaces();
+                    document.getElementById('editorWorkspace')?.classList.remove('hidden');
+                    document.getElementById('mainActions')?.classList.remove('hidden');
+                    if (typeof renderEditor === 'function') renderEditor();
+                    else if (typeof renderSteps === 'function') renderSteps();
                 }
             } catch (e) {
-                showToast('自動建案失敗:' + e.message + '(請手動點「直接建為新案例」)', 'error');
+                alert(
+                    '⚠ 自動建案模式失敗 — 沒建到任何案例\n\n' +
+                    `錯誤訊息:${e.message}\n\n` +
+                    '請手動點「直接建為新案例」,或檢查專案是否還存在 / 是否有權限。'
+                );
             }
         }
 
