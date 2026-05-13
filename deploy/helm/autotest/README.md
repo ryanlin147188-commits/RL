@@ -32,6 +32,16 @@ helm install autotest ./deploy/helm/autotest \
 * Backups via the postgres / SeaweedFS managed offerings (the in-cluster
   `scripts/backup.sh` is for docker-compose deploys only)
 
+> **Note (v1.1.2+):** The docker-compose frontend image bakes a self-signed
+> cert at build time and listens on both `:80` and `:443` — needed by the
+> self-hosted Playwright Trace Viewer's `SharedArrayBuffer` requirement
+> (only available in secure contexts). On Kubernetes, **prefer
+> ingress-level TLS termination via cert-manager** (Let's Encrypt or your
+> private CA) over the bundled self-signed cert; proper certs avoid the
+> manual OS-keychain trust step. The `/install-cert/server.crt` download
+> endpoint baked into the frontend image is meant for LAN docker-compose
+> users only and can be disabled in production via a nginx config override.
+
 ## Status
 
 | Resource | State |

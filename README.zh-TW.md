@@ -28,6 +28,58 @@
 
 ---
 
+## 🔥 v1.1.2 改動摘要
+
+### 🛡 自托管 Trace Viewer + HTTPS
+- frontend image build-time 從 `playwright-core@1.49.1` 抽出 Playwright trace viewer 靜態檔到 `/trace-viewer/`
+- nginx 同時 listen 443,build-time 用 openssl 產 10 年自簽 cert(CN=`autotest-platform`)
+- Cert 可從 `http://<host>/install-cert/server.crt` 下載;macOS 一行裝信任:
+  ```bash
+  curl -o /tmp/autotest.crt http://<host>/install-cert/server.crt && \
+  sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain /tmp/autotest.crt
+  ```
+- **不想裝 cert 的替代**:報告頁的「Trace Viewer」按鈕現在會**自動下載 trace.zip + 開 trace.playwright.dev**,使用者拖檔即可,完全免設定
+- COOP / COEP / CORP / `application/manifest+json` 都設好,SharedArrayBuffer + Service Worker 在 cross-origin-isolated 下運作
+- APISIX `artifact_routes` CORS 從 `http://localhost` 開到 `**`
+
+### 🔁 執行流程強化(robot_runner / execution_tasks)
+- **前置案例串接**:setup chain 直接 inline 進 main case 的 steps,**同一個 docker container** 跑完 setup → main,browser cookie / context / storage 完整繼承
+- **Per-testcase step attribution**:step log 各自掛 source testcase id + local idx 從 0 編,前端不會再「Step 7 / Empty」
+- Container wait 改 2 秒短輪詢,避開 docker-socket-proxy haproxy 10m server timeout
+- 兩層 timeout 對齊:`RUNNER_CONTAINER_TIMEOUT_SEC`(預設 1800s)+ `ROBOT_SUBPROCESS_TIMEOUT_SEC`(1680s);超時送 SIGTERM + 30s grace 讓 Teardown 寫完 video / trace
+- Goto 改 `wait_until=domcontentloaded timeout=30s`,不再卡 SPA XHR 永遠不返回
+- Click 前 JS 清掉 modal backdrop / sidebar / drawer / toast(涵蓋 Bootstrap / MUI / AntD / SweetAlert / Angular CDK / metismenu / offcanvas)
+- Wait For Elements State 預設 60s → **20s**(cascade fail 不再讓影片錄 1 小時靜止畫面)
+- AppiumLibrary 改 conditional import — 沒 `Mobile.*` step 就不 import,避免 `Get Text` 跟 Browser Library 衝突
+- Robot listener **first-error-wins** — cascade fail 不再覆寫真因(避免「Variable not found」蓋住「element not found」)
+- Cancel API 順手 docker kill 孤兒 runner 容器 + 寫 synthetic「使用者取消」step log
+- Pre / Post Action 改 `fullPage=True` 全頁截圖,包含捲動區
+
+### 🧪 測試案例編輯體驗
+- **複製測試案例**:操作欄新增綠色按鈕,整包搬 `ac_text` / `setup_text` / `steps_json` / `ddt_json` 到同 parent,自動避開重名(「副本」/「副本 (2)」/...)
+- **步驟批次刪除**:表頭加全選 checkbox + 每列加 checkbox +「刪除已勾選 (N)」紅色按鈕
+- **步驟排序拖曳改成 ▲ / ▼ 上下箭頭按鈕**(邊界自動 disabled)
+- **前置案例 UI 編輯器**:「前置動作 (Pre-Setup)」section 下新增 dropdown 選 testcase + 加入按鈕 + 啟用 toggle + 移除(對應 `testcase_precondition_links` table)
+- 自動建案模式失敗時跳明顯 `alert()` 視窗(沒選 SCENARIO / 沒抓到 step / API 沒回 id / catch 例外)
+- 「**Goto**」動作加進下拉(原本只有 Navigate,backend 認三個同義字)
+- 測試執行 Console 改成 flex 流內 panel + ESC 關閉 — 不再覆蓋下方步驟
+- 測試案例清單跨頁勾選顯示「已勾選 N 筆(跨頁保留)」黃色徽章
+
+### 🧠 Multi-agent runtime
+- 新增 `users.preferred_agent` 欄位(migration `0019`)— 可在 Hermes(預設)/ OpenClaw 切換
+- **OpenClaw runtime 改吃一般 OpenAI sk-... key** — sidecar 把 token 寫成 `OPENAI_API_KEY` 給 `openclaw agent --local`;沒 token 自動 fallback 回 Hermes
+- AI Token UI 移除「本地 (Ollama / LM Studio)」與「OpenClaw (ChatGPT 訂閱)」provider 選項;backend `create_ai_token` / `update_ai_token` 同步擋 `Ollama` / `Local` / `openai-oauth`(HTTP 400)
+
+### 🔒 Auth flow 修正
+- 強制改密 modal 開啟期間,擋掉背景 fetch 收到 `403 must_change_password` → `auth-required` → `authClearTokens` 的 race(避免 modal 一打開背景 poll 就清掉剛拿到的 token)
+- `GET /api/users/me/preferred-agent` 修壞掉的 `window.getAccessToken` 三元式(改讓 fetch wrapper 自動補 Authorization + auto-refresh)
+
+### 📋 報告呈現
+- `selectReportStep` 用該 step 真正所屬的 caseIdx(原本寫死 0 → 點 main case step 顯示 setup case 內容)
+- 軌跡 / 錄影按鈕:完整錄影(inline modal 保留)/ 下載錄影 / 下載 Trace / Trace Viewer(drag-drop 流程)— 嵌入式 trace iframe 已移除
+
+---
+
 ## 🤖 AI 原生:平台會自己寫案例、自己跑測試
 
 RL **不是** 把 ChatGPT 嵌進對話框就叫 AI 化的傳統測試工具。

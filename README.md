@@ -28,6 +28,53 @@
 
 ---
 
+## 🔥 v1.1.2 — Recent Updates
+
+### 🛡 Self-hosted Trace Viewer + HTTPS
+- Frontend image bundles Playwright trace viewer at `/trace-viewer/` (extracted from `playwright-core@1.49.1` at build time)
+- nginx serves HTTPS on port 443 with a build-time self-signed cert (10-year validity); cert downloadable via `http://<host>/install-cert/server.crt`. One-shot macOS trust install:
+  ```bash
+  curl -o /tmp/autotest.crt http://<host>/install-cert/server.crt && \
+  sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain /tmp/autotest.crt
+  ```
+- Don't want to install the cert? The report's **Trace Viewer button now auto-downloads the .zip + opens `trace.playwright.dev`** — drag the file in, no setup needed
+- COOP / COEP / CORP / `application/manifest+json` all wired so SharedArrayBuffer + Service Worker run in cross-origin-isolated mode
+- APISIX `artifact_routes` CORS opened to `**`
+
+### 🔁 Execution flow hardening
+- **Precondition continuity**: the setup chain inlines into the main case's steps and runs in the **same docker container** — cookies / browser context / storage carry over from setup to main
+- **Per-testcase step attribution**: step logs split back to source testcase ids with local indices starting at 0 (no more "Step 7 / Empty" when the main case only has 3 steps)
+- **Short-polling** container wait (every 2s) replaces long-poll `container.wait()` — sidesteps docker-socket-proxy haproxy 10m timeout
+- Two-tier timeout: `RUNNER_CONTAINER_TIMEOUT_SEC` (default 1800s) + `ROBOT_SUBPROCESS_TIMEOUT_SEC` (1680s); SIGTERM with 30s grace before SIGKILL so RF Teardown can finalize video/trace
+- **Goto** uses `wait_until=domcontentloaded timeout=30s` — no more hanging forever when SPA XHR never returns
+- **Click overlay cleanup**: pre-click JS dismisses modal backdrops, sidebar/drawer overlays, toast containers (Bootstrap / MUI / Ant Design / SweetAlert / CDK / metismenu / offcanvas)
+- Wait timeout 60s → 20s — cascade-failure no longer freezes video for an hour
+- AppiumLibrary conditional import (only when `Mobile.*` steps exist) avoids `Get Text` clash with Browser Library
+- Robot listener: **first-error-wins** — cascade failures don't overwrite root cause with "Variable not found"
+- Cancel API also kills orphan runner containers + writes a synthetic step log so cancelled reports aren't blank
+- Full-page screenshots (`fullPage=True`) for Pre/Post Action — captures entire scrollable page
+
+### 🧪 Test case editor
+- **Copy testcase** button (green) — duplicates `ac_text` / `setup_text` / `steps_json` / `ddt_json` into the same parent, auto-numbered ("副本", "副本 (2)", ...)
+- **Bulk step delete** — select-all checkbox + per-row checkbox + red "Delete N selected" button
+- **Step reorder**: drag-handle replaced by **▲ / ▼ arrow buttons** (boundary auto-disabled)
+- **Precondition link editor** under "Pre-Setup": dropdown picker + enable toggle + remove (wires to `testcase_precondition_links`)
+- Auto-create-case failures now pop `alert()` dialogs (no SCENARIO selected / no steps captured / API didn't return id / exception)
+- **Goto action** added to dropdown alongside Navigate (backend treats them identically)
+- **Test Execution Console** is now an in-flow flex panel with ESC-to-close — no longer overlays test steps
+
+### 🧠 Multi-agent runtime
+- New `users.preferred_agent` column (migration `0019`) — switch between Hermes (default) and OpenClaw
+- **OpenClaw runtime now accepts regular OpenAI API keys** — sidecar passes the key as `OPENAI_API_KEY` to `openclaw agent --local`. Graceful fallback to Hermes when no token / sidecar unreachable
+- AI Token UI removed "Ollama / LM Studio" and "OpenClaw (ChatGPT subscription)" provider options; backend enforces with HTTP 400 on POST/PUT
+
+### 🔒 Auth fixes
+- Force-password-change modal: background polls receiving `403 must_change_password` no longer clear tokens while the modal is open
+- `GET /api/users/me/preferred-agent` no longer sends `Authorization: Bearer ` (empty) — fixed broken `window.getAccessToken` ternary
+- Bulk-selection state on the test-case list now persists across pages with a "已勾選 N 筆(跨頁保留)" badge
+
+---
+
 ## Quick Start (Docker, ~5 minutes)
 
 **Prerequisites**: Docker 24+ and Docker Compose v2.23+. Works on Linux, macOS, and Windows (Docker Desktop). All commands below work identically on every platform — no platform-specific deploy scripts needed.
