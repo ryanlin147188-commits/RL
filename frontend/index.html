@@ -3159,6 +3159,41 @@ driver.swipe(100, 800, 100, 200, 500)"
                 </div>
             </div>
 
+            <!-- 加入現有使用者 Modal(Casdoor cutover 後標準入口) -->
+            <div id="pmAddExistingModal" class="hidden fixed inset-0 z-[170] bg-black/40 flex items-center justify-center p-4">
+                <div class="bg-white rounded-lg shadow-xl border border-stone-200 w-full max-w-md">
+                    <div class="px-5 py-3 border-b flex justify-between items-center">
+                        <div class="font-bold text-stone-800"><i class="fa-solid fa-user-plus text-amber-600"></i> 加入現有使用者到專案</div>
+                        <button onclick="pmCloseAddExistingModal()" class="text-stone-400 hover:text-rose-600"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <form onsubmit="return pmSubmitAddExisting(event)" class="p-4 space-y-3">
+                        <p class="text-[11px] text-stone-500 bg-amber-50 border border-amber-200 rounded p-2 leading-relaxed">
+                            <i class="fa-solid fa-circle-info text-amber-500"></i>
+                            清單顯示「**已存在於本地 + 屬於本專案組織**」的使用者。<br>
+                            找不到要的人?<b>先去 Casdoor 建</b>(<a href="javascript:_casdoorAdminOpen('/users','在 Casdoor 建立')" class="text-amber-700 underline">開 Casdoor 使用者管理</a>)— 同步回來最多 5 分鐘(或等 webhook 即時拉)。
+                        </p>
+                        <div>
+                            <label class="block text-xs font-semibold text-stone-600 mb-1">使用者 <span class="text-rose-500">*</span></label>
+                            <input list="pmAeUsernameList" id="pmAeUsername" required autocomplete="off"
+                                placeholder="輸入或選擇 username…"
+                                class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm">
+                            <datalist id="pmAeUsernameList"></datalist>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-stone-600 mb-1">在本專案的角色</label>
+                            <select id="pmAeRoleId" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm">
+                                <option value="">— 沿用該使用者的組織角色 —</option>
+                            </select>
+                            <p class="text-[10px] text-stone-500 mt-1">選擇後會 override 該使用者在這個專案的權限。空著就照他在組織內的預設角色。</p>
+                        </div>
+                        <div class="flex justify-end gap-2 pt-2">
+                            <button type="button" onclick="pmCloseAddExistingModal()" class="px-3 py-1.5 text-sm border border-stone-300 rounded hover:bg-stone-50">取消</button>
+                            <button type="submit" class="px-4 py-1.5 text-sm bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold">加入</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
             <!-- 編輯使用者 Modal -->
             <div id="pmEditUserModal" class="hidden fixed inset-0 z-[170] bg-black/40 flex items-center justify-center p-4">
                 <div class="bg-white rounded-lg shadow-xl border border-stone-200 w-full max-w-md">
@@ -3470,7 +3505,8 @@ driver.swipe(100, 800, 100, 200, 500)"
                                 </div>
                                 <div class="flex items-center gap-2">
                                     <button onclick="pmReload()" class="text-xs px-2.5 py-1.5 border border-stone-300 rounded hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
-                                    <button onclick="pmOpenCreateUserModal()" class="text-xs px-2.5 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded font-semibold" title="建立全新帳號並加入此專案"><i class="fa-solid fa-user-plus"></i> 建立新使用者</button>
+                                    <button onclick="pmOpenAddExistingModal()" class="text-xs px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold" title="把已存在於 Casdoor 的帳號加入此專案"><i class="fa-solid fa-user-plus"></i> 加入現有使用者</button>
+                                    <button onclick="pmOpenCreateUserModal()" class="text-xs px-2.5 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded font-semibold" title="在 Casdoor 建立新帳號(之後再回來把他加進專案)"><i class="fa-solid fa-user-plus"></i> 在 Casdoor 建立</button>
                                 </div>
                             </div>
 
@@ -14831,6 +14867,61 @@ driver.swipe(100, 800, 100, 200, 500)"
                 }
                 window.open(`${base}${path}`, '_blank', 'noopener');
             } catch (_) { /* popup blocked → 使用者再點一次即可 */ }
+        }
+
+        // ── 加入現有使用者到專案(Casdoor cutover 後新增) ───────────────
+        async function pmOpenAddExistingModal() {
+            if (!currentProjectId) {
+                showToast('請先在左側選一個專案', 'error'); return;
+            }
+            document.getElementById('pmAeUsername').value = '';
+            // 1) 同 org 內 assignable users(只讀,不影響 Casdoor)
+            try {
+                const r = await apiFetch('/api/auth/users/assignable');
+                const users = await r.json().catch(() => []);
+                const dl = document.getElementById('pmAeUsernameList');
+                dl.innerHTML = (Array.isArray(users) ? users : []).map(u =>
+                    `<option value="${escapeHtml(u.username)}">${escapeHtml(u.display_name || u.username)}${u.email ? ' — ' + escapeHtml(u.email) : ''}</option>`
+                ).join('');
+            } catch (_) { /* 沒有也讓 user 自己手填 */ }
+            // 2) 系統角色下拉(項目內角色 override OrgMembership 預設)
+            try {
+                const r = await apiFetch('/api/settings/roles');
+                const roles = await r.json().catch(() => []);
+                const sel = document.getElementById('pmAeRoleId');
+                sel.innerHTML = '<option value="">— 沿用該使用者的組織角色 —</option>' +
+                    (Array.isArray(roles) ? roles : []).map(r =>
+                        `<option value="${escapeHtml(r.id)}">${escapeHtml(r.name)}</option>`
+                    ).join('');
+            } catch (_) { /* role 拉不到就只剩預設選項 */ }
+            document.getElementById('pmAddExistingModal').classList.remove('hidden');
+            setTimeout(() => document.getElementById('pmAeUsername').focus(), 50);
+        }
+        function pmCloseAddExistingModal() {
+            document.getElementById('pmAddExistingModal').classList.add('hidden');
+        }
+        async function pmSubmitAddExisting(ev) {
+            ev.preventDefault();
+            const username = document.getElementById('pmAeUsername').value.trim();
+            const role_id = document.getElementById('pmAeRoleId').value || null;
+            if (!username) { showToast('請選擇使用者', 'error'); return false; }
+            try {
+                const r = await fetch(`/api/projects/${encodeURIComponent(currentProjectId)}/members`, {
+                    method: 'POST', headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({ username, role_id }),
+                });
+                if (!r.ok) {
+                    const detail = (await r.json().catch(() => ({}))).detail || r.statusText;
+                    showToast(`加入失敗:${typeof detail === 'string' ? detail : JSON.stringify(detail)}`, 'error');
+                    return false;
+                }
+                showToast(`已把 ${username} 加入專案`, 'success');
+                pmCloseAddExistingModal();
+                if (typeof pmReload === 'function') pmReload();
+            } catch (e) {
+                showToast('加入失敗:' + e.message, 'error');
+            }
+            return false;
         }
 
         async function pmOpenCreateUserModal() {
