@@ -192,6 +192,10 @@ services:
       # 切 True 後 decode_token 進入 dual-mode:RS256 JWKS 優先,失敗才退回 HS256。
       CASDOOR_ENABLED: ${CASDOOR_ENABLED:-False}
       CASDOOR_ENDPOINT: ${CASDOOR_ENDPOINT:-http://casdoor:8000}
+      # Public-facing Casdoor URL — browser 從 SPA 跳過去 authorize 頁面用。
+      # 必須是瀏覽器解析得到的 URL(通常走 APISIX /casdoor/* 反代);沒設會
+      # fallback 到 CASDOOR_ENDPOINT,但 docker 內網 hostname 瀏覽器解不到。
+      CASDOOR_PUBLIC_ENDPOINT: ${CASDOOR_PUBLIC_ENDPOINT:-}
       CASDOOR_ORG: ${CASDOOR_ORG:-autotest}
       CASDOOR_APP: ${CASDOOR_APP:-rl-platform}
       CASDOOR_CLIENT_ID: ${CASDOOR_CLIENT_ID:-}

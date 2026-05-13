@@ -36,9 +36,19 @@ logger = logging.getLogger(__name__)
 _ENABLED_RAW = os.environ.get("CASDOOR_ENABLED", "False").strip().lower()
 _CASDOOR_ENABLED: bool = _ENABLED_RAW in {"true", "1", "yes", "on"}
 
-# Internal endpoint — backend ↔ casdoor sidecar 用 docker DNS;public URL 給
-# 瀏覽器 redirect 用(在 callback handler 自己組,本模組不管)。
+# 兩個 endpoint 必要,差別在誰會 hit 這個 URL:
+#   * CASDOOR_ENDPOINT(內網):backend 自己用 docker DNS 打 REST / JWKS / token
+#     exchange。預設 ``http://casdoor:8000``。
+#   * CASDOOR_PUBLIC_ENDPOINT(對外):browser 從 SPA 跳到 Casdoor 認證頁時用,
+#     必須是瀏覽器解析得到的 URL。預設 fallback 到 CASDOOR_ENDPOINT,但
+#     ``casdoor`` 是 docker 內網 hostname,production 部署必須 override 成走
+#     APISIX 的對外 URL,例如 ``http://<host>/casdoor``。否則 302 出去後瀏覽器
+#     會 DNS_PROBE_FINISHED_NXDOMAIN。
 CASDOOR_ENDPOINT: str = os.environ.get("CASDOOR_ENDPOINT", "http://casdoor:8000").rstrip("/")
+CASDOOR_PUBLIC_ENDPOINT: str = (
+    os.environ.get("CASDOOR_PUBLIC_ENDPOINT", "").strip().rstrip("/")
+    or CASDOOR_ENDPOINT
+)
 CASDOOR_ORG: str = os.environ.get("CASDOOR_ORG", "autotest")
 CASDOOR_APP: str = os.environ.get("CASDOOR_APP", "rl-platform")
 CASDOOR_CLIENT_ID: str = os.environ.get("CASDOOR_CLIENT_ID", "")
@@ -89,13 +99,14 @@ def decode_casdoor_jwt(token: str) -> dict[str, Any]:
     Caller 端再驗 ``typ`` / 自己的業務約束(例如 token_generation)。
     """
     signing_key = _get_jwk_client().get_signing_key_from_jwt(token)
-    # PyJWT 對 None options 用預設嚴格驗證;不需要明確 disable 任何欄位。
+    # 注意:iss 不強制檢查 — Casdoor 視「token 是由哪條 URL 進來的請求換出來的」
+    # 而設不同的 iss。我們內部走 ``http://casdoor:8000`` 換 token,但 origin
+    # 可能寫成 public URL,兩個值都合法;簽章已驗過,iss 用 audit log 紀錄即可。
     return pyjwt.decode(
         token,
         key=signing_key.key,
         algorithms=["RS256"],
-        issuer=CASDOOR_ENDPOINT,
-        options={"verify_aud": False},
+        options={"verify_aud": False, "verify_iss": False},
     )
 
 
@@ -104,9 +115,12 @@ def decode_casdoor_jwt(token: str) -> dict[str, Any]:
 def build_authorize_url(redirect_uri: str, state: str, scope: str = "openid profile email") -> str:
     """組 Casdoor 的 authorize URL,給 /api/auth/casdoor/login 302 redirect 用。
 
+    這個 URL 是 **browser 會被 302 過去** 的位置,必須使用 ``CASDOOR_PUBLIC_ENDPOINT``
+    (對外 URL,通常走 APISIX `/casdoor/*` 反代)。不能用 ``CASDOOR_ENDPOINT``
+    (docker 內網 hostname),否則 browser 會 NXDOMAIN。
+
     Casdoor 的 OIDC authorize endpoint 是 ``/login/oauth/authorize``(不是
-    well-known 的 ``/authorize``)。寫死路徑可以省一次 discovery 拉取 — Casdoor
-    sidecar 在同個 compose 內,路徑不會變。
+    well-known 的 ``/authorize``)。寫死路徑可以省一次 discovery 拉取。
     """
     params = {
         "response_type": "code",
@@ -115,7 +129,7 @@ def build_authorize_url(redirect_uri: str, state: str, scope: str = "openid prof
         "scope": scope,
         "state": state,
     }
-    return f"{CASDOOR_ENDPOINT}/login/oauth/authorize?{urlencode(params)}"
+    return f"{CASDOOR_PUBLIC_ENDPOINT}/login/oauth/authorize?{urlencode(params)}"
 
 
 async def exchange_code_for_token(code: str, redirect_uri: str) -> dict[str, Any]:
