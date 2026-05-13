@@ -722,12 +722,16 @@ configs:
 
       # Beego session 設定 — 用 memory provider 避開 file backend 對寫入目錄
       # 的依賴(Casdoor 容器內預設 cwd 沒寫權限 → 啟動會 503)。
+      # 不要寫 ``sessionConfig = {"enableSidByHeader": true, ...}``:該 JSON 被
+      # Casdoor 拿去當 Beego ManagerConfig,``enableSidByHeader=true`` 會讓
+      # session id 走 HTTP header 而不是 Set-Cookie,瀏覽器沒收到 cookie 就
+      # 登入完沒反應(卡在 toast)。只配 Beego 標準 key 即可,其餘讓 Casdoor
+      # Go 端的預設值接管。
       sessionon = true
       sessionprovider = memory
       sessionname = casdoor_session_id
       sessionproviderconfig =
       sessiongcmaxlifetime = 3600
-      sessionConfig = {"enableSidByHeader": true, "cookieLifeTime": 3600, "providerName": "memory", "providerConfig": "", "domain": "", "cookieName": "casdoor_session_id", "secure": false, "disableHTTPOnly": false}
       authState = casdoor
       verificationCodeTimeout = 10
       initScore = 2000
