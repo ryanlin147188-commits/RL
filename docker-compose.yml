@@ -442,8 +442,12 @@ services:
       timeout: 5s
       retries: 10
       start_period: 40s
-    # 不對外 publish 8000;backend/frontend 以 casdoor:8000 內網解析,瀏覽器
-    # 流量走 http(s)://localhost/casdoor/* → nginx → apisix → casdoor:8000。
+    ports:
+      # Casdoor SPA 內部用絕對路徑 (`/main.js`, `/static/...`),subpath proxy
+      # 會被前端 nginx 的 SPA try_files 接走 → React 無法 bootstrap → 白屏。
+      # 直接把 casdoor:8000 publish 到 host:8001,SPA + REST 一律走獨立 origin。
+      # backend 仍透過 docker DNS 走 ``http://casdoor:8000`` 不變(REST / JWKS)。
+      - "8001:8000"
 
   # ── openclaw sidecar (Phase 3 scaffold — opt-in via profile) ────────
   # OpenClaw (https://github.com/openclaw/openclaw, MIT) — 第二個 agent
