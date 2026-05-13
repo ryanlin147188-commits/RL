@@ -912,9 +912,9 @@ def _build_robot_file(
     回傳 (.robot 檔內容, 每個 test case 的 step 清單)。
     每個 step 在 .robot 中會被包成：
         Log    AT_STEP idx=N
-        Take Screenshot    filename=...    fullPage=False
+        Take Screenshot    filename=...    fullPage=True
         <action keyword(s)>
-        Take Screenshot    filename=...    fullPage=False
+        Take Screenshot    filename=...    fullPage=True
 
     enable_recording=True 時：
       - New Context 設定 recordVideo（產生 .webm）
@@ -1101,7 +1101,7 @@ def _build_robot_file(
                         f"    Run Keyword And Ignore Error    Highlight Elements    {hl_loc}    duration=800ms    width=3px    style=solid    color=red"
                     )
                 lines.append(
-                    f"    Run Keyword And Ignore Error    Take Screenshot    filename={pre_path}    fullPage=False"
+                    f"    Run Keyword And Ignore Error    Take Screenshot    filename={pre_path}    fullPage=True"
                 )
                 # 截圖完成後，主動把所有 robotframework-browser-highlight overlay 移除，
                 # 以免下一步互動被它擋住（pointer-events 攔截）。
@@ -1113,7 +1113,7 @@ def _build_robot_file(
             lines.extend(translated)
             if is_browser:
                 lines.append(
-                    f"    Run Keyword And Ignore Error    Take Screenshot    filename={post_path}    fullPage=False"
+                    f"    Run Keyword And Ignore Error    Take Screenshot    filename={post_path}    fullPage=True"
                 )
 
         lines.append("")

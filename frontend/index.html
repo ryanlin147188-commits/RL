@@ -2329,6 +2329,10 @@ driver.swipe(100, 800, 100, 200, 500)"
                                 <button onclick="setStepMode('BDD')" id="btnModeBDD" class="px-3 py-1 text-xs font-medium rounded text-slate-500 hover:text-slate-700 transition">BDD 模式</button>
                                 <button onclick="setStepMode('KDT')" id="btnModeKDT" class="px-3 py-1 text-xs font-medium rounded text-slate-500 hover:text-slate-700 transition">KDT 模式</button>
                             </div>
+                            <button id="stepBulkDeleteBtn" onclick="stepBulkDeleteSelected()" disabled
+                                class="text-sm px-3 py-1.5 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 disabled:bg-stone-100 disabled:text-stone-400 disabled:cursor-not-allowed rounded flex items-center gap-1 transition shadow-sm" title="刪除已勾選的步驟">
+                                <i class="fa-solid fa-trash"></i> 刪除已勾選 <span id="stepBulkDeleteCount">(0)</span>
+                            </button>
                             <button onclick="addEmptyStep()" class="text-sm px-3 py-1.5 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded flex items-center gap-1 transition shadow-sm">
                                 <i class="fa-solid fa-plus"></i> 新增步驟
                             </button>
@@ -2338,6 +2342,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                         <table class="w-full text-left border-collapse min-w-[900px] table-mode-all transition-all duration-300" id="stepsTable">
                             <thead>
                                 <tr class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-y border-slate-200">
+                                    <th class="p-2 font-medium w-[28px] text-center"><input type="checkbox" id="stepSelectAll" onchange="stepToggleSelectAll(this.checked)" aria-label="全選步驟" title="全選 / 取消全選" class="accent-red-500 cursor-pointer"></th>
                                     <th class="p-2 font-medium w-[28px] text-center" aria-label="拖曳排序"></th>
                                     <th class="p-3 font-medium w-[100px]">測試編號</th>
                                     <th class="p-3 font-medium w-[100px] col-bdd">BDD 關鍵字</th>
@@ -2905,13 +2910,17 @@ driver.swipe(100, 800, 100, 200, 500)"
                                 <i class="fa-solid fa-list-check"></i> 建立追蹤待辦 <span id="tcBulkTodoCount">(0)</span>
                             </button>
                             <button id="tcBulkDeleteBtn" onclick="tcBulkDeleteSelected()" disabled
-                                class="px-3 py-2 bg-rose-500 hover:bg-rose-600 disabled:bg-stone-300 disabled:cursor-not-allowed text-white rounded-md text-sm font-semibold shadow-sm transition flex items-center gap-1.5" title="刪除已勾選的測試案例">
+                                class="px-3 py-2 bg-rose-500 hover:bg-rose-600 disabled:bg-stone-300 disabled:cursor-not-allowed text-white rounded-md text-sm font-semibold shadow-sm transition flex items-center gap-1.5" title="刪除已勾選的測試案例(可跨頁)">
                                 <i class="fa-solid fa-trash"></i> 刪除 <span id="tcBulkDeleteCount">(0)</span>
                             </button>
                             <button onclick="openTcCreateModal()" class="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold shadow-sm transition flex items-center gap-1.5" title="新增測試案例">
                                 <i class="fa-solid fa-plus"></i> 新增案例
                             </button>
-                            <div class="text-xs text-stone-500 ml-auto">
+                            <div class="text-xs text-stone-500 ml-auto flex items-center gap-3">
+                                <span id="tcBulkSelectionBadge" class="hidden px-2 py-0.5 bg-amber-100 text-amber-800 border border-amber-300 rounded font-medium">
+                                    已勾選 <span id="tcBulkSelectionCount">0</span> 筆(跨頁保留)
+                                    <button onclick="tcClearSelection()" class="ml-1 text-amber-700 hover:text-amber-900 underline" title="清除全部勾選">清除</button>
+                                </span>
                                 共 <span id="tcListCount" class="font-bold text-stone-700">0</span> 筆
                             </div>
                         </div>
@@ -6294,10 +6303,65 @@ driver.swipe(100, 800, 100, 200, 500)"
             el.style.height = (el.scrollHeight + 2) + 'px';
         }
 
+        // 測試步驟批次選取:以 step idx 為 key,切換 testcase 時自動清空
+        // (idx 對不同 testcase 沒意義);renderSteps 結束會 sync UI。
+        const stepSelectedIdx = new Set();
+        let _stepSelectionTcId = null;
+        function stepToggleRow(idx, checked) {
+            if (checked) stepSelectedIdx.add(idx);
+            else stepSelectedIdx.delete(idx);
+            stepUpdateBulkDeleteUI();
+        }
+        function stepToggleSelectAll(checked) {
+            document.querySelectorAll('.step-row-check').forEach(cb => {
+                cb.checked = checked;
+                const i = parseInt(cb.dataset.stepIdx, 10);
+                if (!Number.isNaN(i)) {
+                    if (checked) stepSelectedIdx.add(i);
+                    else stepSelectedIdx.delete(i);
+                }
+            });
+            stepUpdateBulkDeleteUI();
+        }
+        function stepUpdateBulkDeleteUI() {
+            const n = stepSelectedIdx.size;
+            const btn = document.getElementById('stepBulkDeleteBtn');
+            const lbl = document.getElementById('stepBulkDeleteCount');
+            if (btn) btn.disabled = n === 0;
+            if (lbl) lbl.textContent = `(${n})`;
+            const selAll = document.getElementById('stepSelectAll');
+            if (selAll) {
+                const rows = document.querySelectorAll('.step-row-check');
+                const total = rows.length;
+                selAll.checked = total > 0 && n === total;
+                selAll.indeterminate = n > 0 && n < total;
+            }
+        }
+        function stepBulkDeleteSelected() {
+            if (!currentTestCase || !testCases[currentTestCase]) return;
+            const n = stepSelectedIdx.size;
+            if (!n) return;
+            if (!confirm(`確定要刪除已勾選的 ${n} 個步驟?`)) return;
+            // 從大 idx 往小 idx splice,避免 index 跑位
+            const idxs = Array.from(stepSelectedIdx).sort((a, b) => b - a);
+            const steps = testCases[currentTestCase].steps;
+            idxs.forEach(i => {
+                if (i >= 0 && i < steps.length) steps.splice(i, 1);
+            });
+            stepSelectedIdx.clear();
+            markDirty();
+            renderSteps();
+        }
+
         function renderSteps() {
             const tc = testCases[currentTestCase];
             const tbody = document.getElementById('stepsBody');
             tbody.innerHTML = '';
+            // 切換 testcase 時清掉舊 selection(step idx 沒跨 case 意義)
+            if (currentTestCase !== _stepSelectionTcId) {
+                stepSelectedIdx.clear();
+                _stepSelectionTcId = currentTestCase;
+            }
 
             const bddOptions = ['Given', 'When', 'And', 'Then', 'But'];
             const platform = getTestCasePlatform(currentTestCase);
@@ -6353,11 +6417,24 @@ driver.swipe(100, 800, 100, 200, 500)"
                 tr.className = `${_bgClass} transition align-top step-row`;
                 tr.dataset.stepIdx = String(idx);
                 if (_depth > 0) tr.style.borderLeft = `${_depth * 4}px solid rgb(167 243 208)`;
-                // 啟用整列拖曳;實際 drag handle 在第一欄,使用者要從那邊拖,但整列 draggable 也可
-                tr.draggable = true;
+                // 改用上下箭頭按鈕排序(取代拖曳)— 在 trackpad 不好抓 / 小螢幕場景比較穩
+                const _isFirst = idx === 0;
+                const _isLast = idx === tc.steps.length - 1;
                 tr.innerHTML = `
-                    <td class="p-2 text-center text-slate-400 hover:text-slate-700 cursor-grab select-none drag-handle" title="拖曳以重排" aria-label="拖曳以重排">
-                        <i class="fa-solid fa-grip-vertical"></i>
+                    <td class="p-2 text-center">
+                        <input type="checkbox" class="step-row-check accent-red-500 cursor-pointer" data-step-idx="${idx}" ${stepSelectedIdx.has(idx) ? 'checked' : ''} onchange="stepToggleRow(${idx}, this.checked)">
+                    </td>
+                    <td class="p-1 text-center align-middle">
+                        <div class="inline-flex flex-col items-center gap-0.5">
+                            <button type="button" onclick="moveStep(${idx}, -1)" ${_isFirst ? 'disabled' : ''} title="往上移" aria-label="往上移"
+                                class="w-5 h-4 leading-none text-slate-400 hover:text-blue-600 disabled:text-slate-200 disabled:cursor-not-allowed transition">
+                                <i class="fa-solid fa-caret-up"></i>
+                            </button>
+                            <button type="button" onclick="moveStep(${idx}, 1)" ${_isLast ? 'disabled' : ''} title="往下移" aria-label="往下移"
+                                class="w-5 h-4 leading-none text-slate-400 hover:text-blue-600 disabled:text-slate-200 disabled:cursor-not-allowed transition">
+                                <i class="fa-solid fa-caret-down"></i>
+                            </button>
+                        </div>
                     </td>
                     <td class="p-2 text-center font-mono text-xs text-slate-600 select-none">TC-${String(idx + 1).padStart(2, '0')}</td>
                     <td class="p-2 col-bdd">
@@ -6408,8 +6485,25 @@ driver.swipe(100, 800, 100, 200, 500)"
             });
             // 依內容初始化每個多行欄位（描述 / Locator / Input / 預期）的高度
             tbody.querySelectorAll('textarea.step-ta').forEach(autosizeTextarea);
-            // 啟用列級拖曳重排
-            attachStepDragHandlers(tbody);
+            // 拖曳重排已改用上下箭頭按鈕(moveStep);不再 attach drag handler
+            // 同步批次刪除按鈕 + 全選 checkbox 狀態
+            stepUpdateBulkDeleteUI();
+        }
+
+        // 上下移動單一 step(取代拖曳)。direction = -1 往上 / +1 往下。
+        // 邊界與 button disabled 互相對應,理論上 caller 不會傳出界,defensive 仍擋。
+        function moveStep(idx, direction) {
+            if (!currentTestCase || !testCases[currentTestCase]) return;
+            const steps = testCases[currentTestCase].steps;
+            const targetIdx = idx + direction;
+            if (idx < 0 || idx >= steps.length) return;
+            if (targetIdx < 0 || targetIdx >= steps.length) return;
+            // 交換兩列
+            [steps[idx], steps[targetIdx]] = [steps[targetIdx], steps[idx]];
+            // idx-based 選取在重排後對不上,清掉避免之後 bulk-delete 錯位
+            stepSelectedIdx.clear();
+            markDirty();
+            renderSteps();
         }
 
         // ── 測試步驟列拖曳重排（HTML5 DnD）────────────────────────
@@ -6479,6 +6573,8 @@ driver.swipe(100, 800, 100, 200, 500)"
         function deleteStep(idx) {
             if (!confirm(`確定要刪除第 ${idx + 1} 個步驟？`)) return;
             testCases[currentTestCase].steps.splice(idx, 1);
+            // 結構改了,idx-based selection 失效,清掉避免後續 splice 錯位
+            stepSelectedIdx.clear();
             markDirty();
             renderSteps();
         }
@@ -12454,6 +12550,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                     // 按鈕樣式與「排程」「測試回合」頁面一致：淺底+邊框+圖示+文字
                     '<td class="p-3 text-center whitespace-nowrap space-x-1">' +
                     '  <button onclick="loadTestCase(\'' + idEsc + '\')" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded transition"><i class="fa-solid fa-pen"></i> 編輯</button>' +
+                    '  <button onclick="tcCopyFromList(\'' + idEsc + '\',\'' + titleEsc + '\')" class="text-xs px-2 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 rounded transition"><i class="fa-solid fa-copy"></i> 複製</button>' +
                     '  <button onclick="tcRenameFromList(\'' + idEsc + '\',\'' + titleEsc + '\')" class="text-xs px-2 py-1 bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 rounded transition"><i class="fa-solid fa-i-cursor"></i> 重新命名</button>' +
                     '  <button onclick="tcDeleteFromList(\'' + idEsc + '\',\'' + titleEsc + '\')" class="text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded transition"><i class="fa-solid fa-trash"></i> 刪除</button>' +
                     '</td>' +
@@ -12528,6 +12625,17 @@ driver.swipe(100, 800, 100, 200, 500)"
             const todoLbl = document.getElementById('tcBulkTodoCount');
             if (todoBtn) todoBtn.disabled = n === 0;
             if (todoLbl) todoLbl.textContent = `(${n})`;
+            // 「已勾選 N 筆」跨頁顯示徽章
+            const badge = document.getElementById('tcBulkSelectionBadge');
+            const badgeCnt = document.getElementById('tcBulkSelectionCount');
+            if (badge && badgeCnt) {
+                if (n > 0) {
+                    badge.classList.remove('hidden');
+                    badgeCnt.textContent = String(n);
+                } else {
+                    badge.classList.add('hidden');
+                }
+            }
             // 同步全選 checkbox 的 indeterminate / checked
             const selAll = document.getElementById('tcSelectAll');
             if (selAll) {
@@ -12537,6 +12645,16 @@ driver.swipe(100, 800, 100, 200, 500)"
                 selAll.checked = visible > 0 && checkedVisible === visible;
                 selAll.indeterminate = checkedVisible > 0 && checkedVisible < visible;
             }
+        }
+
+        // 清除全部跨頁勾選(包含目前畫面外的)
+        function tcClearSelection() {
+            tcListState.selected.clear();
+            // 把可見的 checkbox 也視覺上 uncheck
+            document.querySelectorAll('.tc-row-check').forEach(cb => { cb.checked = false; });
+            const selAll = document.getElementById('tcSelectAll');
+            if (selAll) { selAll.checked = false; selAll.indeterminate = false; }
+            tcUpdateBulkDeleteUI();
         }
         // Tier G-4 共用:從 N 個 target entity 一次建立 N 筆追蹤 todo + 自動連結
         async function _bulkCreateTodosForTargets(targetType, ids, onDone) {
@@ -12762,6 +12880,61 @@ driver.swipe(100, 800, 100, 200, 500)"
                 showTestCasesView();
             } catch (e) {
                 showToast(`刪除失敗：${e.message}`, 'error');
+            }
+        }
+
+        // 複製測試案例到同一個父節點下,自動避開重名(append「副本」/「副本 (2)」/...);
+        // 完整搬 ac_text / setup_text / steps_json / ddt_json,不複製 precondition links
+        // (前置案例由使用者決定要不要也跟著掛)、不複製 execution history(那是 report 的事)。
+        async function tcCopyFromList(id, currentTitle) {
+            const info = findNodeInfo(activeTreeData, id);
+            if (!info) { showToast('找不到此測試案例', 'error'); return; }
+            const parentId = info.parent ? info.parent.id : null;
+            // 構造副本名稱
+            const baseTitle = String(currentTitle || '案例').replace(/\.md$/i, '');
+            let copyName = `${baseTitle} 副本.md`;
+            let n = 2;
+            while (_siblingNameExists(parentId, copyName, null)) {
+                copyName = `${baseTitle} 副本 (${n}).md`;
+                n++;
+                if (n > 100) {
+                    showToast('連 100 個副本都已存在,放棄', 'error');
+                    return;
+                }
+            }
+            try {
+                // 1) 讀原案例內容
+                const src = await apiFetch(`/api/testcases/${encodeURIComponent(id)}`);
+                // 2) 建新節點
+                const created = await apiFetch('/api/nodes', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        project_id: currentProjectId,
+                        parent_id: parentId,
+                        name: copyName,
+                    }),
+                });
+                if (!created || !created.id) {
+                    showToast('複製失敗:新節點 API 沒回 id', 'error');
+                    return;
+                }
+                // 3) 把原案例內容寫到新節點
+                await apiFetch(`/api/testcases/${encodeURIComponent(created.id)}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        ac_text: src.ac_text || '',
+                        setup_text: src.setup_text || '',
+                        steps_json: Array.isArray(src.steps_json) ? src.steps_json : [],
+                        ddt_json: src.ddt_json || { headers: [], rows: [] },
+                    }),
+                });
+                showToast(`已複製為「${copyName.replace(/\.md$/i, '')}」`, 'success');
+                await switchProject(currentProjectId, { goHome: false });
+                showTestCasesView();
+            } catch (e) {
+                showToast(`複製失敗:${e.message}`, 'error');
             }
         }
 
