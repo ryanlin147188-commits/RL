@@ -91,6 +91,29 @@ def _redirect_uri(request: Request) -> str:
     return f"{base}/api/auth/callback"
 
 
+@router.get("/auth/casdoor/enabled", tags=["U · 認證"])
+async def casdoor_enabled() -> dict:
+    """SPA 偵測 Casdoor 是否啟用的輕量 probe。200 永遠回得到,內容是
+    ``{"enabled": bool}``。
+
+    為什麼不直接 probe ``/auth/casdoor/login``:那條未啟用時是 503,瀏覽器
+    DevTools 一定會印紅字,實際對使用者沒影響但看起來像出錯。改用此 200
+    端點後 SPA 拿到布林值再決定要不要亮按鈕,DevTools 不會留下假象錯誤。
+    """
+    return {"enabled": _casdoor.is_enabled()}
+
+
+@router.get("/auth/oidc/providers", tags=["U · 認證"])
+async def oidc_providers_compat() -> list:
+    """OIDC providers 在 Phase 5 cutover 後由 Casdoor 接管,本端 ``oidc_providers``
+    表已 drop。SPA 登入頁仍會 fetch 這條來決定要不要畫 SSO 按鈕清單;改回
+    空陣列 200(而不是 404),避免 DevTools 留下假象錯誤。
+
+    需要設定 SSO 時請進 Casdoor admin UI → Application → Providers。
+    """
+    return []
+
+
 @router.get("/auth/casdoor/login", tags=["U · 認證"])
 async def casdoor_login(
     request: Request,

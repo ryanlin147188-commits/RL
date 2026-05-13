@@ -10842,25 +10842,21 @@ driver.swipe(100, 800, 100, 200, 500)"
             }
         }
         async function _maybeShowCasdoorButton() {
-            // backend 啟用了 Casdoor 才顯示按鈕;沒啟用時 ``/api/auth/casdoor/login``
-            // 會回 503,我們改用一支輕量的 ``HEAD`` probe(同路徑也回 503 / 302),
-            // 但 fetch 對 302 一定 follow,我們改用 ``redirect: 'manual'`` 看狀態碼。
+            // 改用輕量 JSON probe(``/api/auth/casdoor/enabled``)— 200 永遠
+            // 回得到內容 ``{enabled: bool}``,DevTools 不會留 503 紅字。
             try {
-                const r = await _origFetch('/api/auth/casdoor/login', {
-                    method: 'GET',
-                    redirect: 'manual',
-                });
-                // 啟用 → 302 (opaqueredirect in manual mode);未啟用 → 503
-                if (r.status === 0 || (r.status >= 200 && r.status < 400)) {
-                    const block = document.getElementById('casdoorBlock');
-                    if (block) block.classList.remove('hidden');
-                    // Phase 5:Casdoor 全面接管後,密碼登入後端已 410。把帳密表單
-                    // 跟「忘記密碼」tab 一起收起,避免使用者試了結果被擋。仍然
-                    // 留住表單 DOM 給 CASDOOR_ENABLED=False 的 rollback 場景。
-                    document.getElementById('authLoginForm')?.classList.add('hidden');
-                    document.getElementById('authTabForgot')?.classList.add('hidden');
-                    document.getElementById('authTabLogin')?.classList.add('hidden');
-                }
+                const r = await _origFetch('/api/auth/casdoor/enabled');
+                if (!r.ok) return;
+                const data = await r.json().catch(() => null);
+                if (!data || !data.enabled) return;
+                const block = document.getElementById('casdoorBlock');
+                if (block) block.classList.remove('hidden');
+                // Phase 5:Casdoor 全面接管後,密碼登入後端已 410。把帳密表單
+                // 跟「忘記密碼」tab 一起收起,避免使用者試了結果被擋。仍然
+                // 留住表單 DOM 給 CASDOOR_ENABLED=False 的 rollback 場景。
+                document.getElementById('authLoginForm')?.classList.add('hidden');
+                document.getElementById('authTabForgot')?.classList.add('hidden');
+                document.getElementById('authTabLogin')?.classList.add('hidden');
             } catch (_) { /* 偵測失敗 → 按鈕保持 hidden,不擋密碼登入 */ }
         }
 

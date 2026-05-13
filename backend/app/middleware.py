@@ -50,6 +50,7 @@ _PUBLIC_PATTERNS: list[re.Pattern] = [
     re.compile(r"^/api/auth/oidc/callback$"),
     # Casdoor OIDC 入口 / callback;與 oidc/* 並行,Phase 4 cutover 後 oidc 那組會下架。
     re.compile(r"^/api/auth/casdoor/login$"),
+    re.compile(r"^/api/auth/casdoor/enabled$"),
     re.compile(r"^/api/auth/callback$"),
     # Casdoor webhook(Phase 6.2):由 sidecar 主動推送,沒帶使用者 JWT;
     # router 自己驗 X-Casdoor-Webhook-Token + Valkey idempotency。
