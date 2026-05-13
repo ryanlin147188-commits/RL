@@ -42,7 +42,9 @@
       "refreshExpireInHours": 336,
       "redirectUris": [
         "http://localhost/api/auth/callback",
-        "https://localhost/api/auth/callback"
+        "https://localhost/api/auth/callback",
+        "http://192.168.4.89/api/auth/callback",
+        "https://192.168.4.89/api/auth/callback"
       ]
     }
   ],

@@ -405,7 +405,9 @@ services:
     restart: "no"
 
   casdoor:
-    image: casbin/casdoor:v1.760.0
+    # 註:Casdoor 官方鏡像 tag 不穩定(v1.x 編號跳很快),用 latest 在 LAN
+    # 部署接受;production 請手動 pin 一個你驗過的 tag(例:casbin/casdoor:v2.4.0)。
+    image: casbin/casdoor:latest
     profiles: ["casdoor"]
     container_name: autotest-casdoor
     restart: unless-stopped
@@ -421,8 +423,13 @@ services:
       # (and so docker compose surfaces the missing-secret error early).
       DB_USER: ${DB_USER:-admin}
       DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required - run docker compose --profile init run --rm bootstrap}
+    # app.conf 走 compose ``configs`` 內聯渲染 — Casdoor 不展開 ${...},必須在
+    # 進容器前由 docker compose 套 .env 把 DB_USER / DB_PASSWORD 替換好。
+    # init_data.json 純檔(沒變數)維持 bind mount。
+    configs:
+      - source: casdoor_app_conf
+        target: /conf/app.conf
     volumes:
-      - ./casdoor/app.conf:/conf/app.conf:ro
       - ./casdoor/init_data.json:/init_data.json:ro
       - casdoor_data:/logs
     healthcheck:
@@ -688,6 +695,39 @@ volumes:
 # SeaweedFS S3 IAM 設定:從 .env 注入,docker compose 會在啟動時做變數替換。
 # 修改後須 docker compose down -v 並 up 才能重新生效(SeaweedFS 啟動時讀一次)。
 configs:
+  # Casdoor server config(行內渲染:.env 內的 DB_USER / DB_PASSWORD 會被
+  # docker compose 在 up 時替換到 dataSourceName)。
+  casdoor_app_conf:
+    content: |
+      appname = casdoor
+      httpport = 8000
+      runmode = dev
+      copyrequestbody = true
+
+      driverName = postgres
+      # 注意:dataSourceName 的 dbname 必須直接寫 ``casdoor``,因為 Casdoor 用
+      # Xorm,連線後不會自動切到 ``dbName`` 設定 — 早期版本配 dbname=postgres
+      # 會把所有 Casdoor 自家表灌進維護 DB,污染整個 postgres 實例。``casdoor``
+      # DB 由 ``casdoor-init`` service 在 Casdoor 啟動前 CREATE。
+      dataSourceName = "user=${DB_USER:-admin} password=${DB_PASSWORD:?DB_PASSWORD is required - run docker compose --profile init run --rm bootstrap} host=postgres port=5432 sslmode=disable dbname=casdoor"
+      dbName = casdoor
+
+      # Beego session 設定 — 用 memory provider 避開 file backend 對寫入目錄
+      # 的依賴(Casdoor 容器內預設 cwd 沒寫權限 → 啟動會 503)。
+      sessionon = true
+      sessionprovider = memory
+      sessionname = casdoor_session_id
+      sessionproviderconfig =
+      sessiongcmaxlifetime = 3600
+      sessionConfig = {"enableSidByHeader": true, "cookieLifeTime": 3600, "providerName": "memory", "providerConfig": "", "domain": "", "cookieName": "casdoor_session_id", "secure": false, "disableHTTPOnly": false}
+      authState = casdoor
+      verificationCodeTimeout = 10
+      initScore = 2000
+      logConfig = {"filename": "logs/casdoor.log", "maxdays":99999, "perm":"0770"}
+
+      isUsernameLowered = false
+      sociallessLogin = false
+
   seaweedfs_s3_config:
     content: |
       {

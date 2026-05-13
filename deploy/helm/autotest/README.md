@@ -42,6 +42,18 @@ helm install autotest ./deploy/helm/autotest \
 > endpoint baked into the frontend image is meant for LAN docker-compose
 > users only and can be disabled in production via a nginx config override.
 
+> **Note (v1.1.3+):** Casdoor IAM is now an opt-in sidecar (compose profile
+> `casdoor`). For K8s the equivalent is a separate `casdoor` Deployment +
+> Service + Ingress at `/casdoor`; this chart does not template it yet.
+> Required envs on the backend Deployment when enabled: `CASDOOR_ENABLED`,
+> `CASDOOR_ENDPOINT` (e.g., `http://casdoor:8000`), `CASDOOR_ORG`,
+> `CASDOOR_APP`, `CASDOOR_CLIENT_ID`, `CASDOOR_CLIENT_SECRET`,
+> `CASDOOR_REDIRECT_URL`, `CASDOOR_WEBHOOK_TOKEN`, `CASBIN_ENABLED`,
+> `CASDOOR_RECONCILE_ENABLED`. The Casbin enforcer needs a sync SQLAlchemy
+> engine pool — `casbin_rule` table is auto-created in `autotest_db` on
+> backend lifespan; nothing extra to provision. Run `python -m app.cli
+> seed-casbin` as a one-off Job after the migration job.
+
 ## Status
 
 | Resource | State |

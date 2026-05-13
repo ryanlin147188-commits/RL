@@ -28,6 +28,74 @@
 
 ---
 
+## 🔥 v1.1.3 — Casdoor + Casbin IAM cutover
+
+### 🔐 SSO / Identity — Casdoor takes over
+- New **Casdoor IAM sidecar** at `/casdoor/*` (opt-in via `--profile casdoor`) owns users / organizations / applications / SSO providers — federation to Google / GitHub / SAML / LDAP now configurable from the admin UI
+- Login flow: SPA → `GET /api/auth/casdoor/login` → 302 → Casdoor authorize → `/api/auth/callback` → backend sets httpOnly cookies (`access_token` / `refresh_token` / `active_org_id`) → redirects with `#casdoor_login=1` so the SPA hydrates user info via `/api/auth/me`
+- Dual-mode JWT verify: backend tries RS256 (JWKS-cached) first then falls back to HS256 — Casdoor tokens and legacy tokens both work during cutover
+- `users.casdoor_user_id` (partial unique index) + `users.token_generation` columns added (migration `0021`)
+
+### 🛡 Authorisation — Casbin in-process enforcer
+- `pycasbin` 1.36.3 + `casbin-sqlalchemy-adapter` 1.4.0 running in the FastAPI process; policies persisted to a `casbin_rule` table the adapter auto-creates
+- RBAC-with-domains model (`app/auth/casbin_model.conf`) using `keyMatch2` for `<resource>:*` wildcards
+- New `require_casbin(P.X)` dependency with the same signature as the old `require_permission` — all 44 router call-sites switched (5 routers, mechanical)
+- Sync layer **flattens 3-level role resolution** (ProjectMember > OrgMembership > User) into plain `g` rules; reload via `python -m app.cli seed-casbin`
+- Opt-in via `CASBIN_ENABLED=True` — when False, `require_casbin` falls back to the legacy `list[str]` check so the cutover is rollback-safe
+- Shadow mode (`CASBIN_SHADOW_ENABLED=True`) compares Casbin verdicts against legacy `require_permission` and logs divergence to `app.auth.permissions.shadow` for offline diff review
+
+### 🧹 Legacy auth endpoints decommissioned (HTTP 410 + `moved_to` hint)
+- `POST /api/auth/login`, `/auth/forgot-password`, `/auth/reset-password`, `/auth/change-password` — Casdoor's own forms now handle these
+- `POST /api/auth/users` + `PUT` + `DELETE` + reset-password — admin user CRUD moved to `/casdoor/users`
+- Role CRUD `/api/settings/roles` POST / PUT / DELETE / clone — moved to `/casdoor/roles`
+- Old OIDC router (`/auth/oidc/login`, `/auth/oidc/callback`) unmounted; `/auth/oidc/providers` kept as a `200 []` stub so the SPA doesn't 404
+- Tables dropped: `oidc_providers` (migration `0022`), `password_reset_tokens` (migration `0023`)
+- SPA modals (`roleModal` / `pmCreateUserModal` / `pmEditUserModal` / `pmResetPwdModal`) now `window.open('/casdoor/...')` instead of opening locally
+
+### 🔁 Hardening — webhook + 5-min reconcile
+- `POST /api/auth/casdoor-webhook` accepts Casdoor's `add-user` / `update-user` / `delete-user` / `update-role` events; verified by `X-Casdoor-Webhook-Token` shared secret + Valkey `SET NX` idempotency (1h window)
+- Celery beat task `tasks.casdoor_reconcile.run` every **5 minutes** as a fallback: pulls `/api/get-users` + `/api/get-roles` from Casdoor, diffs against local `users` + `org_memberships`, calls `rebuild_all_policies()` to refresh `casbin_rule`
+- All mutations write an `audit_logs` row (method=`SYNC`/`WEBHOOK`, `change_summary` JSON for diff replay)
+- Celery worker entrypoint adds `-B` so beat runs in the same container
+
+### Default credentials after v1.1.3 deploy
+| System | URL | Username | Password |
+|---|---|---|---|
+| App SPA | `http://<host>/` | (via Casdoor SSO) | — |
+| **Casdoor admin** | `http://<host>/casdoor/` | `admin` | `admin123` |
+
+### Activating Casdoor on an existing deployment
+```bash
+# 1. start sidecar (first boot uses Casdoor's built-in org + admin user)
+docker compose --profile casdoor up -d casdoor
+
+# 2. grab clientId / clientSecret from the application table
+docker compose exec postgres psql -U admin -d casdoor \
+  -c "SELECT client_id, client_secret FROM application WHERE name='app-built-in';"
+
+# 3. add redirect URI for your host
+docker compose exec postgres psql -U admin -d casdoor -c \
+  "UPDATE application SET redirect_uris='[\"http://<host>/api/auth/callback\"]' WHERE name='app-built-in';"
+
+# 4. flip the gates + supply the credentials
+cat >> .env <<EOF
+CASDOOR_ENABLED=True
+CASDOOR_ORG=built-in
+CASDOOR_APP=app-built-in
+CASDOOR_CLIENT_ID=<step 2>
+CASDOOR_CLIENT_SECRET=<step 2>
+CASDOOR_REDIRECT_URL=http://<host>/api/auth/callback
+CASBIN_ENABLED=True
+CASDOOR_RECONCILE_ENABLED=True
+EOF
+docker compose up -d --force-recreate backend celery frontend
+
+# 5. seed Casbin policies from the existing DB state (idempotent, re-runnable)
+docker compose exec backend python -m app.cli seed-casbin
+```
+
+---
+
 ## 🔥 v1.1.2 — Recent Updates
 
 ### 🛡 Self-hosted Trace Viewer + HTTPS

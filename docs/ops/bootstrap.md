@@ -1,21 +1,37 @@
 # First-admin bootstrap (operator runbook)
 
 A fresh AutoTest deployment **automatically seeds a default admin** on first
-backend start. There is no longer a self-service registration path or invite
-mint endpoint — every account in the system is created by an admin.
+backend start. **v1.1.3 起改由 Casdoor 接管登入** — 本地 `users` 表的
+`admin` 仍會被 seed 出來作為 backend 端的「平台 superuser」(`is_superuser=True`),
+但密碼登入路徑(`POST /api/auth/login`)已下架,實際進主畫面要走
+Casdoor SSO。
 
-## TL;DR — first login
+## TL;DR — first login (v1.1.3+)
 
-```
-帳號:   admin
-密碼:   admin123
-```
+| 介面 | URL | 帳號 | 密碼 |
+|---|---|---|---|
+| **Casdoor admin** | `http://<host>/casdoor/` | `admin` | `admin123`(部署後馬上去 Casdoor UI 改) |
+| 應用 SPA | `http://<host>/` | (走 Casdoor SSO) | — |
 
-The first time `admin` logs in, the backend forces a password rotation:
-the API returns `must_change_password=true` on `/auth/login`, and every
-non-`/auth/me` / non-`/auth/change-password` endpoint returns `403`
-until the password is rotated. The frontend pops a forced-change modal
-that blocks all other UI.
+1. 確認 Casdoor sidecar 已啟動:`docker compose --profile casdoor ps casdoor`
+2. 用 `admin / admin123` 進 Casdoor admin UI
+3. 右上 User → admin → Modify password 馬上改密碼
+4. 回應用 SPA(`http://<host>/`)按「使用 Casdoor 登入」走 OAuth flow
+
+對應的後端流程:Casdoor callback → backend JIT provision 找到本地 `admin`
+(已被 seed 過,`is_superuser=True`)→ 簽 access_token httpOnly cookie →
+302 回 SPA。本地的 `password_hash` 從此沒人讀,但保留欄位給 rollback。
+
+## Legacy 本地密碼登入(rollback / 維運場景)
+
+`docker-compose.yml` 的 `CASDOOR_ENABLED` 切回 `False` 後:
+
+* `/api/auth/casdoor/login` 一律 503,SPA 自動隱藏 Casdoor 按鈕
+* 但密碼登入端點(`POST /api/auth/login`)在 v1.1.3 是 410 stub,即使
+  關掉 Casdoor 也不會復活 — rollback 要進舊版本碼,不只是切 env
+
+⚠ 真正需要應急本地登入時,進 PG 改 `users.password_hash`(bcrypt),然後
+透過 `python -m app.cli create-admin` CLI 建一個臨時帳號繞過 Casdoor。
 
 ## How the seed works
 

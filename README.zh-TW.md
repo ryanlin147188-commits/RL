@@ -28,6 +28,74 @@
 
 ---
 
+## 🔥 v1.1.3 — Casdoor + Casbin IAM 切換
+
+### 🔐 SSO / 身分:Casdoor 接管帳號管理
+- 新增 **Casdoor IAM sidecar**(`/casdoor/*`,`--profile casdoor` 啟用)接手 users / organizations / applications / SSO providers — Google / GitHub / SAML / LDAP 等聯邦設定都在 admin UI 操作
+- 登入流程:SPA → `GET /api/auth/casdoor/login` → 302 → Casdoor authorize → `/api/auth/callback` → backend 設 httpOnly cookies(`access_token` / `refresh_token` / `active_org_id`)→ redirect 帶 `#casdoor_login=1` 讓 SPA 透過 `/api/auth/me` hydrate 使用者資訊
+- JWT 驗證雙模式:backend 先試 RS256(JWKS 1h cache)失敗才退回 HS256 — Casdoor token 與舊本地 token 在 cutover 期間並存
+- 新增 `users.casdoor_user_id`(partial unique index)+ `users.token_generation` 欄位(migration `0021`)
+
+### 🛡 授權:Casbin 進程內 enforcer
+- `pycasbin` 1.36.3 + `casbin-sqlalchemy-adapter` 1.4.0 在 FastAPI 進程內跑;policy 落地到 `casbin_rule` 表(adapter 自動建立)
+- RBAC-with-domains 模型(`app/auth/casbin_model.conf`),用 `keyMatch2` 支援 `<resource>:*` 萬用字元
+- 新 `require_casbin(P.X)` dependency 跟舊 `require_permission` 同 signature — 5 個 router 共 44 個 site 機械置換完成
+- Sync 層把 **3 階層角色解析**(ProjectMember > OrgMembership > User)flatten 成平面 `g` rules;重灌走 `python -m app.cli seed-casbin`
+- `CASBIN_ENABLED=True` 才啟用 — False 時 `require_casbin` 自動 fall back 舊 list[str] 邏輯,cutover 可 rollback
+- Shadow 模式(`CASBIN_SHADOW_ENABLED=True`):同時跑 Casbin + legacy 比對,差異 log 到 `app.auth.permissions.shadow` 給離線 diff
+
+### 🧹 舊認證端點下架(HTTP 410 + `moved_to` 指引)
+- `POST /api/auth/login` / forgot-password / reset-password / change-password — Casdoor 自帶頁面接手
+- `POST /api/auth/users` + PUT + DELETE + reset-password — 管理員建/改/刪/重設使用者搬到 `/casdoor/users`
+- 角色 CRUD `/api/settings/roles` POST/PUT/DELETE/clone — 搬到 `/casdoor/roles`
+- 舊 OIDC router(`/auth/oidc/login`, `/auth/oidc/callback`)卸載;`/auth/oidc/providers` 保留 `200 []` stub 避免 SPA 404
+- 表 drop:`oidc_providers`(migration `0022`)、`password_reset_tokens`(migration `0023`)
+- SPA 內 `roleModal` / `pmCreateUserModal` / `pmEditUserModal` / `pmResetPwdModal` 都改成 `window.open('/casdoor/...')` 開新分頁
+
+### 🔁 加固:Webhook + 5 分鐘 reconcile
+- `POST /api/auth/casdoor-webhook` 接 Casdoor 的 `add-user` / `update-user` / `delete-user` / `update-role` 事件,共享 `X-Casdoor-Webhook-Token` secret 驗證 + Valkey `SET NX` idempotency(1 小時 dedup window)
+- Celery beat 任務 `tasks.casdoor_reconcile.run` 每 **5 分鐘**整批同步:拉 `/api/get-users` + `/api/get-roles` → diff 本地 `users` + `org_memberships` → 呼叫 `rebuild_all_policies()` 重建 `casbin_rule`
+- 所有 mutation 都寫一筆 `audit_logs`(method=`SYNC`/`WEBHOOK`,`change_summary` JSON 供 diff 回放)
+- Celery worker entrypoint 加 `-B`,同進程跑 beat,不用另起 process
+
+### v1.1.3 部署後預設帳密
+| 系統 | 網址 | 帳號 | 密碼 |
+|---|---|---|---|
+| App SPA | `http://<host>/` | (走 Casdoor SSO) | — |
+| **Casdoor admin** | `http://<host>/casdoor/` | `admin` | `admin123` |
+
+### 既有部署啟用 Casdoor 的流程
+```bash
+# 1. 啟動 sidecar(首次 boot 使用 Casdoor 內建 built-in org + admin)
+docker compose --profile casdoor up -d casdoor
+
+# 2. 從 application 表撈 clientId / clientSecret
+docker compose exec postgres psql -U admin -d casdoor \
+  -c "SELECT client_id, client_secret FROM application WHERE name='app-built-in';"
+
+# 3. 加入本機的 redirect URI
+docker compose exec postgres psql -U admin -d casdoor -c \
+  "UPDATE application SET redirect_uris='[\"http://<host>/api/auth/callback\"]' WHERE name='app-built-in';"
+
+# 4. 打開 gates 並填憑證
+cat >> .env <<EOF
+CASDOOR_ENABLED=True
+CASDOOR_ORG=built-in
+CASDOOR_APP=app-built-in
+CASDOOR_CLIENT_ID=<step 2>
+CASDOOR_CLIENT_SECRET=<step 2>
+CASDOOR_REDIRECT_URL=http://<host>/api/auth/callback
+CASBIN_ENABLED=True
+CASDOOR_RECONCILE_ENABLED=True
+EOF
+docker compose up -d --force-recreate backend celery frontend
+
+# 5. seed Casbin policies(冪等可重跑)
+docker compose exec backend python -m app.cli seed-casbin
+```
+
+---
+
 ## 🔥 v1.1.2 改動摘要
 
 ### 🛡 自托管 Trace Viewer + HTTPS

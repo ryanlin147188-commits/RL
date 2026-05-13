@@ -40,13 +40,18 @@ def run_casdoor_reconcile() -> dict:
     async def _runner():
         # 動態 import — 避免 celery autodiscover 時把 app.* 一起拉起來(會去
         # 連 DB / Valkey 才能 import_module)
+        import asyncio
+
         from app.auth import casbin as _casbin
         from app.database import AsyncSessionLocal
         from app.services.casdoor_sync import reconcile_all
 
-        # Casbin 沒啟用就只同步 user / role,不重建 policy。Casbin disable 時
-        # rebuild_all_policies 內部會短路。
-        if not _casbin.is_enabled():
+        # Celery worker 沒走 FastAPI lifespan,enforcer 不會自動 init。
+        # 在每次任務開頭以 force=True 確保 worker 進程內也有可用的 enforcer
+        # (init_enforcer 內部 _enforcer is not None 檢查讓重跑無副作用)。
+        if _casbin.is_enabled():
+            await asyncio.to_thread(_casbin.init_enforcer, True)
+        else:
             logger.info("Casbin disabled — reconcile will skip rebuild_all_policies")
 
         async with AsyncSessionLocal() as session:
