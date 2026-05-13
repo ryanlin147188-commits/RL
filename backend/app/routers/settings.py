@@ -270,35 +270,101 @@ async def list_roles(
     return list(rows)
 
 
-# ── 角色 CRUD 下架(Phase 5)──────────────────────────────────────────
-# Casdoor 接管所有角色定義 + 成員指派,本地 `roles` 表 + ``Role.permissions_json``
-# 只當 cache(Phase 6 webhook 同步)。GET list / GET usage 仍然保留,給設定頁
-# 角色清單顯示用。
-
-def _role_gone(code: str = "role_crud_disabled") -> HTTPException:
-    return HTTPException(
-        status_code=410,
-        detail={
-            "code": code,
-            "message": "角色 CRUD 已下架,請改用 Casdoor",
-            "moved_to": "/casdoor/roles",
-        },
+@router.post(
+    "/settings/roles",
+    response_model=RoleResponse,
+    status_code=201,
+    tags=["S · 設定"],
+    dependencies=[Depends(require_casbin(P.ROLE_MANAGE))],
+)
+async def create_role(
+    payload: RoleCreate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    # 同 org 內名稱不可重複
+    existing = (
+        await db.execute(
+            select(Role).where(
+                Role.name == payload.name,
+                Role.organization_id == user.organization_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if existing:
+        raise HTTPException(409, f"角色名稱「{payload.name}」在本組織內已存在")
+    role = Role(
+        name=payload.name,
+        organization_id=user.organization_id,
+        description=payload.description,
+        permissions_json=list(payload.permissions_json or []),
+        is_system=False,
     )
+    db.add(role)
+    await db.flush()
+    await db.refresh(role)
+    return role
 
 
-@router.post("/settings/roles", status_code=410, tags=["S · 設定"])
-async def create_role_disabled() -> dict:
-    raise _role_gone("role_create_disabled")
+@router.put(
+    "/settings/roles/{role_id}",
+    response_model=RoleResponse,
+    tags=["S · 設定"],
+    dependencies=[Depends(require_casbin(P.ROLE_MANAGE))],
+)
+async def update_role(
+    role_id: str,
+    payload: RoleUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    r = await db.get(Role, role_id)
+    if not r:
+        raise HTTPException(404, "Role not found")
+    # org 防護：非 superuser 只能改自己 org 的 role
+    if not user.is_superuser and r.organization_id != user.organization_id:
+        raise HTTPException(404, "Role not found")
+    data = payload.model_dump(exclude_unset=True)
+    if "name" in data and data["name"] and data["name"] != r.name:
+        if r.is_system:
+            raise HTTPException(400, "系統角色名稱不可修改")
+        dup = (
+            await db.execute(
+                select(Role).where(
+                    Role.name == data["name"], Role.organization_id == r.organization_id
+                )
+            )
+        ).scalar_one_or_none()
+        if dup:
+            raise HTTPException(409, f"角色名稱「{data['name']}」已存在")
+    for k, v in data.items():
+        if v is not None:
+            setattr(r, k, v)
+    await db.flush()
+    await db.refresh(r)
+    return r
 
 
-@router.put("/settings/roles/{role_id}", status_code=410, tags=["S · 設定"])
-async def update_role_disabled(role_id: str) -> dict:
-    raise _role_gone("role_update_disabled")
-
-
-@router.delete("/settings/roles/{role_id}", status_code=410, tags=["S · 設定"])
-async def delete_role_disabled(role_id: str) -> dict:
-    raise _role_gone("role_delete_disabled")
+@router.delete(
+    "/settings/roles/{role_id}",
+    status_code=204,
+    tags=["S · 設定"],
+    dependencies=[Depends(require_casbin(P.ROLE_MANAGE))],
+)
+async def delete_role(
+    role_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    r = await db.get(Role, role_id)
+    if not r:
+        raise HTTPException(404, "Role not found")
+    if not user.is_superuser and r.organization_id != user.organization_id:
+        raise HTTPException(404, "Role not found")
+    if r.is_system:
+        raise HTTPException(400, "系統角色不可刪除")
+    await db.delete(r)
+    await db.flush()
 
 
 # ─── Tier B2:角色使用數(讓 admin 看清能否安全刪除 / 改權限) ─────────
@@ -357,9 +423,57 @@ async def get_role_usage(
     }
 
 
-@router.post("/settings/roles/{role_id}/clone", status_code=410, tags=["S · 設定"])
-async def clone_role_disabled(role_id: str) -> dict:
-    raise _role_gone("role_clone_disabled")
+# ─── Tier B4:Clone role(快速建立相似權限的新角色) ────────────────
+@router.post(
+    "/settings/roles/{role_id}/clone",
+    response_model=RoleResponse,
+    status_code=201,
+    tags=["S · 設定"],
+    dependencies=[Depends(require_casbin(P.ROLE_MANAGE))],
+)
+async def clone_role(
+    role_id: str,
+    payload: dict,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """從現有 role 拷貝 permissions_json 建立新 role。
+    body: `{"new_name": "...", "description": "..."}`(description 可省;預設帶
+    "(複製自 X)" 字樣)。新 role 強制 is_system=False、organization_id 跟
+    呼叫者一樣(superuser 可填 organization_id 跨 org 建)。"""
+    src = await db.get(Role, role_id)
+    if not src:
+        raise HTTPException(404, "Role not found")
+    if not user.is_superuser and src.organization_id and src.organization_id != user.organization_id:
+        raise HTTPException(404, "Role not found")
+
+    new_name = ((payload or {}).get("new_name") or "").strip()
+    if not new_name:
+        raise HTTPException(400, "缺少 new_name")
+    target_org_id = user.organization_id
+    if user.is_superuser:
+        target_org_id = (payload or {}).get("organization_id") or user.organization_id
+
+    # 同 org 不可重名
+    dup = (await db.execute(
+        select(Role).where(Role.name == new_name, Role.organization_id == target_org_id)
+    )).scalar_one_or_none()
+    if dup:
+        raise HTTPException(409, f"角色名稱「{new_name}」在本組織已存在")
+
+    description = (payload or {}).get("description") or f"(複製自 {src.name})"
+    cloned = Role(
+        name=new_name,
+        organization_id=target_org_id,
+        description=description,
+        permissions_json=list(src.permissions_json or []),
+        is_system=False,
+        scope=src.scope or "org",
+    )
+    db.add(cloned)
+    await db.flush()
+    await db.refresh(cloned)
+    return cloned
 
 
 # ─── NotificationPreference ────────────────────────────────────────────
@@ -537,21 +651,15 @@ async def send_test_email(
         f"組織:<code>{user.organization_id or '(none)'}</code></p>"
         "<p>若您收到此信,代表 EmailConfig 設定正確,通知/邀請信會循同樣管道送達。</p>"
     )
-    # send_email_sync 是 sync 函式(設計給 Celery worker 用),內部 db.execute()
-    # 直接呼叫不 await。FastAPI handler 的 AsyncSession 餵進去會炸
-    # "AttributeError: 'coroutine' object has no attribute 'scalar_one_or_none'"。
-    # 開個 sync SessionLocal 給它即可,跟 Celery worker 走同條路。
-    from app.db.sync_session import SessionLocal as SyncSessionLocal
     try:
-        with SyncSessionLocal() as sync_db:
-            send_email_sync(
-                db=sync_db,
-                to=target,
-                subject=subject,
-                html_body=body_html,
-                text_body=body_text,
-                organization_id=user.organization_id,
-            )
+        send_email_sync(
+            db=db,
+            to=target,
+            subject=subject,
+            html_body=body_html,
+            text_body=body_text,
+            organization_id=user.organization_id,
+        )
     except EmailNotConfigured as exc:
         raise HTTPException(
             status_code=400,

@@ -28,7 +28,61 @@
 
 ---
 
-## 🔥 v1.1.4 — Zoho OIDC 登入(透過 Casdoor)
+## 🔥 v1.1.5 — Casdoor sidecar 下架,改 in-process authlib
+
+跑了 v1.1.3 / v1.1.4 兩個版本的 Casdoor sidecar 之後,遇到 subpath SPA 白屏 /
+session cookie config 各種坑 / `enable_signin_session` 預設關 / `init_data.json`
+不被 latest image 讀進去等問題,維運成本超出原本期待。v1.1.5 把 IAM 全部
+搬回 FastAPI 進程內。
+
+- **Casdoor sidecar 完全移除**:compose service / configs / `casdoor` Postgres
+  DB / 14 個 backend 檔案全清。`docker compose ps` 不再看到
+  `autotest-casdoor` / `autotest-casdoor-init`,`casdoor/` config 目錄也刪除。
+- **OIDC 改用 `authlib` 在進程內處理**(`authlib>=1.3,<2`,
+  `AsyncOAuth2Client`)。新路徑 `GET /api/auth/{provider}/login` 跟
+  `/callback` 直接跟 IdP 做 OAuth code flow。目前只串 `zoho`;要加 Google /
+  Microsoft / Okta 在 [backend/app/auth/oidc.py](backend/app/auth/oidc.py)
+  加一份 30 行的 `OIDCProvider` dataclass 即可。
+- **Token 簽章回到 HS256 in-house JWT**(跟 v1.1.2 一樣)。Backend 在 OIDC
+  handshake 完之後自己 mint HS256 token;`decode_token` 拔掉 RS256 / JWKS
+  dual-mode(`PyJWT[crypto]` → `PyJWT`,image 也小一點)。
+- **本地密碼端點復活**:`POST /auth/login` / `forgot-password` / `reset-password` /
+  `change-password` / `POST,PUT,DELETE /auth/users/...` / `/settings/roles`
+  POST/PUT/DELETE/clone 全部回到 live code(v1.1.3–v1.1.4 是 HTTP 410)。SPA 內
+  4 個 modal(`pmCreateUserModal` / `pmEditUserModal` / `pmResetPwdModal` /
+  `roleModal`)接回原本的本地 handler,不再跳新分頁開 Casdoor。
+- **Migrations**:`0024_rename_oidc_columns` 把 `users.casdoor_user_id`
+  → `users.oidc_subject`、新增 `users.oidc_provider`,並建 `(provider,
+  subject)` partial unique index。`0025_recreate_password_reset_tokens` 把
+  0023 drop 掉的表建回來。
+- **Casbin 保留,行為不變**。Enforcer 仍跑進程內,`casbin_rule` 表是 source
+  of truth。5 分鐘 reconcile beat 拿掉(沒 Casdoor 可同步);
+  `schedule_user_resync` mutation hook 保留,角色 / 成員變動時即時重建
+  Casbin grants。
+- **v1.1.5 部署後預設帳密**:
+  | URL | 帳號 | 密碼 |
+  |---|---|---|
+  | `http://<host>/`(帳密登入) | `admin` | `admin123`(首次登入強制改) |
+  | 「使用 Zoho 登入」按鈕 | (你的 Zoho 帳號) | — |
+
+### 啟用 Zoho SSO
+
+```bash
+# 1. https://api-console.zoho.com → Add Client → Server-based Applications
+#    Authorized Redirect URIs: http://<your-host>/api/auth/zoho/callback
+#    (這是「你的 backend」,不再是 Casdoor:8001/callback)
+# 2. 寫進 .env:
+echo "ZOHO_CLIENT_ID=<client_id>"     >> .env
+echo "ZOHO_CLIENT_SECRET=<secret>"     >> .env
+echo "ZOHO_REDIRECT_URL=http://<host>/api/auth/zoho/callback" >> .env
+# 3. 重啟 backend:
+docker compose up -d --force-recreate backend
+# 4. 重整 SPA 登入頁 — 橘色「使用 Zoho 登入」按鈕出現
+```
+
+---
+
+## 🔥 v1.1.4 — Zoho OIDC 登入(透過 Casdoor)(已被 v1.1.5 取代)
 
 - 登入頁多了一顆橘色「**使用 Zoho 登入**」捷徑按鈕(放在「使用 Casdoor 登入」下方)。一鍵打到 `/api/auth/casdoor/login?provider=zoho-corp` → Casdoor 略過自家登入頁 → 直接 302 到 accounts.zoho.com → 回應用 SPA,中間不用在 Casdoor 頁面多點一次
 - `GET /api/auth/casdoor/login` 新增 `provider=<name>` query 參數,傳給 Casdoor authorize URL。Casdoor 版本不支援此參數時自動退化為「跳到 Casdoor 登入頁,使用者在頁面上點 Zoho 按鈕」— 功能仍可用

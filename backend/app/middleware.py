@@ -48,13 +48,11 @@ _PUBLIC_PATTERNS: list[re.Pattern] = [
     re.compile(r"^/api/auth/oidc/providers$"),
     re.compile(r"^/api/auth/oidc/login(/|$)"),
     re.compile(r"^/api/auth/oidc/callback$"),
-    # Casdoor OIDC 入口 / callback;與 oidc/* 並行,Phase 4 cutover 後 oidc 那組會下架。
-    re.compile(r"^/api/auth/casdoor/login$"),
-    re.compile(r"^/api/auth/casdoor/enabled$"),
-    re.compile(r"^/api/auth/callback$"),
-    # Casdoor webhook(Phase 6.2):由 sidecar 主動推送,沒帶使用者 JWT;
-    # router 自己驗 X-Casdoor-Webhook-Token + Valkey idempotency。
-    re.compile(r"^/api/auth/casdoor-webhook$"),
+    # v1.1.5 in-process OIDC(authlib + Zoho):login / callback / enabled probe
+    # 都是匿名訪問,中間沒走 JWT 驗證,直到 callback 完成 backend 自簽 HS256 cookie。
+    re.compile(r"^/api/auth/zoho/login$"),
+    re.compile(r"^/api/auth/zoho/callback$"),
+    re.compile(r"^/api/auth/zoho/enabled$"),
     # Artifact routes perform their own scoped token / access-token validation.
     re.compile(r"^/pics/"),
     re.compile(r"^/results/"),

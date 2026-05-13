@@ -19,10 +19,9 @@ Subcommands:
 
     seed-casbin
         Idempotent seed of the casbin_rule table from the DB (Role +
-        OrgMembership + ProjectMember). Phase 3.2 of the Casdoor + Casbin
-        migration plan — run this once before flipping CASBIN_SHADOW_ENABLED=True
-        so the shadow comparison has policy to evaluate against. Re-runnable
-        any time(全表 truncate-and-rewrite),不會破壞既有 enforcer state。
+        OrgMembership + ProjectMember). Re-runnable any time(全表
+        truncate-and-rewrite),不會破壞既有 enforcer state。也可在切開
+        CASBIN_SHADOW_ENABLED=True 之前先跑一次,確保 shadow 比對有資料。
 """
 from __future__ import annotations
 

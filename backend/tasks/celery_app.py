@@ -13,7 +13,7 @@ celery_app = Celery(
     "autotest_worker",
     broker=settings.CELERY_BROKER_URL,
     backend=settings.CELERY_RESULT_BACKEND,
-    include=["tasks.execution_tasks", "tasks.email_tasks", "tasks.casdoor_reconcile"],
+    include=["tasks.execution_tasks", "tasks.email_tasks"],
 )
 
 celery_app.conf.update(
@@ -27,12 +27,7 @@ celery_app.conf.update(
     worker_prefetch_multiplier=1,
 )
 
-# Phase 6.3 beat schedule。要實際 fire 需要 worker 起 ``-B`` 或另起 ``celery beat``。
-# task 本身會看 ``CASDOOR_RECONCILE_ENABLED``,沒啟用 → 立即 return,沒 IO 成本。
-celery_app.conf.beat_schedule = {
-    "casdoor-reconcile-5m": {
-        "task": "tasks.casdoor_reconcile.run",
-        "schedule": 300.0,  # 秒;5 分鐘
-        "options": {"expires": 240},  # 沒在 4 分鐘內被 worker pick 走就丟掉,免堆積
-    },
-}
+# v1.1.5:Casdoor 5-min reconcile beat 已隨 sidecar 下架移除。OIDC 改 in-process
+# 後 source-of-truth 就是本地 users 表,user/role 變動透過 mutation hook
+# (``schedule_user_resync``)即時觸發 Casbin grant 重建,不再需要 beat 兜底。
+celery_app.conf.beat_schedule = {}

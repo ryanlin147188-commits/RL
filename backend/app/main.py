@@ -17,9 +17,9 @@ logging.basicConfig(
 
 from app.config import settings
 from app.database import init_db
-from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings, schedules, local_runner, test_rounds, project_settings, screenshot_baselines, system, defects, test_milestones, test_plans, requirements, test_data_sets, test_documents, wbs_items, settings as app_settings, todos, todo_links, auth, ai, hermes, audit_logs, organizations, notifications, mock_endpoints, db_configs, groups, test_versions, reviews, assignments, artifacts, entity_versions, casdoor_auth, casdoor_webhook
-# Phase 5.C:舊 OIDC router(``/api/auth/oidc/*``)已隨 Casdoor cutover 下架,
-# 同名 module 暫時保留以利 git history / 必要時 rollback,但不再 include 進 app。
+from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings, schedules, local_runner, test_rounds, project_settings, screenshot_baselines, system, defects, test_milestones, test_plans, requirements, test_data_sets, test_documents, wbs_items, settings as app_settings, todos, todo_links, auth, ai, hermes, audit_logs, organizations, notifications, mock_endpoints, db_configs, groups, test_versions, reviews, assignments, artifacts, entity_versions, oidc_auth
+# v1.1.5:Casdoor sidecar 下架,OIDC 改 in-process(authlib + Zoho),由
+# ``oidc_auth`` router 承接。舊的 ``oidc`` / ``casdoor_*`` 模組已刪除。
 # 確保新增 model 在 init_db() 前已 import 註冊到 Base.metadata
 from app.models import (  # noqa: F401
     Defect, TestMilestone, TestPlan, Requirement, RequirementTestcaseLink,
@@ -550,8 +550,7 @@ app.include_router(hermes.router,           prefix="/api", tags=["V · AI"])
 app.include_router(audit_logs.router,      prefix="/api", tags=["W · 審計"])
 app.include_router(organizations.router,   prefix="/api", tags=["X · 組織"])
 app.include_router(notifications.router,   prefix="/api", tags=["Y · 通知"])
-app.include_router(casdoor_auth.router,    prefix="/api")
-app.include_router(casdoor_webhook.router, prefix="/api")
+app.include_router(oidc_auth.router,       prefix="/api")
 app.include_router(mock_endpoints.router,  prefix="/api", tags=["Z · Mock 端點"])
 app.include_router(db_configs.router,      prefix="/api", tags=["AA · DB 連線"])
 app.include_router(groups.router,          prefix="/api", tags=["S · 設定"])

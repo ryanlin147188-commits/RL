@@ -1,37 +1,41 @@
 # First-admin bootstrap (operator runbook)
 
 A fresh AutoTest deployment **automatically seeds a default admin** on first
-backend start. **v1.1.3 起改由 Casdoor 接管登入** — 本地 `users` 表的
-`admin` 仍會被 seed 出來作為 backend 端的「平台 superuser」(`is_superuser=True`),
-但密碼登入路徑(`POST /api/auth/login`)已下架,實際進主畫面要走
-Casdoor SSO。
+backend start. There is no longer a self-service registration path or invite
+mint endpoint — every account in the system is created by an admin.
 
-## TL;DR — first login (v1.1.3+)
+## TL;DR — first login (v1.1.5+)
 
-| 介面 | URL | 帳號 | 密碼 |
-|---|---|---|---|
-| **Casdoor admin** | `http://<host>/casdoor/` | `admin` | `admin123`(部署後馬上去 Casdoor UI 改) |
-| 應用 SPA | `http://<host>/` | (走 Casdoor SSO) | — |
+```
+帳號:   admin
+密碼:   admin123
+```
 
-1. 確認 Casdoor sidecar 已啟動:`docker compose --profile casdoor ps casdoor`
-2. 用 `admin / admin123` 進 Casdoor admin UI
-3. 右上 User → admin → Modify password 馬上改密碼
-4. 回應用 SPA(`http://<host>/`)按「使用 Casdoor 登入」走 OAuth flow
+The first time `admin` logs in, the backend forces a password rotation:
+the API returns `must_change_password=true` on `/auth/login`, and every
+non-`/auth/me` / non-`/auth/change-password` endpoint returns `403`
+until the password is rotated. The frontend pops a forced-change modal
+that blocks all other UI.
 
-對應的後端流程:Casdoor callback → backend JIT provision 找到本地 `admin`
-(已被 seed 過,`is_superuser=True`)→ 簽 access_token httpOnly cookie →
-302 回 SPA。本地的 `password_hash` 從此沒人讀,但保留欄位給 rollback。
+## Optional: enable Zoho OIDC SSO
 
-## Legacy 本地密碼登入(rollback / 維運場景)
+v1.1.5 起 OIDC 走 in-process `authlib`,不需要 Casdoor sidecar。設好 `.env`
+即生效:
 
-`docker-compose.yml` 的 `CASDOOR_ENABLED` 切回 `False` 後:
+```bash
+# 1. https://api-console.zoho.com → Add Client → Server-based Applications
+#    Authorized Redirect URIs: http://<host>/api/auth/zoho/callback
+# 2. 把 client_id / secret 寫進 .env:
+echo "ZOHO_CLIENT_ID=<id>" >> .env
+echo "ZOHO_CLIENT_SECRET=<secret>" >> .env
+echo "ZOHO_REDIRECT_URL=http://<host>/api/auth/zoho/callback" >> .env
+docker compose up -d --force-recreate backend
+# 3. 重整 SPA 登入頁 — 橘色「使用 Zoho 登入」按鈕出現
+```
 
-* `/api/auth/casdoor/login` 一律 503,SPA 自動隱藏 Casdoor 按鈕
-* 但密碼登入端點(`POST /api/auth/login`)在 v1.1.3 是 410 stub,即使
-  關掉 Casdoor 也不會復活 — rollback 要進舊版本碼,不只是切 env
-
-⚠ 真正需要應急本地登入時,進 PG 改 `users.password_hash`(bcrypt),然後
-透過 `python -m app.cli create-admin` CLI 建一個臨時帳號繞過 Casdoor。
+第一次走 Zoho 登入的使用者會 JIT 建本地 `users` row(`oidc_provider='zoho'`
++ `oidc_subject=<Zoho ZUID>`),`role_id=NULL`、沒任何 `project_members`。
+管理員到「設定 → 專案協作成員」分配後該使用者才能進專案。
 
 ## How the seed works
 

@@ -588,11 +588,11 @@
                     document.documentElement.setAttribute('data-auth', 'out');
                     return;
                 }
-                // 從 Casdoor OIDC callback 回來:URL hash 帶 ``casdoor_login=1``,
+                // 從 OIDC(Zoho)callback 回來:URL hash 帶 ``oidc_login=1``,
                 // httpOnly cookie 已設,但 localStorage 沒 token。先樂觀標 'in'
                 // 讓 overlay 不閃,真正 hydrate 失敗時 onload 流程會再 force re-auth。
                 var hash = (window.location.hash || '').replace(/^#/, '');
-                if (/(^|&)casdoor_login=1(&|$)/.test(hash)) {
+                if (/(^|&)oidc_login=1(&|$)/.test(hash)) {
                     document.documentElement.setAttribute('data-auth', 'in');
                     return;
                 }
@@ -700,32 +700,18 @@
 
             </form>
 
-            <!-- Casdoor IAM 登入(Phase 4 cutover 後會取代密碼登入)。
-                 按下後 ``window.location`` 直接跳到 backend 的 OAuth2 啟動點,
-                 由 backend 302 到 Casdoor authorize 頁面。callback 設好 httpOnly
-                 cookies 後 redirect 回 ``/#casdoor_login=1``,SPA 偵測 hash 後跑
-                 hydrate 流程拿到使用者資訊。
-                 ``hidden`` 預設;只有 ``/api/auth/casdoor/login`` 不是 503 時才顯示。
-                 刻意放在 <form id="authLoginForm"> 外面 — Phase 5 cutover 後密碼
-                 表單會被 ``_maybeShowCasdoorButton()`` 整個收起,Casdoor 按鈕要
-                 留下來不能被一起隱藏。 -->
-            <div id="casdoorBlock" class="hidden px-8 py-4">
+            <!-- v1.1.5 in-process OIDC(authlib + Zoho)。``hidden`` 預設,
+                 ``_maybeShowZohoButton()`` 看 ``/api/auth/zoho/enabled`` 回
+                 ``{enabled:true}`` 才顯示。不會把上方密碼表單收起來,兩條
+                 路徑(密碼 + Zoho SSO)同時都能登入。 -->
+            <div id="oidcBlock" class="hidden px-8 py-4">
                 <div class="flex items-center gap-3 my-3">
                     <span class="flex-1 h-px bg-stone-200"></span>
                     <span class="text-[10px] text-stone-400 uppercase tracking-wider">SSO</span>
                     <span class="flex-1 h-px bg-stone-200"></span>
                 </div>
-                <button type="button" onclick="casdoorStartLogin()"
-                    class="w-full py-2.5 border border-stone-300 hover:border-amber-400 hover:bg-amber-50/40 text-stone-700 rounded-lg font-semibold text-sm transition flex items-center justify-center gap-2">
-                    <i class="fa-solid fa-shield-halved text-amber-500"></i>
-                    <span>使用 Casdoor 登入</span>
-                </button>
-                <!-- v1.1.4: Zoho OIDC 捷徑。Casdoor 端配好 ``zoho-corp`` provider 後此
-                     按鈕一鍵跳 Casdoor authorize URL 帶 ``provider=zoho-corp``,Casdoor
-                     會略過自家登入頁直接 302 到 accounts.zoho.com 的 OAuth。版本不支援
-                     此參數時退化為「跳到 Casdoor 登入頁,使用者再點 Zoho」,功能仍可用。 -->
-                <button type="button" onclick="casdoorStartLogin('zoho-corp')"
-                    class="w-full mt-2 py-2.5 border border-stone-300 hover:border-orange-400 hover:bg-orange-50/40 text-stone-700 rounded-lg font-semibold text-sm transition flex items-center justify-center gap-2">
+                <button type="button" onclick="oidcStartLogin('zoho')"
+                    class="w-full py-2.5 border border-stone-300 hover:border-orange-400 hover:bg-orange-50/40 text-stone-700 rounded-lg font-semibold text-sm transition flex items-center justify-center gap-2">
                     <i class="fa-solid fa-circle-user text-orange-500"></i>
                     <span>使用 Zoho 登入</span>
                 </button>
@@ -3179,7 +3165,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                         <p class="text-[11px] text-stone-500 bg-amber-50 border border-amber-200 rounded p-2 leading-relaxed">
                             <i class="fa-solid fa-circle-info text-amber-500"></i>
                             清單顯示「**已存在於本地 + 屬於本專案組織**」的使用者。<br>
-                            找不到要的人?<b>先去 Casdoor 建</b>(<a href="javascript:_casdoorAdminOpen('/users','在 Casdoor 建立')" class="text-amber-700 underline">開 Casdoor 使用者管理</a>)— 同步回來最多 5 分鐘(或等 webhook 即時拉)。
+                            找不到要的人?用「建立新使用者」按鈕(superuser 限定)在本地建,或請管理員操作。
                         </p>
                         <div>
                             <label class="block text-xs font-semibold text-stone-600 mb-1">使用者 <span class="text-rose-500">*</span></label>
@@ -3514,8 +3500,8 @@ driver.swipe(100, 800, 100, 200, 500)"
                                 </div>
                                 <div class="flex items-center gap-2">
                                     <button onclick="pmReload()" class="text-xs px-2.5 py-1.5 border border-stone-300 rounded hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
-                                    <button onclick="pmOpenAddExistingModal()" class="text-xs px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold" title="把已存在於 Casdoor 的帳號加入此專案"><i class="fa-solid fa-user-plus"></i> 加入現有使用者</button>
-                                    <button onclick="pmOpenCreateUserModal()" class="text-xs px-2.5 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded font-semibold" title="在 Casdoor 建立新帳號(之後再回來把他加進專案)"><i class="fa-solid fa-user-plus"></i> 在 Casdoor 建立</button>
+                                    <button onclick="pmOpenAddExistingModal()" class="text-xs px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold" title="把已存在的本地帳號加入此專案"><i class="fa-solid fa-user-plus"></i> 加入現有使用者</button>
+                                    <button onclick="pmOpenCreateUserModal()" class="text-xs px-2.5 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded font-semibold" title="建立全新帳號並加入此專案"><i class="fa-solid fa-user-plus"></i> 建立新使用者</button>
                                 </div>
                             </div>
 
@@ -10730,15 +10716,15 @@ driver.swipe(100, 800, 100, 200, 500)"
             try { if (handleOidcCallbackFromHash()) return; } catch (_) {}
             // 第一步：檢查登入狀態。未登入 → 顯示認證覆蓋層並停止初始化。
             authBootstrap();
-            // Phase 4.3:從 Casdoor OIDC callback 回來時 URL 帶 ``#casdoor_login=1``,
-            // 沒有 localStorage token 但有 httpOnly cookie。hydrate 成功就視同已登入,
-            // 失敗則 fall through 到原本的 authIsLoggedIn 檢查。
-            const casdoorOk = await _maybeHydrateCasdoorSession();
-            if (!casdoorOk && !authIsLoggedIn()) {
+            // v1.1.5:從 OIDC(Zoho)callback 回來時 URL 帶 ``#oidc_login=1``,
+            // 沒有 localStorage token 但有 httpOnly cookie。hydrate 成功就視同
+            // 已登入;失敗則 fall through 到原本的 authIsLoggedIn 檢查。
+            const oidcOk = await _maybeHydrateOidcSession();
+            if (!oidcOk && !authIsLoggedIn()) {
                 // 帶 #testkanban 之類的受保護 hash 過來但沒登入 → 清掉 hash 再跳 overlay
                 authForceReauth();
-                // 同步偵測一次 Casdoor 是否可用,有的話把按鈕亮出來。
-                _maybeShowCasdoorButton().catch(() => {});
+                // 偵測一次 Zoho 是否啟用,有的話亮按鈕。
+                _maybeShowZohoButton().catch(() => {});
                 return;
             }
             // 已登入但是走 cookie path(localStorage 內仍可能沒 token)— 後續流程
@@ -10750,9 +10736,7 @@ driver.swipe(100, 800, 100, 200, 500)"
             // _doRefresh 自帶 in-flight 去重,即使 _maybeProactiveRefresh 與 authFetch
             // 的 reactive refresh 同時觸發也只發一次。
             await _maybeProactiveRefresh();
-            // 預先取 Casdoor admin_base,讓 ``_casdoorAdminOpen`` 被使用者點到時
-            // 不用先 await(避免 popup 被 Chrome 當成「非使用者手勢」擋掉)。
-            _casdoorResolveAdminBase().catch(() => {});
+            // v1.1.5:OIDC 改 in-process,Casdoor admin-base prefetch 已不需要
             // Perf B3: 同時 kick 出 /api/projects(initProjects 需要的)— 兩個請求
             // 平行飛,而不是 me ok 後再追問 projects。me 失敗時把 projReq 的 unhandled
             // rejection 吃掉以免汙染 console。
@@ -10839,33 +10823,27 @@ driver.swipe(100, 800, 100, 200, 500)"
             } catch (_) {}
         }
 
-        // ── Casdoor cutover helpers(Phase 4.3)─────────────────────────
+        // ── v1.1.5 in-process OIDC(authlib + Zoho)──────────────────────
         //
-        // Casdoor SSO 走 OAuth2 authorization code flow:
-        //   1. 使用者按 [使用 Casdoor 登入]
-        //   2. ``casdoorStartLogin()`` 把 ``window.location`` 跳到 backend
-        //      ``/api/auth/casdoor/login``,後者 302 到 Casdoor authorize
-        //   3. 認證完 Casdoor 302 回 ``/api/auth/callback``,backend 換 token、
-        //      設 httpOnly cookies、再 302 到 ``/#casdoor_login=1``
-        //   4. ``_maybeHydrateCasdoorSession()`` 偵測 hash → 跑 ``/api/auth/me``
+        // 流程:
+        //   1. 使用者按 [使用 Zoho 登入]
+        //   2. ``oidcStartLogin('zoho')`` 把 ``window.location`` 跳到 backend
+        //      ``/api/auth/zoho/login``,後者 302 到 accounts.zoho.com
+        //   3. Zoho 認證完 302 回 ``/api/auth/zoho/callback``,backend 換 token
+        //      / JIT provision / 設 httpOnly cookies / 再 302 到 ``/#oidc_login=1``
+        //   4. ``_maybeHydrateOidcSession()`` 偵測 hash → 跑 ``/api/auth/me``
         //      拿使用者資訊,寫 session(僅顯示用),把 overlay 收起來
         //
         // 不存任何 token 在 localStorage — cookie 才是 source of truth。但仍
         // 寫 session display state,讓 ``updateUserMenuUI`` 等舊邏輯能繼續用。
-        function casdoorStartLogin(provider) {
-            // 把當前 URL 當 redirect_to,使用者登入完回到原本想開的頁面。
-            // ``provider`` 帶入時(例:``zoho-corp``),backend 會把它放進 Casdoor
-            // authorize URL,Casdoor 略過自家登入頁直接跳該 IdP。
+        function oidcStartLogin(provider) {
             const back = encodeURIComponent(location.pathname + location.search);
-            const providerParam = provider ? `&provider=${encodeURIComponent(provider)}` : '';
-            location.href = `/api/auth/casdoor/login?redirect_to=${back}${providerParam}`;
+            location.href = `/api/auth/${provider}/login?redirect_to=${back}`;
         }
-        async function _maybeHydrateCasdoorSession() {
-            if (!/(^|&)casdoor_login=1(&|$)/.test((location.hash || '').replace(/^#/, ''))) {
+        async function _maybeHydrateOidcSession() {
+            if (!/(^|&)oidc_login=1(&|$)/.test((location.hash || '').replace(/^#/, ''))) {
                 return false;
             }
-            // 立即清掉 hash,避免使用者重新整理時又跑一次 hydrate(沒副作用,但
-            // 多打一次 /me)。
             history.replaceState(null, '', location.pathname + location.search);
             try {
                 const r = await window.fetch('/api/auth/me');
@@ -10881,34 +10859,26 @@ driver.swipe(100, 800, 100, 200, 500)"
                     loginAt: now,
                     loginCount: prevCount + 1,
                 });
-                showToast(`歡迎回來,${me.display_name || me.username}(Casdoor)`, 'success');
+                showToast(`歡迎回來,${me.display_name || me.username}`, 'success');
                 authHideOverlay();
                 renderExecutionModeButton();
                 updateUserMenuUI();
                 initProjects().then(() => { try { showHomeView(); } catch (_) {} }).catch(() => {});
                 return true;
             } catch (e) {
-                showToast('Casdoor hydrate 失敗:' + e.message, 'error');
+                showToast('OIDC hydrate 失敗:' + e.message, 'error');
                 return false;
             }
         }
-        async function _maybeShowCasdoorButton() {
-            // 改用輕量 JSON probe(``/api/auth/casdoor/enabled``)— 200 永遠
-            // 回得到內容 ``{enabled: bool}``,DevTools 不會留 503 紅字。
+        async function _maybeShowZohoButton() {
             try {
-                const r = await _origFetch('/api/auth/casdoor/enabled');
+                const r = await _origFetch('/api/auth/zoho/enabled');
                 if (!r.ok) return;
                 const data = await r.json().catch(() => null);
                 if (!data || !data.enabled) return;
-                const block = document.getElementById('casdoorBlock');
+                const block = document.getElementById('oidcBlock');
                 if (block) block.classList.remove('hidden');
-                // Phase 5:Casdoor 全面接管後,密碼登入後端已 410。把帳密表單
-                // 跟「忘記密碼」tab 一起收起,避免使用者試了結果被擋。仍然
-                // 留住表單 DOM 給 CASDOOR_ENABLED=False 的 rollback 場景。
-                document.getElementById('authLoginForm')?.classList.add('hidden');
-                document.getElementById('authTabForgot')?.classList.add('hidden');
-                document.getElementById('authTabLogin')?.classList.add('hidden');
-            } catch (_) { /* 偵測失敗 → 按鈕保持 hidden,不擋密碼登入 */ }
+            } catch (_) { /* probe 失敗 → 按鈕保持 hidden,不擋密碼登入 */ }
         }
 
         // 包裹原生 fetch：自動加 Authorization；遇到 401 嘗試一次 silent refresh
@@ -14844,44 +14814,7 @@ driver.swipe(100, 800, 100, 200, 500)"
             } catch (_) { return []; }
         }
 
-        // ── Phase 5 cutover: 帳號 / 角色管理改在 Casdoor 操作 ───────────
-        // 過去這幾個 modal(建立 / 編輯 / 重設密碼 / 新增角色)直接呼叫
-        // backend 已下架的端點。Phase 5 起 backend 一律回 410,改開 Casdoor
-        // admin UI 對應頁面。modal HTML 暫留(下個 release 再清),只把 entry
-        // point 改成 ``window.open``,call site 一律 reuse 不需要動。
-        //
-        // Casdoor sidecar 從 subpath ``/casdoor/`` 搬到獨立 host port(env
-        // ``CASDOOR_PUBLIC_ENDPOINT``)後,寫死 ``/casdoor/...`` 會 404 / 白屏。
-        // 改成 lazy 拉 ``/api/auth/casdoor/enabled`` 拿到 admin_base 再開。
-        let _casdoorAdminBase = null;
-        async function _casdoorResolveAdminBase() {
-            if (_casdoorAdminBase != null) return _casdoorAdminBase;
-            try {
-                const r = await _origFetch('/api/auth/casdoor/enabled');
-                if (r.ok) {
-                    const data = await r.json().catch(() => null);
-                    _casdoorAdminBase = (data && data.admin_base) || '';
-                }
-            } catch (_) { _casdoorAdminBase = ''; }
-            return _casdoorAdminBase;
-        }
-        async function _casdoorAdminOpen(path, label) {
-            try {
-                const base = await _casdoorResolveAdminBase();
-                if (!base) {
-                    if (typeof showToast === 'function') {
-                        showToast('Casdoor 未啟用,請聯絡管理員', 'error');
-                    }
-                    return;
-                }
-                if (typeof showToast === 'function' && label) {
-                    showToast(`${label} → 請在 Casdoor 操作`, 'info');
-                }
-                window.open(`${base}${path}`, '_blank', 'noopener');
-            } catch (_) { /* popup blocked → 使用者再點一次即可 */ }
-        }
-
-        // ── 加入現有使用者到專案(Casdoor cutover 後新增) ───────────────
+        // ── 加入現有使用者到專案(v1.1.5 仍保留) ─────────────────────────
         async function pmOpenAddExistingModal() {
             if (!currentProjectId) {
                 showToast('請先在左側選一個專案', 'error'); return;
@@ -14937,9 +14870,6 @@ driver.swipe(100, 800, 100, 200, 500)"
         }
 
         async function pmOpenCreateUserModal() {
-            _casdoorAdminOpen('/users', '建立使用者');
-            return;
-            // 以下舊邏輯保留註記式 dead-code,Phase 5 之後 backend 已 410。
             ['pmCuUsername','pmCuDisplayName','pmCuEmail','pmCuPassword'].forEach(id => {
                 const el = document.getElementById(id); if (el) el.value = '';
             });
@@ -15014,9 +14944,6 @@ driver.swipe(100, 800, 100, 200, 500)"
         }
 
         async function pmOpenEditUserModal(username) {
-            _casdoorAdminOpen(`/users/autotest/${encodeURIComponent(username)}`, '編輯使用者');
-            return;
-            // 以下舊邏輯為 dead-code(Phase 5 cutover 後 backend 已 410)。
             // 從快取拿 row;沒有就重撈
             let m = (_pmMembersCache || []).find(x => x.username === username);
             if (!m) {
@@ -15073,13 +15000,11 @@ driver.swipe(100, 800, 100, 200, 500)"
         }
 
         function pmOpenResetPwdModal() {
-            const username = document.getElementById('pmEuUsername')?.value || '';
-            // Casdoor 接管後沒有「管理員指定密碼」這條路徑;使用者自助走 forgot
-            // password 流程(/casdoor/forget/rl-platform),admin 也是發信給該帳號。
-            const tail = username
-                ? `/users/autotest/${encodeURIComponent(username)}`
-                : '/users';
-            _casdoorAdminOpen(tail, '重設密碼');
+            const username = document.getElementById('pmEuUsername').value;
+            if (!username) return;
+            document.getElementById('pmRpTargetUsername').textContent = '@' + username;
+            document.getElementById('pmRpNewPassword').value = '';
+            document.getElementById('pmResetPwdModal').classList.remove('hidden');
         }
         function pmCloseResetPwdModal() {
             document.getElementById('pmResetPwdModal').classList.add('hidden');
@@ -21011,16 +20936,8 @@ gantt
             if (el) el.remove();
         }
         async function openRoleModal(id) {
-            // Phase 5 cutover:角色 CRUD 全在 Casdoor 操作。新增 / 編輯都跳到
-            // Casdoor 的 roles 頁面;傳入 id 時對應 ``/casdoor/roles/<org>/<name>``。
-            const role = id ? _rolesCache.find(x => x.id === id) : null;
-            const tail = role
-                ? `/roles/autotest/${encodeURIComponent(role.name)}`
-                : '/roles';
-            _casdoorAdminOpen(tail, role ? '編輯角色' : '新增角色');
-            return;
-            // ── 以下舊邏輯為 dead-code(Phase 5 cutover 後 backend 已 410) ──
             _editingRoleId = id || null;
+            const role = id ? _rolesCache.find(x => x.id === id) : null;
             document.getElementById('roleModalTitle').innerHTML = role
                 ? `<i class="fa-solid fa-user-tag text-amber-500"></i> 編輯角色 ${_esc(role.name)}`
                 : '<i class="fa-solid fa-user-tag text-amber-500"></i> 新增角色';

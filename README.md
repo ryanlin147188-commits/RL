@@ -28,7 +28,64 @@
 
 ---
 
-## 🔥 v1.1.4 — Zoho OIDC login via Casdoor
+## 🔥 v1.1.5 — Casdoor sidecar dropped, in-process authlib takes over
+
+After spending two minor releases (v1.1.3 / v1.1.4) running Casdoor as a side-
+car, hitting subpath SPA whitescreens, session-cookie config trapdoors, and
+silent `enable_signin_session=false` defaults, IAM is now back to running
+entirely inside the FastAPI process.
+
+* **Casdoor sidecar removed.** Compose service / configs / `casdoor` Postgres DB
+  / 14 backend modules all gone. `docker compose ps` no longer shows
+  `autotest-casdoor` or `autotest-casdoor-init`. The `casdoor/` config dir is
+  deleted.
+* **OIDC handled in-process with `authlib`** (`authlib>=1.3,<2`,
+  `AsyncOAuth2Client`). New routes `GET /api/auth/{provider}/login` and
+  `/callback` walk the OAuth code flow directly with the IdP. Currently
+  only `zoho` is wired; adding Google / Microsoft / Okta is one 30-line
+  `OIDCProvider` dataclass per provider in
+  [backend/app/auth/oidc.py](backend/app/auth/oidc.py).
+* **Token format reverted to HS256 in-house JWT** (same as v1.1.2). Backend
+  mints its own token after OIDC handshake; `decode_token` no longer
+  attempts RS256/JWKS dual-mode (`PyJWT[crypto]` → `PyJWT`, smaller image).
+* **Local password endpoints resurrected**: `POST /auth/login` /
+  `/auth/forgot-password` / `/auth/reset-password` / `/auth/change-password`
+  / `POST,PUT,DELETE /auth/users/...` / `/settings/roles` POST/PUT/DELETE/clone
+  back to live code (all were HTTP 410 in v1.1.3–v1.1.4). SPA modals
+  (`pmCreateUserModal` / `pmEditUserModal` / `pmResetPwdModal` / `roleModal`)
+  re-wired to the original local handlers.
+* **Migrations**: `0024_rename_oidc_columns` renames `users.casdoor_user_id`
+  → `users.oidc_subject` and adds `users.oidc_provider` with a `(provider,
+  subject)` partial unique index. `0025_recreate_password_reset_tokens`
+  restores the table that 0023 dropped.
+* **Casbin retained, no behavior change.** Enforcer still runs in-process
+  with `casbin_rule` table as source of truth. The 5-min reconcile beat is
+  removed (no Casdoor to sync from); `schedule_user_resync` mutation hooks
+  remain for immediate Casbin grant rebuild after role / membership changes.
+* **Default after v1.1.5 deploy**:
+  | URL | Account | Password |
+  |---|---|---|
+  | `http://<host>/` (帳密登入) | `admin` | `admin123` (forced-change on first login) |
+  | "使用 Zoho 登入" 按鈕 | (your Zoho account) | — |
+
+### Activating Zoho SSO
+
+```bash
+# 1. https://api-console.zoho.com → Add Client → Server-based Applications
+#    Authorized Redirect URIs: http://<your-host>/api/auth/zoho/callback
+#    (this is YOUR backend now, no longer Casdoor:8001/callback)
+# 2. Add to .env:
+echo "ZOHO_CLIENT_ID=<client_id>"     >> .env
+echo "ZOHO_CLIENT_SECRET=<secret>"     >> .env
+echo "ZOHO_REDIRECT_URL=http://<host>/api/auth/zoho/callback" >> .env
+# 3. Restart backend:
+docker compose up -d --force-recreate backend
+# 4. Refresh SPA login page — orange "使用 Zoho 登入" button appears.
+```
+
+---
+
+## 🔥 v1.1.4 — Zoho OIDC login via Casdoor (deprecated, replaced in v1.1.5)
 
 - New "**使用 Zoho 登入**" shortcut button on the SPA login overlay (orange,
   below the "使用 Casdoor 登入" button). One click → `/api/auth/casdoor/login?provider=zoho-corp`

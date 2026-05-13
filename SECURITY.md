@@ -57,7 +57,25 @@ When running AutoTest in production, please ensure:
 - Container images are pinned to specific versions / digests rather than `latest`.
 - Backups of the PostgreSQL volume and SeaweedFS volume are scheduled.
 
-### v1.1.4 — Zoho OIDC provider specific hardening
+### v1.1.5 — in-process authlib OIDC hardening
+
+- **`ZOHO_CLIENT_SECRET` 只能放 `.env` / secret manager**,絕對不要 commit。
+  Backend 把它直接放在 process env;authlib 不會把它寫進 DB。輪替密鑰時改
+  `.env` 後 `docker compose up -d --force-recreate backend` 一次就生效。
+- **state cookie 用 HS256 + AUTOTEST_JWT_SECRET 簽**,TTL 10 分鐘、Path
+  `/api/auth`、HttpOnly、SameSite=Lax。OAuth state CSRF 防護不依賴外部
+  session store(沒 SessionMiddleware 也不會壞)。
+- **沒設 email 限制時**,任何 Zoho 帳號都能 JIT 進來。新使用者 `role_id=NULL`
+  + 沒任何 `project_members`,Casbin enforce 對所有專案級端點都會 deny,
+  使用者只看得到 `/api/auth/me`,管理員後續再經「設定 → 專案協作成員」分配
+  專案 + 角色。要更嚴格時在 [backend/app/auth/oidc.py](backend/app/auth/oidc.py)
+  的 `normalize_claims()` 或 `_provision_from_claims()` 加 email domain 檢查
+  (一行 if 即可)。
+- **不需要再煩惱**:Casdoor 自己 cert / app provider client_secret /
+  built-in admin 預設密碼這些 v1.1.3 / v1.1.4 的 hardening 條目在 v1.1.5
+  全部變不適用,直接刪掉省心智負擔。
+
+### v1.1.4 — Zoho OIDC provider specific hardening (deprecated, replaced in v1.1.5)
 
 - **Treat `ZOHO_CLIENT_SECRET` like any other secret** — store only in the
   Casdoor `provider` table (encrypted at rest if `provider.cert` is set on

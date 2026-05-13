@@ -136,23 +136,9 @@ def decode_token(token: str) -> dict:
     """成功 → payload dict；失敗 → 拋 jwt.* 子例外。
     呼叫端 (middleware / dependency) 自行 catch 並回 401。
 
-    Dual-mode(Phase 1):當 ``CASDOOR_ENABLED=True`` 時先試 RS256 + JWKS
-    (Casdoor 簽的 OIDC token),失敗再 fall back 到 HS256(本地舊 token)。
-    Cutover(Phase 4)完成後可把 HS256 fallback 拔掉,只留 RS256 路徑。
-
-    為什麼順序是 RS256 → HS256:Casdoor token 用 RS256 簽且帶有 `kid` header,
-    HS256 解時 PyJWT 會直接 raise InvalidAlgorithmError;反過來 HS256 token
-    沒 kid,Casdoor 路徑會在 ``get_signing_key_from_jwt`` 階段就拋,額外網路
-    成本只發生在「未認 Casdoor JWT 卻誤丟進來」的小機率,可接受。
+    v1.1.5 起本端只簽 HS256 token(密碼登入 + Zoho OIDC callback 都走 backend
+    自己 mint 的 HS256)。Casdoor cutover 期間的 RS256 + JWKS dual-mode 已
+    移除,callback 改成 backend in-process 跟 IdP 換 token 後再簽 HS256,
+    所有後續 request 都看自家 secret。
     """
-    # Lazy import — 避免 CASDOOR_ENABLED=False 部署在 import time 即觸發
-    # Casdoor 模組初始化(它會讀 env / 準備 JWKS client URL)。
-    from app.auth import casdoor as _casdoor
-
-    if _casdoor.is_enabled():
-        try:
-            return _casdoor.decode_casdoor_jwt(token)
-        except jwt.PyJWTError:
-            # 不是 Casdoor 簽的 token,或 Casdoor 暫時不可達 → 再試 HS256
-            pass
     return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])

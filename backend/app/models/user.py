@@ -42,14 +42,13 @@ class User(Base):
     # Agent runtime 偏好:'hermes' / 'openclaw' / NULL=auto
     # 能力 gating 在應用層;DB 不約束(使用者刪光 token 後仍要讀得到舊偏好)。
     preferred_agent: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
-    # Casdoor 整合:OIDC 完成後紀錄該使用者在 Casdoor 內的 stable uuid。
-    # NULL = 還沒透過 Casdoor 登入過(或本來就是純本地帳號 / service account)。
-    # 由 migration 0021 建立 partial unique index(casdoor_user_id IS NOT NULL)。
-    casdoor_user_id: Mapped[Optional[str]] = mapped_column(
-        String(255), nullable=True, unique=False,
-    )
-    # 強制讓在飛的舊 token 作廢 — middleware 在 Phase 4 cutover 後比對 JWT payload
-    # 的 `gen` < user.token_generation 直接 401。Phase 1/2 仍當作 0 不檢查。
+    # v1.1.5 OIDC 整合:第一次走 SSO 後紀錄 IdP 名稱 + stable subject。
+    # NULL = 純本地密碼帳號;``(provider, subject)`` 一組 partial unique
+    # index(migration 0024 建立)防止同一個 IdP 重複綁不同 row。
+    oidc_provider: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
+    oidc_subject: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    # 強制讓在飛的舊 token 作廢 — middleware 比對 JWT payload 的 ``gen`` <
+    # user.token_generation 直接 401。預設 0 不檢查。
     token_generation: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default="0",
     )
