@@ -10705,6 +10705,9 @@ driver.swipe(100, 800, 100, 200, 500)"
             // _doRefresh 自帶 in-flight 去重,即使 _maybeProactiveRefresh 與 authFetch
             // 的 reactive refresh 同時觸發也只發一次。
             await _maybeProactiveRefresh();
+            // 預先取 Casdoor admin_base,讓 ``_casdoorAdminOpen`` 被使用者點到時
+            // 不用先 await(避免 popup 被 Chrome 當成「非使用者手勢」擋掉)。
+            _casdoorResolveAdminBase().catch(() => {});
             // Perf B3: 同時 kick 出 /api/projects(initProjects 需要的)— 兩個請求
             // 平行飛,而不是 me ok 後再追問 projects。me 失敗時把 projReq 的 unhandled
             // rejection 吃掉以免汙染 console。
@@ -14798,13 +14801,35 @@ driver.swipe(100, 800, 100, 200, 500)"
         // backend 已下架的端點。Phase 5 起 backend 一律回 410,改開 Casdoor
         // admin UI 對應頁面。modal HTML 暫留(下個 release 再清),只把 entry
         // point 改成 ``window.open``,call site 一律 reuse 不需要動。
-        function _casdoorAdminOpen(path, label) {
+        //
+        // Casdoor sidecar 從 subpath ``/casdoor/`` 搬到獨立 host port(env
+        // ``CASDOOR_PUBLIC_ENDPOINT``)後,寫死 ``/casdoor/...`` 會 404 / 白屏。
+        // 改成 lazy 拉 ``/api/auth/casdoor/enabled`` 拿到 admin_base 再開。
+        let _casdoorAdminBase = null;
+        async function _casdoorResolveAdminBase() {
+            if (_casdoorAdminBase != null) return _casdoorAdminBase;
             try {
-                const url = `/casdoor${path}`;
+                const r = await _origFetch('/api/auth/casdoor/enabled');
+                if (r.ok) {
+                    const data = await r.json().catch(() => null);
+                    _casdoorAdminBase = (data && data.admin_base) || '';
+                }
+            } catch (_) { _casdoorAdminBase = ''; }
+            return _casdoorAdminBase;
+        }
+        async function _casdoorAdminOpen(path, label) {
+            try {
+                const base = await _casdoorResolveAdminBase();
+                if (!base) {
+                    if (typeof showToast === 'function') {
+                        showToast('Casdoor 未啟用,請聯絡管理員', 'error');
+                    }
+                    return;
+                }
                 if (typeof showToast === 'function' && label) {
                     showToast(`${label} → 請在 Casdoor 操作`, 'info');
                 }
-                window.open(url, '_blank', 'noopener');
+                window.open(`${base}${path}`, '_blank', 'noopener');
             } catch (_) { /* popup blocked → 使用者再點一次即可 */ }
         }
 

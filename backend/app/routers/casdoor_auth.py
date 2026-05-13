@@ -93,14 +93,22 @@ def _redirect_uri(request: Request) -> str:
 
 @router.get("/auth/casdoor/enabled", tags=["U · 認證"])
 async def casdoor_enabled() -> dict:
-    """SPA 偵測 Casdoor 是否啟用的輕量 probe。200 永遠回得到,內容是
-    ``{"enabled": bool}``。
+    """SPA 偵測 Casdoor 是否啟用的輕量 probe。200 永遠回得到,內容:
+
+    * ``enabled``:bool,是否啟用 Casdoor SSO
+    * ``admin_base``:對外 Casdoor URL(``CASDOOR_PUBLIC_ENDPOINT``),SPA 用
+      它組「建立新使用者 / 編輯角色」之類連到 Casdoor admin UI 的連結。沒
+      啟用時回空字串。
 
     為什麼不直接 probe ``/auth/casdoor/login``:那條未啟用時是 503,瀏覽器
-    DevTools 一定會印紅字,實際對使用者沒影響但看起來像出錯。改用此 200
-    端點後 SPA 拿到布林值再決定要不要亮按鈕,DevTools 不會留下假象錯誤。
+    DevTools 一定會印紅字。改用此 200 端點後 SPA 拿到布林值再決定要不要亮
+    按鈕,DevTools 不會留下假象錯誤。
     """
-    return {"enabled": _casdoor.is_enabled()}
+    enabled = _casdoor.is_enabled()
+    return {
+        "enabled": enabled,
+        "admin_base": _casdoor.CASDOOR_PUBLIC_ENDPOINT if enabled else "",
+    }
 
 
 @router.get("/auth/oidc/providers", tags=["U · 認證"])
