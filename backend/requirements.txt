@@ -44,7 +44,7 @@ cryptography==43.0.1   # Fernet 對稱加密：DB 內存密碼/AI key 用
 # - casbin-sqlalchemy-adapter 1.5.x 是現役 active-maintained adapter,跟
 #   SQLAlchemy 2.x 相容(舊 sqlalchemy-casbin-adapter 已停更)。
 casbin==1.36.3
-casbin-sqlalchemy-adapter==1.5.0
+casbin-sqlalchemy-adapter==1.4.0
 
 # AI providers（HTTP 呼叫 OpenAI / Anthropic / Google / OpenAI-compatible Local 推論伺服器）
 httpx==0.27.2
