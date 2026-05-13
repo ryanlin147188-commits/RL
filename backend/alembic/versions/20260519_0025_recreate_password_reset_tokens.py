@@ -18,7 +18,7 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = "0025_recreate_password_reset_tokens"
+revision: str = "0025_recreate_pw_reset_tokens"
 down_revision: Union[str, None] = "0024_rename_oidc_columns"
 branch_labels: Union[str, None] = None
 depends_on: Union[str, None] = None
