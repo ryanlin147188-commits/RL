@@ -5,7 +5,7 @@ from sqlalchemy import asc, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
-from app.auth.permissions import require_permission
+from app.auth.permissions import require_casbin
 from app.auth.permissions_catalog import P
 from app.auth.project_membership import ensure_project_member
 from app.database import get_db
@@ -52,7 +52,7 @@ def _scope_filter(stmt, user: User):
 @router.get(
     "/projects",
     response_model=list[ProjectResponse],
-    dependencies=[Depends(require_permission(P.PROJECT_READ))],
+    dependencies=[Depends(require_casbin(P.PROJECT_READ))],
 )
 async def list_projects(
     user: User = Depends(get_current_user),
@@ -77,7 +77,7 @@ async def list_projects(
     "/projects",
     response_model=ProjectResponse,
     status_code=201,
-    dependencies=[Depends(require_permission(P.PROJECT_WRITE))],
+    dependencies=[Depends(require_casbin(P.PROJECT_WRITE))],
 )
 async def create_project(
     payload: ProjectCreate,
@@ -123,7 +123,7 @@ def _check_org_or_404(proj: Optional[Project], user: User) -> Project:
 @router.get(
     "/projects/{project_id}/tree",
     dependencies=[
-        Depends(require_permission(P.PROJECT_READ)),
+        Depends(require_casbin(P.PROJECT_READ)),
         Depends(ensure_project_member),
     ],
 )
@@ -150,7 +150,7 @@ async def get_project_tree(
     "/projects/{project_id}",
     status_code=204,
     dependencies=[
-        Depends(require_permission(P.PROJECT_DELETE)),
+        Depends(require_casbin(P.PROJECT_DELETE)),
         Depends(ensure_project_member),
     ],
 )
@@ -172,7 +172,7 @@ async def delete_project(
     "/projects/{project_id}",
     response_model=ProjectResponse,
     dependencies=[
-        Depends(require_permission(P.PROJECT_WRITE)),
+        Depends(require_casbin(P.PROJECT_WRITE)),
         Depends(ensure_project_member),
     ],
 )
@@ -207,7 +207,7 @@ async def update_project(
     "/projects/{project_id}",
     response_model=ProjectResponse,
     dependencies=[
-        Depends(require_permission(P.PROJECT_READ)),
+        Depends(require_casbin(P.PROJECT_READ)),
         Depends(ensure_project_member),
     ],
 )
@@ -223,7 +223,7 @@ async def get_project(
 # ─────────────────── Project Members CRUD(phase 2)───────────────────
 # 一個 project 內誰是成員 + 該成員在這 project 的角色(可 override OrgMembership 的角色)。
 # 權限檢查走 _check_org_or_404 + 呼叫者必須是 superuser 或 ProjectMember,
-# 進一步「能否管理成員」交給 require_permission(USER_MANAGE) 守。
+# 進一步「能否管理成員」交給 require_casbin(USER_MANAGE) 守。
 
 def _can_manage_project_members(user: User, proj: Project) -> bool:
     """superuser 或同 org 的 admin(P.USER_MANAGE)能管理。前端會用 me/orgs 判斷。"""

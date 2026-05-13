@@ -1,0 +1,72 @@
+{
+  "_comment": "Casdoor first-boot seed. Read once at startup if /init_data.json is mounted. Subsequent edits go via UI / scripts/seed-casdoor.sh, not by editing this file. Mirrors the 7 seeded roles in backend/app/main.py:_seed_default_roles so shadow-mode comparison has a known baseline.",
+  "organizations": [
+    {
+      "owner": "admin",
+      "name": "autotest",
+      "displayName": "AutoTest Platform",
+      "websiteUrl": "https://localhost/",
+      "favicon": "https://localhost/favicon.ico",
+      "passwordType": "plain",
+      "passwordOptions": ["AtLeast6"],
+      "countryCodes": ["TW", "US"],
+      "tags": [],
+      "accountItems": [
+        { "name": "Real name",  "visible": true, "viewRule": "Public", "modifyRule": "Self" },
+        { "name": "Email",      "visible": true, "viewRule": "Public", "modifyRule": "Self" },
+        { "name": "Phone",      "visible": true, "viewRule": "Public", "modifyRule": "Self" },
+        { "name": "Roles",      "visible": true, "viewRule": "Admin",  "modifyRule": "Admin" }
+      ]
+    }
+  ],
+  "applications": [
+    {
+      "owner": "admin",
+      "name": "rl-platform",
+      "displayName": "RL Test Automation Platform",
+      "logo": "https://localhost/favicon.ico",
+      "homepageUrl": "https://localhost/",
+      "organization": "autotest",
+      "enablePassword": true,
+      "enableSignUp": false,
+      "enableSigninSession": true,
+      "enableCodeSignin": false,
+      "enableAutoSignin": false,
+      "signinUrl": "",
+      "signupUrl": "",
+      "forgetUrl": "",
+      "providers": [],
+      "grantTypes": ["authorization_code", "refresh_token"],
+      "tokenFormat": "JWT-Standard",
+      "expireInHours": 2,
+      "refreshExpireInHours": 336,
+      "redirectUris": [
+        "http://localhost/api/auth/callback",
+        "https://localhost/api/auth/callback"
+      ]
+    }
+  ],
+  "roles": [
+    { "owner": "autotest", "name": "Admin",            "displayName": "Admin",            "users": ["autotest/admin"] },
+    { "owner": "autotest", "name": "QA",               "displayName": "QA Engineer",      "users": [] },
+    { "owner": "autotest", "name": "Viewer",           "displayName": "Viewer",           "users": [] },
+    { "owner": "autotest", "name": "Project-Admin",    "displayName": "Project Admin",    "users": [] },
+    { "owner": "autotest", "name": "Project-Tester",   "displayName": "Project Tester",   "users": [] },
+    { "owner": "autotest", "name": "Project-Reviewer", "displayName": "Project Reviewer", "users": [] },
+    { "owner": "autotest", "name": "Project-Viewer",   "displayName": "Project Viewer",   "users": [] }
+  ],
+  "users": [
+    {
+      "owner": "autotest",
+      "name": "admin",
+      "displayName": "Initial Admin",
+      "email": "admin@localhost",
+      "password": "admin123",
+      "passwordType": "plain",
+      "isAdmin": true,
+      "isGlobalAdmin": true,
+      "isForbidden": false,
+      "isDeleted": false
+    }
+  ]
+}

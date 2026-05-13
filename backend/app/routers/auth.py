@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 import jwt as pyjwt
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,10 +27,13 @@ from app.auth.dependencies import get_current_user
 from app.auth.revocation import revoke as revoke_jti
 from app.auth.security import (
     ACCESS_TOKEN_TTL_MINUTES,
+    ACTIVE_ORG_COOKIE_NAME,
+    ACTIVE_ORG_COOKIE_TTL_DAYS,
     create_access_token,
     create_refresh_token,
     decode_token,
     hash_password,
+    sign_active_org_cookie,
     verify_password,
 )
 from app.rate_limit import limiter
@@ -58,31 +61,37 @@ from app.schemas.auth import (
 
 
 # 重置 token 有效期。1 小時是常見、夠寬,且夠短不會堆積過多 dormant token。
+# Phase 5 cutover 後實際上沒有 endpoint 在用,留著只為向下相容(operator 想
+# rollback 時不需要重灌 schema)。
 PASSWORD_RESET_TTL_HOURS = 1
 
 router = APIRouter()
 
 
-@router.post("/auth/login", response_model=TokenResponse, tags=["U · 認證"])
-@limiter.limit("10/minute")          # 暴力破解防護：同一 IP 每分鐘最多 10 次登入嘗試
-async def login(request: Request, payload: LoginRequest, db: AsyncSession = Depends(get_db)):
-    user = (
-        await db.execute(select(User).where(User.username == payload.username))
-    ).scalar_one_or_none()
-    if not user or not user.is_active:
-        raise HTTPException(status_code=401, detail="帳號或密碼錯誤")
-    if not verify_password(payload.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="帳號或密碼錯誤")
-    user.last_login_at = datetime.utcnow()
-    await db.flush()
-    # 把 organization_id 塞進 JWT，避免每個 request 都要 lookup user
-    extra = {"org_id": user.organization_id, "is_superuser": user.is_superuser}
-    return TokenResponse(
-        access_token=create_access_token(user.username, extra=extra),
-        refresh_token=create_refresh_token(user.username),
-        expires_in=ACCESS_TOKEN_TTL_MINUTES * 60,
-        must_change_password=bool(user.must_change_password),
+# ── Phase 5: 已下架端點共用回應 ──────────────────────────────────────────
+# Casdoor 接管後,本地密碼登入 / 改密 / 重設密碼 / 管理員建/改/刪使用者 /
+# 自訂角色等行為都搬到 Casdoor admin UI(http://<host>/casdoor/)。route
+# handler 保留只為了讓 OpenAPI 文件仍能看到「為什麼這個 endpoint 不見了」。
+
+def _gone(code: str, moved_to: str) -> HTTPException:
+    return HTTPException(
+        status_code=410,
+        detail={
+            "code": code,
+            "message": "本端點已下架,請改用 Casdoor",
+            "moved_to": moved_to,
+        },
     )
+
+
+@router.post("/auth/login", status_code=410, tags=["U · 認證"])
+async def login_disabled(request: Request) -> dict:
+    """密碼登入已下架(Phase 5 cutover)— 一律走 ``GET /api/auth/casdoor/login``。
+
+    SPA 端的「使用 Casdoor 登入」按鈕會把 ``window.location`` 直接跳到該入口。
+    保留 410 stub 讓舊 client 看見明確錯誤訊息,而不是 404。
+    """
+    raise _gone("password_login_disabled", "/api/auth/casdoor/login")
 
 
 @router.post("/auth/register", status_code=410, tags=["U · 認證"])
@@ -119,164 +128,20 @@ async def register_disabled(request: Request) -> dict:
     response_model=ForgotPasswordResponse,
     tags=["U · 認證"],
 )
-@limiter.limit("3/hour")  # 同 IP 每小時最多 3 次,避免被當寄信跳板
-async def forgot_password(
-    request: Request,
-    payload: ForgotPasswordRequest,
-    db: AsyncSession = Depends(get_db),
-) -> ForgotPasswordResponse:
-    """寄重置連結到使用者 email。
-
-    成功與否(帳號存在 / 已停用 / email 不符 / 寄信失敗)在 HTTP 回應中
-    一律呈現為 ``200 + {"sent": true}``;真正的執行結果寫進 server log。
-    """
-    import logging
-    logger = logging.getLogger(__name__)
-
-    uname = (payload.username or "").strip()
-    email = (payload.email or "").strip().lower()
-    if not uname or not email or "@" not in email:
-        # 格式錯誤直接回通用訊息(同樣不洩露)
-        return ForgotPasswordResponse()
-
-    user = (
-        await db.execute(select(User).where(User.username == uname))
-    ).scalar_one_or_none()
-    if not user or not user.is_active:
-        logger.info("forgot-password: no active user '%s'", uname)
-        return ForgotPasswordResponse()
-    if (user.email or "").strip().lower() != email:
-        logger.info("forgot-password: email mismatch for user '%s'", uname)
-        return ForgotPasswordResponse()
-
-    # mint token
-    token_value = secrets.token_urlsafe(32)
-    expires_at = datetime.utcnow() + timedelta(hours=PASSWORD_RESET_TTL_HOURS)
-    client_ip = request.client.host if request.client else None
-    prt = PasswordResetToken(
-        token=token_value,
-        username=user.username,
-        email_sent_to=email,
-        expires_at=expires_at,
-        requested_ip=client_ip,
-    )
-    db.add(prt)
-    await db.flush()
-
-    # 寄信(透過 Celery,失敗不影響本端回應)
-    try:
-        from app.services.email_service import render_password_reset_email
-        from tasks.email_tasks import send_email_task
-
-        # reset URL:同 host + 前端會讀 ?reset_token=...
-        reset_url = (
-            f"{request.url.scheme}://{request.url.netloc}/?reset_token={token_value}"
-        )
-        html_body, text_body = render_password_reset_email(
-            display_name=user.display_name or user.username,
-            reset_url=reset_url,
-            expires_at=expires_at.strftime("%Y-%m-%d %H:%M UTC"),
-        )
-        send_email_task.delay(
-            to=email,
-            subject="AutoTest 密碼重置連結",
-            html_body=html_body,
-            text_body=text_body,
-            organization_id=user.organization_id,
-        )
-        logger.info(
-            "forgot-password: token=%s issued for user=%s ip=%s",
-            token_value[:8] + "...", uname, client_ip,
-        )
-    except Exception:  # noqa: BLE001
-        logger.exception(
-            "forgot-password: token saved but email enqueue failed for %s", uname,
-        )
-
-    return ForgotPasswordResponse()
+async def forgot_password() -> dict:
+    """已下架(Phase 5)— Casdoor 自帶忘記密碼流程,前端按鈕改連到
+    ``/casdoor/forget/<app>``。"""
+    raise _gone("forgot_password_disabled", "/casdoor/forget/rl-platform")
 
 
-@router.get(
-    "/auth/reset-password/check",
-    response_model=ResetPasswordTokenInfo,
-    tags=["U · 認證"],
-)
-async def check_reset_token(
-    token: str,
-    db: AsyncSession = Depends(get_db),
-) -> ResetPasswordTokenInfo:
-    """前端載入「設定新密碼」表單前先 hit 這支驗 token,避免使用者輸入完密碼
-    才被告知過期。回傳 ``valid`` + ``expires_at``;不洩露 username。"""
-    if not token:
-        return ResetPasswordTokenInfo(valid=False)
-    prt = (
-        await db.execute(
-            select(PasswordResetToken).where(PasswordResetToken.token == token)
-        )
-    ).scalar_one_or_none()
-    if not prt or prt.used_at is not None or prt.expires_at < datetime.utcnow():
-        return ResetPasswordTokenInfo(valid=False)
-    return ResetPasswordTokenInfo(valid=True, expires_at=prt.expires_at)
+@router.get("/auth/reset-password/check", status_code=410, tags=["U · 認證"])
+async def check_reset_token_disabled() -> dict:
+    raise _gone("forgot_password_disabled", "/casdoor/forget/rl-platform")
 
 
-@router.post(
-    "/auth/reset-password",
-    tags=["U · 認證"],
-)
-@limiter.limit("10/hour")  # 同 IP 每小時最多 10 次嘗試,避免暴力 token 猜測
-async def reset_password(
-    request: Request,
-    payload: ResetPasswordRequest,
-    db: AsyncSession = Depends(get_db),
-) -> dict:
-    """以 forgot-password 寄出的 token 設定新密碼。
-
-    成功 → 用新密碼覆蓋 password_hash + 標記 token used + 把 user 的
-    must_change_password 設 False(代表使用者已自主修改,不需再 force)。
-    """
-    if not payload.token:
-        raise HTTPException(400, "缺少 token")
-    if not payload.new_password or len(payload.new_password) < 6:
-        raise HTTPException(400, "新密碼至少 6 字元")
-
-    prt = (
-        await db.execute(
-            select(PasswordResetToken).where(PasswordResetToken.token == payload.token)
-        )
-    ).scalar_one_or_none()
-    if not prt:
-        raise HTTPException(400, "重置連結無效或已被使用")
-    if prt.used_at is not None:
-        raise HTTPException(400, "重置連結已被使用,請重新發起忘記密碼")
-    if prt.expires_at < datetime.utcnow():
-        raise HTTPException(400, "重置連結已過期,請重新發起忘記密碼")
-
-    user = (
-        await db.execute(select(User).where(User.username == prt.username))
-    ).scalar_one_or_none()
-    if not user or not user.is_active:
-        # token 有效但帳號已被停用 / 刪除 — 仍然 mark used,避免被重試
-        prt.used_at = datetime.utcnow()
-        await db.flush()
-        raise HTTPException(400, "帳號已停用,請聯絡管理員")
-
-    user.password_hash = hash_password(payload.new_password)
-    user.must_change_password = False
-    prt.used_at = datetime.utcnow()
-    # 同 user 還未使用的其他 token 一併失效(避免外洩 token 又被用)
-    other_active = (
-        await db.execute(
-            select(PasswordResetToken)
-            .where(PasswordResetToken.username == user.username)
-            .where(PasswordResetToken.id != prt.id)
-            .where(PasswordResetToken.used_at.is_(None))
-        )
-    ).scalars().all()
-    for t in other_active:
-        t.used_at = datetime.utcnow()
-    await db.flush()
-
-    return {"ok": True, "username": user.username}
+@router.post("/auth/reset-password", status_code=410, tags=["U · 認證"])
+async def reset_password_disabled() -> dict:
+    raise _gone("forgot_password_disabled", "/casdoor/forget/rl-platform")
 
 
 @router.post("/auth/refresh", response_model=TokenResponse, tags=["U · 認證"])
@@ -364,6 +229,7 @@ async def my_orgs(
 async def switch_org(
     request: Request,
     payload: dict,
+    response: Response,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -396,6 +262,16 @@ async def switch_org(
     user.organization_id = target_org_id
     await db.flush()
     extra = {"org_id": target_org_id, "is_superuser": user.is_superuser}
+    # 同時設定 active_org_id 簽章 cookie:Phase 4 拔掉 JWT.org_id 後,middleware
+    # 還能繼續從 cookie 拿到 active org 而不破壞既有 SPA 行為。
+    response.set_cookie(
+        key=ACTIVE_ORG_COOKIE_NAME,
+        value=sign_active_org_cookie(user.username, target_org_id),
+        max_age=ACTIVE_ORG_COOKIE_TTL_DAYS * 24 * 3600,
+        httponly=True,
+        samesite="lax",
+        secure=request.url.scheme == "https",
+    )
     return TokenResponse(
         access_token=create_access_token(user.username, extra=extra),
         refresh_token=create_refresh_token(user.username),
@@ -478,23 +354,10 @@ async def remove_avatar(
     return user
 
 
-@router.post("/auth/change-password", tags=["U · 認證"])
-async def change_password(
-    payload: ChangePasswordRequest,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    if not verify_password(payload.old_password, user.password_hash):
-        raise HTTPException(400, "目前密碼不正確")
-    if not payload.new_password or len(payload.new_password) < 6:
-        raise HTTPException(400, "新密碼至少 6 字元")
-    if payload.new_password == payload.old_password:
-        raise HTTPException(400, "新密碼不可與目前密碼相同")
-    user.password_hash = hash_password(payload.new_password)
-    # 走完強制改密碼流程後解閘,後續 API 才能正常呼叫
-    user.must_change_password = False
-    await db.flush()
-    return {"ok": True}
+@router.post("/auth/change-password", status_code=410, tags=["U · 認證"])
+async def change_password_disabled() -> dict:
+    """已下架(Phase 5)— 使用者自助改密碼一律進 Casdoor 個人設定頁。"""
+    raise _gone("change_password_disabled", "/casdoor/account")
 
 
 # ── 使用者管理（需 superuser） ──────────────────────────────────────
@@ -530,134 +393,29 @@ async def list_assignable_users(
     return list(rows)
 
 
-@router.post("/auth/users", response_model=UserResponse, status_code=201, tags=["U · 認證"])
-async def create_user(
-    payload: UserCreateRequest,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    _require_superuser(user)
-    if not payload.username or not payload.password:
-        raise HTTPException(400, "帳號 / 密碼必填")
-    if len(payload.password) < 6:
-        raise HTTPException(400, "密碼至少 6 字元")
-    existing = (
-        await db.execute(select(User).where(User.username == payload.username))
-    ).scalar_one_or_none()
-    if existing:
-        raise HTTPException(409, f"帳號「{payload.username}」已存在")
-    if payload.role_id:
-        role = await db.get(Role, payload.role_id)
-        if not role:
-            raise HTTPException(400, "role_id 不存在")
-    new_user = User(
-        username=payload.username,
-        display_name=payload.display_name,
-        email=payload.email,
-        password_hash=hash_password(payload.password),
-        role_id=payload.role_id,
-        # 沒指定 → 跟建立者同 org（普通 admin 不能跨 org 開使用者）
-        organization_id=payload.organization_id or user.organization_id,
-        is_superuser=payload.is_superuser,
+# ── 使用者管理寫入端點全部下架(Phase 5)──────────────────────────────
+# 建立 / 修改 / 重設密碼 / 刪除使用者一律到 Casdoor admin UI 操作;backend
+# 仍保留 GET list / GET assignable(只讀,供「指派任務 / 加入專案成員」UI 用)。
+# Webhook(Phase 6)會把 Casdoor 的使用者異動同步到本地 users 表。
+
+@router.post("/auth/users", status_code=410, tags=["U · 認證"])
+async def create_user_disabled() -> dict:
+    raise _gone("user_create_disabled", "/casdoor/users")
+
+
+@router.put("/auth/users/{username}", status_code=410, tags=["U · 認證"])
+async def admin_update_user_disabled(username: str) -> dict:
+    raise _gone("user_update_disabled", f"/casdoor/users/autotest/{username}")
+
+
+@router.post("/auth/users/{username}/reset-password", status_code=410, tags=["U · 認證"])
+async def admin_reset_password_disabled(username: str) -> dict:
+    raise _gone(
+        "user_reset_password_disabled",
+        f"/casdoor/users/autotest/{username}",
     )
-    db.add(new_user)
-    await db.flush()
-    # 多組織模型:同步加 OrgMembership(預設這就是該 user 的 active org)。
-    if new_user.organization_id:
-        db.add(OrgMembership(
-            username=new_user.username,
-            organization_id=new_user.organization_id,
-            role_id=new_user.role_id,
-            is_default=True,
-            status="active",
-            invited_by=user.username,
-        ))
-        await db.flush()
-    await db.refresh(new_user)
-    return new_user
 
 
-@router.put("/auth/users/{username}", response_model=UserResponse, tags=["U · 認證"])
-async def admin_update_user(
-    username: str,
-    payload: UserAdminUpdateRequest,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Superuser 修改其他使用者的基本資料 / 角色 / 啟用狀態 / superuser 旗標。
-
-    密碼不在這裡改,改密碼走 ``POST /auth/users/{username}/reset-password``。
-    """
-    _require_superuser(user)
-    target = (
-        await db.execute(select(User).where(User.username == username))
-    ).scalar_one_or_none()
-    if not target:
-        raise HTTPException(404, "使用者不存在")
-    if payload.display_name is not None:
-        target.display_name = payload.display_name.strip()[:120] or None
-    if payload.email is not None:
-        target.email = payload.email.strip()[:255] or None
-    if payload.role_id is not None:
-        if payload.role_id:
-            role = await db.get(Role, payload.role_id)
-            if not role:
-                raise HTTPException(404, "找不到該角色")
-            target.role_id = payload.role_id
-        else:
-            target.role_id = None
-    if payload.is_active is not None:
-        if target.username == user.username and not payload.is_active:
-            raise HTTPException(400, "不能停用自己")
-        target.is_active = bool(payload.is_active)
-    if payload.is_superuser is not None:
-        if target.username == user.username and not payload.is_superuser:
-            raise HTTPException(400, "不能撤銷自己的 superuser 權限")
-        target.is_superuser = bool(payload.is_superuser)
-    await db.flush()
-    await db.refresh(target)
-    return target
-
-
-@router.post("/auth/users/{username}/reset-password", tags=["U · 認證"])
-async def admin_reset_password(
-    username: str,
-    payload: UserResetPasswordRequest,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Superuser 為其他使用者強制重設密碼。
-
-    重設後 ``must_change_password`` 一律設為 True,使用者下次登入會被前端
-    擋下並要求自行改密碼,管理員不會看到使用者的最終密碼。
-    """
-    _require_superuser(user)
-    if not payload.new_password or len(payload.new_password) < 6:
-        raise HTTPException(400, "新密碼至少 6 字元")
-    target = (
-        await db.execute(select(User).where(User.username == username))
-    ).scalar_one_or_none()
-    if not target:
-        raise HTTPException(404, "使用者不存在")
-    target.password_hash = hash_password(payload.new_password)
-    target.must_change_password = True
-    await db.flush()
-    return {"ok": True, "must_change_password": True}
-
-
-@router.delete("/auth/users/{username}", status_code=204, tags=["U · 認證"])
-async def delete_user(
-    username: str,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    _require_superuser(user)
-    if username == user.username:
-        raise HTTPException(400, "不能刪除自己")
-    target = (
-        await db.execute(select(User).where(User.username == username))
-    ).scalar_one_or_none()
-    if not target:
-        raise HTTPException(404, "使用者不存在")
-    await db.delete(target)
-    await db.flush()
+@router.delete("/auth/users/{username}", status_code=410, tags=["U · 認證"])
+async def delete_user_disabled(username: str) -> dict:
+    raise _gone("user_delete_disabled", f"/casdoor/users/autotest/{username}")

@@ -186,6 +186,35 @@ services:
       # sidecar 共用同一把 secret(bootstrap 已自動產生)做 X-Sidecar-Auth 驗證。
       OPENCLAW_BASE_URL: ${OPENCLAW_BASE_URL:-http://openclaw:7950}
       OPENCLAW_SIDECAR_AUTH_TOKEN: ${OPENCLAW_SIDECAR_AUTH_TOKEN:-}
+      # ── Casdoor IAM(opt-in;Phase 1+ 啟用後 backend 才會驗 RS256 JWT)──
+      # CASDOOR_ENABLED=False 時 backend 仍維持原本 HS256 single-mode,完全不
+      # 嘗試解 RS256 / 不打 Casdoor REST API,等於整個 sidecar 不存在。
+      # 切 True 後 decode_token 進入 dual-mode:RS256 JWKS 優先,失敗才退回 HS256。
+      CASDOOR_ENABLED: ${CASDOOR_ENABLED:-False}
+      CASDOOR_ENDPOINT: ${CASDOOR_ENDPOINT:-http://casdoor:8000}
+      CASDOOR_ORG: ${CASDOOR_ORG:-autotest}
+      CASDOOR_APP: ${CASDOOR_APP:-rl-platform}
+      CASDOOR_CLIENT_ID: ${CASDOOR_CLIENT_ID:-}
+      CASDOOR_CLIENT_SECRET: ${CASDOOR_CLIENT_SECRET:-}
+      # Public callback URL the browser is redirected back to after Casdoor
+      # login; must match one of casdoor/init_data.json's redirectUris.
+      CASDOOR_REDIRECT_URL: ${CASDOOR_REDIRECT_URL:-http://localhost/api/auth/callback}
+      # Phase 6.2:Casdoor 端在 webhook 設定的 ``X-Casdoor-Webhook-Token`` 共用
+      # secret。未設 → ``/api/auth/casdoor-webhook`` 一律 503,逼 operator 顯式
+      # 配置才會接事件,避免「未驗證 webhook 也照吃」。
+      CASDOOR_WEBHOOK_TOKEN: ${CASDOOR_WEBHOOK_TOKEN:-}
+      # ── Casbin enforcer(獨立 opt-in;不一定要跟 Casdoor 一起開)──
+      # CASBIN_ENABLED=False(預設):整個 enforcer / require_casbin 都關掉,
+      # require_permission 走原本邏輯。切 True 後 lifespan 才會 init enforcer
+      # 並讓 casbin_rule 表自動建立(adapter 內 checkfirst)。Phase 3 shadow
+      # mode 也吃這支 gate — 不能直接吃 CASDOOR_ENABLED 因為兩者是獨立切換點。
+      CASBIN_ENABLED: ${CASBIN_ENABLED:-False}
+      # Phase 3.1 shadow mode 開關 — 啟用後 require_permission 會同時跑 Casbin
+      # 比對並把差異 log 到 logger ``app.auth.permissions.shadow``,但**不**改
+      # 變實際的 allow/deny 決定。前置條件:CASBIN_ENABLED=True 且已跑過
+      # ``python -m app.cli seed-casbin``;沒 seed 前打開只會洗一堆 false-positive
+      # divergence,所以預設仍是 False。
+      CASBIN_SHADOW_ENABLED: ${CASBIN_SHADOW_ENABLED:-False}
     # /healthz 是公開、無需 auth 的就緒探測;讓 apisix(depends_on backend)
     # 等到 backend 的 lifespan 跑完(含 alembic upgrade head)才往下走。
     healthcheck:
@@ -236,6 +265,17 @@ services:
       # 與下方 networks.default.name 保持一致
       ROBOT_RUNNER_NETWORK: ${ROBOT_RUNNER_NETWORK:-autotest_default}
       DOCKER_HOST: tcp://docker-proxy:2375
+      # ── Phase 6.3:Casdoor 5-min reconcile(celery beat 觸發)──────────
+      # 預設關閉;切 True 後 worker 內建的 beat 每 5 分鐘呼叫 tasks.casdoor_reconcile.run。
+      # 同時需要 CASDOOR_ENABLED + CASDOOR_CLIENT_ID / SECRET 才能真的打 Casdoor REST API。
+      CASDOOR_RECONCILE_ENABLED: ${CASDOOR_RECONCILE_ENABLED:-False}
+      CASDOOR_ENABLED: ${CASDOOR_ENABLED:-False}
+      CASDOOR_ENDPOINT: ${CASDOOR_ENDPOINT:-http://casdoor:8000}
+      CASDOOR_ORG: ${CASDOOR_ORG:-autotest}
+      CASDOOR_APP: ${CASDOOR_APP:-rl-platform}
+      CASDOOR_CLIENT_ID: ${CASDOOR_CLIENT_ID:-}
+      CASDOOR_CLIENT_SECRET: ${CASDOOR_CLIENT_SECRET:-}
+      CASBIN_ENABLED: ${CASBIN_ENABLED:-False}
 
   # ── Hermes Agent sidecar ──────────────────────────────────────────────
   # NousResearch Hermes Agent (https://github.com/NousResearch/hermes-agent, MIT)
@@ -333,6 +373,66 @@ services:
       retries: 10
       start_period: 30s
     # 不對外 publish 5432;mem0 sidecar 是唯一 client。
+
+  # ── Casdoor IAM sidecar (opt-in via --profile casdoor) ─────────────
+  # Casdoor (https://github.com/casdoor/casdoor, Apache-2.0) — UI-first IAM
+  # that owns users / organizations / applications / SSO providers. The RL
+  # backend stops issuing/validating its own password JWTs once Casdoor is
+  # the source of truth (see Phase 1–4 of the migration plan).
+  #
+  # Why opt-in (not default): the migration is staged. Step 1 brings the
+  # sidecar up alongside the legacy HS256 auth (dual-mode in decode_token),
+  # so users can still log in via /api/auth/login while we cut traffic over.
+  # Don't enable in production until Phase 3 shadow-mode has been green for
+  # at least 48h.
+  #
+  # Storage: shares the existing autotest-postgres container but uses its
+  # own database "casdoor"; casdoor-init creates it before casdoor boots.
+  # Listens on 8000 internally; APISIX route /casdoor/* + nginx reverse
+  # proxy expose it via the same http(s)://localhost entrypoint as the app.
+  casdoor-init:
+    image: postgres:16-alpine
+    profiles: ["casdoor"]
+    container_name: autotest-casdoor-init
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required - run docker compose --profile init run --rm bootstrap}
+    entrypoint: >
+      sh -c "psql -h postgres -U ${DB_USER:-admin} -d postgres -tc \"SELECT 1 FROM pg_database WHERE datname='casdoor'\" | grep -q 1
+      || psql -h postgres -U ${DB_USER:-admin} -d postgres -c 'CREATE DATABASE casdoor'"
+    restart: "no"
+
+  casdoor:
+    image: casbin/casdoor:v1.760.0
+    profiles: ["casdoor"]
+    container_name: autotest-casdoor
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      casdoor-init:
+        condition: service_completed_successfully
+    environment:
+      TZ: Asia/Taipei
+      # Casdoor's go-pg driver reads its DSN from the mounted app.conf;
+      # we still expose DB_USER/DB_PASSWORD here for envsubst-style configs
+      # (and so docker compose surfaces the missing-secret error early).
+      DB_USER: ${DB_USER:-admin}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required - run docker compose --profile init run --rm bootstrap}
+    volumes:
+      - ./casdoor/app.conf:/conf/app.conf:ro
+      - ./casdoor/init_data.json:/init_data.json:ro
+      - casdoor_data:/logs
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:8000/api/health 2>/dev/null | grep -q ok || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    # 不對外 publish 8000;backend/frontend 以 casdoor:8000 內網解析,瀏覽器
+    # 流量走 http(s)://localhost/casdoor/* → nginx → apisix → casdoor:8000。
 
   # ── openclaw sidecar (Phase 3 scaffold — opt-in via profile) ────────
   # OpenClaw (https://github.com/openclaw/openclaw, MIT) — 第二個 agent
@@ -550,6 +650,8 @@ services:
         # openclaw sidecar ↔ backend 獨立 secret(與 hermes / mem0 邊界分開)。
         # 即使沒啟用 `--profile openclaw` 也先生成,之後啟用就不用重灌 .env。
         OPENCLAW_SIDECAR=$$(openssl rand -hex 32)
+        # Casdoor webhook 共用 secret(Phase 6 才會用到;先生先有,不開啟也無副作用)。
+        CASDOOR_WEBHOOK=$$(openssl rand -hex 32)
         cat > /work/.env <<EOF
         # AutoTest deployment secrets (auto-generated by bootstrap service).
         # Do not commit. Rotate periodically.
@@ -567,6 +669,7 @@ services:
         MEM0_SIDECAR_AUTH_TOKEN=$$MEM0_SIDECAR
         MEM0_PG_PASSWORD=$$MEM0_PG
         OPENCLAW_SIDECAR_AUTH_TOKEN=$$OPENCLAW_SIDECAR
+        CASDOOR_WEBHOOK_TOKEN=$$CASDOOR_WEBHOOK
         EOF
         echo "[OK] .env created with random secrets"
     restart: "no"
@@ -580,6 +683,7 @@ volumes:
   hermes_data:
   mem0_pg_data:
   openclaw_data:
+  casdoor_data:
 
 # SeaweedFS S3 IAM 設定:從 .env 注入,docker compose 會在啟動時做變數替換。
 # 修改後須 docker compose down -v 並 up 才能重新生效(SeaweedFS 啟動時讀一次)。

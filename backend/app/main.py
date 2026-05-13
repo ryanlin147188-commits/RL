@@ -17,7 +17,9 @@ logging.basicConfig(
 
 from app.config import settings
 from app.database import init_db
-from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings, schedules, local_runner, test_rounds, project_settings, screenshot_baselines, system, defects, test_milestones, test_plans, requirements, test_data_sets, test_documents, wbs_items, settings as app_settings, todos, todo_links, auth, ai, hermes, audit_logs, organizations, oidc, notifications, mock_endpoints, db_configs, groups, test_versions, reviews, assignments, artifacts, entity_versions
+from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings, schedules, local_runner, test_rounds, project_settings, screenshot_baselines, system, defects, test_milestones, test_plans, requirements, test_data_sets, test_documents, wbs_items, settings as app_settings, todos, todo_links, auth, ai, hermes, audit_logs, organizations, notifications, mock_endpoints, db_configs, groups, test_versions, reviews, assignments, artifacts, entity_versions, casdoor_auth, casdoor_webhook
+# Phase 5.C:舊 OIDC router(``/api/auth/oidc/*``)已隨 Casdoor cutover 下架,
+# 同名 module 暫時保留以利 git history / 必要時 rollback,但不再 include 進 app。
 # 確保新增 model 在 init_db() 前已 import 註冊到 Base.metadata
 from app.models import (  # noqa: F401
     Defect, TestMilestone, TestPlan, Requirement, RequirementTestcaseLink,
@@ -398,6 +400,18 @@ async def lifespan(app: FastAPI):
         logging.getLogger(__name__).exception(
             "default admin bootstrap failed: %s", e,
         )
+    # Casbin enforcer(opt-in via CASBIN_ENABLED=True)— 進程內單例,首個
+    # request 進來前必須完成 init 否則 require_casbin 一律 deny。adapter 在
+    # init 時會 auto-create ``casbin_rule`` 表,與既有 schema 共存。
+    try:
+        from app.auth import casbin as _casbin
+
+        if _casbin.is_enabled():
+            await asyncio.to_thread(_casbin.init_enforcer)
+    except Exception:
+        logging.getLogger(__name__).exception(
+            "Casbin enforcer init failed; falling back to require_permission only"
+        )
     scheduler_task = asyncio.create_task(scheduler_loop())
     # Sprint 10.1 — MCP idle sweeper
     from app.routers.ai import _mcp_idle_sweeper_loop
@@ -452,6 +466,12 @@ async def lifespan(app: FastAPI):
                 await close_mem0_client()
             except Exception:
                 logging.getLogger(__name__).exception("close_mem0_client failed")
+            # 釋放 Casbin adapter 的 sync engine pool
+            try:
+                from app.auth import casbin as _casbin
+                _casbin.shutdown_enforcer()
+            except Exception:
+                logging.getLogger(__name__).exception("casbin shutdown_enforcer failed")
 
 
 # RFC-8: observability bootstrap. Each call no-ops when its env switch is unset
@@ -530,7 +550,8 @@ app.include_router(hermes.router,           prefix="/api", tags=["V · AI"])
 app.include_router(audit_logs.router,      prefix="/api", tags=["W · 審計"])
 app.include_router(organizations.router,   prefix="/api", tags=["X · 組織"])
 app.include_router(notifications.router,   prefix="/api", tags=["Y · 通知"])
-app.include_router(oidc.router,            prefix="/api")
+app.include_router(casdoor_auth.router,    prefix="/api")
+app.include_router(casdoor_webhook.router, prefix="/api")
 app.include_router(mock_endpoints.router,  prefix="/api", tags=["Z · Mock 端點"])
 app.include_router(db_configs.router,      prefix="/api", tags=["AA · DB 連線"])
 app.include_router(groups.router,          prefix="/api", tags=["S · 設定"])

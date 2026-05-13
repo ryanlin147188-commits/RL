@@ -6,7 +6,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
-from app.auth.permissions import require_permission
+from app.auth.permissions import require_casbin
 from app.auth.permissions_catalog import P
 from app.auth.scope import ensure_project_in_scope
 from app.database import get_db
@@ -41,7 +41,7 @@ async def _load_testcase_node(node_id: str, user: User, db: AsyncSession) -> Tre
 @router.get(
     "/testcases/{node_id}",
     response_model=TestcaseContentResponse,
-    dependencies=[Depends(require_permission(P.TESTCASE_READ))],
+    dependencies=[Depends(require_casbin(P.TESTCASE_READ))],
 )
 async def get_testcase(
     node_id: str,
@@ -69,7 +69,7 @@ async def get_testcase(
 @router.put(
     "/testcases/{node_id}",
     response_model=TestcaseContentResponse,
-    dependencies=[Depends(require_permission(P.TESTCASE_WRITE))],
+    dependencies=[Depends(require_casbin(P.TESTCASE_WRITE))],
 )
 async def update_testcase(
     node_id: str,
@@ -113,7 +113,7 @@ async def update_testcase(
 @router.post(
     "/testcases/{node_id}/import-json",
     response_model=TestcaseContentResponse,
-    dependencies=[Depends(require_permission(P.TESTCASE_WRITE))],
+    dependencies=[Depends(require_casbin(P.TESTCASE_WRITE))],
 )
 async def import_ddt_json(
     node_id: str,
@@ -177,7 +177,7 @@ class PreconditionListReplaceRequest(BaseModel):
 @router.get(
     "/testcases/{node_id}/preconditions",
     response_model=list[PreconditionLinkResponse],
-    dependencies=[Depends(require_permission(P.TESTCASE_READ))],
+    dependencies=[Depends(require_casbin(P.TESTCASE_READ))],
     tags=["B · 測試案例編輯"],
 )
 async def list_preconditions(
@@ -219,7 +219,7 @@ def _detect_precondition_cycle(
 @router.put(
     "/testcases/{node_id}/preconditions",
     response_model=list[PreconditionLinkResponse],
-    dependencies=[Depends(require_permission(P.TESTCASE_WRITE))],
+    dependencies=[Depends(require_casbin(P.TESTCASE_WRITE))],
     tags=["B · 測試案例編輯"],
 )
 async def replace_preconditions(
@@ -352,7 +352,7 @@ class EnvBindingListReplaceRequest(BaseModel):
 @router.get(
     "/testcases/{node_id}/env-bindings",
     response_model=list[EnvBindingResponse],
-    dependencies=[Depends(require_permission(P.TESTCASE_READ))],
+    dependencies=[Depends(require_casbin(P.TESTCASE_READ))],
     tags=["B · 測試案例編輯"],
 )
 async def list_env_bindings(
@@ -374,7 +374,7 @@ async def list_env_bindings(
 @router.put(
     "/testcases/{node_id}/env-bindings",
     response_model=list[EnvBindingResponse],
-    dependencies=[Depends(require_permission(P.TESTCASE_WRITE))],
+    dependencies=[Depends(require_casbin(P.TESTCASE_WRITE))],
     tags=["B · 測試案例編輯"],
 )
 async def replace_env_bindings(

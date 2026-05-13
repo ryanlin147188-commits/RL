@@ -12,7 +12,7 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
-from app.auth.permissions import require_permission
+from app.auth.permissions import require_casbin
 from app.auth.permissions_catalog import P
 from app.auth.project_membership import ensure_project_member
 from app.auth.scope import ensure_project_writable
@@ -71,7 +71,7 @@ def _validate(payload_dict: dict) -> None:
     response_model=list[DbConfigResponse],
     tags=["AA · DB 連線"],
     dependencies=[
-        Depends(require_permission(P.SETTINGS_READ)),
+        Depends(require_casbin(P.SETTINGS_READ)),
         Depends(ensure_project_member),
     ],
 )
@@ -94,7 +94,7 @@ async def list_db_configs(
     response_model=DbConfigResponse,
     status_code=201,
     tags=["AA · DB 連線"],
-    dependencies=[Depends(require_permission(P.SETTINGS_WRITE))],
+    dependencies=[Depends(require_casbin(P.SETTINGS_WRITE))],
 )
 async def create_db_config(
     payload: DbConfigCreate,
@@ -129,7 +129,7 @@ async def create_db_config(
     "/db-configs/{cfg_id}",
     response_model=DbConfigResponse,
     tags=["AA · DB 連線"],
-    dependencies=[Depends(require_permission(P.SETTINGS_READ))],
+    dependencies=[Depends(require_casbin(P.SETTINGS_READ))],
 )
 async def get_db_config(
     cfg_id: str,
@@ -146,7 +146,7 @@ async def get_db_config(
     "/db-configs/{cfg_id}",
     response_model=DbConfigResponse,
     tags=["AA · DB 連線"],
-    dependencies=[Depends(require_permission(P.SETTINGS_WRITE))],
+    dependencies=[Depends(require_casbin(P.SETTINGS_WRITE))],
 )
 async def update_db_config(
     cfg_id: str,
@@ -176,7 +176,7 @@ async def update_db_config(
     "/db-configs/{cfg_id}",
     status_code=204,
     tags=["AA · DB 連線"],
-    dependencies=[Depends(require_permission(P.SETTINGS_WRITE))],
+    dependencies=[Depends(require_casbin(P.SETTINGS_WRITE))],
 )
 async def delete_db_config(
     cfg_id: str,
