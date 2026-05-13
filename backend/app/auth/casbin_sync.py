@@ -242,5 +242,29 @@ def schedule_user_resync(username: str) -> None:
         loop = asyncio.get_running_loop()
         loop.create_task(_runner())
     except RuntimeError:
+        asyncio.run(_runner())
+
+
+def schedule_full_resync() -> None:
+    """fire-and-forget 觸發整個 ``rebuild_all_policies``。
+
+    用在 role CRUD(permissions_json / scope 變動會影響所有持有該 role 的使用者),
+    避免在 router 內手動列舉受影響 user。代價是整表 truncate-and-rewrite,
+    但小型部署(≤ #users × #projects 上限)成本是秒級,完全可接受。
+    """
+    import asyncio
+    from app.database import AsyncSessionLocal
+
+    async def _runner():
+        try:
+            async with AsyncSessionLocal() as session:
+                await rebuild_all_policies(session)
+        except Exception:
+            logger.exception("schedule_full_resync failed")
+
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(_runner())
+    except RuntimeError:
         # 沒有 running loop(例如 CLI / migration script 環境)→ 同步阻塞跑一次
         asyncio.run(_runner())

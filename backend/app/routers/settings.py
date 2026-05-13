@@ -342,6 +342,10 @@ async def update_role(
             setattr(r, k, v)
     await db.flush()
     await db.refresh(r)
+    # role.permissions_json / scope 改了會影響所有持有此 role 的 user 的
+    # Casbin g + p 規則 → 全表 truncate-and-rewrite
+    from app.auth.casbin_sync import schedule_full_resync
+    schedule_full_resync()
     return r
 
 
@@ -365,6 +369,8 @@ async def delete_role(
         raise HTTPException(400, "系統角色不可刪除")
     await db.delete(r)
     await db.flush()
+    from app.auth.casbin_sync import schedule_full_resync
+    schedule_full_resync()
 
 
 # ─── Tier B2:角色使用數(讓 admin 看清能否安全刪除 / 改權限) ─────────

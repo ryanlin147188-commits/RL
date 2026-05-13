@@ -404,6 +404,8 @@ async def add_project_member(
     )
     db.add(pm)
     await db.flush()
+    from app.auth.casbin_sync import schedule_user_resync
+    schedule_user_resync(target_username)
     return {"id": pm.id, "project_id": project_id, "username": target_username}
 
 
@@ -447,6 +449,7 @@ async def bulk_update_project_members(
 
     updated = 0
     skipped: list[dict] = []
+    touched: list[str] = []
     for u in usernames:
         u = (u or "").strip()
         if not u:
@@ -464,7 +467,11 @@ async def bulk_update_project_members(
         if has_status:
             pm.status = new_status
         updated += 1
+        touched.append(u)
     await db.flush()
+    from app.auth.casbin_sync import schedule_user_resync
+    for u in touched:
+        schedule_user_resync(u)
     return {"updated": updated, "skipped": skipped}
 
 
@@ -535,6 +542,7 @@ async def add_project_members_from_group(
 
     added = 0
     skipped: list[dict] = []
+    new_usernames: list[str] = []
     for u in sorted(usernames):
         if u in existing_pm:
             skipped.append({"username": u, "reason": "已是專案成員"}); continue
@@ -548,7 +556,11 @@ async def add_project_members_from_group(
             invited_by=user.username,
         ))
         added += 1
+        new_usernames.append(u)
     await db.flush()
+    from app.auth.casbin_sync import schedule_user_resync
+    for u in new_usernames:
+        schedule_user_resync(u)
     return {
         "added": added,
         "skipped": skipped,
@@ -591,6 +603,8 @@ async def update_project_member(
             raise HTTPException(400, "status 必須是 active / invited / disabled")
         pm.status = new_status
     await db.flush()
+    from app.auth.casbin_sync import schedule_user_resync
+    schedule_user_resync(username)
     return {"ok": True, "id": pm.id, "role_id": pm.role_id, "status": pm.status}
 
 
@@ -619,3 +633,5 @@ async def remove_project_member(
         raise HTTPException(400, "不可移除自己;請其他 admin 操作")
     await db.delete(pm)
     await db.flush()
+    from app.auth.casbin_sync import schedule_user_resync
+    schedule_user_resync(username)

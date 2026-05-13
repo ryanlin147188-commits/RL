@@ -588,6 +588,8 @@ async def create_user(
         ))
         await db.flush()
     await db.refresh(new_user)
+    from app.auth.casbin_sync import schedule_user_resync
+    schedule_user_resync(new_user.username)
     return new_user
 
 
@@ -630,6 +632,8 @@ async def admin_update_user(
         target.is_superuser = bool(payload.is_superuser)
     await db.flush()
     await db.refresh(target)
+    from app.auth.casbin_sync import schedule_user_resync
+    schedule_user_resync(target.username)
     return target
 
 
@@ -675,3 +679,5 @@ async def delete_user(
         raise HTTPException(404, "使用者不存在")
     await db.delete(target)
     await db.flush()
+    from app.auth.casbin_sync import schedule_user_resync
+    schedule_user_resync(username)
