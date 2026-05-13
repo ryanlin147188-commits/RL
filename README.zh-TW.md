@@ -28,6 +28,38 @@
 
 ---
 
+## 🔥 v1.1.4 — Zoho OIDC 登入(透過 Casdoor)
+
+- 登入頁多了一顆橘色「**使用 Zoho 登入**」捷徑按鈕(放在「使用 Casdoor 登入」下方)。一鍵打到 `/api/auth/casdoor/login?provider=zoho-corp` → Casdoor 略過自家登入頁 → 直接 302 到 accounts.zoho.com → 回應用 SPA,中間不用在 Casdoor 頁面多點一次
+- `GET /api/auth/casdoor/login` 新增 `provider=<name>` query 參數,傳給 Casdoor authorize URL。Casdoor 版本不支援此參數時自動退化為「跳到 Casdoor 登入頁,使用者在頁面上點 Zoho 按鈕」— 功能仍可用
+- backend JIT 邏輯**完全不動** — Casdoor 把 Zoho 身分統一進自己的 user row,我們收到的 JWT `sub` 永遠是 Casdoor UUID 不是 Zoho 的 sub。既有 `provision_user_from_casdoor_claims` 用 `casdoor_user_id` 做 stable dedup,Zoho-origin / 本地原生使用者一視同仁
+
+### 啟用 Zoho 登入(operator runbook,約 15 分鐘)
+
+```bash
+# 1. https://api-console.zoho.com → Add Client → Server-based Applications
+#    Authorized Redirect URI: http://<your-host>:8001/callback
+# 2. 抄出 Client ID + Client Secret(只顯示一次)
+
+# 3. 進 Casdoor admin UI (http://<host>:8001/providers) → Add 新 provider
+#    Name: zoho-corp · Category: OAuth · Type: Custom · Sub type: OAuth
+#    Auth URL:     https://accounts.zoho.com/oauth/v2/auth
+#    Token URL:    https://accounts.zoho.com/oauth/v2/token
+#    UserInfo URL: https://accounts.zoho.com/oauth/user/info
+#    Scopes:       AaaServer.profile.READ email openid
+#    User mapping: id=ZUID, displayName=Display_Name, email=Email
+
+# 4. 掛 provider 到 application:
+docker compose exec postgres psql -U admin -d casdoor -c \
+  "UPDATE application SET providers='[{\"name\":\"zoho-corp\",\"canSignUp\":true,\"canSignIn\":true,\"canUnlink\":true,\"prompted\":false,\"rule\":\"None\",\"signupGroup\":\"\"}]'::jsonb WHERE name='app-built-in';"
+
+# 5. 重整 SPA 登入頁 — 橘色「使用 Zoho 登入」按鈕出現
+```
+
+> **預設不限制 email domain**,任何 Zoho 帳號都可以 JIT 進來。本地預設角色是 `Project-Viewer`(只讀),且沒有 `project_members` row 的人什麼專案都看不到。要更嚴格時在 Casdoor provider 的 `emailRegex` 設成 `^.+@<your-domain>$` 即可。
+
+---
+
 ## 🔥 v1.1.3 — Casdoor + Casbin IAM 切換
 
 ### 🔐 SSO / 身分:Casdoor 接管帳號管理

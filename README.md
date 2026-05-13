@@ -28,6 +28,52 @@
 
 ---
 
+## 🔥 v1.1.4 — Zoho OIDC login via Casdoor
+
+- New "**使用 Zoho 登入**" shortcut button on the SPA login overlay (orange,
+  below the "使用 Casdoor 登入" button). One click → `/api/auth/casdoor/login?provider=zoho-corp`
+  → Casdoor → Zoho Accounts → back to your `/api/auth/callback`, no extra
+  click on Casdoor's login page.
+- `GET /api/auth/casdoor/login` now accepts `provider=<name>` query — passed
+  through to Casdoor's authorize URL so Casdoor can skip its own login form
+  and 302 straight to the upstream IdP. Versions of Casdoor that don't honor
+  the param degrade gracefully (Casdoor login page just shows the Zoho
+  button instead).
+- Backend JIT provisioning unchanged — Casdoor unifies the Zoho identity
+  into a Casdoor user row, so the JWT we receive always has `sub = <Casdoor uuid>`,
+  not Zoho's raw `sub`. `provision_user_from_casdoor_claims` already
+  treats `casdoor_user_id` as the stable key for dedup.
+
+### Activating Zoho login (operator runbook, ~15 min)
+
+```bash
+# 1. https://api-console.zoho.com → Add Client → Server-based Applications
+#    Authorized Redirect URI: http://<your-host>:8001/callback
+# 2. Copy the Client ID + Client Secret out (shown once).
+
+# 3. Add as a Casdoor Provider via Casdoor admin UI (http://<host>:8001/providers)
+#    Name: zoho-corp · Category: OAuth · Type: Custom · Sub type: OAuth
+#    Auth URL:     https://accounts.zoho.com/oauth/v2/auth
+#    Token URL:    https://accounts.zoho.com/oauth/v2/token
+#    UserInfo URL: https://accounts.zoho.com/oauth/user/info
+#    Scopes:       AaaServer.profile.READ email openid
+#    User mapping: id=ZUID, displayName=Display_Name, email=Email
+
+# 4. Attach the provider to the application:
+docker compose exec postgres psql -U admin -d casdoor -c \
+  "UPDATE application SET providers='[{\"name\":\"zoho-corp\",\"canSignUp\":true,\"canSignIn\":true,\"canUnlink\":true,\"prompted\":false,\"rule\":\"None\",\"signupGroup\":\"\"}]'::jsonb WHERE name='app-built-in';"
+
+# 5. Refresh the SPA login page — the orange "使用 Zoho 登入" button is live.
+```
+
+> **No email-domain restriction** is enforced by default — any Zoho account
+> can JIT in. The local default role is `Project-Viewer` (read-only),
+> and with no `project_members` row the user can't see any project. Add
+> domain restriction in the Casdoor provider's `emailRegex` if you need
+> tighter gating.
+
+---
+
 ## 🔥 v1.1.3 — Casdoor + Casbin IAM cutover
 
 ### 🔐 SSO / Identity — Casdoor takes over

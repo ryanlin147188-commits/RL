@@ -112,7 +112,12 @@ def decode_casdoor_jwt(token: str) -> dict[str, Any]:
 
 # ── OAuth2 / OIDC client-side helpers ──────────────────────────────────
 
-def build_authorize_url(redirect_uri: str, state: str, scope: str = "openid profile email") -> str:
+def build_authorize_url(
+    redirect_uri: str,
+    state: str,
+    scope: str = "openid profile email",
+    provider: Optional[str] = None,
+) -> str:
     """組 Casdoor 的 authorize URL,給 /api/auth/casdoor/login 302 redirect 用。
 
     這個 URL 是 **browser 會被 302 過去** 的位置,必須使用 ``CASDOOR_PUBLIC_ENDPOINT``
@@ -121,6 +126,11 @@ def build_authorize_url(redirect_uri: str, state: str, scope: str = "openid prof
 
     Casdoor 的 OIDC authorize endpoint 是 ``/login/oauth/authorize``(不是
     well-known 的 ``/authorize``)。寫死路徑可以省一次 discovery 拉取。
+
+    ``provider`` 帶入時(例如 ``zoho-corp``),Casdoor 會略過自家的登入頁
+    直接 302 到該 upstream provider 的 authorize endpoint。版本不支援時
+    Casdoor 會忽略此參數並退回正常登入頁,使用者在頁面上點 provider 按鈕
+    仍然可走完整 OAuth。
     """
     params = {
         "response_type": "code",
@@ -129,6 +139,8 @@ def build_authorize_url(redirect_uri: str, state: str, scope: str = "openid prof
         "scope": scope,
         "state": state,
     }
+    if provider:
+        params["provider"] = provider
     return f"{CASDOOR_PUBLIC_ENDPOINT}/login/oauth/authorize?{urlencode(params)}"
 
 

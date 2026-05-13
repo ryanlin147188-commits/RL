@@ -126,17 +126,25 @@ async def oidc_providers_compat() -> list:
 async def casdoor_login(
     request: Request,
     redirect_to: str = Query("/", description="登入完成後 SPA 跳到的路徑"),
+    provider: Optional[str] = Query(
+        None,
+        description=(
+            "Casdoor provider 名稱(例:zoho-corp);帶入後 Casdoor 會略過自家"
+            "登入頁直接 302 到該 upstream IdP。空值 → 顯示 Casdoor 預設登入頁。"
+        ),
+    ),
 ):
     """302 redirect 到 Casdoor 的 OAuth2 authorize endpoint。
 
     SPA 端只要 ``window.location = '/api/auth/casdoor/login'`` 即可,不需要
-    自己組 client_id / state。
+    自己組 client_id / state。需要直接走 Zoho / Google 等第三方時帶
+    ``?provider=<casdoor-provider-name>``。
     """
     if not _casdoor.is_enabled():
         raise HTTPException(503, "Casdoor 登入未啟用(CASDOOR_ENABLED=False)")
     state = _casdoor.make_state()
     redirect_uri = _redirect_uri(request)
-    authorize_url = _casdoor.build_authorize_url(redirect_uri, state)
+    authorize_url = _casdoor.build_authorize_url(redirect_uri, state, provider=provider)
     resp = RedirectResponse(authorize_url, status_code=302)
     resp.set_cookie(
         _STATE_COOKIE_NAME,

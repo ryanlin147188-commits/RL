@@ -57,6 +57,25 @@ When running AutoTest in production, please ensure:
 - Container images are pinned to specific versions / digests rather than `latest`.
 - Backups of the PostgreSQL volume and SeaweedFS volume are scheduled.
 
+### v1.1.4 — Zoho OIDC provider specific hardening
+
+- **Treat `ZOHO_CLIENT_SECRET` like any other secret** — store only in the
+  Casdoor `provider` table (encrypted at rest if `provider.cert` is set on
+  the provider row), never check into git. Rotate periodically; Zoho doesn't
+  auto-rotate.
+- **Without an email-domain restriction**, any Zoho account can JIT-create a
+  local user row. Document and verify the default-role fallback:
+  - New users land with `users.role_id = NULL` and zero `project_members` rows
+  - They can read `/api/auth/me` but every project-scoped endpoint denies them
+  - Promote an explicit `emailRegex` (e.g., `^.+@kapito\.io$`) on the
+    `zoho-corp` provider row if a tighter gate is needed
+- **The Zoho `provider` row's `client_secret` is sent to Casdoor over HTTP
+  inside the docker network** — keep the compose network private; do not
+  expose Casdoor port 8001 outside trusted LAN without HTTPS in front.
+- **Casdoor `app-built-in` is a shared multi-tenant default** — for prod
+  multi-tenant deploys consider per-org applications so leaking one tenant's
+  Zoho secret doesn't compromise others.
+
 ### v1.1.3 — Casdoor IAM specific hardening
 
 - **Pin Casdoor image** — `docker-compose.yml` defaults to `casbin/casdoor:latest` for LAN convenience. Pin a tested tag (`casbin/casdoor:v<x>.<y>.<z>`) before promoting to production.

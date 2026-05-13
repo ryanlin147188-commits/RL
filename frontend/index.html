@@ -712,13 +712,22 @@
             <div id="casdoorBlock" class="hidden px-8 py-4">
                 <div class="flex items-center gap-3 my-3">
                     <span class="flex-1 h-px bg-stone-200"></span>
-                    <span class="text-[10px] text-stone-400 uppercase tracking-wider">Casdoor</span>
+                    <span class="text-[10px] text-stone-400 uppercase tracking-wider">SSO</span>
                     <span class="flex-1 h-px bg-stone-200"></span>
                 </div>
                 <button type="button" onclick="casdoorStartLogin()"
                     class="w-full py-2.5 border border-stone-300 hover:border-amber-400 hover:bg-amber-50/40 text-stone-700 rounded-lg font-semibold text-sm transition flex items-center justify-center gap-2">
                     <i class="fa-solid fa-shield-halved text-amber-500"></i>
                     <span>使用 Casdoor 登入</span>
+                </button>
+                <!-- v1.1.4: Zoho OIDC 捷徑。Casdoor 端配好 ``zoho-corp`` provider 後此
+                     按鈕一鍵跳 Casdoor authorize URL 帶 ``provider=zoho-corp``,Casdoor
+                     會略過自家登入頁直接 302 到 accounts.zoho.com 的 OAuth。版本不支援
+                     此參數時退化為「跳到 Casdoor 登入頁,使用者再點 Zoho」,功能仍可用。 -->
+                <button type="button" onclick="casdoorStartLogin('zoho-corp')"
+                    class="w-full mt-2 py-2.5 border border-stone-300 hover:border-orange-400 hover:bg-orange-50/40 text-stone-700 rounded-lg font-semibold text-sm transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-circle-user text-orange-500"></i>
+                    <span>使用 Zoho 登入</span>
                 </button>
             </div>
 
@@ -10843,10 +10852,13 @@ driver.swipe(100, 800, 100, 200, 500)"
         //
         // 不存任何 token 在 localStorage — cookie 才是 source of truth。但仍
         // 寫 session display state,讓 ``updateUserMenuUI`` 等舊邏輯能繼續用。
-        function casdoorStartLogin() {
+        function casdoorStartLogin(provider) {
             // 把當前 URL 當 redirect_to,使用者登入完回到原本想開的頁面。
+            // ``provider`` 帶入時(例:``zoho-corp``),backend 會把它放進 Casdoor
+            // authorize URL,Casdoor 略過自家登入頁直接跳該 IdP。
             const back = encodeURIComponent(location.pathname + location.search);
-            location.href = `/api/auth/casdoor/login?redirect_to=${back}`;
+            const providerParam = provider ? `&provider=${encodeURIComponent(provider)}` : '';
+            location.href = `/api/auth/casdoor/login?redirect_to=${back}${providerParam}`;
         }
         async function _maybeHydrateCasdoorSession() {
             if (!/(^|&)casdoor_login=1(&|$)/.test((location.hash || '').replace(/^#/, ''))) {
