@@ -174,7 +174,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             return JSONResponse({"detail": "Token 已撤銷,請重新登入"}, status_code=401)
 
         request.state.user_payload = payload
-        snap = _payload_to_context(payload)
+        snap = _payload_to_context(payload, request)
         try:
             return await call_next(request)
         finally:
