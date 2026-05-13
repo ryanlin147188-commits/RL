@@ -328,8 +328,16 @@ def run_tests(
                 )
 
             # DDT 多列：用 step_index = round*1000 + local_idx 編碼,每個 source
-            # testcase 內 local_idx 從 0 重新算
+            # testcase 內 local_idx 從 0 重新算。
+            # 同時用 Python-side `created_at` 嚴格遞增(微秒級),確保 backend
+            # ORDER BY (created_at, step_index) 可以正確還原「執行順序」:
+            # setup steps 整段在前、main 在後,case 內按 step_index 排。
+            # 若用 server_default NOW(),Postgres NOW() 是 transaction-scoped,
+            # 整批 commit 拿到同一個 timestamp,排序就會等同 step_index 失效。
+            from datetime import datetime, timedelta
             with SessionLocal() as db:
+                _ts_base = datetime.utcnow()
+                _ts_counter = 0
                 for round_idx, round_res in enumerate(round_results):
                     # 找出本輪「main 第一個被寫入 DB 的 step」以掛 case 級 trace/video
                     main_first_persisted_idx: Optional[int] = None
@@ -355,6 +363,7 @@ def run_tests(
                                 report_id=report_id,
                                 testcase_node_id=owner_tc,
                                 step_index=round_idx * 1000 + local_idx,
+                                created_at=_ts_base + timedelta(microseconds=_ts_counter * 1000),
                                 status=StepStatus(sr.status),
                                 duration_ms=sr.duration_ms,
                                 error_message=sr.error_message,
@@ -371,6 +380,7 @@ def run_tests(
                                 screenshot_diff_pct=sr.screenshot_diff_pct,
                             )
                         )
+                        _ts_counter += 1
                 db.commit()
 
         # ── 更新 execution_reports 最終狀態 ──────────────────────
