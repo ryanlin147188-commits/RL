@@ -17,19 +17,16 @@ logging.basicConfig(
 
 from app.config import settings
 from app.database import init_db
-from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings, schedules, local_runner, test_rounds, project_settings, screenshot_baselines, system, defects, test_milestones, test_plans, requirements, test_data_sets, test_documents, wbs_items, settings as app_settings, todos, todo_links, auth, ai, hermes, audit_logs, organizations, notifications, mock_endpoints, groups, test_versions, reviews, assignments, artifacts, entity_versions, oidc_auth, project_role_permissions
+from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings, schedules, local_runner, test_rounds, project_settings, screenshot_baselines, system, defects, test_milestones, test_plans, requirements, test_data_sets, test_documents, wbs_items, settings as app_settings, todos, todo_links, auth, audit_logs, organizations, notifications, mock_endpoints, groups, test_versions, reviews, assignments, artifacts, entity_versions, oidc_auth, project_role_permissions
 # v1.1.5:Casdoor sidecar 下架,OIDC 改 in-process(authlib + Zoho),由
 # ``oidc_auth`` router 承接。舊的 ``oidc`` / ``casdoor_*`` 模組已刪除。
 # 確保新增 model 在 init_db() 前已 import 註冊到 Base.metadata
 from app.models import (  # noqa: F401
     Defect, TestMilestone, TestPlan, Requirement, RequirementTestcaseLink,
     TestDataSet, TestDocument, WbsItem,
-    Role, NotificationPreference, Notification, EmailConfig, AiTokenConfig, TodoItem, TodoLink, User,
+    Role, NotificationPreference, Notification, EmailConfig, TodoItem, TodoLink, User,
     Organization, AuditLog, OidcProvider,
     MockEndpoint,
-    HermesSessionRef,
-    HermesGatewayCredential,
-    HermesMemoryConsent,
     Group, GroupMembership,
     OrgInvite,
     TestVersion,
@@ -425,65 +422,19 @@ async def lifespan(app: FastAPI):
             "user_id dual-write listener registration failed"
         )
     scheduler_task = asyncio.create_task(scheduler_loop())
-    # Sprint 10.1 — MCP idle sweeper
-    from app.routers.ai import _mcp_idle_sweeper_loop
-    mcp_sweeper_task = asyncio.create_task(_mcp_idle_sweeper_loop())
-    # mem0 PR3:fire-and-forget post-hook task tracker(避免 GC 砍未完成 task)
-    app.state.background_tasks = set()
-    # Platform MCP server:FastMCP streamable_http_app() 要求 session_manager 必須在
-    # ASGI lifespan 內 enter,否則第一次 request 會炸 "Task group is not initialized"
-    # (mcp 1.27.x 行為,同 mem0_proxy.py 的設計)。AsyncExitStack 用來統一管理
-    # 「啟動時 enter / 結束時 exit」,失敗 fallback 到舊行為(等同 mem0/hermes 沒掛)。
-    from contextlib import AsyncExitStack
-    async with AsyncExitStack() as _stack:
+    try:
+        yield
+    finally:
+        scheduler_task.cancel()
         try:
-            from app.routers.platform_mcp import get_mcp_server
-            _platform_mcp = get_mcp_server()
-            if _platform_mcp is not None:
-                await _stack.enter_async_context(_platform_mcp.session_manager.run())
-                logging.getLogger(__name__).info("Platform MCP session_manager started")
+            await scheduler_task
+        except (asyncio.CancelledError, Exception):
+            pass
+        try:
+            from app.auth import casbin as _casbin
+            _casbin.shutdown_enforcer()
         except Exception:
-            logging.getLogger(__name__).exception(
-                "Platform MCP session_manager failed to start"
-            )
-        try:
-            yield
-        finally:
-            # Shutdown:停掉所有背景 task
-            for t in (scheduler_task, mcp_sweeper_task):
-                t.cancel()
-                try:
-                    await t
-                except (asyncio.CancelledError, Exception):
-                    pass
-            # Drain mem0 fire-and-forget tasks(10s 上限;讓正在跑的 add 寫完才結束)
-            pending = list(app.state.background_tasks)
-            if pending:
-                logging.getLogger(__name__).info(
-                    "draining %d mem0 background tasks (10s timeout)", len(pending),
-                )
-                try:
-                    await asyncio.wait(pending, timeout=10)
-                except Exception:
-                    logging.getLogger(__name__).exception("drain background tasks error")
-            # 關掉 Hermes sidecar 的 httpx 連線池(singleton in services/hermes_client.py)
-            try:
-                from app.services.hermes_client import close_hermes_client
-                await close_hermes_client()
-            except Exception:
-                logging.getLogger(__name__).exception("close_hermes_client failed")
-            # 關掉 mem0 sidecar 的 httpx 連線池
-            try:
-                from app.services.mem0_client import close_mem0_client
-                await close_mem0_client()
-            except Exception:
-                logging.getLogger(__name__).exception("close_mem0_client failed")
-            # 釋放 Casbin adapter 的 sync engine pool
-            try:
-                from app.auth import casbin as _casbin
-                _casbin.shutdown_enforcer()
-            except Exception:
-                logging.getLogger(__name__).exception("casbin shutdown_enforcer failed")
+            logging.getLogger(__name__).exception("casbin shutdown_enforcer failed")
 
 
 # RFC-8: observability bootstrap. Each call no-ops when its env switch is unset
@@ -557,8 +508,6 @@ app.include_router(app_settings.router,    prefix="/api", tags=["S · 設定"])
 app.include_router(todos.router,           prefix="/api", tags=["T · 待辦"])
 app.include_router(todo_links.router,      prefix="/api", tags=["T · 待辦"])
 app.include_router(auth.router,            prefix="/api", tags=["U · 認證"])
-app.include_router(ai.router,              prefix="/api", tags=["V · AI"])
-app.include_router(hermes.router,           prefix="/api", tags=["V · AI"])
 app.include_router(audit_logs.router,      prefix="/api", tags=["W · 審計"])
 app.include_router(organizations.router,   prefix="/api", tags=["X · 組織"])
 app.include_router(notifications.router,   prefix="/api", tags=["Y · 通知"])
@@ -570,13 +519,6 @@ app.include_router(test_versions.router,   prefix="/api", tags=["TV · 測試版
 app.include_router(reviews.router,         prefix="/api", tags=["AB · 審核"])
 app.include_router(entity_versions.router, prefix="/api", tags=["AC · 版本歷史"])
 app.include_router(assignments.router,     prefix="/api", tags=["AC · 指派"])
-
-# ── Platform MCP server(讓 Hermes ACP LLM 透過 streamable HTTP 呼叫平台 API)──
-# 掛在 /platform-mcp/mcp(裡層 FastMCP 自己又補一層 /mcp);只接受帶 X-Sidecar-Auth
-# + X-Platform-User 的請求。失敗時 mount_platform_mcp 不會 raise(只 log + 跳過),
-# 確保 backend 啟動不被這個 optional feature 卡住。
-from app.routers.platform_mcp import mount_platform_mcp  # noqa: E402
-mount_platform_mcp(app)
 
 
 @app.get("/", tags=["Health"])

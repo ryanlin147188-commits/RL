@@ -991,60 +991,6 @@ def _parse_script(script: str) -> list[GeneratedStep]:
     return steps
 
 
-class AiEnhanceRequest(BaseModel):
-    """Sprint 3.1 / 5.1 — AI 增強現有解析 step 陣列(可選 vision)。"""
-    current_steps: list[dict] = []
-    provider: Optional[str] = None
-    # Sprint 5.1 — 是否從 trace.zip 抽 screenshot 餵 vision LLM
-    # 限 GPT-4o / Claude 3.5 Sonnet / Gemini Pro 等支援 vision 的模型
-    use_vision: bool = False
-
-
-class AiEnhanceResponse(BaseModel):
-    provider: str
-    model: str
-    original_count: int
-    enhanced_count: int
-    enhanced_steps: list[dict] = []
-    vision_used: bool = False
-    screenshot_count: int = 0
-    raw: Optional[str] = None
-    error: Optional[str] = None
-
-
-@router.post(
-    "/recordings/{session_id}/ai-enhance",
-    response_model=AiEnhanceResponse,
-    tags=["E · 錄製"],
-)
-async def ai_enhance_recording(
-    session_id: str,
-    payload: AiEnhanceRequest,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Sprint 3.1 — 把錄製腳本 + 已解析 step 餵 LLM,回增強版 step 陣列。
-    一律走 preview,不直接改 session;前端呈現 diff 後使用者再決定接受/拒絕。
-    """
-    from app.services.ai_test_gen import enhance_steps_with_ai
-    session = await _load_session_or_404(db, session_id, user)
-    if not (session.script_text or "").strip() and not payload.current_steps:
-        raise HTTPException(409, "session 沒有 script_text 也沒給 current_steps,無法增強")
-    try:
-        result = await enhance_steps_with_ai(
-            db,
-            script_text=session.script_text or "",
-            current_steps=payload.current_steps or [],
-            provider=payload.provider,
-            use_vision=payload.use_vision,
-            trace_path=session.trace_path,
-        )
-    except RuntimeError as e:
-        raise HTTPException(400, str(e))
-    except Exception as e:
-        raise HTTPException(502, f"AI 增強失敗:{e}")
-    return result
-
 
 @router.post(
     "/recordings/{session_id}/convert",

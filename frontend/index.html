@@ -3105,7 +3105,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                         <button id="setTabUser"     onclick="settingsSwitchTab('user')"     class="px-3 py-1.5 text-sm font-medium rounded text-amber-700 bg-amber-50 border border-amber-300"><i class="fa-solid fa-user-circle"></i> <span data-i18n="settings.tab.user">設定</span></button>
                         <button id="setTabNotif"    onclick="settingsSwitchTab('notif')"    class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-bell"></i> <span data-i18n="settings.tab.notif">通知設定</span></button>
                         <button id="setTabEmail"    onclick="settingsSwitchTab('email')"    class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-envelope"></i> <span data-i18n="settings.tab.email">電子郵件</span></button>
-                        <button id="setTabAi"       onclick="settingsSwitchTab('ai')"       class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-robot"></i> <span data-i18n="settings.tab.ai">AI Token</span></button>
                         <button id="setTabProjectMembers" onclick="settingsSwitchTab('projectMembers')" class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-users-gear"></i> <span data-i18n="settings.tab.projectmembers">專案協作成員</span></button>
                     </div>
 
@@ -3407,87 +3406,6 @@ driver.swipe(100, 800, 100, 200, 500)"
 
                     <!-- ─── Pane 8: 邀請 + Email Domain 自動歸屬 ─── -->
 
-                    <!-- ─── Pane 6: AI Token ─── -->
-                    <div id="setPaneAi" class="hidden space-y-4">
-                        <!-- Phase 1: Agent Runtime picker (token-capability gated) -->
-                        <section class="bg-white rounded-xl border border-indigo-100 shadow-sm p-4">
-                            <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
-                                <h3 class="font-bold text-stone-700 text-base flex items-center gap-2"><i class="fa-solid fa-shuffle text-indigo-500"></i> 預設 AI Agent</h3>
-                                <span id="agentEffectiveBadge" class="text-[10px] px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-normal hidden">目前生效:<span id="agentEffectiveKey">-</span></span>
-                            </div>
-                            <p class="text-xs text-stone-500 mb-3">選你慣用的 agent runtime;下拉選項會依「現有 token 能力」自動 enable/disable。選「自動」由系統依 token 挑第一個能跑的。</p>
-                            <div class="flex items-center gap-3 flex-wrap">
-                                <select id="preferredAgentSelect" onchange="savePreferredAgent()" class="px-3 py-2 border border-stone-300 rounded-md text-sm bg-white min-w-[220px]">
-                                    <option value="">自動(系統依 token 挑)</option>
-                                </select>
-                                <span id="agentReasonText" class="text-xs text-stone-500"></span>
-                            </div>
-                        </section>
-
-                        <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-4">
-                            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
-                                <h3 class="font-bold text-stone-700 text-base flex items-center gap-2"><i class="fa-solid fa-robot text-amber-500"></i> AI Token 管理</h3>
-                                <div class="flex items-center gap-2">
-                                    <button onclick="renderAiTokensList()" class="text-xs px-2.5 py-1.5 border border-stone-300 rounded hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
-                                    <button onclick="openAiTokenModal()" class="text-xs px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold"><i class="fa-solid fa-plus"></i> 新增 Token</button>
-                                </div>
-                            </div>
-                            <p class="text-xs text-stone-500 mb-3">選 <b>AI 公司</b>(GPT / Claude / Gemini / 本地)+ <b>API key</b>,按「拉模型清單」即可選用該公司提供的模型。同 provider 內可多個 Token,但只能一個是預設。</p>
-                            <div class="overflow-hidden border border-stone-100 rounded-md">
-                                <table class="w-full text-sm">
-                                    <thead class="bg-amber-50/60 text-stone-600 text-xs uppercase">
-                                        <tr><th class="p-3 text-left w-28">公司</th><th class="p-3 text-left">名稱 / 模型</th><th class="p-3 text-left w-28">思考程度</th><th class="p-3 w-20 text-center">啟用</th><th class="p-3 w-20 text-center">預設</th><th class="p-3 w-28 text-center">操作</th></tr>
-                                    </thead>
-                                    <tbody id="aiTokensListBody" class="divide-y divide-stone-100"></tbody>
-                                </table>
-                            </div>
-                        </section>
-
-                        <!-- Sprint 6 — MCP 測試面板(實驗性) -->
-                        <section class="bg-white rounded-xl border border-fuchsia-100 shadow-sm p-4">
-                            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
-                                <h3 class="font-bold text-stone-700 text-base flex items-center gap-2"><i class="fa-solid fa-flask text-fuchsia-500"></i> MCP(Playwright)<span class="text-[10px] px-1.5 py-0.5 rounded bg-fuchsia-100 text-fuchsia-700 font-normal">PoC</span></h3>
-                                <div class="flex items-center gap-2">
-                                    <span id="mcpStatusBadge" class="text-xs px-2 py-0.5 rounded bg-stone-100 text-stone-500">未啟動</span>
-                                    <button onclick="mcpTestStart()" id="mcpStartBtn" class="text-xs px-2.5 py-1.5 bg-fuchsia-500 hover:bg-fuchsia-600 text-white rounded font-semibold"><i class="fa-solid fa-play"></i> 啟動</button>
-                                    <button onclick="mcpTestStop()" id="mcpStopBtn" class="hidden text-xs px-2.5 py-1.5 bg-stone-500 hover:bg-stone-600 text-white rounded font-semibold"><i class="fa-solid fa-stop"></i> 停止</button>
-                                </div>
-                            </div>
-                            <p class="text-xs text-stone-500 mb-3">啟動 Playwright MCP server(容器內 chromium)。可用來驗證 PoC 整合;後續 Sprint 會做完整 LLM tool calling loop。第一次啟動若 image 不存在會自動 build(約 2-5 分鐘)。</p>
-                            <!-- Image build 進度 -->
-                            <div id="mcpImgBuildBox" class="hidden mb-3 border border-amber-200 bg-amber-50/40 rounded p-3">
-                                <div class="flex items-center justify-between mb-1">
-                                    <span class="text-xs font-semibold text-amber-700"><i class="fa-solid fa-hammer fa-spin"></i> 正在 build MCP image</span>
-                                    <span id="mcpImgBuildBadge" class="text-[10px] px-2 py-0.5 rounded bg-amber-200 text-amber-800">準備中…</span>
-                                </div>
-                                <div id="mcpImgBuildLog" class="text-[10px] font-mono text-stone-700 bg-white border border-stone-200 rounded p-2 max-h-40 overflow-y-auto whitespace-pre-wrap">等待 log…</div>
-                            </div>
-                            <!-- Tools list -->
-                            <div id="mcpToolsBox" class="hidden mb-3 border border-fuchsia-200 rounded p-3 bg-fuchsia-50/30">
-                                <div class="flex items-center justify-between mb-2">
-                                    <span class="text-xs font-semibold text-fuchsia-700"><i class="fa-solid fa-list"></i> 可用 tools</span>
-                                    <button onclick="mcpTestTools()" class="text-[10px] px-2 py-0.5 border border-fuchsia-300 text-fuchsia-700 rounded hover:bg-fuchsia-100"><i class="fa-solid fa-rotate"></i> 重新整理</button>
-                                </div>
-                                <div id="mcpToolsList" class="text-xs space-y-1 max-h-60 overflow-y-auto"></div>
-                            </div>
-                            <!-- Try tool call -->
-                            <div id="mcpTryCallBox" class="hidden border border-stone-200 rounded p-3 bg-stone-50/40">
-                                <div class="text-xs font-semibold text-stone-700 mb-2"><i class="fa-solid fa-vial"></i> 試 call tool</div>
-                                <div class="grid grid-cols-2 gap-2 mb-2">
-                                    <div>
-                                        <label for="mcpTryToolName" class="block text-[10px] text-stone-500 mb-1">Tool 名稱</label>
-                                        <input id="mcpTryToolName" type="text" placeholder="例:browser_navigate" class="w-full px-2 py-1 border border-stone-300 rounded text-xs font-mono">
-                                    </div>
-                                    <div>
-                                        <label for="mcpTryArgs" class="block text-[10px] text-stone-500 mb-1">Arguments(JSON)</label>
-                                        <input id="mcpTryArgs" type="text" placeholder='{"url": "https://example.com"}' class="w-full px-2 py-1 border border-stone-300 rounded text-xs font-mono">
-                                    </div>
-                                </div>
-                                <button onclick="mcpTestCall()" class="text-xs px-3 py-1 bg-fuchsia-600 hover:bg-fuchsia-700 text-white rounded font-medium"><i class="fa-solid fa-paper-plane"></i> Call</button>
-                                <pre id="mcpCallResult" class="hidden mt-2 text-[10px] bg-white border border-stone-200 rounded p-2 max-h-48 overflow-auto"></pre>
-                            </div>
-                        </section>
-                    </div>
                 </div>  <!-- /max-w-5xl mx-auto -->
             </div>  <!-- /userSettingsWorkspace -->
 
@@ -3508,62 +3426,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                             <div id="rolePermsBox" class="border border-stone-200 rounded p-3 max-h-[55vh] overflow-y-auto bg-stone-50/40 space-y-3"></div>
                         </div>
                         <div class="flex justify-end gap-2 pt-2"><button type="button" onclick="closeRoleModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button><button type="submit" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button></div>
-                    </form>
-                </div>
-            </div>
-
-            <!-- AI Token Modal -->
-            <div id="aiTokenModal" class="hidden fixed inset-0 z-[150] bg-black/40 flex items-center justify-center p-4">
-                <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl border border-amber-200 max-h-[92vh] overflow-y-auto">
-                    <div class="px-6 py-4 border-b border-stone-200 bg-amber-50/60 flex items-center justify-between">
-                        <h3 id="aiTokenModalTitle" class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-robot text-amber-500"></i> 新增 AI Token</h3>
-                        <button type="button" onclick="closeAiTokenModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
-                    </div>
-                    <form onsubmit="return aiTokenSubmit(event)" class="p-6 space-y-3">
-                        <div class="grid grid-cols-2 gap-3">
-                            <div><label for="aiTokName" class="block text-xs font-semibold text-stone-600 mb-1">名稱 *</label><input type="text" id="aiTokName" aria-label="名稱" required placeholder="例:dev-gpt4-mini" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
-                            <div>
-                                <label for="aiTokProvider" class="block text-xs font-semibold text-stone-600 mb-1">AI 公司 *</label>
-                                <select id="aiTokProvider" required onchange="aiTokenOnProviderChange()" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
-                                    <option value="OpenAI">GPT (OpenAI)</option>
-                                    <option value="Anthropic">Claude (Anthropic)</option>
-                                    <option value="Google">Gemini (Google)</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div><label for="aiTokKey" class="block text-xs font-semibold text-stone-600 mb-1">API Key</label><input type="password" id="aiTokKey" aria-label="API Key" autocomplete="new-password" placeholder="sk-... / sk-ant-... / AIza... (本地可留空)" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm font-mono"></div>
-                        <div>
-                            <div class="flex items-center justify-between mb-1">
-                                <label for="aiTokModel" class="block text-xs font-semibold text-stone-600">AI 名稱(模型)*</label>
-                                <button type="button" id="aiTokFetchModelsBtn" onclick="aiTokenFetchModels()"
-                                    class="text-[11px] px-2 py-0.5 border border-amber-300 text-amber-700 rounded hover:bg-amber-50">
-                                    <i class="fa-solid fa-rotate"></i> 用 token 拉模型清單
-                                </button>
-                            </div>
-                            <select id="aiTokModel" required onchange="aiTokenOnModelChange()" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white font-mono">
-                                <option value="">— 請先「拉模型清單」 —</option>
-                            </select>
-                            <p id="aiTokModelsHint" class="text-[10px] text-stone-400 mt-0.5">尚未拉取模型清單</p>
-                        </div>
-                        <div>
-                            <label for="aiTokReasoning" class="block text-xs font-semibold text-stone-600 mb-1 flex items-center gap-2">
-                                <span>思考程度</span>
-                                <span id="aiTokReasoningSupportBadge" class="text-[9px] px-1 py-0.5 rounded bg-stone-100 text-stone-500">未知(請先選模型)</span>
-                            </label>
-                            <select id="aiTokReasoning" disabled class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-stone-50 text-stone-400 disabled:cursor-not-allowed">
-                                <option value="">— 不啟用(預設) —</option>
-                                <option value="low">low(快、省 token)</option>
-                                <option value="medium">medium(平衡)</option>
-                                <option value="high">high(深思,慢但精準)</option>
-                            </select>
-                            <p id="aiTokReasoningHint" class="text-[10px] text-stone-400 mt-0.5">選定支援思考的模型(如 o1 / o3 / DeepSeek-R1)後此欄位會啟用</p>
-                        </div>
-                        <div><label for="aiTokDesc" class="block text-xs font-semibold text-stone-600 mb-1">說明</label><input type="text" id="aiTokDesc" aria-label="說明" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
-                        <div class="flex items-center gap-6">
-                            <label class="flex items-center gap-2 cursor-pointer text-sm text-stone-700"><input type="checkbox" id="aiTokEnabled" checked class="rounded border-stone-300 text-amber-500 focus:ring-amber-400"> 啟用</label>
-                            <label class="flex items-center gap-2 cursor-pointer text-sm text-stone-700"><input type="checkbox" id="aiTokDefault" class="rounded border-stone-300 text-amber-500 focus:ring-amber-400"> 設為預設</label>
-                        </div>
-                        <div class="flex justify-end gap-2 pt-2"><button type="button" onclick="closeAiTokenModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button><button type="submit" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button></div>
                     </form>
                 </div>
             </div>
@@ -23148,74 +23010,6 @@ curl -X POST http://localhost:8000/api/defects \\
 | severity | ✅ | Critical / Major / Minor / Trivial |
 `;
     </script>
-
-    <!-- ═════════════════════════════════════════════════════════════
-         AI 對話框(右下角浮動圓點 + 滑入式面板)
-         ═════════════════════════════════════════════════════════════ -->
-    <button type="button" id="aiChatFab" onclick="aiChatToggle()"
-        class="fixed bottom-6 right-6 z-[200] w-14 h-14 rounded-full bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 text-white shadow-xl hover:shadow-2xl hover:scale-105 transition flex items-center justify-center"
-        title="助理 (Ctrl+/)" aria-label="助理">
-        <i class="fa-solid fa-robot text-xl"></i>
-        <span class="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-white animate-pulse" aria-hidden="true"></span>
-    </button>
-
-    <!-- 助理面板(從右側滑入)-->
-    <aside id="aiChatPanel" class="fixed top-0 right-0 z-[210] h-full w-full sm:w-[420px] bg-white shadow-2xl border-l border-stone-200 transform translate-x-full transition-transform duration-300 flex flex-col">
-        <!-- header -->
-        <div class="px-4 py-3 border-b border-stone-200 bg-gradient-to-r from-indigo-50 to-violet-50 flex items-center gap-2 shrink-0">
-            <i class="fa-solid fa-robot text-violet-500"></i>
-            <span class="font-bold text-stone-800 text-sm">助理</span>
-            <select id="aiChatConvSel" aria-label="對話" onchange="aiChatSwitchConv(this.value)"
-                class="ml-auto flex-1 max-w-[180px] text-xs px-2 py-1 border border-stone-300 rounded bg-white">
-                <option value="">— 載入中 —</option>
-            </select>
-            <button type="button" onclick="aiChatNewConversation()" title="新對話"
-                class="w-7 h-7 flex items-center justify-center rounded hover:bg-violet-100 text-stone-600">
-                <i class="fa-solid fa-plus text-xs"></i>
-            </button>
-            <button type="button" onclick="aiChatDeleteCurrent()" title="刪除此對話"
-                class="w-7 h-7 flex items-center justify-center rounded hover:bg-rose-100 text-stone-500 hover:text-rose-600">
-                <i class="fa-solid fa-trash text-xs"></i>
-            </button>
-            <!-- 已裝技能 / 記憶搜尋(排程任務 / LLM 串接設定按鈕已移除,過於進階) -->
-            <button type="button" onclick="hermesOpenSkills()" title="已裝技能"
-                class="w-7 h-7 flex items-center justify-center rounded hover:bg-violet-100 text-stone-500 hover:text-violet-600">
-                <i class="fa-solid fa-brain text-xs"></i>
-            </button>
-            <button type="button" onclick="hermesOpenMemory()" title="記憶搜尋"
-                class="w-7 h-7 flex items-center justify-center rounded hover:bg-violet-100 text-stone-500 hover:text-violet-600">
-                <i class="fa-solid fa-magnifying-glass text-xs"></i>
-            </button>
-            <button type="button" onclick="aiChatToggle()" title="關閉"
-                class="w-7 h-7 flex items-center justify-center rounded hover:bg-stone-100 text-stone-500">
-                <i class="fa-solid fa-xmark text-sm"></i>
-            </button>
-        </div>
-        <!-- messages -->
-        <div id="aiChatMessages" class="flex-1 overflow-y-auto p-3 space-y-2 bg-stone-50/40">
-            <div class="text-center text-xs text-stone-400 italic py-8" id="aiChatEmpty">
-                <i class="fa-solid fa-sparkles text-violet-400 text-2xl mb-2 block"></i>
-                嗨!我是你的助理,可以協助:<br>
-                ‧ 設計測試案例 / Robot Framework 語法<br>
-                ‧ 撰寫 BDD / AC<br>
-                ‧ 分析缺陷 / API 自動化<br>
-                <br>
-                有問題直接問我吧 👇
-            </div>
-        </div>
-        <!-- input -->
-        <div class="p-3 border-t border-stone-200 bg-white shrink-0">
-            <div class="flex gap-2 items-end">
-                <textarea id="aiChatInput" rows="2" placeholder="輸入訊息後點擊右側送出按鈕"
-                    class="flex-1 px-2 py-1.5 border border-stone-300 rounded text-sm resize-none focus:outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-200"
-                    onkeydown="aiChatInputKey(event)"></textarea>
-                <button type="button" id="aiChatSendBtn" aria-label="送出訊息" title="送出訊息" onclick="aiChatSend()"
-                    class="w-10 h-10 shrink-0 rounded bg-violet-500 hover:bg-violet-600 text-white flex items-center justify-center disabled:opacity-50">
-                    <i class="fa-solid fa-paper-plane text-xs"></i>
-                </button>
-            </div>
-        </div>
-    </aside>
 
     <!-- ═════════════════════════════════════════════════════════════
          Hermes Skills / Memory / Cron modals (PR4 / PR5)

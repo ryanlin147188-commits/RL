@@ -1,4 +1,4 @@
-"""Settings + Todo Pydantic Schemas（Role / NotificationPreference / EmailConfig / AiTokenConfig / TodoItem）。"""
+"""Settings + Todo Pydantic Schemas（Role / NotificationPreference / EmailConfig / TodoItem）。"""
 from datetime import datetime
 from typing import Any, Optional
 
@@ -77,44 +77,6 @@ class EmailConfigResponse(EmailConfigBase):
     has_smtp_password: bool = False
 
 
-# ── AiTokenConfig ─────────────────────────────────────────────────────
-
-class AiTokenConfigBase(BaseModel):
-    name: str
-    provider: str = "OpenAI"  # 自由文字:OpenAI / Anthropic / DeepSeek / ...
-    api_key: Optional[str] = None
-    base_url: Optional[str] = None  # 不顯示;進階情境(自架)才填
-    model: Optional[str] = None
-    reasoning_effort: Optional[str] = None  # low / medium / high(僅 o1/o3 用)
-    enabled: bool = True
-    is_default: bool = False
-    description: Optional[str] = None
-
-
-class AiTokenConfigCreate(AiTokenConfigBase):
-    pass
-
-
-class AiTokenConfigUpdate(BaseModel):
-    name: Optional[str] = None
-    provider: Optional[str] = None
-    api_key: Optional[str] = None
-    base_url: Optional[str] = None
-    model: Optional[str] = None
-    reasoning_effort: Optional[str] = None
-    enabled: Optional[bool] = None
-    is_default: Optional[bool] = None
-    description: Optional[str] = None
-
-
-class AiTokenConfigResponse(AiTokenConfigBase):
-    model_config = ConfigDict(from_attributes=True)
-    id: str
-    created_at: datetime
-    updated_at: datetime
-    has_api_key: bool = False
-
-
 # ── TodoItem ──────────────────────────────────────────────────────────
 
 class TodoItemBase(BaseModel):
@@ -172,26 +134,3 @@ class TodoItemResponse(TodoItemBase):
     is_overdue: bool = False
     days_to_due: Optional[int] = None
 
-
-# ── Agent Runtime (Phase 1) ───────────────────────────────────────────
-
-class AgentRuntimeCapability(BaseModel):
-    """前端下拉每個選項對應一筆。supported=False 時 reason 給 tooltip。"""
-    key: str
-    label: str
-    description: str
-    required: str
-    supported: bool
-    reason: Optional[str] = None
-
-
-class PreferredAgentResponse(BaseModel):
-    """GET /users/me/preferred-agent 回傳:儲存的偏好 + 實際解析後會用的 runtime。"""
-    preferred_agent: Optional[str] = None
-    effective_agent: str
-    available: list[AgentRuntimeCapability]
-
-
-class PreferredAgentUpdate(BaseModel):
-    # None 表示「自動」(刪除偏好,讓系統依 token 能力挑)
-    preferred_agent: Optional[str] = None

@@ -11,10 +11,6 @@ from .requirement import (
     RequirementStatus,
     RequirementTestcaseLink,
 )
-from .ai_token_config import AiProvider, AiTokenConfig
-from .hermes_gateway_credential import HermesGatewayCredential
-from .hermes_memory_consent import HermesMemoryConsent
-from .hermes_session import HermesSessionRef
 from .audit_log import AuditLog
 from .email_config import EmailConfig
 from .entity_version import EntityVersion
@@ -82,10 +78,6 @@ __all__ = [
     "WbsLink", "ALLOWED_WBS_TARGET_TYPES",
     # Settings + todos
     "Role", "NotificationPreference", "Notification", "EmailConfig",
-    "AiTokenConfig", "AiProvider",
-    "HermesSessionRef",
-    "HermesGatewayCredential",
-    "HermesMemoryConsent",
     "TodoItem", "TodoItemType", "TodoStatus", "TodoPriority",
     "TodoLink", "ALLOWED_TARGET_TYPES",
     "User",

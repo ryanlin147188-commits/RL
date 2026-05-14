@@ -170,30 +170,6 @@ services:
       RECORDER_INTERNAL_BASE_URL: http://backend:8000
       RECORDER_IDLE_TIMEOUT_MIN: 30
       DOCKER_HOST: tcp://docker-proxy:2375
-      # ── Hermes sidecar(內網 service-name)──
-      # PR2:hermes_client 用這條呼叫 sidecar;HERMES_ENABLED=False 時整個 router 503
-      HERMES_BASE_URL: ${HERMES_BASE_URL:-http://hermes:7800}
-      SIDECAR_AUTH_TOKEN: ${SIDECAR_AUTH_TOKEN:?SIDECAR_AUTH_TOKEN is required - run docker compose --profile init run --rm bootstrap}
-      HERMES_ENABLED: ${HERMES_ENABLED:-True}
-      HERMES_TIMEOUT_SEC: ${HERMES_TIMEOUT_SEC:-60}
-      HERMES_STREAM_TIMEOUT_SEC: ${HERMES_STREAM_TIMEOUT_SEC:-300}
-      # ── mem0 sidecar(語意記憶層,PR3 起接通)──
-      MEM0_BASE_URL: ${MEM0_BASE_URL:-http://mem0:7900}
-      MEM0_SIDECAR_AUTH_TOKEN: ${MEM0_SIDECAR_AUTH_TOKEN:?MEM0_SIDECAR_AUTH_TOKEN is required - run docker compose --profile init run --rm bootstrap}
-      MEM0_ENABLED: ${MEM0_ENABLED:-True}
-      MEM0_TIMEOUT_SEC: ${MEM0_TIMEOUT_SEC:-5}
-      MEM0_SEARCH_TIMEOUT_SEC: ${MEM0_SEARCH_TIMEOUT_SEC:-3}
-      MEM0_PREHOOK_ENABLED: ${MEM0_PREHOOK_ENABLED:-True}
-      MEM0_PREHOOK_TOP_K: ${MEM0_PREHOOK_TOP_K:-5}
-      MEM0_PREHOOK_THRESHOLD: ${MEM0_PREHOOK_THRESHOLD:-0.3}
-      # ── Hermes ↔ mem0 MCP tool(PR3:讓 ACP 子進程的 LLM 主動 invoke)──
-      MEM0_HERMES_TOOL_ENABLED: ${MEM0_HERMES_TOOL_ENABLED:-True}
-      MEM0_HERMES_TOOL_URL: ${MEM0_HERMES_TOOL_URL:-http://mem0:7900/mcp/mcp}
-      # ── openclaw sidecar(opt-in via --profile openclaw)──
-      # 沒啟 openclaw profile 時 token 仍會掛上但用不到;啟用時 backend 與
-      # sidecar 共用同一把 secret(bootstrap 已自動產生)做 X-Sidecar-Auth 驗證。
-      OPENCLAW_BASE_URL: ${OPENCLAW_BASE_URL:-http://openclaw:7950}
-      OPENCLAW_SIDECAR_AUTH_TOKEN: ${OPENCLAW_SIDECAR_AUTH_TOKEN:-}
       # ── Zoho OIDC(v1.1.5,authlib in-process)──
       # 不設 client_id / secret 時 ``/api/auth/zoho/login`` 回 503,SPA 自動隱藏
       # 「使用 Zoho 登入」按鈕。後台同時提供密碼登入,即使 Zoho 沒設仍可運作。
@@ -263,136 +239,6 @@ services:
       # 跑 rebuild_user_grants 時要 init enforcer);跟 backend 共享同一個
       # CASBIN_ENABLED gate。
       CASBIN_ENABLED: ${CASBIN_ENABLED:-True}
-
-  # ── Hermes Agent sidecar ──────────────────────────────────────────────
-  # NousResearch Hermes Agent (https://github.com/NousResearch/hermes-agent, MIT)
-  # 跑成獨立容器,backend 透過 :7800 內網呼叫;不對 host 暴露 port。
-  # PR1 階段:supervisor 只回 /healthz 確認容器跑得起來 — ACP 子進程池與
-  # sessions/skills/cron/gateway 路由在後續 PR 接。
-  # 資料夾結構:/opt/data/<workspace_id>/{.env,config.yaml,state.db,skills/}
-  hermes:
-    image: autotest-hermes:0.13.0
-    build:
-      context: ./hermes
-      dockerfile: Dockerfile
-    container_name: autotest-hermes
-    restart: unless-stopped
-    depends_on:
-      backend:
-        condition: service_healthy
-    environment:
-      TZ: Asia/Taipei
-      HERMES_DATA_ROOT: /opt/data
-      # Backend ↔ sidecar 共享 secret(必填,bootstrap 自動產一份);
-      # 後續 PR 會在所有非 /healthz 路由驗 X-Sidecar-Auth header。
-      SIDECAR_AUTH_TOKEN: ${SIDECAR_AUTH_TOKEN:?SIDECAR_AUTH_TOKEN is required - run docker compose --profile init run --rm bootstrap}
-      # ACP 子進程池上限(per-user 一個進程,空閒 GC),保護記憶體
-      HERMES_MAX_WORKERS: ${HERMES_MAX_WORKERS:-30}
-      HERMES_IDLE_TTL_SEC: ${HERMES_IDLE_TTL_SEC:-900}
-      # Hermes tools 若需要回打業務 API(例:從對話觸發跑回歸),走這條
-      BACKEND_INTERNAL_URL: http://backend:8000
-      # 不讓 Hermes 自己抓 Chromium — 既有 autotest-mcp / recorder 已有 Playwright,
-      # Hermes 要瀏覽器工具時走 ACP tool 打回 backend MCP container(避免三份 Chromium)
-      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
-    volumes:
-      - hermes_data:/opt/data
-    healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:7800/healthz"]
-      interval: 15s
-      timeout: 5s
-      retries: 6
-      start_period: 40s
-    # 不對外 publish 7800;backend / celery 以 hermes:7800 內網解析。
-
-  # ── mem0 sidecar ──────────────────────────────────────────────────────
-  # mem0ai (https://github.com/mem0ai/mem0, Apache-2.0) — 跨 session 語意記憶層。
-  # 跑獨立 sidecar(:7900,僅內網),內部用 mem0ai Python lib + per-request 動態
-  # llm/embedder config(每個 user 用自己的 ai_token_configs default token)。
-  # PR1 階段:proxy 只回 /healthz(同時驗 mem0-postgres reachable)。後續 PR 接
-  # /v1/memory/{add,search,list,delete}。
-  mem0:
-    image: autotest-mem0:0.1.0
-    build:
-      context: ./mem0
-      dockerfile: Dockerfile
-    container_name: autotest-mem0
-    restart: unless-stopped
-    depends_on:
-      mem0-postgres:
-        condition: service_healthy
-    environment:
-      TZ: Asia/Taipei
-      # Backend ↔ mem0 sidecar 共享 secret(bootstrap 自動產);所有非 /healthz
-      # 路由都會驗 X-Sidecar-Auth header。與 hermes 的 SIDECAR_AUTH_TOKEN 不同
-      # 一份 — 兩個 sidecar 各自獨立 secret 邊界。
-      MEM0_SIDECAR_AUTH_TOKEN: ${MEM0_SIDECAR_AUTH_TOKEN:?MEM0_SIDECAR_AUTH_TOKEN is required - run docker compose --profile init run --rm bootstrap}
-      MEM0_PG_HOST: mem0-postgres
-      MEM0_PG_USER: mem0
-      MEM0_PG_DB: mem0
-      MEM0_PG_PASSWORD: ${MEM0_PG_PASSWORD:?MEM0_PG_PASSWORD is required - run docker compose --profile init run --rm bootstrap}
-    healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:7900/healthz"]
-      interval: 15s
-      timeout: 5s
-      retries: 6
-      start_period: 30s
-    # 不對外 publish 7900;backend / hermes 以 mem0:7900 內網解析。
-
-  # ── mem0-postgres(獨立 pgvector container)─────────────────────────
-  # 與既有 autotest-postgres 隔離 — mem0 schema lifecycle 由 mem0ai lib own,
-  # 不混進 backend Alembic 管理的 main DB。獨立 volume 也讓備份計畫獨立。
-  mem0-postgres:
-    image: pgvector/pgvector:pg16
-    container_name: autotest-mem0-postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: mem0
-      POSTGRES_PASSWORD: ${MEM0_PG_PASSWORD:?MEM0_PG_PASSWORD is required - run docker compose --profile init run --rm bootstrap}
-      POSTGRES_DB: mem0
-      TZ: Asia/Taipei
-      PGTZ: Asia/Taipei
-    volumes:
-      - mem0_pg_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mem0 -d mem0"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
-    # 不對外 publish 5432;mem0 sidecar 是唯一 client。
-
-  # ── openclaw sidecar (Phase 3 scaffold — opt-in via profile) ────────
-  # OpenClaw (https://github.com/openclaw/openclaw, MIT) — 第二個 agent
-  # runtime 選項,使用者在 Settings → AI 下拉可挑(需綁定 ChatGPT OAuth)。
-  # Scaffold 階段:supervisor.py 只有 /healthz + /v1/provision + /v1/chat(回 501)。
-  # 真正 spawn openclaw daemon + OAuth flow 留 Phase 3.5。
-  #
-  # 不在 default profile — 還沒人有 OpenClaw 需求就不必每次 up 都吃資源。
-  # 啟用:`docker compose --profile openclaw up -d openclaw`。
-  openclaw:
-    image: autotest-openclaw:0.1.0
-    profiles: ["openclaw"]
-    build:
-      context: ./openclaw
-      dockerfile: Dockerfile
-    container_name: autotest-openclaw
-    restart: unless-stopped
-    environment:
-      TZ: Asia/Taipei
-      OPENCLAW_DATA_ROOT: /opt/openclaw-data
-      # 與 hermes(SIDECAR_AUTH_TOKEN)/ mem0(MEM0_SIDECAR_AUTH_TOKEN)隔離
-      # 各自獨立 secret 邊界;bootstrap 自動產一份(Phase 3.5 補)。
-      OPENCLAW_SIDECAR_AUTH_TOKEN: ${OPENCLAW_SIDECAR_AUTH_TOKEN:-}
-    volumes:
-      - openclaw_data:/opt/openclaw-data
-    healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:7950/healthz"]
-      interval: 15s
-      timeout: 5s
-      retries: 6
-      start_period: 20s
-    # 不對外 publish 7950;backend 以 openclaw:7950 內網解析。
-
   frontend:
     image: autotest-frontend:${AUTOTEST_TAG:-1.1.1}
     build:
@@ -568,15 +414,6 @@ services:
         JWT=$$(openssl rand -hex 32)
         # Fernet key = urlsafe-b64(32 raw bytes), 44 chars with `=` padding.
         FERNET=$$(openssl rand 32 | base64 -w 0 | tr '+/' '-_')
-        # Hermes sidecar ↔ backend 共享 secret(內網 RPC 驗證用)。
-        SIDECAR=$$(openssl rand -hex 32)
-        # mem0 sidecar ↔ backend 獨立的 secret(與 hermes 邊界分開)。
-        MEM0_SIDECAR=$$(openssl rand -hex 32)
-        # mem0-postgres 獨立 DB password(只 mem0 sidecar 知道)。
-        MEM0_PG=$$(openssl rand -hex 24)
-        # openclaw sidecar ↔ backend 獨立 secret(與 hermes / mem0 邊界分開)。
-        # 即使沒啟用 `--profile openclaw` 也先生成,之後啟用就不用重灌 .env。
-        OPENCLAW_SIDECAR=$$(openssl rand -hex 32)
         cat > /work/.env <<EOF
         # AutoTest deployment secrets (auto-generated by bootstrap service).
         # Do not commit. Rotate periodically.
@@ -590,10 +427,6 @@ services:
         S3_ROOT_PASSWORD=$$S3_PWD
         AUTOTEST_JWT_SECRET=$$JWT
         AUTOTEST_FERNET_KEY=$$FERNET
-        SIDECAR_AUTH_TOKEN=$$SIDECAR
-        MEM0_SIDECAR_AUTH_TOKEN=$$MEM0_SIDECAR
-        MEM0_PG_PASSWORD=$$MEM0_PG
-        OPENCLAW_SIDECAR_AUTH_TOKEN=$$OPENCLAW_SIDECAR
         EOF
         echo "[OK] .env created with random secrets"
     restart: "no"
@@ -604,9 +437,6 @@ volumes:
   victoria_logs_data:
   prometheus_data:
   fluent_bit_state:
-  hermes_data:
-  mem0_pg_data:
-  openclaw_data:
 
 # SeaweedFS S3 IAM 設定:從 .env 注入,docker compose 會在啟動時做變數替換。
 # 修改後須 docker compose down -v 並 up 才能重新生效(SeaweedFS 啟動時讀一次)。
