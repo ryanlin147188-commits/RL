@@ -1299,11 +1299,11 @@ def _build_mcp_app():
         return "\n".join(lines)
 
     # ── tool: platform_help ────────────────────────────────────────────
-    # 用於 LLM 自我探索:把整個 RL 平台的功能 + 對應 tool 列出來。
+    # 用於 LLM 自我探索:把整個 AutoTest 平台的功能 + 對應 tool 列出來。
     # 等於把「平台知識」存進 LLM 可隨時 query 的位置(對應使用者要求 #2)。
     @server.tool()
     async def platform_help(topic: str = "") -> str:
-        """列出 RL 平台所有功能與對應 tool。topic 留空 = 全列;指定 topic 會
+        """列出 AutoTest 平台所有功能與對應 tool。topic 留空 = 全列;指定 topic 會
         只回該主題的詳述(可選 topic:projects / testcases / defects /
         documents / requirements / milestones / versions / plans / todos /
         recordings)。
@@ -1415,7 +1415,7 @@ _PLATFORM_CATALOG_TOPICS = {
     ),
 }
 _PLATFORM_CATALOG_FULL = (
-    "# RL 自動化測試平台 — 助理可呼叫的功能總覽\n\n"
+    "# AutoTest 自動化測試平台 — 助理可呼叫的功能總覽\n\n"
     + "\n\n".join(_PLATFORM_CATALOG_TOPICS[k] for k in (
         "projects", "testcases", "defects", "documents",
         "requirements", "milestones", "versions", "plans",

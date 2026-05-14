@@ -1,6 +1,6 @@
 """Markdown ↔ TestcaseContent (steps_json + ddt_json) bidirectional converter.
 
-The Markdown DSL is the RL_TMP 7-column format (single source of truth):
+The Markdown DSL is the autotest 7-column format (single source of truth):
 
     | BDD | 步驟說明 | 動作 (官方指令) | 測試目標 | 輸入 | 比較條件 | 預期值 |
 

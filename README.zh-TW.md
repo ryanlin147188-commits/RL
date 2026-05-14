@@ -1,4 +1,4 @@
-# RL — Enterprise Test Automation Platform
+# AutoTest — Enterprise Test Automation Platform
 
 > 🌐 **Languages**: [English](README.md) · **繁體中文**
 
@@ -16,7 +16,7 @@
 
 ## 30 秒看懂
 
-| 你的問題 | RL 的解法 |
+| 你的問題 | AutoTest 的解法 |
 |---|---|
 | **「QA 寫 Selenium、PM 看 Confluence、Bug 在 Jira、報告在 Allure 各自孤島」** | 一個平台:案例 / 排程 / 執行 / 報告 / 缺陷 / Backlog / RTM / 待辦 / 群組 / 版號 全串通 |
 | **「商業 SaaS 一條 user $20–$100 / 月,50 人就 $5K–$60K / 年」** | **零授權費**(Apache 2.0)、自架到內網、**完全沒有 user-based pricing** |
@@ -442,7 +442,7 @@ docker compose exec backend python -m app.cli seed-casbin
 
 ## 🤖 AI 原生:平台會自己寫案例、自己跑測試
 
-RL **不是** 把 ChatGPT 嵌進對話框就叫 AI 化的傳統測試工具。
+AutoTest **不是** 把 ChatGPT 嵌進對話框就叫 AI 化的傳統測試工具。
 v1.1 內建 **四條 AI 生產線**,把 LLM 當作平台第一公民:
 
 ### 1️⃣ Hermes AI 助理 ⚡ 一鍵生案例 + 持久記憶
@@ -498,7 +498,7 @@ v1.1 內建 **四條 AI 生產線**,把 LLM 當作平台第一公民:
 
 ## 為誰打造
 
-RL 鎖定 **15–500 人規模、有自動化測試需求但被工具鏈拖累** 的軟體團隊:
+AutoTest 鎖定 **15–500 人規模、有自動化測試需求但被工具鏈拖累** 的軟體團隊:
 
 ### ✅ 適合
 - **金融 / 政府 / 醫療**:資料合規敏感、需要 air-gap 部署、SaaS 不能用、AI 必須走本地 Ollama
@@ -512,7 +512,7 @@ RL 鎖定 **15–500 人規模、有自動化測試需求但被工具鏈拖累**
 
 > 假設 50 人團隊,4 名 QA,每年跑 3 次 release,加 AI 寫測試案例 + 自動執行的人力節省。
 
-| 項目 | 商業 SaaS(TestRail + Tricentis + ChatGPT Team)| RL |
+| 項目 | 商業 SaaS(TestRail + Tricentis + ChatGPT Team)| AutoTest |
 |---|---|---|
 | 平台授權費(年) | $50,000–$120,000 | **$0** |
 | AI 工具訂閱(50 人 × $25/mo) | $15,000 / 年 | **$0**(自帶 11 家 provider 切換)|
@@ -528,7 +528,7 @@ RL 鎖定 **15–500 人規模、有自動化測試需求但被工具鏈拖累**
 
 ## vs. 主流商業 SaaS
 
-| 維度 | TestRail / Zephyr / qTest | Tricentis / Katalon | **RL** |
+| 維度 | TestRail / Zephyr / qTest | Tricentis / Katalon | **AutoTest** |
 |---|---|---|---|
 | 部署 | SaaS only | SaaS / On-Prem(高價)| **自架(Docker Compose)** |
 | 價格(50 人)| $30K–$60K / 年 | $50K–$200K / 年 | **$0** |
@@ -632,7 +632,7 @@ compose pull` / `build`、再 up,backend lifespan 會自動 alembic upgrade。
 **前置**:Docker 24+ 與 Docker Compose v2.23+。下列指令在 Linux / macOS / Windows(Docker Desktop)完全相同 — 不需要為平台分別寫部署腳本。
 
 ```bash
-git clone https://github.com/ryanlin147188-commits/RL_TMP.git && cd RL_TMP
+git clone https://github.com/ryanlin147188-commits/RL-for-Kapito.git && cd RL-for-Kapito
 
 # 1) 產生帶隨機 secret 的 .env(若已存在 .env 會跳過,不覆寫)
 docker compose --profile init run --rm bootstrap
@@ -670,14 +670,14 @@ docker compose up -d --build
 
 ### 不想本機 build?用預先打包的 image
 
-從 [GitHub Releases](https://github.com/ryanlin147188-commits/RL_TMP/releases) 下載 `autotest-images-1.1.1.tar`(離線散佈包,含 backend / celery / runner / mcp / frontend 等 image),在你的 VM 上:
+從 [GitHub Releases](https://github.com/ryanlin147188-commits/RL-for-Kapito/releases) 下載 `autotest-images-1.1.1.tar`(離線散佈包,含 backend / celery / runner / mcp / frontend 等 image),在你的 VM 上:
 
 ```bash
 # 1) 載入 image(2.6 GB,需要幾分鐘)
 docker load -i autotest-images-1.1.1.tar
 
 # 2) 取得單一 docker-compose.yml + apisix/、fluent-bit/ 設定檔(repo 根目錄裡都有)
-git clone https://github.com/ryanlin147188-commits/RL_TMP.git && cd RL_TMP
+git clone https://github.com/ryanlin147188-commits/RL-for-Kapito.git && cd RL-for-Kapito
 
 # 3) 啟動(使用已載入 image,不做本機 build)
 docker compose up -d --no-build
@@ -893,17 +893,17 @@ Organization 多租戶 + 集中式帳號管控(管理員建帳號)+ 完整 audit
 - 📜 **[LICENSES.md](LICENSES.md)** — 第三方授權與 SaaS 商業使用稽核
 - 🔌 **REST API 文件**:OpenAPI JSON `http://localhost/api/openapi.json`;Swagger UI 走容器內 `docker compose exec backend curl localhost:8000/docs`
 - 🎬 **Playwright Trace Viewer**:<https://trace.playwright.dev/> 可載入平台產出的 `trace.zip`
-- 🤖 **Model Context Protocol**:<https://modelcontextprotocol.io/> RL MCP 整合採用此規範
+- 🤖 **Model Context Protocol**:<https://modelcontextprotocol.io/> AutoTest MCP 整合採用此規範
 
 ---
 
 ## 🤝 商業授權與支援
 
-RL 採用 **Apache 2.0**,允許商業使用、修改、再散佈;**不收授權費**。
+AutoTest 採用 **Apache 2.0**,允許商業使用、修改、再散佈;**不收授權費**。
 
 ---
 
 <p align="center">
-<b>RL v1.1</b> — 讓自動化測試回歸簡單、透明、可追溯,讓 AI 替你完成第一輪測試。<br>
+<b>AutoTest v1.1</b> — 讓自動化測試回歸簡單、透明、可追溯,讓 AI 替你完成第一輪測試。<br>
 <sub>📜 <a href="LICENSES.md">License & Commercial Use</a> · 🐳 <a href="操作說明.md">操作說明</a> · 🔌 <a href="http://localhost/api/openapi.json">API Docs</a></sub>
 </p>

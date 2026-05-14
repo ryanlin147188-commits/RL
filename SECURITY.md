@@ -17,7 +17,7 @@ Security fixes are applied to the latest minor release on the `main` branch. Old
 If you believe you have found a security vulnerability in AutoTest, report it privately through one of the following channels:
 
 1. **GitHub Security Advisory** (preferred):
-   Open a private advisory at <https://github.com/ryanlin147188-commits/RL_TMP/security/advisories/new>
+   Open a private advisory at <https://github.com/ryanlin147188-commits/RL-for-Kapito/security/advisories/new>
 2. **Email**: <ryanlin147188@gmail.com>
    Please use the subject line `[AutoTest Security] <short title>`.
 

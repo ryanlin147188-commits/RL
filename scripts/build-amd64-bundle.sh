@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Build a linux/amd64 offline bundle that mirrors dist/RL_TMP_<DATE>_linux.tar.
+# Build a linux/amd64 offline bundle that mirrors dist/autotest_<DATE>_linux.tar.
 #
-# Output: dist/RL_TMP_<DATE>_linux_amd64.tar containing:
-#   RL_TMP_<DATE>_linux_amd64/
+# Output: dist/autotest_<DATE>_linux_amd64.tar containing:
+#   autotest_<DATE>_linux_amd64/
 #     docker-images.tar.gz         (docker save | gzip, all amd64)
 #     docker-images.list           (image:tag, one per line)
 #     SHA256SUMS
@@ -18,7 +18,7 @@ DATE_TAG="${DATE_TAG:-$(date +%Y%m%d)}"
 AUTOTEST_TAG="${AUTOTEST_TAG:-1.1.1}"
 HERMES_TAG="${HERMES_TAG:-0.13.0}"
 MEM0_TAG="${MEM0_TAG:-0.1.0}"
-BUNDLE_NAME="RL_TMP_${DATE_TAG}_linux_amd64"
+BUNDLE_NAME="autotest_${DATE_TAG}_linux_amd64"
 OUT_DIR="dist/${BUNDLE_NAME}"
 OUT_TAR="dist/${BUNDLE_NAME}.tar"
 PLATFORM="linux/amd64"

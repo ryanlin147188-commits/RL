@@ -1,6 +1,6 @@
 """Run Markdown-based Robot Framework tests.
 
-Workspace adaptation of the original RL_TMP `run_tests.py`. Allure
+Workspace adaptation of the original autotest `run_tests.py`. Allure
 logic has been removed; the platform now relies on the native Robot
 HTML report plus the in-app execution log/screenshots served from
 MinIO.

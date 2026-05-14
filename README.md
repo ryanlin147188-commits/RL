@@ -1,4 +1,4 @@
-# RL — Test Automation Platform
+# AutoTest — Test Automation Platform
 
 > 🌐 **Languages**: **English** · [繁體中文](README.zh-TW.md)
 
@@ -16,7 +16,7 @@
 
 ## 30-second pitch
 
-| Your problem | RL's answer |
+| Your problem | AutoTest's answer |
 |---|---|
 | **"QA writes Selenium, PM lives in Confluence, bugs stay in Jira, reports rot in Allure — five disconnected silos."** | One platform: cases / scheduling / execution / reports / defects / backlog / RTM / todo / groups / versions, all linked. |
 | **"Commercial SaaS is $20–$100 per user/month — 50 users = $5K–$60K/year."** | **Zero license fees** (Apache 2.0). Self-host on your network. **No user-based pricing — ever.** |
@@ -473,8 +473,8 @@ docker compose exec backend python -m app.cli seed-casbin
 **Prerequisites**: Docker 24+ and Docker Compose v2.23+. Works on Linux, macOS, and Windows (Docker Desktop). All commands below work identically on every platform — no platform-specific deploy scripts needed.
 
 ```bash
-git clone https://github.com/ryanlin147188-commits/RL_TMP.git
-cd RL_TMP
+git clone https://github.com/ryanlin147188-commits/RL-for-Kapito.git
+cd RL-for-Kapito
 
 # 1) Generate .env with random secrets (skip if you already have one).
 docker compose --profile init run --rm bootstrap
@@ -521,7 +521,7 @@ is disabled — additional users are created from **設定 → 專案協作成�
 
 ## <a id="ai-native"></a> AI-native: the platform writes and runs tests for itself
 
-RL is **not** a traditional test tool with a ChatGPT box bolted on. v1.1 ships **four AI pipelines** that treat the LLM as a first-class citizen of the platform:
+AutoTest is **not** a traditional test tool with a ChatGPT box bolted on. v1.1 ships **four AI pipelines** that treat the LLM as a first-class citizen of the platform:
 
 ### 1. Hermes AI assistant → executable cases + persistent memory
 The chat is now backed by [hermes-agent](https://github.com/NousResearch/hermes-agent) running as an isolated ACP subprocess per user. Ask `"Test the cart flow from add-to-cart through checkout"` and the assistant returns:
@@ -713,7 +713,7 @@ After the v1.0 baseline, seven focused UX-hardening rounds shipped to `main`. Ev
 
 ## Production hardening
 
-Before exposing RL to the internet:
+Before exposing AutoTest to the internet:
 
 - Set `ALLOWED_ORIGINS` to your front-end origin (never `*`).
 - Override default secrets — `AUTOTEST_JWT_SECRET`, `AUTOTEST_FERNET_KEY`, `DB_PASSWORD`, `S3_ROOT_PASSWORD`. The bootstrap profile (`docker compose --profile init run --rm bootstrap`) generates random values on first run; rotate them on a schedule.
@@ -727,10 +727,10 @@ Before exposing RL to the internet:
 ## FAQ
 
 **Q: Why not just use TestRail / Zephyr / qTest?**
-Pricing scales linearly with seats, your test data lives in someone else's cloud, and the export formats are proprietary or empty shells. RL keeps everything on your infrastructure with standard open formats.
+Pricing scales linearly with seats, your test data lives in someone else's cloud, and the export formats are proprietary or empty shells. AutoTest keeps everything on your infrastructure with standard open formats.
 
 **Q: Why not just Robot Framework + a CI server?**
-Authoring, scheduling, defect linking, RTM, vision-enhanced recording, and AI agents are not part of vanilla Robot Framework. RL composes them into one product so QA / PM / SRE share a single source of truth.
+Authoring, scheduling, defect linking, RTM, vision-enhanced recording, and AI agents are not part of vanilla Robot Framework. AutoTest composes them into one product so QA / PM / SRE share a single source of truth.
 
 **Q: Can I disable AI features?**
 Yes. AI features are opt-in via API keys stored encrypted in the database (Fernet). With no key, the chat / MCP / vision tabs are inert; the rest of the platform works exactly as a traditional test platform.

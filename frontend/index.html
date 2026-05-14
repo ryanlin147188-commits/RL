@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RL — 測試建構平台</title>
+    <title>AutoTest — 測試建構平台</title>
     <!-- Perf A1: preconnect to CDN origins so TLS+DNS can run in parallel with HTML parse -->
     <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin>
     <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
@@ -631,7 +631,7 @@
             <div class="bg-gradient-to-r from-amber-500 to-orange-500 px-8 py-6 text-white">
                 <div class="flex items-center gap-3 mb-2">
                     <div class="flex items-center justify-center">
-                        <svg viewBox="0 0 64 56" xmlns="http://www.w3.org/2000/svg" class="w-10 h-10" aria-label="RL Logo">
+                        <svg viewBox="0 0 64 56" xmlns="http://www.w3.org/2000/svg" class="w-10 h-10" aria-label="AutoTest Logo">
                             <text x="6"  y="50" font-family="Arial Black,sans-serif" font-size="52" font-weight="900" fill="#22c55e">R</text>
                             <text x="3"  y="47" font-family="Arial Black,sans-serif" font-size="52" font-weight="900" fill="#facc15">R</text>
                             <text x="0"  y="44" font-family="Arial Black,sans-serif" font-size="52" font-weight="900" fill="#ef4444">R</text>
@@ -639,7 +639,7 @@
                         </svg>
                     </div>
                     <div>
-                        <h1 class="font-bold text-xl tracking-tight">RL</h1>
+                        <h1 class="font-bold text-xl tracking-tight">AutoTest</h1>
                         <p class="text-xs opacity-90">自動化測試平台</p>
                     </div>
                 </div>
@@ -885,14 +885,14 @@
             <button type="button" id="navHomeBtn" onclick="showHomeView()" title="回首頁" aria-label="回首頁"
                 class="flex items-center gap-2 md:gap-2.5 hover:opacity-80 transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 rounded shrink-0">
                 <div class="flex items-center justify-center">
-                    <svg viewBox="0 0 64 56" xmlns="http://www.w3.org/2000/svg" class="w-9 h-9" aria-label="RL Logo">
+                    <svg viewBox="0 0 64 56" xmlns="http://www.w3.org/2000/svg" class="w-9 h-9" aria-label="AutoTest Logo">
                         <text x="6"  y="50" font-family="Arial Black,sans-serif" font-size="52" font-weight="900" fill="#22c55e">R</text>
                         <text x="3"  y="47" font-family="Arial Black,sans-serif" font-size="52" font-weight="900" fill="#facc15">R</text>
                         <text x="0"  y="44" font-family="Arial Black,sans-serif" font-size="52" font-weight="900" fill="#ef4444">R</text>
                         <path d="M 6 28 L 20 42 L 58 4" stroke="#000" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
                 </div>
-                <h1 class="font-bold text-base md:text-lg text-slate-800 tracking-tight whitespace-nowrap">RL<span class="hidden sm:inline text-[10px] text-amber-700 bg-amber-50 font-semibold ml-1.5 px-1.5 py-0.5 rounded border border-amber-200 align-middle">v1.1.8.1</span></h1>
+                <h1 class="font-bold text-base md:text-lg text-slate-800 tracking-tight whitespace-nowrap">AutoTest<span class="hidden sm:inline text-[10px] text-amber-700 bg-amber-50 font-semibold ml-1.5 px-1.5 py-0.5 rounded border border-amber-200 align-middle">v1.1.8.1</span></h1>
             </button>
 
             <!-- 置中空白 (推右側動作群到最右邊) -->
@@ -1343,7 +1343,7 @@
                     </div>
                     <h2 id="viewTitle" class="text-2xl font-bold text-slate-800 flex items-center gap-3">
                         <i class="fa-regular fa-file-lines text-slate-400"></i>
-                        歡迎使用 RL
+                        歡迎使用 AutoTest
                     </h2>
                 </div>
                 <div id="mainActions" class="flex gap-3">
@@ -2724,13 +2724,13 @@ driver.swipe(100, 800, 100, 200, 500)"
                         <div class="absolute -right-20 top-20 w-64 h-64 bg-white/5 rounded-full"></div>
                         <div class="relative z-10">
                             <div class="flex items-center gap-2 text-xs uppercase tracking-widest opacity-80 mb-2">
-                                <svg viewBox="0 0 64 56" xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 inline-block" aria-label="RL Logo">
+                                <svg viewBox="0 0 64 56" xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 inline-block" aria-label="AutoTest Logo">
                                     <text x="6"  y="50" font-family="Arial Black,sans-serif" font-size="52" font-weight="900" fill="#22c55e">R</text>
                                     <text x="3"  y="47" font-family="Arial Black,sans-serif" font-size="52" font-weight="900" fill="#facc15">R</text>
                                     <text x="0"  y="44" font-family="Arial Black,sans-serif" font-size="52" font-weight="900" fill="#ef4444">R</text>
                                     <path d="M 6 28 L 20 42 L 58 4" stroke="#000" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
                                 </svg>
-                                RL v1.1.8.1
+                                AutoTest v1.1.8.1
                             </div>
                             <h2 class="text-3xl font-bold" data-i18n="home.hero.platform">自動化測試平台</h2>
                         </div>
@@ -2763,12 +2763,12 @@ driver.swipe(100, 800, 100, 200, 500)"
                 </section>
 
                 <!-- 系統狀態：Docker / CPU / RAM / Disk / Network；每 5 秒輪詢一次
-                     資料範圍：以 `autotest-*` 容器為範圍加總，代表 RL 平台的資源使用量；
+                     資料範圍：以 `autotest-*` 容器為範圍加總，代表 AutoTest 平台的資源使用量；
                      Host 欄（若顯示）則為 Docker host 作業系統 / CPU 核心 / 記憶體總量的對照。 -->
                 <section class="max-w-6xl mx-auto mb-8">
                     <h3 class="text-sm font-bold text-stone-500 uppercase tracking-wider mb-1 flex items-center gap-2 flex-wrap">
                         <i class="fa-solid fa-server text-amber-500"></i> <span data-i18n="home.section.system">系統狀態</span>
-                        <span class="text-[10px] font-normal normal-case tracking-normal text-stone-400" data-i18n="home.section.systemSub">（RL 平台容器總用量）</span>
+                        <span class="text-[10px] font-normal normal-case tracking-normal text-stone-400" data-i18n="home.section.systemSub">（AutoTest 平台容器總用量）</span>
                         <span id="sysStatusBadge" class="text-[10px] font-normal normal-case tracking-normal px-2 py-0.5 rounded-full bg-stone-100 text-stone-500" data-i18n="home.sys.loading">載入中…</span>
                     </h3>
                     <p id="sysHostInfo" class="text-[11px] text-stone-500 mb-3">—</p>
@@ -2892,7 +2892,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                     <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-xs text-blue-700 flex items-start gap-3">
                         <i class="fa-solid fa-lightbulb text-blue-500 mt-0.5"></i>
                         <div>
-                            <b>小提示：</b>左上角的「RL」Logo 可隨時點擊回到本首頁。左側專案目錄樹永遠保留；右側工作區會依你點選的 TopNav 或樹節點切換。
+                            <b>小提示：</b>左上角的「AutoTest」Logo 可隨時點擊回到本首頁。左側專案目錄樹永遠保留；右側工作區會依你點選的 TopNav 或樹節點切換。
                         </div>
                     </div>
                 </section>
@@ -6916,7 +6916,7 @@ driver.swipe(100, 800, 100, 200, 500)"
             event.target.value = '';
         }
 
-        // ── Markdown (RL_TMP 7-column DSL) 匯出 ────────────────
+        // ── Markdown (autotest 7-column DSL) 匯出 ────────────────
         async function exportMarkdown() {
             if (!currentTestCase) {
                 showToast('請先在左側選擇一個測試案例節點', 'error');
@@ -8571,12 +8571,12 @@ driver.swipe(100, 800, 100, 200, 500)"
             'settings.tab.orgs': { 'zh-TW': '組織', 'en': 'Organizations' },
             'settings.tab.audit': { 'zh-TW': '審計紀錄', 'en': 'Audit Log' },
             // 首頁
-            'home.title': { 'zh-TW': 'RL 首頁', 'en': 'RL Home' },
+            'home.title': { 'zh-TW': 'AutoTest 首頁', 'en': 'AutoTest Home' },
             'home.breadcrumb': { 'zh-TW': '首頁', 'en': 'Home' },
             'home.hero.platform': { 'zh-TW': '自動化測試平台', 'en': 'Automated Testing Platform' },
             'home.section.overview': { 'zh-TW': '當前專案概況', 'en': 'Current Project Overview' },
             'home.section.system': { 'zh-TW': '系統狀態', 'en': 'System Status' },
-            'home.section.systemSub': { 'zh-TW': '（RL 平台容器總用量）', 'en': '(RL platform container usage)' },
+            'home.section.systemSub': { 'zh-TW': '（AutoTest 平台容器總用量）', 'en': '(AutoTest platform container usage)' },
             'home.stat.project': { 'zh-TW': '專案', 'en': 'Project' },
             'home.stat.testcases': { 'zh-TW': '測試案例', 'en': 'Test Cases' },
             'home.stat.nodes': { 'zh-TW': '節點總數', 'en': 'Total Nodes' },
@@ -8725,9 +8725,9 @@ driver.swipe(100, 800, 100, 200, 500)"
         'AI 生成結果': 'AI result',
         'Android / iOS 虛擬機管理': 'Android / iOS device management',
         'Appium 腳本': 'Appium script',
-        'AutoTest v1.1 - 測試建構平台': 'RL — Test Building Platform',
-        'AutoTest 首頁': 'RL Home',
-        'RL 首頁': 'RL Home',
+        'AutoTest v1.1 - 測試建構平台': 'AutoTest — Test Building Platform',
+        'AutoTest 首頁': 'AutoTest Home',
+        'AutoTest 首頁': 'AutoTest Home',
         'BASE_URL=https://staging.example.com\n               API_TOKEN=abc123\n               # 這是註解，會被略過\n               DB_PASSWORD=p@ssw0rd': 'BASE_URL=https://staging.example.com\n               API_TOKEN=abc123\n               # This line is a comment, skipped\n               DB_PASSWORD=p@ssw0rd',
         'BDD 模式': 'BDD mode',
         'BDD 關鍵字': 'BDD keyword',
@@ -9047,8 +9047,8 @@ driver.swipe(100, 800, 100, 200, 500)"
         '尚無資料': 'No data yet',
         '展開 DDT 每一列都執行': 'Expand DDT — run every row',
         '工作分解結構 / 進度追蹤': 'Work breakdown / progress',
-        '左上角的「AutoTest」Logo 可隨時點擊回到本首頁。左側專案目錄樹永遠保留；右側工作區會依你點選的 TopNav 或樹節點切換。': 'Click the RL logo at top-left to return here at any time. The project tree stays on the left; the workspace switches per nav or tree selection.',
-        '左上角的「RL」Logo 可隨時點擊回到本首頁。左側專案目錄樹永遠保留；右側工作區會依你點選的 TopNav 或樹節點切換。': 'Click the RL logo at top-left to return here at any time. The project tree stays on the left; the workspace switches per nav or tree selection.',
+        '左上角的「AutoTest」Logo 可隨時點擊回到本首頁。左側專案目錄樹永遠保留；右側工作區會依你點選的 TopNav 或樹節點切換。': 'Click the AutoTest logo at top-left to return here at any time. The project tree stays on the left; the workspace switches per nav or tree selection.',
+        '左上角的「AutoTest」Logo 可隨時點擊回到本首頁。左側專案目錄樹永遠保留；右側工作區會依你點選的 TopNav 或樹節點切換。': 'Click the AutoTest logo at top-left to return here at any time. The project tree stays on the left; the workspace switches per nav or tree selection.',
         '已修復': 'Fixed',
         '已停止': 'Stopped',
         '已停用': 'Disabled',
@@ -9248,8 +9248,8 @@ driver.swipe(100, 800, 100, 200, 500)"
         '次標題': 'Subtitle',
         '次要': 'Minor',
         '次要 (Minor)': 'Minor',
-        '歡迎使用 AutoTest': 'Welcome to RL',
-        '歡迎使用 RL': 'Welcome to RL',
+        '歡迎使用 AutoTest': 'Welcome to AutoTest',
+        '歡迎使用 AutoTest': 'Welcome to AutoTest',
         '歡迎回來，請登入以繼續': 'Welcome back, please sign in to continue',
         '此回合的用途或涵蓋範圍...': 'Purpose or scope of this round…',
         '步驟。': ' step.',
@@ -9586,7 +9586,7 @@ driver.swipe(100, 800, 100, 200, 500)"
         '點擊使用者下拉': 'Open user menu',
         '點擊進入設定': 'Click to open settings',
         '點背景或按 Esc 關閉': 'Click backdrop or press Esc to close',
-        '（RL 平台容器總用量）': '(RL platform container usage)',
+        '（AutoTest 平台容器總用量）': '(AutoTest platform container usage)',
         '（Ollama / vLLM / LMStudio 等 OpenAI-compatible API）。同 provider 內可有多個 Token，但只有一個能設為預設。': ' (Ollama / vLLM / LMStudio — OpenAI-compatible). Multiple tokens per provider; only one default.',
         '（全專案共用 · 自動注入成 Robot suite variable）': '(Shared across project · auto-injected as Robot suite variable)',
         '（最多顯示 10 筆）': '(up to 10 items)',
