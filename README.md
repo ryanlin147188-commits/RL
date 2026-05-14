@@ -1,5 +1,15 @@
 # AutoTest — Test Automation Platform
 
+> ⚠️ **v1.1.9 slim — features removed**
+> The platform was trimmed to focus on the core
+> **test-case authoring / recording / execution / report** loop.
+> The following 13 features were removed (UI + most backend code; alembic
+> migrations and shared FK tables are preserved):
+> **測試看版 (kanban) · 測試專案 page · DB 資訊 · AI 助理 (Hermes / mem0 / OpenClaw) · 設備資訊 · 測試文件 · 測試版號 (UI) · 測試時程 (schedules + milestones) · 測試計畫 · WBS · 需求/RTM (UI) · 缺陷管理 (UI) · 指派**
+> Sections / badges below that describe these features are **stale**.
+> Authoritative source = the current code; this README is being kept for
+> general orientation only.
+
 > 🌐 **Languages**: **English** · [繁體中文](README.zh-TW.md)
 
 > **One self-hosted platform covering the entire test lifecycle — and AI agents that can actually run tests for you.**

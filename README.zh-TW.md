@@ -1,5 +1,14 @@
 # AutoTest — Enterprise Test Automation Platform
 
+> ⚠️ **v1.1.9 slim — 功能已移除**
+> 平台已精簡,聚焦在
+> **測試案例編輯 / 錄製 / 執行 / 報告** 主軸。
+> 以下 13 個功能已被移除(UI + 大部分 backend code;alembic migration 與其他
+> entity 需要的 FK 表保留):
+> **測試看版 · 測試專案頁 · DB 資訊 · AI 助理 (Hermes / mem0 / OpenClaw) · 設備資訊 · 測試文件 · 測試版號 (UI) · 測試時程 (排程 + milestone) · 測試計畫 · WBS · 需求/RTM (UI) · 缺陷管理 (UI) · 指派**
+> 底下提到這些功能的段落 / badge 都是**過期內容**。
+> 以實際 code 為準;本 README 僅保留作為大方向參考。
+
 > 🌐 **Languages**: [English](README.md) · **繁體中文**
 
 > **一個平台,涵蓋整條測試生命週期,還會自己「動手」測試。**
