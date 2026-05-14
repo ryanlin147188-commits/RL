@@ -412,6 +412,18 @@ async def lifespan(app: FastAPI):
         logging.getLogger(__name__).exception(
             "Casbin enforcer init failed; falling back to require_permission only"
         )
+    # v1.1.7 Phase 5: 註冊 user_id dual-write listener,新 OrgMembership /
+    # ProjectMember / GroupMembership / PasswordResetToken row 在 insert 前
+    # 會自動把 username → users.id 寫入 shadow column。Phase 7 PK cutover 才
+    # 能放心切。
+    try:
+        from app.auth.user_id_dualwrite import register_user_id_dualwrite_listeners
+
+        register_user_id_dualwrite_listeners()
+    except Exception:
+        logging.getLogger(__name__).exception(
+            "user_id dual-write listener registration failed"
+        )
     scheduler_task = asyncio.create_task(scheduler_loop())
     # Sprint 10.1 — MCP idle sweeper
     from app.routers.ai import _mcp_idle_sweeper_loop
