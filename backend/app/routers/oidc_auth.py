@@ -111,7 +111,8 @@ async def oidc_login(
         raise HTTPException(503, f"{provider} 登入未啟用(client_id / secret 未配)")
 
     state = _oidc.make_state()
-    authorize_url = _oidc.build_authorize_url(p, state)
+    # v1.1.7 Phase 6:build_authorize_url 改成 async(httpx-oauth signature)
+    authorize_url = await _oidc.build_authorize_url(p, state)
 
     resp = RedirectResponse(authorize_url, status_code=302)
     resp.set_cookie(

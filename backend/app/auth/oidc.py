@@ -1,8 +1,10 @@
-"""In-process OIDC client(v1.1.5,authlib + httpx 後端)。
+"""In-process OIDC client(v1.1.7,httpx-oauth + httpx 後端)。
 
-v1.1.3–v1.1.4 委派 OIDC 給 Casdoor sidecar 走完,中間踩過 subpath SPA 白屏 /
-session config 各種坑;v1.1.5 改成 backend 自己拿 ``authlib`` 跟 IdP 做
-OAuth2 code flow,Casdoor sidecar 完全下架。
+v1.1.3–v1.1.4 委派 OIDC 給 Casdoor sidecar;v1.1.5 改成 backend 自己拿
+``authlib`` 跟 IdP 做 OAuth2 code flow。v1.1.7 Phase 6 進一步換成
+``httpx-oauth`` — fastapi-users 親緣的 OAuth2 client,以後若要走
+fastapi-users 內建的 OAuth router 比較好接(authlib 跟 fastapi-users 沒
+直接整合)。功能等價,API 表面差不多,差別只在 dependency 來源。
 
 多 provider 設計:每個 provider 一份 :class:`OIDCProvider` dataclass,通過
 ``PROVIDERS`` dict 暴露;現階段只啟用 Zoho,要加 Google / Microsoft 等只是
@@ -10,10 +12,9 @@ OAuth2 code flow,Casdoor sidecar 完全下架。
 
 API 蓋掉的取捨:
 
-* authlib 提供 ``OAuth`` registry + ``AsyncOAuth2Client``;我們選 OAuth2Client
-  繞開 Starlette session 依賴(``OAuth`` 需要 SessionMiddleware),改用我們
-  自家 HS256 cookie 簽 state。
-* ID token 驗章透過 IdP 的 JWKS;authlib 內建快取。
+* httpx-oauth 提供 ``BaseOAuth2`` 通用 client,我們不用它的 ``OpenID`` 子類
+  因為 Zoho 不走 id_token,只 fetch /oauth/user/info(userinfo endpoint)。
+* state cookie 仍由我們自家 HS256 簽,httpx-oauth 不管 state 持久化。
 * userinfo 拉一次,JIT provision 時用 ``sub``(stable)當 key。
 """
 from __future__ import annotations
@@ -23,10 +24,9 @@ import os
 import secrets
 from dataclasses import dataclass
 from typing import Any, Optional
-from urllib.parse import urlencode
 
 import httpx
-from authlib.integrations.httpx_client import AsyncOAuth2Client
+from httpx_oauth.oauth2 import BaseOAuth2, GetAccessTokenError
 
 logger = logging.getLogger(__name__)
 
@@ -92,40 +92,58 @@ def is_enabled(name: str) -> bool:
 # ── OAuth helpers ──────────────────────────────────────────────────────
 
 
-def build_authorize_url(provider: OIDCProvider, state: str) -> str:
-    """組 IdP 的 authorize URL(browser 會被 302 過去)。"""
-    params = {
-        "response_type": "code",
-        "client_id": provider.client_id,
-        "redirect_uri": provider.redirect_uri,
-        "scope": provider.scope,
-        "state": state,
-        # Zoho OIDC 要 ``access_type=offline`` 才會發 refresh_token,但我們
-        # 不需要 — 每次登入 backend mint 自家 HS256,IdP 的 refresh 沒人用。
-        # 不加 ``prompt=consent`` 讓使用者第二次登入時不必再點同意。
-    }
-    return f"{provider.auth_url}?{urlencode(params)}"
+def _make_oauth_client(provider: OIDCProvider) -> BaseOAuth2:
+    """為單一 OIDC provider 建一個 httpx-oauth ``BaseOAuth2`` client。
+
+    每次 callback 都建一個新的(輕量,沒有開連線);request 時 httpx 內部
+    用 ContextManager 開 socket、結束 close。
+    """
+    return BaseOAuth2(
+        client_id=provider.client_id,
+        client_secret=provider.client_secret,
+        authorize_endpoint=provider.auth_url,
+        access_token_endpoint=provider.token_url,
+        # Zoho 不公開 refresh / revoke endpoint;我們也不靠它的 refresh
+        # token(每次登入 backend mint 自家 HS256)。設 None。
+        refresh_token_endpoint=None,
+        revoke_token_endpoint=None,
+        # 預設 scope 帶 provider 上設的 string,httpx-oauth 預期 list。
+        base_scopes=[s for s in (provider.scope or "").split() if s],
+    )
+
+
+async def build_authorize_url(provider: OIDCProvider, state: str) -> str:
+    """組 IdP 的 authorize URL(browser 會被 302 過去)。
+
+    httpx-oauth 的 :meth:`BaseOAuth2.get_authorization_url` 內部會自動把
+    ``response_type=code``、``client_id``、``redirect_uri``、``scope``、
+    ``state`` 全部 urlencode 進去 — 比手工 urlencode 少出 bug。
+    """
+    client = _make_oauth_client(provider)
+    return await client.get_authorization_url(
+        redirect_uri=provider.redirect_uri,
+        state=state,
+        scope=[s for s in (provider.scope or "").split() if s] or None,
+    )
 
 
 async def exchange_code_for_token(provider: OIDCProvider, code: str) -> dict[str, Any]:
     """authorization code → access_token。回 dict 包含 ``access_token`` /
-    ``token_type``(Zoho 回 ``Bearer``)/ 可能還有 ``expires_in`` / ``id_token``。"""
-    async with AsyncOAuth2Client(
-        client_id=provider.client_id,
-        client_secret=provider.client_secret,
-        token_endpoint=provider.token_url,
-        timeout=15.0,
-    ) as client:
-        try:
-            token = await client.fetch_token(
-                provider.token_url,
-                grant_type="authorization_code",
-                code=code,
-                redirect_uri=provider.redirect_uri,
-            )
-        except Exception as e:  # authlib raises various OAuth-specific errors
-            raise RuntimeError(f"{provider.name} token exchange failed: {e}") from e
-        return dict(token)
+    ``token_type``(Zoho 回 ``Bearer``)/ 可能還有 ``expires_in`` / ``id_token``。
+
+    httpx-oauth 的 :class:`OAuth2Token` 是 ``TypedDict``-like,直接 dict()
+    轉成 plain dict 給 caller。錯誤包成 ``RuntimeError`` 維持跟舊 authlib
+    版本同樣的 exception type,免動 caller try/except。
+    """
+    client = _make_oauth_client(provider)
+    try:
+        token = await client.get_access_token(code, provider.redirect_uri)
+    except GetAccessTokenError as exc:
+        raise RuntimeError(f"{provider.name} token exchange failed: {exc}") from exc
+    except Exception as exc:
+        # httpx 連線層級錯誤等;統一回 RuntimeError。
+        raise RuntimeError(f"{provider.name} token exchange failed: {exc}") from exc
+    return dict(token)
 
 
 async def fetch_userinfo(provider: OIDCProvider, access_token: str) -> dict[str, Any]:
