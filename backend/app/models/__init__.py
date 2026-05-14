@@ -44,8 +44,6 @@ from .testcase_precondition_link import TestcasePreconditionLink
 from .todo_item import TodoItem, TodoItemType, TodoPriority, TodoStatus
 from .todo_link import ALLOWED_TARGET_TYPES, TodoLink
 from .tree_node import LevelType, TreeNode
-from .wbs_item import WbsItem, WbsItemType, WbsStatus
-from .wbs_link import ALLOWED_WBS_TARGET_TYPES, WbsLink
 
 __all__ = [
     "Base",
@@ -66,8 +64,6 @@ __all__ = [
     "Requirement", "RequirementSource", "RequirementPriority",
     "RequirementStatus", "RequirementTestcaseLink",
     "TestDataSet", "DataSetCategory",
-    "WbsItem", "WbsItemType", "WbsStatus",
-    "WbsLink", "ALLOWED_WBS_TARGET_TYPES",
     # Settings + todos
     "Role", "NotificationPreference", "Notification", "EmailConfig",
     "TodoItem", "TodoItemType", "TodoStatus", "TodoPriority",

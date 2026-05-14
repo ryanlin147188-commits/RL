@@ -984,7 +984,6 @@
                     <span data-i18n="nav.section.project">專案管理</span>
                 </div>
                 <div class="space-y-0.5">
-                    <button type="button" onclick="closeNavDrawer(); showWbsView()"          class="nav-drawer-btn"><i class="fa-solid fa-sitemap text-yellow-600"></i><span data-i18n="nav.wbs">WBS / 工作分解</span></button>
                 </div>
             </section>
 
@@ -1224,7 +1223,6 @@
                             <option value="defect">🐛 <span data-i18n="links.target.defect">缺陷</span></option>
                             <option value="test_round">🔁 <span data-i18n="links.target.test_round">測試回合</span></option>
                             <option value="test_milestone">🏁 <span data-i18n="links.target.test_milestone">里程碑</span></option>
-                            <option value="wbs">📊 <span data-i18n="links.target.wbs">WBS</span></option>
                             <option value="project">📦 <span data-i18n="links.target.project">專案</span></option>
                         </select>
                         <select id="todoLinkTargetId" aria-label="連結目標" class="flex-1 min-w-0 px-2 py-1.5 border border-stone-300 rounded text-xs bg-white">
@@ -3749,7 +3747,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                     '#defects':         'defectsWorkspace',
                     '#review':          'reviewWorkspace',
                     '#requirements':    'requirementsWorkspace',
-                    '#wbs':             'wbsWorkspace',
                     '#backlog':         'backlogWorkspace',
                     '#testdatasets':    'testDataSetsWorkspace',
                     '#report':          'reportWorkspace',
@@ -6717,7 +6714,6 @@ driver.swipe(100, 800, 100, 200, 500)"
             'nav.section.planning': { 'zh-TW': '規劃', 'en': 'PLAN' },
             'nav.section.settings': { 'zh-TW': '設定', 'en': 'CONFIG' },
             'nav.section.execution': { 'zh-TW': '執行 / 監控', 'en': 'RUN / MONITOR' },
-            'nav.wbs': { 'zh-TW': 'WBS', 'en': 'WBS' },
             'nav.requirements': { 'zh-TW': '需求/RTM', 'en': 'Reqs / RTM' },
             'nav.testCases': { 'zh-TW': '測試案例', 'en': 'Test Cases' },
             'nav.dataSets': { 'zh-TW': '測試資料集', 'en': 'Data Sets' },
@@ -6742,7 +6738,6 @@ driver.swipe(100, 800, 100, 200, 500)"
             'settings.title': { 'zh-TW': '設定', 'en': 'Settings' },
             'settings.title.short': { 'zh-TW': '設定', 'en': 'Settings' },
             // 各 view 的長/短標題(viewTitle 大標 / viewFilename 麵包屑)
-            'view.wbs.title': { 'zh-TW': 'WBS 工作分解結構', 'en': 'WBS' },
             'view.requirements.title': { 'zh-TW': '需求 / RTM', 'en': 'Requirements / RTM' },
             'view.testCases.title': { 'zh-TW': '測試案例清單', 'en': 'Test Cases' },
             'view.dataSets.title': { 'zh-TW': '測試資料集', 'en': 'Data Sets' },
@@ -6825,7 +6820,6 @@ driver.swipe(100, 800, 100, 200, 500)"
             'home.todoBucket.done': { 'zh-TW': '已完成', 'en': 'Done' },
             // 首頁 — 卡片描述
             'home.card.testProjects.desc': { 'zh-TW': '專案卡片 / 起訖日 / 負責人', 'en': 'Project cards / dates / owner' },
-            'home.card.wbs.desc': { 'zh-TW': '工作分解結構 / 進度追蹤', 'en': 'Work breakdown / progress' },
             'home.card.testPlan.desc': { 'zh-TW': 'ISTQB 格式 / Markdown / Mermaid', 'en': 'ISTQB / Markdown / Mermaid' },
             'home.card.requirements.desc': { 'zh-TW': '需求清單 + 追溯矩陣', 'en': 'Requirements + RTM' },
             'home.card.testCases.desc': { 'zh-TW': '瀏覽 / 編輯所有 TESTCASE', 'en': 'Browse / edit all test cases' },
@@ -6889,7 +6883,6 @@ driver.swipe(100, 800, 100, 200, 500)"
             'links.target.test_plan':      { 'zh-TW': '測試計畫', 'en': 'Test Plan' },
             'links.target.test_round':     { 'zh-TW': '測試回合', 'en': 'Test Round' },
             'links.target.test_milestone': { 'zh-TW': '里程碑', 'en': 'Milestone' },
-            'links.target.wbs':            { 'zh-TW': 'WBS', 'en': 'WBS' },
             'links.target.project':        { 'zh-TW': '專案', 'en': 'Project' },
         };
         // ════════════════════════════════════════════════
@@ -9244,7 +9237,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 'showDefectsView',
                 'showRequirementsView',
                 'showTestDataSetsView',
-                'showWbsView', 'showBacklogView',
+                'showBacklogView',
             ];
             const _hashToFn = {};   // '#defects' → 'showDefectsView'
             let _suppressHashChange = false;
@@ -10171,7 +10164,6 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('defectsWorkspace')?.classList.add('hidden');
             document.getElementById('requirementsWorkspace')?.classList.add('hidden');
             document.getElementById('testDataSetsWorkspace')?.classList.add('hidden');
-            document.getElementById('wbsWorkspace')?.classList.add('hidden');
             document.getElementById('backlogWorkspace')?.classList.add('hidden');
             document.getElementById('reviewWorkspace')?.classList.add('hidden');
             document.getElementById('myWorkWorkspace')?.classList.add('hidden');
@@ -15667,390 +15659,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                 showToast('已刪除', 'success');
                 renderDataSetsList();
             } catch(e) { showToast('刪除失敗：'+e.message, 'error'); }
-        }
-
-        // ─── WBS (Work Breakdown Structure) ──────────────────────────────
-        const _WBS_STATUS = { NotStarted:'未開始', InProgress:'進行中', Completed:'已完成', Blocked:'已阻擋', Cancelled:'已取消' };
-        // 統一 7 值狀態 + 舊值相容(migration 0012 前資料)
-        const _WBS_STATUS_COLOR = {
-            New:'bg-blue-100 text-blue-700', Assigned:'bg-purple-100 text-purple-700',
-            InProgress:'bg-amber-100 text-amber-700', InReview:'bg-cyan-100 text-cyan-700',
-            ReworkRequired:'bg-rose-100 text-rose-700', Verified:'bg-emerald-100 text-emerald-700',
-            Closed:'bg-stone-200 text-stone-500',
-            NotStarted:'bg-stone-100 text-stone-600', Completed:'bg-emerald-100 text-emerald-700', Blocked:'bg-rose-100 text-rose-700', Cancelled:'bg-stone-200 text-stone-500',
-        };
-        const _WBS_BAR_COLOR = {
-            New:'bg-blue-400', Assigned:'bg-purple-400',
-            InProgress:'bg-amber-400', InReview:'bg-cyan-400',
-            ReworkRequired:'bg-rose-400', Verified:'bg-emerald-500',
-            Closed:'bg-stone-400',
-            NotStarted:'bg-stone-300', Completed:'bg-emerald-500', Blocked:'bg-rose-400', Cancelled:'bg-stone-300',
-        };
-        let _wbsCache = [];                  // 平面陣列
-        let _editingWbsId = null;
-        const _wbsExpanded = new Set();      // 展開的節點 id
-
-        function showWbsView() {
-            if (!_setView('wbsWorkspace',
-                '<i class="fa-solid fa-sitemap text-yellow-500"></i> WBS · 工作分解結構',
-                'WBS',
-                'bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded font-medium',
-                'WBS',
-                { titleKey: 'view.wbs.title', filenameKey: 'view.wbs.title' })) return false;
-            loadWbsAndRender();
-        }
-
-        async function loadWbsAndRender() {
-            const pid = currentProjectId;
-            const body = document.getElementById('wbsTreeBody');
-            if (!pid) {
-                body.innerHTML = '<div class="p-6 text-center text-stone-400">請先選擇專案</div>';
-                ['wbs_kpi_notstarted','wbs_kpi_inprogress','wbs_kpi_completed','wbs_kpi_blocked','wbs_kpi_effort'].forEach(i => document.getElementById(i).textContent = '—');
-                document.getElementById('wbsListCount').textContent = '0';
-                document.getElementById('wbsOverallProgress').textContent = '0%';
-                return;
-            }
-            body.innerHTML = '<div class="p-6 text-center text-stone-400">載入中…</div>';
-            try {
-                const res = await fetch('/api/wbs?project_id=' + encodeURIComponent(pid));
-                if (!res.ok) throw new Error('HTTP ' + res.status);
-                _wbsCache = await res.json();
-                renderWbsTree();
-                renderWbsKpis();
-                refreshWbsParentOptions();
-            } catch (e) {
-                body.innerHTML = `<div class="p-6 text-center text-red-500">載入失敗：${_esc(e.message)}</div>`;
-            }
-        }
-
-        // 統一 7 值狀態 → 4 個 KPI bucket(未開始 / 進行中 / 已完成 / 已阻擋)
-        // 舊值同時 fallback,migration 過渡期混用也能正確統計。
-        const _WBS_KPI_BUCKET = {
-            New:'NotStarted', Assigned:'NotStarted', NotStarted:'NotStarted',
-            InProgress:'InProgress', InReview:'InProgress',
-            Verified:'Completed', Closed:'Completed', Completed:'Completed',
-            ReworkRequired:'Blocked', Blocked:'Blocked',
-            Cancelled:'Completed',
-        };
-
-        function renderWbsKpis() {
-            const total = _wbsCache.length;
-            const counts = { NotStarted:0, InProgress:0, Completed:0, Blocked:0 };
-            let totalEffort = 0, weightedProgress = 0;
-            _wbsCache.forEach(w => {
-                const bucket = _WBS_KPI_BUCKET[w.status] || 'NotStarted';
-                counts[bucket] = (counts[bucket] || 0) + 1;
-                totalEffort += parseFloat(w.effort_hours || 0) || 0;
-                weightedProgress += (parseInt(w.progress, 10) || 0);
-            });
-            document.getElementById('wbs_kpi_notstarted').textContent = counts.NotStarted;
-            document.getElementById('wbs_kpi_inprogress').textContent = counts.InProgress;
-            document.getElementById('wbs_kpi_completed').textContent = counts.Completed;
-            document.getElementById('wbs_kpi_blocked').textContent = counts.Blocked;
-            document.getElementById('wbs_kpi_effort').textContent = totalEffort ? totalEffort.toFixed(1) + 'h' : '—';
-            document.getElementById('wbsListCount').textContent = total;
-            document.getElementById('wbsOverallProgress').textContent = total ? Math.round(weightedProgress / total) + '%' : '0%';
-        }
-
-        function refreshWbsParentOptions() {
-            const sel = document.getElementById('wbsParent');
-            if (!sel) return;
-            const editingId = _editingWbsId;
-            // 把樹狀關係扁平化成 "縮排前綴 + 名稱" 列表（避免循環：編輯時不能選自己或自己的後代）
-            const tree = _buildWbsTree(_wbsCache);
-            const out = ['<option value="">— 頂層 —</option>'];
-            (function walk(nodes, depth) {
-                for (const n of nodes) {
-                    const isSelf = n.id === editingId;
-                    const indent = '— '.repeat(depth);
-                    out.push(`<option value="${_esc(n.id)}" ${isSelf ? 'disabled' : ''}>${indent}${_esc(n.code)} · ${_esc(n.name)}${isSelf ? ' (本身)' : ''}</option>`);
-                    if (n.children && n.children.length) walk(n.children, depth + 1);
-                }
-            })(tree, 0);
-            sel.innerHTML = out.join('');
-        }
-
-        function _buildWbsTree(flat) {
-            const byId = new Map();
-            const roots = [];
-            for (const it of flat) byId.set(it.id, { ...it, children: [] });
-            for (const it of flat) {
-                const node = byId.get(it.id);
-                if (it.parent_id && byId.has(it.parent_id)) byId.get(it.parent_id).children.push(node);
-                else roots.push(node);
-            }
-            return roots;
-        }
-
-        function wbsExpandAll(expand) {
-            _wbsExpanded.clear();
-            if (expand) _wbsCache.forEach(w => _wbsExpanded.add(w.id));
-            renderWbsTree();
-        }
-
-        function renderWbsTree() {
-            const body = document.getElementById('wbsTreeBody');
-            if (!body) return;
-            const kw = (document.getElementById('wbsSearch')?.value || '').toLowerCase().trim();
-            const stf = document.getElementById('wbsStatusFilter')?.value || '';
-            // 過濾後重建樹（任何祖先要保留以維持階層；簡化做法：先標記命中節點與其祖先）
-            const matching = new Set();
-            if (kw || stf) {
-                const byId = new Map(_wbsCache.map(w => [w.id, w]));
-                _wbsCache.forEach(w => {
-                    let okKw = true, okSt = true;
-                    if (kw) okKw = (w.name||'').toLowerCase().includes(kw) || (w.code||'').toLowerCase().includes(kw) || (w.assignee||'').toLowerCase().includes(kw);
-                    if (stf) okSt = (w.status === stf);
-                    if (okKw && okSt) {
-                        let cur = w;
-                        while (cur) {
-                            matching.add(cur.id);
-                            cur = cur.parent_id ? byId.get(cur.parent_id) : null;
-                        }
-                    }
-                });
-            }
-            const tree = _buildWbsTree(_wbsCache);
-            const out = [];
-            const renderNode = (n, depth) => {
-                if ((kw || stf) && !matching.has(n.id)) return;
-                const hasChildren = n.children && n.children.length;
-                const expanded = _wbsExpanded.has(n.id);
-                const stCls = _WBS_STATUS_COLOR[n.status] || 'bg-stone-100';
-                const barCls = _WBS_BAR_COLOR[n.status] || 'bg-stone-300';
-                const progress = Math.max(0, Math.min(100, parseInt(n.progress, 10) || 0));
-                const indentPx = depth * 18;
-                const _typeMeta = ({
-                    Feature:     { icon: 'fa-bullseye', cls: 'text-purple-600', label: 'Feature' },
-                    WorkPackage: { icon: 'fa-box', cls: 'text-amber-600', label: 'WP' },
-                    Task:        { icon: 'fa-screwdriver-wrench', cls: 'text-stone-600', label: 'Task' },
-                })[n.item_type] || { icon: 'fa-circle', cls: 'text-stone-400', label: n.item_type || '?' };
-                const _lc = n.link_counts || {};
-                const _linkBadges = [];
-                if (_lc.todo)             _linkBadges.push(`<span class="text-[10px] px-1 rounded bg-amber-50 text-amber-700" title="任務"><i class="fa-solid fa-list-check"></i> ${_lc.todo}</span>`);
-                if (_lc.testcase)         _linkBadges.push(`<span class="text-[10px] px-1 rounded bg-blue-50 text-blue-700" title="測試案例"><i class="fa-solid fa-flask-vial"></i> ${_lc.testcase}</span>`);
-                if (_lc.defect)           _linkBadges.push(`<span class="text-[10px] px-1 rounded bg-rose-50 text-rose-700" title="缺陷"><i class="fa-solid fa-bug"></i> ${_lc.defect}</span>`);
-                if (_lc.execution_report) _linkBadges.push(`<span class="text-[10px] px-1 rounded bg-emerald-50 text-emerald-700" title="執行紀錄"><i class="fa-solid fa-clipboard-list"></i> ${_lc.execution_report}</span>`);
-                out.push(`<div class="grid grid-cols-12 gap-2 px-3 py-2 border-b border-stone-100 hover:bg-amber-50/40 items-center">
-                    <div class="col-span-5 flex items-center gap-1" data-indent="${indentPx}" style="padding-left:${indentPx}px">
-                        ${hasChildren
-                            ? `<button type="button" class="w-5 h-5 flex items-center justify-center text-stone-400 hover:text-yellow-600" onclick="wbsToggleNode('${_esc(n.id)}')" aria-label="${expanded ? '收合' : '展開'}子項目"><i class="fa-solid ${expanded ? 'fa-chevron-down' : 'fa-chevron-right'} text-xs"></i></button>`
-                            : '<span class="w-5 inline-block"></span>'}
-                        <i class="fa-solid ${_typeMeta.icon} ${_typeMeta.cls} text-[11px]" title="${_esc(_typeMeta.label)}"></i>
-                        <span class="font-mono text-[11px] text-stone-400">${_esc(n.code)}</span>
-                        <span class="font-semibold text-stone-800 truncate" title="${_esc(n.name)}">${_esc(n.name)}</span>
-                        ${_linkBadges.length ? `<span class="ml-1 flex gap-1">${_linkBadges.join('')}</span>` : ''}
-                    </div>
-                    <div class="col-span-2"><span class="text-xs px-2 py-0.5 rounded font-medium ${stCls}">${_esc(_WBS_STATUS[n.status] || n.status)}</span></div>
-                    <div class="col-span-2 text-xs text-stone-600 truncate">${_esc(n.assignee || '—')}</div>
-                    <div class="col-span-2">
-                        <div class="h-3 bg-stone-100 rounded-full overflow-hidden relative">
-                            <div class="h-full ${barCls}" data-progress="${progress}"></div>
-                            <span class="absolute inset-0 flex items-center justify-center text-[10px] font-mono text-stone-700">${progress}%</span>
-                        </div>
-                    </div>
-                    <div class="col-span-1 text-right whitespace-nowrap space-x-1">
-                        <button onclick="openWbsModal(null, '${_esc(n.id)}')" title="新增子項" class="text-xs px-1.5 py-1 bg-yellow-50 text-yellow-700 border border-yellow-200 hover:bg-yellow-100 rounded"><i class="fa-solid fa-plus"></i></button>
-                        <button onclick="openWbsModal('${_esc(n.id)}')" title="編輯" class="text-xs px-1.5 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded"><i class="fa-solid fa-pen"></i></button>
-                        <button onclick="deleteWbs('${_esc(n.id)}','${_esc(n.code)}')" title="刪除" class="text-xs px-1.5 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded"><i class="fa-solid fa-trash"></i></button>
-                    </div>
-                </div>`);
-                if (hasChildren && expanded) {
-                    n.children.forEach(c => renderNode(c, depth + 1));
-                }
-            };
-            tree.forEach(r => renderNode(r, 0));
-            body.innerHTML = out.length ? out.join('') : '<div class="p-6 text-center text-stone-400">尚無 WBS 項目，點右上角「新增項目」開始拆解工作。</div>';
-            // 用 dataset 寫入 width，避免 inline style lint warning
-            body.querySelectorAll('[data-progress]').forEach(el => { el.style.width = el.dataset.progress + '%'; });
-        }
-
-        function wbsToggleNode(id) {
-            if (_wbsExpanded.has(id)) _wbsExpanded.delete(id);
-            else _wbsExpanded.add(id);
-            renderWbsTree();
-        }
-
-        function openWbsModal(id, parentId) {
-            if (!currentProjectId) { showToast('請先選擇專案', 'error'); return; }
-            _editingWbsId = id || null;
-            const r = id ? _wbsCache.find(x => x.id === id) : null;
-            document.getElementById('wbsModalTitle').innerHTML = r
-                ? `<i class="fa-solid fa-sitemap text-yellow-500"></i> 編輯 WBS · ${_esc(r.code)}`
-                : '<i class="fa-solid fa-sitemap text-yellow-500"></i> 新增 WBS 工作項目';
-            document.getElementById('wbsName').value = r?.name || '';
-            document.getElementById('wbsCode').value = r?.code || '';
-            document.getElementById('wbsItemType').value = r?.item_type || '';
-            document.getElementById('wbsStatus').value = r?.status || 'New';
-            document.getElementById('wbsProgress').value = r?.progress ?? 0;
-            document.getElementById('wbsAssignee').value = r?.assignee || (typeof authCurrentUsername === 'function' ? (authCurrentUsername()||'') : '');
-            document.getElementById('wbsStart').value = r?.start_date || '';
-            document.getElementById('wbsEnd').value = r?.end_date || '';
-            document.getElementById('wbsEffort').value = r?.effort_hours ?? '';
-            document.getElementById('wbsDesc').value = r?.description || '';
-            // 父項目選單：確保剛拉的選項是最新的（且可禁用自己）
-            refreshWbsParentOptions();
-            const parentSel = document.getElementById('wbsParent');
-            parentSel.value = (r?.parent_id || parentId || '');
-            document.getElementById('wbsModal').classList.remove('hidden');
-            // 連結 panel 只在編輯既有 Task 時顯示;新建時還沒 id 不能 link
-            _wbsToggleLinksPanel();
-            if (id && (r?.item_type === 'Task')) {
-                _wbsLoadLinkTargetOptions();
-                _wbsRefreshLinksList();
-            }
-        }
-        function closeWbsModal() { document.getElementById('wbsModal').classList.add('hidden'); _editingWbsId = null; }
-
-        // ── WBS Task 連結 panel ───────────────────────────────────────
-        function _wbsToggleLinksPanel() {
-            const panel = document.getElementById('wbsLinksPanel');
-            if (!panel) return;
-            const t = document.getElementById('wbsItemType')?.value || '';
-            const show = !!_editingWbsId && (t === 'Task' || (t === '' && !!_editingWbsId));
-            panel.classList.toggle('hidden', !show);
-        }
-        async function _wbsLoadLinkTargetOptions() {
-            const t = document.getElementById('wbsLinkTargetType').value;
-            const sel = document.getElementById('wbsLinkTargetId');
-            sel.innerHTML = '<option value="">— 載入中… —</option>';
-            const pid = currentProjectId;
-            const urls = {
-                todo:             `/api/todos?project_id=${encodeURIComponent(pid)}`,
-                testcase:         `/api/projects/${encodeURIComponent(pid)}/tree`,
-                defect:           `/api/defects?project_id=${encodeURIComponent(pid)}`,
-                execution_report: `/api/reports?project_id=${encodeURIComponent(pid)}`,
-            };
-            try {
-                const r = await fetch(urls[t]);
-                if (!r.ok) throw new Error('HTTP '+r.status);
-                let arr = await r.json();
-                let opts = [];
-                if (t === 'todo') {
-                    opts = arr.map(x => ({ id: x.id, label: `${x.title}` }));
-                } else if (t === 'testcase') {
-                    // tree: 只取 TESTCASE 葉節點
-                    const out = [];
-                    const walk = (nodes) => (nodes || []).forEach(n => {
-                        if (n.level_type === 'TESTCASE') out.push({ id: n.id, label: n.name });
-                        walk(n.children);
-                    });
-                    walk(arr);
-                    opts = out;
-                } else if (t === 'defect') {
-                    opts = arr.map(x => ({ id: x.id, label: `[${x.code}] ${x.title}` }));
-                } else if (t === 'execution_report') {
-                    opts = (Array.isArray(arr) ? arr : (arr.items || [])).map(x => ({
-                        id: x.id, label: `${x.id.slice(0,8)} · ${x.status || ''} · ${x.created_at?.slice(0,16) || ''}`,
-                    }));
-                }
-                sel.innerHTML = '<option value="">— 選擇 —</option>'
-                              + opts.map(o => `<option value="${_esc(o.id)}">${_esc(o.label)}</option>`).join('');
-            } catch (e) {
-                sel.innerHTML = `<option value="">— 載入失敗:${_esc(e.message)} —</option>`;
-            }
-        }
-        async function _wbsRefreshLinksList() {
-            const list = document.getElementById('wbsLinksList');
-            if (!_editingWbsId) { list.innerHTML = '<li class="text-stone-400 text-center py-2">儲存後可連結</li>'; return; }
-            try {
-                const r = await fetch(`/api/wbs/${encodeURIComponent(_editingWbsId)}/links`);
-                if (!r.ok) throw new Error('HTTP '+r.status);
-                const links = await r.json();
-                if (!links.length) { list.innerHTML = '<li class="text-stone-400 text-center py-2">尚無連結</li>'; return; }
-                const ICON = { todo:'fa-list-check text-amber-600', testcase:'fa-flask-vial text-blue-600', defect:'fa-bug text-rose-600', execution_report:'fa-clipboard-list text-emerald-600' };
-                const TLABEL = { todo:'任務', testcase:'測試案例', defect:'缺陷', execution_report:'執行紀錄' };
-                list.innerHTML = links.map(l => `
-                    <li class="flex items-center gap-2 px-2 py-1 bg-white border border-stone-100 rounded">
-                        <i class="fa-solid ${ICON[l.target_type] || 'fa-link'}"></i>
-                        <span class="text-[10px] text-stone-500">${TLABEL[l.target_type] || l.target_type}</span>
-                        <span class="font-medium truncate flex-1">${_esc(l.label || l.target_id)}</span>
-                        ${l.code ? `<span class="font-mono text-[10px] text-stone-400">${_esc(l.code)}</span>` : ''}
-                        ${l.status ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-stone-100 text-stone-600">${_esc(l.status)}</span>` : ''}
-                        <button type="button" onclick="_wbsRemoveLink('${_esc(l.id)}')" class="text-stone-300 hover:text-rose-600 ml-1" title="移除連結"><i class="fa-solid fa-xmark text-xs"></i></button>
-                    </li>
-                `).join('');
-            } catch (e) {
-                list.innerHTML = `<li class="text-rose-500 text-center py-2">載入失敗:${_esc(e.message)}</li>`;
-            }
-        }
-        async function _wbsAddLink() {
-            if (!_editingWbsId) { showToast('請先儲存 WBS 項目再連結', 'info'); return; }
-            const t = document.getElementById('wbsLinkTargetType').value;
-            const id = document.getElementById('wbsLinkTargetId').value;
-            if (!t || !id) { showToast('請選擇連結目標', 'error'); return; }
-            try {
-                const r = await fetch(`/api/wbs/${encodeURIComponent(_editingWbsId)}/links`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ target_type: t, target_id: id }),
-                });
-                if (!r.ok) {
-                    const j = await r.json().catch(() => ({}));
-                    showToast('連結失敗:' + (j.detail || r.statusText), 'error');
-                    return;
-                }
-                showToast('已連結', 'success');
-                await _wbsRefreshLinksList();
-            } catch (e) {
-                showToast('連結失敗:' + (e.message || e), 'error');
-            }
-        }
-        async function _wbsRemoveLink(linkId) {
-            if (!_editingWbsId) return;
-            if (!confirm('確定移除此連結?')) return;
-            try {
-                const r = await fetch(`/api/wbs/${encodeURIComponent(_editingWbsId)}/links/${encodeURIComponent(linkId)}`, { method: 'DELETE' });
-                if (!r.ok && r.status !== 204) { showToast('移除失敗:' + r.statusText, 'error'); return; }
-                await _wbsRefreshLinksList();
-            } catch (e) { showToast('移除失敗:' + (e.message || e), 'error'); }
-        }
-
-        async function wbsSubmit(ev) {
-            ev.preventDefault();
-            const payload = {
-                project_id: currentProjectId,
-                parent_id: document.getElementById('wbsParent').value || null,
-                code: document.getElementById('wbsCode').value.trim() || null,
-                name: document.getElementById('wbsName').value.trim(),
-                description: document.getElementById('wbsDesc').value || null,
-                item_type: document.getElementById('wbsItemType').value || null,
-                status: document.getElementById('wbsStatus').value,
-                progress: parseInt(document.getElementById('wbsProgress').value, 10) || 0,
-                assignee: document.getElementById('wbsAssignee').value.trim() || null,
-                start_date: document.getElementById('wbsStart').value || null,
-                end_date: document.getElementById('wbsEnd').value || null,
-                effort_hours: parseFloat(document.getElementById('wbsEffort').value) || null,
-            };
-            try {
-                const url = _editingWbsId ? '/api/wbs/' + _editingWbsId : '/api/wbs';
-                const method = _editingWbsId ? 'PUT' : 'POST';
-                const res = await fetch(url, { method, headers: { 'Content-Type':'application/json' }, body: JSON.stringify(payload) });
-                if (!res.ok) {
-                    let detail = 'HTTP ' + res.status;
-                    try { const err = await res.json(); detail = err.detail || detail; } catch (_) {}
-                    throw new Error(detail);
-                }
-                const saved = await res.json();
-                // 自動展開父項，讓使用者看到剛建立的子項
-                if (saved.parent_id) _wbsExpanded.add(saved.parent_id);
-                showToast(_editingWbsId ? '已更新' : '已建立', 'success');
-                closeWbsModal();
-                await loadWbsAndRender();
-            } catch (e) {
-                showToast('儲存失敗：' + e.message, 'error');
-            }
-            return false;
-        }
-
-        async function deleteWbs(id, code) {
-            if (!confirm(`確定刪除 ${code}？此項目的所有子項目也會一併刪除。`)) return;
-            try {
-                const res = await fetch('/api/wbs/' + id, { method:'DELETE' });
-                if (!res.ok && res.status !== 204) throw new Error('HTTP ' + res.status);
-                showToast('已刪除', 'success');
-                await loadWbsAndRender();
-            } catch (e) { showToast('刪除失敗：' + e.message, 'error'); }
         }
 
         // ─── 設定（Settings）── 5 個 tab

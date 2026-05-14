@@ -71,7 +71,6 @@ def _build_registry() -> dict[str, _EntitySpec]:
     from app.models.requirement import Requirement
     from app.models.todo_item import TodoItem
     from app.models.tree_node import TreeNode
-    from app.models.wbs_item import WbsItem
 
     return {
         "testcase": _EntitySpec(
@@ -99,14 +98,6 @@ def _build_registry() -> dict[str, _EntitySpec]:
                 "source", "priority", "status",
                 "owner", "release_target", "is_published",
                 "assigned_to", "assigned_to_type",
-            ],
-        ),
-        "wbs_item": _EntitySpec(
-            WbsItem,
-            fields=[
-                "code", "name", "description", "status", "progress",
-                "parent_id", "assignee", "start_date", "end_date",
-                "effort_hours",
             ],
         ),
         "todo": _EntitySpec(

@@ -25,7 +25,6 @@ from app.models.todo_item import TodoItem
 from app.models.todo_link import ALLOWED_TARGET_TYPES, TodoLink
 from app.models.tree_node import LevelType, TreeNode
 from app.models.user import User
-from app.models.wbs_item import WbsItem
 from app.schemas.todo_link import (
     TodoLinkCreate,
     TodoLinkResponse,
@@ -41,7 +40,6 @@ _TARGET_REGISTRY = {
     "requirement": (Requirement, "title", "code"),
     "defect": (Defect, "title", "code"),
     "test_round": (TestRound, "name", None),
-    "wbs": (WbsItem, "name", None),
     "project": (Project, "name", None),
     # testcase 特殊:tree_nodes 有 level_type 約束
 }

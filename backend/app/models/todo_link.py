@@ -26,7 +26,6 @@ ALLOWED_TARGET_TYPES = {
     "testcase",
     "defect",
     "test_round",
-    "wbs",
     "project",
 }
 
