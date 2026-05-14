@@ -28,7 +28,57 @@
 
 ---
 
-## 🔥 v1.1.7 — FastAPI Users + Authlib + PyCasbin, end-to-end
+## 🔥 v1.1.8 — Auth router actually goes through fastapi-users (v1.1.7 was wired but unused)
+
+Straight talk: v1.1.7 imported fastapi-users, wrote the integration module,
+and shipped four alembic migrations, but on the request path **only the
+PasswordHelper was actually invoked**. UserManager / JWTStrategy /
+`current_active_user` were dead code, and all 260 `Depends(get_current_user)`
+sites still went through hand-rolled dependencies. v1.1.8 finishes the
+cut-over. Grep makes it visible:
+
+```
+$ grep -rn "from fastapi_users" backend/app/
+backend/app/auth/security.py                    PasswordHelper
+backend/app/auth/fastapi_users_integration.py   (core module)
+backend/app/auth/dependencies.py                current_active_user et al.
+backend/app/routers/auth.py                     UserManager + get_jwt_strategy
+```
+
+What's actually cut over:
+
+- **All 260 `Depends(get_current_user)` go through fastapi-users**:
+  `dependencies.py::get_current_user` is now a thin alias for
+  `fastapi_users_integration.current_active_user`. Every request runs
+  `_fa_current_active_user` (the fastapi-users built-in) →
+  `UsernameSubJWTStrategy.read_token` → `UserManager.get_by_username` → DB
+  lookup. Our `must_change_password` gate is layered on top by the wrapper.
+- **Login goes through `UserManager.authenticate_by_username`**, which
+  wraps username lookup + bcrypt verify + **constant-time dummy hash for
+  non-existent users** (prevents the timing-attack leak that the v1.1.7-era
+  handcrafted login lacked) + **bcrypt → argon2 progressive rehash** (a
+  successful verify that advises an upgrade persists the new hash, so
+  each login migrates one user).
+- **Access tokens minted by `JWTStrategy.write_token`**:
+  `UsernameSubJWTStrategy` overrides `read_token` / `write_token` to use
+  `sub=username` rather than the fastapi-users default UUID id, keeping
+  SPA / Casbin / log identifiers consistent. Refresh tokens stay
+  hand-rolled (fastapi-users 13 has no refresh-token concept).
+- **Admin user CRUD via `UserManager`**: `POST /auth/users` uses
+  `password_helper.hash()` + `on_after_register()`; `PUT /auth/users/{u}`
+  and `POST /auth/users/{u}/reset-password` use `UserManager._update()`;
+  `DELETE /auth/users/{u}` uses `UserManager.delete()`.
+
+Intentionally NOT moved to fastapi-users: JWT decode in `app.middleware`
+(it still needs token-revocation cache check + ContextVar setup +
+active_org cookie resolution, none of which fastapi-users addresses);
+refresh token + `must_change_password` gate + `org_id` cookie
+(proprietary); Casbin RBAC (fastapi-users docs explicitly say "we don't do
+authorization").
+
+---
+
+## 🔥 v1.1.7 — FastAPI Users primitives wired + schema migration (stack ready, hot path not yet cut)
 
 Eight commits and four alembic migrations on `feat/fastapi-users` move the
 auth backend off hand-rolled bcrypt + JWT + OAuth onto the standard
