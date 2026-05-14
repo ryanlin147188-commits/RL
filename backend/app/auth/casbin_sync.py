@@ -33,6 +33,7 @@ from app.auth.permissions_catalog import permission_to_casbin
 from app.models.org_membership import OrgMembership
 from app.models.project import Project
 from app.models.project_member import ProjectMember
+from app.models.project_role_permission import ProjectRolePermission
 from app.models.role import Role
 from app.models.user import User
 
@@ -58,9 +59,51 @@ def _role_to_policies(role: Role, dom: str) -> list[list[str]]:
     return out
 
 
+def _override_alias(role_name: str, project_id: str) -> str:
+    """為 (role, project) override 生 Casbin alias role 名稱。
+
+    格式 ``<role>@<pid 前 8 碼>``;``@`` 用來確認跟 user 自訂 role 名稱不撞
+    (Role.name 約定不含 ``@``)。alias role 只在 ``project:<pid>`` 這個
+    具體 domain 內有 p rules,所以即使前 8 碼撞到,domain 也不會混淆。
+    """
+    return f"{role_name}@{project_id[:8]}"
+
+
+def _override_perms_to_policies(
+    role_name: str, project_id: str, permissions: list[str],
+) -> list[list[str]]:
+    """override 的 permissions → alias role 的 p rules。
+
+    Domain 用 **具體** ``project:<pid>``(不是 ``project:*``),這樣 alias
+    role 不會在別的專案被 keyMatch2 套用到。
+    """
+    alias = _override_alias(role_name, project_id)
+    dom = _casbin.project_domain(project_id)
+    out: list[list[str]] = []
+    for perm in permissions or []:
+        try:
+            obj, act = permission_to_casbin(perm)
+        except KeyError:
+            logger.warning(
+                "casbin_sync: override (%s,%s) has unknown permission '%s' — skipping",
+                project_id, role_name, perm,
+            )
+            continue
+        out.append([alias, dom, obj, act])
+    return out
+
+
 async def _load_role_map(db: AsyncSession) -> dict[str, Role]:
     rows = (await db.execute(select(Role))).scalars().all()
     return {r.id: r for r in rows}
+
+
+async def _load_overrides(
+    db: AsyncSession,
+) -> dict[tuple[str, str], list[str]]:
+    """回 ``{(project_id, role_id): permissions_json}``。"""
+    rows = (await db.execute(select(ProjectRolePermission))).scalars().all()
+    return {(o.project_id, o.role_id): list(o.permissions_json or []) for o in rows}
 
 
 # ── Public API ─────────────────────────────────────────────────────────
@@ -117,6 +160,9 @@ async def rebuild_user_grants(db: AsyncSession, username: str) -> None:
 
     # 3. ProjectMember → g 在 project:<pid> domain
     # Project.organization_id 是用來退回 OrgMembership.role_id 的依據。
+    # 若 (project, role) 有 per-project override → g 指到 alias role,
+    # 否則沿用原 role(吃全域 ``project:*`` 的 p rules)。
+    overrides = await _load_overrides(db)
     projmems = (
         await db.execute(
             select(ProjectMember, Project)
@@ -128,8 +174,13 @@ async def rebuild_user_grants(db: AsyncSession, username: str) -> None:
     for pm, project in projmems:
         effective_role_id = pm.role_id or org_role_id_by_org.get(project.organization_id)
         if effective_role_id and effective_role_id in role_map:
+            role_obj = role_map[effective_role_id]
+            if (project.id, effective_role_id) in overrides:
+                grant_role_name = _override_alias(role_obj.name, project.id)
+            else:
+                grant_role_name = role_obj.name
             enf.add_grouping_policy(
-                username, role_map[effective_role_id].name, _casbin.project_domain(project.id),
+                username, grant_role_name, _casbin.project_domain(project.id),
             )
 
     enf.save_policy()
@@ -151,6 +202,7 @@ async def rebuild_all_policies(db: AsyncSession) -> dict[str, int]:
 
     # ── p rules ────────────────────────────────────────────────────────
     role_map = await _load_role_map(db)
+    overrides = await _load_overrides(db)  # {(pid, rid): permissions_list}
     p_lines: list[list[str]] = []
 
     # org-scoped role:寫一份 wildcard domain ``org:*``,跟 keyMatch2 配合
@@ -164,6 +216,12 @@ async def rebuild_all_policies(db: AsyncSession) -> dict[str, int]:
         else:
             dom = "global"
         p_lines.extend(_role_to_policies(role, dom))
+
+    # Per-project override:寫 alias role 的 p rules 到具體 ``project:<pid>``。
+    # 注意 domain 不用 wildcard,避免一個 override 不小心套到別專案。
+    for (pid, rid), perms in overrides.items():
+        if rid in role_map:
+            p_lines.extend(_override_perms_to_policies(role_map[rid].name, pid, perms))
 
     if p_lines:
         enf.add_policies(p_lines)
@@ -197,8 +255,14 @@ async def rebuild_all_policies(db: AsyncSession) -> dict[str, int]:
     for pm, project in projmems:
         effective_role_id = pm.role_id or user_org_role.get((pm.username, project.organization_id))
         if effective_role_id and effective_role_id in role_map:
+            role_obj = role_map[effective_role_id]
+            # 若該 (project, role) 有 override → g 掛到 alias role
+            if (project.id, effective_role_id) in overrides:
+                grant_role_name = _override_alias(role_obj.name, project.id)
+            else:
+                grant_role_name = role_obj.name
             g_lines.append([
-                pm.username, role_map[effective_role_id].name, _casbin.project_domain(project.id),
+                pm.username, grant_role_name, _casbin.project_domain(project.id),
             ])
 
     if g_lines:

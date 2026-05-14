@@ -28,6 +28,51 @@
 
 ---
 
+## 🔥 v1.1.6 — Per-project role permission override + 三欄位首登 modal
+
+針對「平台一人主場 + 多人協作專案」情境補完角色 / 權限細粒度,讓客戶 / 外包等
+協作者進來後可以**按專案精修同一個角色的權限**,不必為了一個專案的特殊需求
+複製整套系統角色。
+
+- **Per-project role override**:新表 `project_role_permissions(project_id,
+  role_id, permissions_json)`。同一個 `Project-Tester` 在 project A 預設可
+  read+write+execute,在 project B 可被 override 成只 read。設定頁 →
+  「專案協作成員」面板下方多一個「**本專案角色權限**」section,點編輯即可
+  勾選想開放的 23 個 permission,儲存後即時生效。
+- **Casbin sync 認識 override**:有 override 的 (project, role) 自動產生
+  alias role `<role>@<pid 前 8 碼>` 寫到 `casbin_rule` 表,enforce 時
+  Casbin 自動 match alias 的 p rules,完全不必改 `require_casbin` 那 42 個
+  site。沒 override 的 (project, role) 走原本全域 `project:*` domain 的
+  p rules,行為跟 v1.1.5 一致。
+- **首登三欄位 modal**:`forcePwdModal` 擴成首登 profile-setup 流程,一次填
+  完**顯示名稱 + Email + 新密碼**,改打新端點 `POST /api/auth/profile-setup`。
+  觸發條件仍然是 `users.must_change_password=True`。
+- **admin 建立的新 user 預設 must_change_password=True**:即使 admin 在
+  建立時設了密碼,新 user 第一次登入仍會被引導完成 profile setup。確保
+  外部協作者進來時 display_name / email 一定都填好。
+- **API**:
+  - `GET    /api/projects/{pid}/role-permissions` 列出所有 4 個 project-scope
+    role 在該專案內的有效權限 + override 狀態
+  - `PUT    /api/projects/{pid}/role-permissions/{role_id}` upsert override
+  - `DELETE /api/projects/{pid}/role-permissions/{role_id}` 回到預設
+  - `POST   /api/auth/profile-setup` 首登一次提交三欄位
+- **Migration**:`0026_project_role_permissions` 建新表,UNIQUE(project_id, role_id)。
+
+### 推薦的協作 SOP
+
+| Persona | 全域 `users.role_id` | `ProjectMember.role_id` | 用途 |
+|---|---|---|---|
+| 平台主(你) | NULL + `is_superuser=True` | 不用 | 全平台寫 |
+| 客戶 PM | NULL | `Project-Reviewer` | 看 plan、核准 |
+| 外包 QA | NULL | `Project-Tester`(+ 必要時 override) | 寫案例、跑測試 |
+| 唯讀 stakeholder | NULL | `Project-Viewer` | dashboard / 報告 |
+
+外部協作者進來預設 `role_id=NULL`,什麼都看不到;管理員透過「設定 → 專案協作
+成員 → 加入現有使用者」邀請進專案,再用「本專案角色權限」精修若需要的話。
+退出專案只刪 `ProjectMember` row,不影響該 user 其他專案 / 全域。
+
+---
+
 ## 🔥 v1.1.5 — Casdoor sidecar 下架,改 in-process authlib
 
 跑了 v1.1.3 / v1.1.4 兩個版本的 Casdoor sidecar 之後,遇到 subpath SPA 白屏 /

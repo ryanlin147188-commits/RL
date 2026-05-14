@@ -28,6 +28,54 @@
 
 ---
 
+## 🔥 v1.1.6 — Per-project role permission override + three-field first-login modal
+
+Targeted at the "solo-owner platform + multi-collaborator projects" scenario,
+this release adds **per-project role permission overrides** so the same
+`Project-Tester` role can have different effective permissions in different
+projects without cloning the whole role.
+
+- **Per-project override table** `project_role_permissions(project_id, role_id,
+  permissions_json)`. In the SPA, 設定 → 專案協作成員 panel now shows a new
+  「本專案角色權限」section listing the 4 project-scope roles with their
+  effective permission count + override badge; click 編輯 to flip individual
+  permission checkboxes for this project only.
+- **Casbin sync writes alias roles** `<role>@<short_pid>` to `casbin_rule`
+  for any (project, role) that has an override row. The 42 `require_casbin`
+  call-sites stay unchanged — enforce automatically matches the alias's
+  p rules in the specific `project:<pid>` domain.
+- **First-login profile modal** expanded to three fields (display_name + email
+  + new password) via new endpoint `POST /api/auth/profile-setup`. Triggered
+  the same way as before (`users.must_change_password=True`).
+- **`create_user` defaults `must_change_password=True`** so any user that an
+  admin creates locally will be walked through profile setup on first login,
+  guaranteeing display_name / email get filled in.
+- New API:
+  - `GET /api/projects/{pid}/role-permissions` — list effective permissions
+    + override badge for all project-scope roles
+  - `PUT /api/projects/{pid}/role-permissions/{role_id}` — upsert override
+  - `DELETE /api/projects/{pid}/role-permissions/{role_id}` — reset to default
+  - `POST /api/auth/profile-setup` — first-login three-field write
+- Migration `0026_project_role_permissions` creates the new table with
+  `UNIQUE(project_id, role_id)` and `ON DELETE CASCADE` from both FKs.
+
+### Recommended collaboration SOP
+
+| Persona | Global `users.role_id` | `ProjectMember.role_id` | Use case |
+|---|---|---|---|
+| Platform owner (you) | NULL + `is_superuser=True` | — | Full platform write |
+| Customer PM | NULL | `Project-Reviewer` | View plans, approve |
+| External QA | NULL | `Project-Tester` (+ override if needed) | Write cases, run tests |
+| Read-only stakeholder | NULL | `Project-Viewer` | Dashboards, reports |
+
+External collaborators sign up with `role_id=NULL` and can see nothing;
+the platform owner invites them per-project via 「加入現有使用者」 and
+optionally fine-tunes role permissions via 「本專案角色權限」. Removing them
+from a project deletes only the `ProjectMember` row — no spillover to other
+projects.
+
+---
+
 ## 🔥 v1.1.5 — Casdoor sidecar dropped, in-process authlib takes over
 
 After spending two minor releases (v1.1.3 / v1.1.4) running Casdoor as a side-

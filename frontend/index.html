@@ -794,30 +794,36 @@
         <div class="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-amber-200/60 overflow-hidden">
             <div class="bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-4 text-white">
                 <h3 class="font-bold text-base flex items-center gap-2">
-                    <i class="fa-solid fa-shield-halved"></i> 首次登入請設定新密碼
+                    <i class="fa-solid fa-id-card"></i> 首次登入請完成個人資料
                 </h3>
-                <p class="text-xs opacity-90 mt-1">為了帳號安全,請立即更換預設密碼後再開始使用系統。</p>
+                <p class="text-xs opacity-90 mt-1">設定顯示名稱、Email 與新密碼後即可開始使用。</p>
             </div>
             <form id="forcePwdForm" onsubmit="return forcePwdHandleSubmit(event)" class="px-6 py-5 space-y-3">
                 <div>
-                    <label for="forcePwdOld" class="block text-xs font-semibold text-stone-600 mb-1">目前密碼</label>
-                    <input type="password" id="forcePwdOld" required autocomplete="current-password"
+                    <label for="forceDisplayName" class="block text-xs font-semibold text-stone-600 mb-1">顯示名稱 <span class="text-rose-500">*</span></label>
+                    <input type="text" id="forceDisplayName" required maxlength="120" autocomplete="name"
                         class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
                 </div>
                 <div>
-                    <label for="forcePwdNew" class="block text-xs font-semibold text-stone-600 mb-1">新密碼</label>
+                    <label for="forceEmail" class="block text-xs font-semibold text-stone-600 mb-1">Email <span class="text-rose-500">*</span></label>
+                    <input type="email" id="forceEmail" required maxlength="255" autocomplete="email"
+                        class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+                    <p class="text-[10px] text-stone-500 mt-1">給忘記密碼 / 通知功能使用</p>
+                </div>
+                <div>
+                    <label for="forcePwdNew" class="block text-xs font-semibold text-stone-600 mb-1">新密碼 <span class="text-rose-500">*</span></label>
                     <input type="password" id="forcePwdNew" required minlength="6" autocomplete="new-password"
                         class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
-                    <p class="text-[10px] text-stone-500 mt-1">至少 6 字元,且不可與目前密碼相同</p>
+                    <p class="text-[10px] text-stone-500 mt-1">至少 6 字元</p>
                 </div>
                 <div>
-                    <label for="forcePwdNew2" class="block text-xs font-semibold text-stone-600 mb-1">再次輸入新密碼</label>
+                    <label for="forcePwdNew2" class="block text-xs font-semibold text-stone-600 mb-1">再次輸入新密碼 <span class="text-rose-500">*</span></label>
                     <input type="password" id="forcePwdNew2" required minlength="6" autocomplete="new-password"
                         class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
                 </div>
                 <button type="submit"
                     class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-lg font-semibold text-sm shadow-md transition flex items-center justify-center gap-2">
-                    <i class="fa-solid fa-floppy-disk"></i> 變更密碼並繼續
+                    <i class="fa-solid fa-floppy-disk"></i> 完成設定並繼續
                 </button>
                 <p class="text-[10px] text-stone-400 text-center">未變更密碼前無法使用其他功能。</p>
             </form>
@@ -3155,6 +3161,30 @@ driver.swipe(100, 800, 100, 200, 500)"
             </div>
 
             <!-- 加入現有使用者 Modal(Casdoor cutover 後標準入口) -->
+            <!-- v1.1.6:Per-project role permission override modal -->
+            <div id="prpEditModal" class="hidden fixed inset-0 z-[175] bg-black/40 flex items-center justify-center p-4">
+                <div class="bg-white rounded-lg shadow-xl border border-stone-200 w-full max-w-2xl">
+                    <div class="px-5 py-3 border-b flex justify-between items-center">
+                        <div class="font-bold text-stone-800"><i class="fa-solid fa-shield-halved text-amber-600"></i> 編輯本專案內 <span id="prpEditRoleName" class="text-amber-700">—</span> 的權限</div>
+                        <button onclick="prpCloseEditModal()" class="text-stone-400 hover:text-rose-600"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <form onsubmit="return prpSubmitEdit(event)" class="p-4 space-y-3">
+                        <p class="text-[11px] text-stone-500 bg-amber-50 border border-amber-200 rounded p-2 leading-relaxed">
+                            <i class="fa-solid fa-circle-info text-amber-500"></i>
+                            這份覆蓋只影響本專案。儲存後立即對所有持有此角色的本專案成員生效;不會動到該角色在其他專案 / 全域的權限設定。
+                        </p>
+                        <div id="prpPermsBox" class="space-y-3 max-h-[55vh] overflow-y-auto"></div>
+                        <div class="flex justify-between gap-2 pt-2 border-t border-stone-100">
+                            <button type="button" onclick="prpResetToDefault()" class="px-3 py-1.5 text-sm border border-rose-300 text-rose-700 rounded hover:bg-rose-50" title="移除本專案 override,回到該 role 的全域預設權限"><i class="fa-solid fa-rotate-left"></i> 重設為預設</button>
+                            <div class="flex gap-2">
+                                <button type="button" onclick="prpCloseEditModal()" class="px-3 py-1.5 text-sm border border-stone-300 rounded hover:bg-stone-50">取消</button>
+                                <button type="submit" class="px-4 py-1.5 text-sm bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold">儲存覆蓋</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
             <div id="pmAddExistingModal" class="hidden fixed inset-0 z-[170] bg-black/40 flex items-center justify-center p-4">
                 <div class="bg-white rounded-lg shadow-xl border border-stone-200 w-full max-w-md">
                     <div class="px-5 py-3 border-b flex justify-between items-center">
@@ -3533,6 +3563,35 @@ driver.swipe(100, 800, 100, 200, 500)"
                                 </table>
                             </div>
                             <div class="mt-2 text-[11px] text-stone-500" id="pmFilterHint"></div>
+                        </section>
+
+                        <!-- v1.1.6:本專案角色權限(per-project role override)──────── -->
+                        <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-4">
+                            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                                <div class="flex-1 min-w-0">
+                                    <h3 class="font-bold text-stone-700 text-base flex items-center gap-2"><i class="fa-solid fa-shield-halved text-amber-500"></i> 本專案角色權限</h3>
+                                    <p class="text-xs text-stone-500 mt-1">在這個專案內覆蓋 4 個 project-scope 角色的權限。覆蓋只影響本專案,不會動到其他專案。</p>
+                                </div>
+                                <button onclick="prpReload()" class="text-xs px-2.5 py-1.5 border border-stone-300 rounded hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
+                            </div>
+                            <div id="prpEmptyHint" class="hidden bg-amber-50 border border-amber-200 rounded-lg p-3 text-center text-amber-800 text-sm">
+                                <i class="fa-solid fa-circle-info"></i> 請先在左側選一個專案。
+                            </div>
+                            <div id="prpTableWrap" class="overflow-hidden border border-stone-100 rounded-md">
+                                <table class="w-full text-sm">
+                                    <thead class="bg-amber-50/60 text-stone-600 text-xs uppercase">
+                                        <tr>
+                                            <th class="p-3 text-left">角色</th>
+                                            <th class="p-3 text-left">目前有效權限數</th>
+                                            <th class="p-3 text-left w-28">狀態</th>
+                                            <th class="p-3 text-center w-40">操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="prpTableBody" class="divide-y divide-stone-100">
+                                        <tr><td colspan="4" class="p-4 text-center text-stone-400">載入中…</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </section>
                     </div>
 
@@ -11244,19 +11303,31 @@ driver.swipe(100, 800, 100, 200, 500)"
             return false;
         }
 
-        // ── 強制改密碼 modal ──────────────────────────────────────
-        // 進入點 1:登入回傳 must_change_password=true。
-        // 進入點 2:任何 API 回 403 + detail.code=must_change_password(_responseHandledForceMC)。
+        // ── 首登 profile-setup modal(v1.1.6 三欄位)─────────────────
+        // 進入點:`/auth/login` 回傳 must_change_password=true → forcePwdShow(uname)
+        // 一次補齊:顯示名稱 / Email / 新密碼。Submit 打 ``/auth/profile-setup``,
+        // 不需要 old_password(SSO JIT 進來的 user 沒密碼可比對),也允許新密碼
+        // 跟初始密碼一樣(那密碼可能是 admin 傳給他的,他要設新的就好)。
         let _forcePwdActiveUser = '';
         function forcePwdShow(username) {
             _forcePwdActiveUser = username || '';
-            ['forcePwdOld','forcePwdNew','forcePwdNew2'].forEach(id => {
+            ['forceDisplayName','forceEmail','forcePwdNew','forcePwdNew2'].forEach(id => {
                 const el = document.getElementById(id); if (el) el.value = '';
             });
+            // 預填現有 display_name / email(若 admin 建帳號時填過)
+            try {
+                window.fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(me => {
+                    if (!me) return;
+                    const dn = document.getElementById('forceDisplayName');
+                    const em = document.getElementById('forceEmail');
+                    if (dn && me.display_name && me.display_name !== me.username) dn.value = me.display_name;
+                    if (em && me.email) em.value = me.email;
+                });
+            } catch (_) {}
             const m = document.getElementById('forcePwdModal');
             if (m) m.classList.remove('hidden');
             setTimeout(() => {
-                const inp = document.getElementById('forcePwdOld');
+                const inp = document.getElementById('forceDisplayName');
                 if (inp) inp.focus();
             }, 50);
         }
@@ -11264,42 +11335,37 @@ driver.swipe(100, 800, 100, 200, 500)"
             const m = document.getElementById('forcePwdModal');
             if (m) m.classList.add('hidden');
         }
-        // 註:改密碼 modal 只在「使用者剛輸入帳密、login response 帶 must_change_password=true」
-        // 時 pop(見 handleLogin)。背景 /api/* 收到 403 must_change_password 時改派
-        // autotest:auth-required(由 fetch wrapper 處理),走 authForceReauth → 清 token、
-        // 清 URL hash、回到登入頁。使用者重新輸入帳密後,login 流程才會帶 must_change_password
-        // 進入點 1 把 modal 叫出來 — 順序與既有登入流程一致。
         async function forcePwdHandleSubmit(ev) {
             ev.preventDefault();
-            const oldPwd = document.getElementById('forcePwdOld').value;
+            const displayName = document.getElementById('forceDisplayName').value.trim();
+            const email = document.getElementById('forceEmail').value.trim();
             const newPwd = document.getElementById('forcePwdNew').value;
             const newPwd2 = document.getElementById('forcePwdNew2').value;
-            if (newPwd.length < 6) {
-                showToast('新密碼至少 6 字元', 'error'); return false;
-            }
-            if (newPwd === oldPwd) {
-                showToast('新密碼不可與目前密碼相同', 'error'); return false;
-            }
-            if (newPwd !== newPwd2) {
-                showToast('兩次新密碼不一致', 'error'); return false;
-            }
+            if (!displayName) { showToast('請填顯示名稱', 'error'); return false; }
+            if (!email || !email.includes('@')) { showToast('請填有效 Email', 'error'); return false; }
+            if (newPwd.length < 6) { showToast('新密碼至少 6 字元', 'error'); return false; }
+            if (newPwd !== newPwd2) { showToast('兩次新密碼不一致', 'error'); return false; }
             try {
-                const r = await window.fetch('/api/auth/change-password', {
+                const r = await window.fetch('/api/auth/profile-setup', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': 'Bearer ' + (localStorage.getItem('autotest.auth.access_token') || ''),
                     },
-                    body: JSON.stringify({ old_password: oldPwd, new_password: newPwd }),
+                    body: JSON.stringify({
+                        display_name: displayName,
+                        email: email,
+                        new_password: newPwd,
+                    }),
                 });
                 if (!r.ok) {
-                    const detail = (await r.json().catch(() => ({}))).detail || '密碼變更失敗';
+                    const detail = (await r.json().catch(() => ({}))).detail || '設定失敗';
                     showToast(typeof detail === 'string' ? detail : (detail.message || JSON.stringify(detail)), 'error');
                     return false;
                 }
-                showToast('密碼已變更,系統將以新密碼重新登入', 'success');
+                showToast('已完成首登設定,請以新密碼重新登入', 'success');
                 forcePwdHide();
-                // 簡化:清掉 token 讓使用者重新登入(避免本機殘留錯密碼狀態)
+                // 清掉 token,讓 user 用新密碼重新登入
                 try {
                     localStorage.removeItem('autotest.auth.access_token');
                     localStorage.removeItem('autotest.auth.access_expires_at');
@@ -11313,7 +11379,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 const p = document.getElementById('loginPassword'); if (p) p.value = '';
                 if (p) p.focus();
             } catch (e) {
-                showToast('密碼變更失敗:' + (e.message || e), 'error');
+                showToast('設定失敗:' + (e.message || e), 'error');
             }
             return false;
         }
@@ -14699,6 +14765,134 @@ driver.swipe(100, 800, 100, 200, 500)"
             }
         }
 
+        // ── v1.1.6:本專案角色權限(per-project role override)─────────
+        let _prpEditingRoleId = null;
+        let _prpRows = [];  // GET /role-permissions 回的 4-row 陣列
+
+        async function prpReload() {
+            const tbody = document.getElementById('prpTableBody');
+            const empty = document.getElementById('prpEmptyHint');
+            const wrap = document.getElementById('prpTableWrap');
+            if (!currentProjectId) {
+                empty?.classList.remove('hidden');
+                wrap?.classList.add('hidden');
+                return;
+            }
+            empty?.classList.add('hidden');
+            wrap?.classList.remove('hidden');
+            tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-stone-400">載入中…</td></tr>`;
+            try {
+                const r = await apiFetch(`/api/projects/${encodeURIComponent(currentProjectId)}/role-permissions`);
+                _prpRows = await r.json();
+                if (!Array.isArray(_prpRows) || _prpRows.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-stone-400">沒有 project-scope role</td></tr>`;
+                    return;
+                }
+                tbody.innerHTML = _prpRows.map(row => {
+                    const badge = row.is_override
+                        ? `<span class="text-[10px] px-2 py-0.5 rounded bg-amber-100 text-amber-800">已覆蓋</span>`
+                        : `<span class="text-[10px] px-2 py-0.5 rounded bg-stone-100 text-stone-500">沿用預設</span>`;
+                    return `
+                        <tr>
+                          <td class="p-3 font-medium text-stone-700">${escapeHtml(row.role_name)}<div class="text-[10px] text-stone-400">${escapeHtml(row.description || '')}</div></td>
+                          <td class="p-3 text-stone-600">${row.effective_permissions.length} / ${row.default_permissions.length}<div class="text-[10px] text-stone-400">${row.is_override ? '覆蓋後 / 全域預設' : '本專案有效 / 全域預設'}</div></td>
+                          <td class="p-3">${badge}</td>
+                          <td class="p-3 text-center">
+                            <button onclick="prpOpenEditModal('${escapeHtml(row.role_id)}')" class="text-xs px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 rounded"><i class="fa-solid fa-pen"></i> 編輯</button>
+                            ${row.is_override
+                                ? `<button onclick="prpResetRole('${escapeHtml(row.role_id)}','${escapeHtml(row.role_name)}')" class="ml-1 text-xs px-2.5 py-1 bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 rounded"><i class="fa-solid fa-rotate-left"></i> 重設</button>`
+                                : ''}
+                          </td>
+                        </tr>`;
+                }).join('');
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-rose-500">載入失敗:${escapeHtml(e.message || String(e))}</td></tr>`;
+            }
+        }
+
+        async function prpOpenEditModal(role_id) {
+            _prpEditingRoleId = role_id;
+            const row = _prpRows.find(x => x.role_id === role_id);
+            if (!row) { showToast('找不到角色', 'error'); return; }
+            document.getElementById('prpEditRoleName').textContent = row.role_name;
+            // 拉 permission catalogue 渲染 checkbox(分組)
+            let items = [];
+            try {
+                const r = await apiFetch('/api/settings/permissions/catalogue');
+                items = (await r.json()).items || [];
+            } catch (_) { items = []; }
+            const granted = new Set(row.effective_permissions);
+            const groups = {};
+            items.forEach(it => { (groups[it.group] = groups[it.group] || []).push(it); });
+            const box = document.getElementById('prpPermsBox');
+            box.innerHTML = Object.entries(groups).map(([g, list]) => `
+                <div>
+                  <div class="text-xs font-semibold text-stone-600 mb-1 mt-2 border-b border-stone-100 pb-1">${escapeHtml(g)}</div>
+                  <div class="grid grid-cols-2 gap-1.5 text-xs">
+                    ${list.map(it => `
+                      <label class="flex items-center gap-1.5 cursor-pointer hover:bg-amber-50 px-1.5 py-0.5 rounded">
+                        <input type="checkbox" class="prp-perm-cb rounded border-stone-300 text-amber-500 focus:ring-amber-400" value="${escapeHtml(it.key)}" ${granted.has(it.key) ? 'checked' : ''}>
+                        <span>${escapeHtml(it.label)} <span class="text-stone-400">(${escapeHtml(it.key)})</span></span>
+                      </label>`).join('')}
+                  </div>
+                </div>`).join('');
+            document.getElementById('prpEditModal').classList.remove('hidden');
+        }
+
+        function prpCloseEditModal() {
+            document.getElementById('prpEditModal').classList.add('hidden');
+            _prpEditingRoleId = null;
+        }
+
+        async function prpSubmitEdit(ev) {
+            ev.preventDefault();
+            if (!_prpEditingRoleId || !currentProjectId) return false;
+            const perms = Array.from(document.querySelectorAll('.prp-perm-cb:checked')).map(c => c.value);
+            try {
+                const r = await apiFetch(`/api/projects/${encodeURIComponent(currentProjectId)}/role-permissions/${encodeURIComponent(_prpEditingRoleId)}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ permissions_json: perms }),
+                });
+                if (!r.ok) {
+                    const j = await r.json().catch(() => ({}));
+                    showToast('儲存失敗:' + (j.detail || r.statusText), 'error');
+                    return false;
+                }
+                showToast('本專案角色權限已覆蓋', 'success');
+                prpCloseEditModal();
+                prpReload();
+            } catch (e) {
+                showToast('儲存失敗:' + (e.message || e), 'error');
+            }
+            return false;
+        }
+
+        async function prpResetToDefault() {
+            // 從 modal 內按「重設為預設」
+            if (!_prpEditingRoleId || !currentProjectId) return;
+            if (!confirm('確定要拿掉本專案的角色權限覆蓋?該角色會回到全域預設值。')) return;
+            await prpResetRole(_prpEditingRoleId, '');
+            prpCloseEditModal();
+        }
+
+        async function prpResetRole(role_id, role_name) {
+            try {
+                const r = await apiFetch(`/api/projects/${encodeURIComponent(currentProjectId)}/role-permissions/${encodeURIComponent(role_id)}`, {
+                    method: 'DELETE',
+                });
+                if (!r.ok && r.status !== 204) {
+                    const j = await r.json().catch(() => ({}));
+                    showToast('重設失敗:' + (j.detail || r.statusText), 'error');
+                    return;
+                }
+                showToast(`${role_name || '角色'} 已回到全域預設`, 'success');
+                prpReload();
+            } catch (e) {
+                showToast('重設失敗:' + (e.message || e), 'error');
+            }
+        }
+
         async function pmReload() {
             const nameEl = document.getElementById('pmCurrentProjectName');
             const tbody = document.getElementById('pmTableBody');
@@ -14730,6 +14924,8 @@ driver.swipe(100, 800, 100, 200, 500)"
             } catch (e) {
                 _renderTableError(tbody, 7, '載入失敗:' + (e.message || e), 'pmReload');
             }
+            // v1.1.6:同步把本專案角色權限那一塊也載入
+            prpReload().catch(() => {});
         }
 
         async function pmLoadRoles() {
