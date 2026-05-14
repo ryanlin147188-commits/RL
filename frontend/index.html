@@ -15639,7 +15639,14 @@ driver.swipe(100, 800, 100, 200, 500)"
             const name = document.getElementById('trName').value.trim();
             const desc = document.getElementById('trDesc').value.trim();
             const mode = document.getElementById('trExecMode').value || 'docker';
-            const nodeIds = Array.from(trNodeSelection);
+            // trNodeSelection 是 Set,Array.from 給的是「點擊順序」而非「樹的順序」。
+            // 使用者預期跑順序要跟左側看到的樹一致(tree DFS),所以先把全部
+            // schedulable 節點以樹順展平,再依此排序選中的 id。
+            const _treeOrder = [];
+            try { collectAllSchedulableNodes(activeTreeData || [], '', _treeOrder); } catch (_) {}
+            const _orderIdx = new Map(_treeOrder.map((n, i) => [n.id, i]));
+            const nodeIds = Array.from(trNodeSelection)
+                .sort((a, b) => (_orderIdx.get(a) ?? 1e9) - (_orderIdx.get(b) ?? 1e9));
             if (!name) return showToast('請輸入回合名稱', 'error');
             if (!currentProjectId) return showToast('請先在左側載入專案', 'error');
             if (!nodeIds.length) return showToast('請至少選一個測試案例', 'error');
@@ -15971,7 +15978,12 @@ driver.swipe(100, 800, 100, 200, 500)"
 
         async function saveSchedule() {
             const name = document.getElementById('schedName').value.trim();
-            const nodeIds = Array.from(schedNodeSelection);
+            // 同 saveTestRound:依樹順排序,而非點擊順序。
+            const _so = [];
+            try { collectAllSchedulableNodes(activeTreeData || [], '', _so); } catch (_) {}
+            const _soIdx = new Map(_so.map((n, i) => [n.id, i]));
+            const nodeIds = Array.from(schedNodeSelection)
+                .sort((a, b) => (_soIdx.get(a) ?? 1e9) - (_soIdx.get(b) ?? 1e9));
             const repeat = document.querySelector('input[name="schedRepeat"]:checked')?.value || 'ONCE';
             const active = document.getElementById('schedActive').checked;
             const execMode = (document.getElementById('schedExecMode')?.value || 'docker');
