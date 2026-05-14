@@ -51,7 +51,6 @@ def _model_for(entity_type: AssignableEntityType):
     from app.models.defect import Defect
     from app.models.requirement import Requirement
     from app.models.review import ReviewRecord
-    from app.models.test_document import TestDocument
     from app.models.tree_node import LevelType, TreeNode
 
     return {
@@ -59,7 +58,6 @@ def _model_for(entity_type: AssignableEntityType):
         AssignableEntityType.DEFECT: (Defect, None),
         AssignableEntityType.TESTCASE: (TreeNode, LevelType.TESTCASE),
         AssignableEntityType.REQUIREMENT: (Requirement, None),
-        AssignableEntityType.DOCUMENT: (TestDocument, None),
     }[entity_type]
 
 
@@ -72,8 +70,6 @@ def _human_label(entity_type: AssignableEntityType, obj) -> str:
         return f"{obj.entity_type.value} {obj.entity_id[:8]}"
     if entity_type in (AssignableEntityType.TESTCASE, AssignableEntityType.REQUIREMENT):
         return getattr(obj, "name", obj.id)
-    if entity_type == AssignableEntityType.DOCUMENT:
-        return getattr(obj, "title", obj.id)
     if entity_type == AssignableEntityType.DEFECT:
         return f"{obj.code} {obj.title[:40]}" if obj.title else obj.code
     return obj.id

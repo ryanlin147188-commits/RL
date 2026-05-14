@@ -20,7 +20,6 @@ from app.database import get_db
 from app.models.defect import Defect
 from app.models.project import Project
 from app.models.requirement import Requirement
-from app.models.test_document import TestDocument
 from app.models.test_milestone import TestMilestone
 from app.models.test_plan import TestPlan
 from app.models.test_round import TestRound
@@ -49,7 +48,6 @@ _TARGET_REGISTRY = {
     "test_milestone": (TestMilestone, "name", None),
     "test_version": (TestVersion, "version_label", "platform"),  # G-1:顯示為「[WEB] v1.5-rc1」
     "wbs": (WbsItem, "name", None),
-    "test_document": (TestDocument, "title", None),
     "project": (Project, "name", None),
     # testcase 特殊:tree_nodes 有 level_type 約束
 }

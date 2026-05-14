@@ -17,13 +17,13 @@ logging.basicConfig(
 
 from app.config import settings
 from app.database import init_db
-from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings, schedules, local_runner, test_rounds, project_settings, screenshot_baselines, system, defects, test_milestones, test_plans, requirements, test_data_sets, test_documents, wbs_items, settings as app_settings, todos, todo_links, auth, audit_logs, organizations, notifications, mock_endpoints, groups, test_versions, reviews, assignments, artifacts, entity_versions, oidc_auth, project_role_permissions
+from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings, schedules, local_runner, test_rounds, project_settings, screenshot_baselines, system, defects, test_milestones, test_plans, requirements, test_data_sets, wbs_items, settings as app_settings, todos, todo_links, auth, audit_logs, organizations, notifications, mock_endpoints, groups, test_versions, reviews, assignments, artifacts, entity_versions, oidc_auth, project_role_permissions
 # v1.1.5:Casdoor sidecar 下架,OIDC 改 in-process(authlib + Zoho),由
 # ``oidc_auth`` router 承接。舊的 ``oidc`` / ``casdoor_*`` 模組已刪除。
 # 確保新增 model 在 init_db() 前已 import 註冊到 Base.metadata
 from app.models import (  # noqa: F401
     Defect, TestMilestone, TestPlan, Requirement, RequirementTestcaseLink,
-    TestDataSet, TestDocument, WbsItem,
+    TestDataSet, WbsItem,
     Role, NotificationPreference, Notification, EmailConfig, TodoItem, TodoLink, User,
     Organization, AuditLog, OidcProvider,
     MockEndpoint,
@@ -502,7 +502,6 @@ app.include_router(test_milestones.router, prefix="/api", tags=["M · 測試時�
 app.include_router(test_plans.router,      prefix="/api", tags=["N · 測試計畫"])
 app.include_router(requirements.router,    prefix="/api", tags=["O · 需求 / RTM"])
 app.include_router(test_data_sets.router,  prefix="/api", tags=["P · 測試資料集 (DDT)"])
-app.include_router(test_documents.router,  prefix="/api", tags=["Q · 測試文件"])
 app.include_router(wbs_items.router,       prefix="/api", tags=["R · WBS"])
 app.include_router(app_settings.router,    prefix="/api", tags=["S · 設定"])
 app.include_router(todos.router,           prefix="/api", tags=["T · 待辦"])

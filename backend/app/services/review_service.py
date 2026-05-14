@@ -417,7 +417,6 @@ def _kwargs_for_review(obj: Any) -> Optional[dict]:
 
     from app.models.execution_report import ExecutionReport
     from app.models.recording import RecordingSession
-    from app.models.test_document import TestDocument
     from app.models.tree_node import LevelType, TreeNode
 
     def _ensure_id(o: Any) -> str:
@@ -431,8 +430,6 @@ def _kwargs_for_review(obj: Any) -> Optional[dict]:
         if obj.level_type == LevelType.TESTCASE:
             return {"entity_type": ReviewableEntityType.TESTCASE, "entity_id": _ensure_id(obj)}
         return None
-    if isinstance(obj, TestDocument):
-        return {"entity_type": ReviewableEntityType.DOCUMENT, "entity_id": _ensure_id(obj)}
     if isinstance(obj, RecordingSession):
         return {"entity_type": ReviewableEntityType.SCRIPT, "entity_id": _ensure_id(obj)}
     if isinstance(obj, ExecutionReport):

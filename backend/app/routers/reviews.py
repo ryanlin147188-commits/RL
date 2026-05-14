@@ -240,7 +240,6 @@ async def _resolve_entity_names(
     """
     from app.models.execution_report import ExecutionReport
     from app.models.recording import RecordingSession
-    from app.models.test_document import TestDocument
     from app.models.tree_node import TreeNode
 
     by_type: dict[ReviewableEntityType, list[str]] = {}
@@ -262,7 +261,6 @@ async def _resolve_entity_names(
                 out[(etype.value, row.id)] = str(label)
 
     await _fill(TreeNode, "name", ReviewableEntityType.TESTCASE)
-    await _fill(TestDocument, "title", ReviewableEntityType.DOCUMENT)
     # RecordingSession does not have a name column; surface the target URL
     # so the operator at least sees what was being recorded.
     await _fill(RecordingSession, "target_url", ReviewableEntityType.SCRIPT)
@@ -466,7 +464,6 @@ async def _sync_content_status_on_approve(db, record, username: str) -> None:
     """
     type_map = {
         "TESTCASE": "testcase",
-        "DOCUMENT": "test_document",
     }
     entity_type_value = (
         record.entity_type.value if hasattr(record.entity_type, "value") else str(record.entity_type)
@@ -515,7 +512,7 @@ async def reject_review(
 
 async def _sync_content_status_on_reject(db, record, username: str, reason: str | None) -> None:
     """同 _sync_content_status_on_approve,但 status 改 rejected。"""
-    type_map = {"TESTCASE": "testcase", "DOCUMENT": "test_document"}
+    type_map = {"TESTCASE": "testcase"}
     entity_type_value = (
         record.entity_type.value if hasattr(record.entity_type, "value") else str(record.entity_type)
     )

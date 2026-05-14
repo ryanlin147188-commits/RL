@@ -69,7 +69,6 @@ def _build_registry() -> dict[str, _EntitySpec]:
     # 延後 import 避免 circular(models 裡會 import service 之前的東西)
     from app.models.defect import Defect
     from app.models.requirement import Requirement
-    from app.models.test_document import TestDocument
     from app.models.todo_item import TodoItem
     from app.models.tree_node import TreeNode
     from app.models.wbs_item import WbsItem
@@ -99,14 +98,6 @@ def _build_registry() -> dict[str, _EntitySpec]:
                 "code", "parent_id", "title", "description",
                 "source", "priority", "status",
                 "owner", "release_target", "is_published",
-                "assigned_to", "assigned_to_type",
-            ],
-        ),
-        "test_document": _EntitySpec(
-            TestDocument,
-            fields=[
-                "code", "title", "category", "content_md",
-                "tags", "version", "is_published",
                 "assigned_to", "assigned_to_type",
             ],
         ),

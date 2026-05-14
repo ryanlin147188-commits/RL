@@ -17,7 +17,6 @@ class AssignableEntityType(str, Enum):
     DEFECT = "defect"
     TESTCASE = "testcase"   # tree_nodes with level_type=TESTCASE
     REQUIREMENT = "requirement"
-    DOCUMENT = "document"
 
 
 class AssigneeType(str, Enum):

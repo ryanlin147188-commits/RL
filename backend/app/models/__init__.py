@@ -37,7 +37,6 @@ from .review import (
 from .schedule import RepeatType, Schedule
 from .step_screenshot_baseline import StepScreenshotBaseline
 from .test_data_set import DataSetCategory, TestDataSet
-from .test_document import DocumentCategory, TestDocument
 from .test_milestone import MilestoneStatus, TestMilestone
 from .test_plan import TestPlan, TestPlanStatus
 from .test_round import TestRound
@@ -72,7 +71,6 @@ __all__ = [
     "Requirement", "RequirementSource", "RequirementPriority",
     "RequirementStatus", "RequirementTestcaseLink",
     "TestDataSet", "DataSetCategory",
-    "TestDocument", "DocumentCategory",
     "WbsItem", "WbsItemType", "WbsStatus",
     "WbsLink", "ALLOWED_WBS_TARGET_TYPES",
     # Settings + todos
