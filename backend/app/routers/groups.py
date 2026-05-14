@@ -245,7 +245,6 @@ async def get_group_usage(
       Requirement / TestDocument / ReviewRecord)指派為此群組的數量
     """
     from app.models.todo_item import TodoItem
-    from app.models.defect import Defect
     from app.models.tree_node import TreeNode
     from app.models.review import ReviewRecord
 
@@ -269,7 +268,6 @@ async def get_group_usage(
     # 其他 Assignable entity(都用 assigned_to + assigned_to_type)
     breakdown = {}
     for label, model in (
-        ("defects", Defect),
         ("testcases", TreeNode),
         ("reviews", ReviewRecord),
     ):

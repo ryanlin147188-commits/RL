@@ -1031,7 +1031,6 @@
                 </div>
                 <div class="space-y-0.5">
                     <button type="button" onclick="closeNavDrawer(); showReportView()"  class="nav-drawer-btn"><i class="fa-solid fa-chart-pie text-blue-600"></i><span data-i18n="nav.reports">測試報告</span></button>
-                    <button type="button" onclick="closeNavDrawer(); showDefectsView()" class="nav-drawer-btn"><i class="fa-solid fa-bug text-red-600"></i><span data-i18n="nav.defects">缺陷管理</span></button>
                     <button type="button" onclick="closeNavDrawer(); showReviewView()"  class="nav-drawer-btn">
                         <i class="fa-solid fa-clipboard-check text-violet-600"></i>
                         <span data-i18n="nav.review">審核中心</span>
@@ -1218,7 +1217,6 @@
                     <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-stone-200">
                         <select id="todoLinkTargetType" onchange="onTodoLinkTypeChange()" aria-label="連結目標類型" class="px-2 py-1.5 border border-stone-300 rounded text-xs bg-white">
                             <option value="testcase">🧪 <span data-i18n="links.target.testcase">案例</span></option>
-                            <option value="defect">🐛 <span data-i18n="links.target.defect">缺陷</span></option>
                             <option value="test_round">🔁 <span data-i18n="links.target.test_round">測試回合</span></option>
                             <option value="test_milestone">🏁 <span data-i18n="links.target.test_milestone">里程碑</span></option>
                             <option value="project">📦 <span data-i18n="links.target.project">專案</span></option>
@@ -3218,50 +3216,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                 </div>
             </div>
 
-            <!-- ── 缺陷管理 ── -->
-            <div id="defectsWorkspace" class="flex-1 overflow-y-auto p-6 bg-amber-50/30 hidden">
-                <div class="max-w-7xl mx-auto">
-                    <div class="bg-white rounded-lg border border-red-100 shadow-sm p-4 mb-4">
-                        <div class="flex flex-wrap items-center gap-3">
-                            <div class="flex-1 min-w-[200px] relative">
-                                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm"></i>
-                                <input id="defSearch" type="search" oninput="renderDefectsList()" placeholder="搜尋缺陷標題、code…"
-                                    class="w-full pl-9 pr-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-red-400">
-                            </div>
-                            <select id="defStatusFilter" onchange="renderDefectsList()" aria-label="依狀態過濾" class="px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
-                                <option value="">全部狀態</option>
-                                <option value="New">新建立</option><option value="Assigned">等待處理</option>
-                                <option value="InProgress">進行中</option><option value="InReview">等待審核</option>
-                                <option value="ReworkRequired">退回修改</option>
-                                <option value="Verified">已驗證</option><option value="Closed">已關閉</option>
-                            </select>
-                            <select id="defSeverityFilter" onchange="renderDefectsList()" aria-label="依嚴重性過濾" class="px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
-                                <option value="">全部嚴重性</option>
-                                <option value="Critical">嚴重</option><option value="Major">重大</option>
-                                <option value="Minor">次要</option><option value="Trivial">輕微</option>
-                            </select>
-                            <button onclick="renderDefectsList()" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
-                            <button onclick="openDefectModal()" class="px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded-md text-sm font-semibold shadow-sm"><i class="fa-solid fa-plus"></i> 新增缺陷</button>
-                            <div class="text-xs text-stone-500 ml-auto">共 <span id="defListCount" class="font-bold text-stone-700">0</span> 筆</div>
-                        </div>
-                    </div>
-                    <div id="defectsBulkBar" class="hidden mb-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded flex items-center gap-3 text-xs">
-                        <span class="font-semibold text-amber-700">已選 <span id="defectsBulkCount">0</span> 筆</span>
-                        <button onclick="defectsBulkReassign()" class="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold"><i class="fa-solid fa-user-tag"></i> 重新指派</button>
-                        <button onclick="defectsBulkCreateTodos()" class="px-3 py-1 bg-cyan-500 hover:bg-cyan-600 text-white rounded font-semibold"><i class="fa-solid fa-list-check"></i> 建立追蹤待辦</button>
-                        <button onclick="defectsBulkClear()" class="text-stone-500 hover:text-stone-700 ml-auto"><i class="fa-solid fa-xmark"></i> 取消選取</button>
-                    </div>
-                    <div class="bg-white rounded-lg border border-red-100 shadow-sm overflow-hidden">
-                        <table class="w-full text-sm">
-                            <thead class="bg-red-50/60 border-b border-red-100 text-stone-600 text-xs uppercase">
-                                <tr><th class="p-3 w-8 text-center"><input type="checkbox" id="defectsSelectAll" onchange="defectsToggleSelectAll(this.checked)" class="rounded border-stone-300 text-amber-500 focus:ring-amber-400"></th><th class="p-3 text-left w-24">代號</th><th class="p-3 text-left">標題</th><th class="p-3 w-28">嚴重性</th><th class="p-3 w-20">優先</th><th class="p-3 w-32">狀態</th><th class="p-3 w-28">指派</th><th class="p-3 w-32">建立時間</th><th class="p-3 w-32 text-center">操作</th></tr>
-                            </thead>
-                            <tbody id="defListBody" class="divide-y divide-stone-100"></tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
             <!-- ── 審核中心 (Review Center) -- generic approval workflow for testcases/documents/scripts/reports ── -->
             <div id="reviewWorkspace" class="flex-1 overflow-y-auto p-6 bg-violet-50/30 hidden">
                 <div class="max-w-7xl mx-auto">
@@ -3579,7 +3533,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                 var HASH_TO_WORKSPACE = {
                     '#home':            'homeWorkspace',
                     '#testcases':       'testcasesWorkspace',
-                    '#defects':         'defectsWorkspace',
                     '#review':          'reviewWorkspace',
                     '#backlog':         'backlogWorkspace',
                     '#testdatasets':    'testDataSetsWorkspace',
@@ -6555,7 +6508,6 @@ driver.swipe(100, 800, 100, 200, 500)"
             'nav.testRound': { 'zh-TW': '測試回合', 'en': 'Test Rounds' },
             'nav.recorder': { 'zh-TW': '測試錄製', 'en': 'Recorder' },
             'nav.reports': { 'zh-TW': '測試報告', 'en': 'Reports' },
-            'nav.defects': { 'zh-TW': '缺陷管理', 'en': 'Defects' },
             // 環境切換
             'nav.env.label': { 'zh-TW': '環境：', 'en': 'Env:' },
             // 登入畫面
@@ -6579,7 +6531,6 @@ driver.swipe(100, 800, 100, 200, 500)"
             'view.testRound.title': { 'zh-TW': '測試回合', 'en': 'Test Rounds' },
             'view.recorder.title': { 'zh-TW': '錄製測試操作步驟', 'en': 'Recorder' },
             'view.reports.title': { 'zh-TW': '自動化測試執行報告', 'en': 'Test Reports' },
-            'view.defects.title': { 'zh-TW': '缺陷管理', 'en': 'Defect Management' },
             'settings.tab.perms': { 'zh-TW': '權限管理', 'en': 'Permissions' },
             'settings.tab.groups': { 'zh-TW': '群組', 'en': 'Groups' },
             'settings.tab.invites': { 'zh-TW': '成員歸屬', 'en': 'Membership' },
@@ -7408,7 +7359,6 @@ driver.swipe(100, 800, 100, 200, 500)"
         '缺陷 Kanban + KPI 概覽': 'Defect Kanban + KPI',
         '缺陷列表 + 附件 + 工作流': 'Defect list + attachments + workflow',
         '缺陷看版（依狀態分欄；顯示截至最近建立的 30 筆）': 'Defect Kanban (by status, latest 30)',
-        '缺陷管理': 'Defect Management',
         '缺陷（鏈內）': 'Defects (in chain)',
         '耗時': 'Duration',
         '耗時 ms': 'Duration (ms)',
@@ -9065,7 +9015,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                 'showReportView', 'showUserSettingsView', 'showRecorderView',
                 'showReviewView', 'showTestRoundView', 'showEnvVarsView',
                 'showMockView',
-                'showDefectsView',
                 'showTestDataSetsView',
                 'showBacklogView',
             ];
@@ -9991,7 +9940,6 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('testcasesWorkspace')?.classList.add('hidden');
             document.getElementById('userSettingsWorkspace')?.classList.add('hidden');
             // 9 個測試管理擴充工作區
-            document.getElementById('defectsWorkspace')?.classList.add('hidden');
             document.getElementById('testDataSetsWorkspace')?.classList.add('hidden');
             document.getElementById('backlogWorkspace')?.classList.add('hidden');
             document.getElementById('reviewWorkspace')?.classList.add('hidden');
@@ -14518,313 +14466,6 @@ driver.swipe(100, 800, 100, 200, 500)"
             dsCategory:  {Login:'登入', Boundary:'邊界值', Business:'業務流程', Performance:'效能', Other:'其他'},
         };
         function _zh(group, val) { return (_ZH[group] && _ZH[group][val]) || val || ''; }
-
-        // ─── 缺陷管理 ────────────────────────────────────────────────────
-        let _defectsCache = [];
-        let _editingDefectId = null;
-        function showDefectsView() {
-            if (!_setView('defectsWorkspace',
-                '<i class="fa-solid fa-bug text-red-500"></i> 缺陷管理',
-                'Defects',
-                'bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-medium',
-                '缺陷管理',
-                { titleKey: 'view.defects.title', filenameKey: 'view.defects.title' })) return false;
-            renderDefectsList();
-        }
-        // Tier D-6:bulk reassign 選取狀態
-        let _defectsSelected = new Set();
-        function defectsToggleSelectAll(checked) {
-            const cbs = document.querySelectorAll('#defListBody input.def-row-cb');
-            cbs.forEach(cb => { cb.checked = checked; });
-            _defectsSelected.clear();
-            if (checked) cbs.forEach(cb => _defectsSelected.add(cb.dataset.id));
-            _defectsRefreshBulkBar();
-        }
-        function defectsToggleRow(id, checked) {
-            if (checked) _defectsSelected.add(id); else _defectsSelected.delete(id);
-            _defectsRefreshBulkBar();
-        }
-        function defectsBulkClear() {
-            _defectsSelected.clear();
-            const cbs = document.querySelectorAll('#defListBody input.def-row-cb');
-            cbs.forEach(cb => { cb.checked = false; });
-            const sa = document.getElementById('defectsSelectAll'); if (sa) sa.checked = false;
-            _defectsRefreshBulkBar();
-        }
-        function _defectsRefreshBulkBar() {
-            const bar = document.getElementById('defectsBulkBar');
-            const cnt = document.getElementById('defectsBulkCount');
-            if (!bar) return;
-            if (_defectsSelected.size === 0) { bar.classList.add('hidden'); return; }
-            bar.classList.remove('hidden');
-            if (cnt) cnt.textContent = String(_defectsSelected.size);
-        }
-        function defectsBulkReassign() {
-            if (_defectsSelected.size === 0) return;
-            const ids = Array.from(_defectsSelected);
-            // 借用 picker UI;submit 後改走 /assignments/bulk
-            openAssignPicker({
-                entityType: 'defect',
-                entityId: '__bulk__',
-                label: `批次 ${ids.length} 筆缺陷`,
-                currentAssignee: null,
-                currentAssigneeType: null,
-                onSaved: async () => {
-                    _defectsSelected.clear();
-                    _defectsRefreshBulkBar();
-                    await renderDefectsList();
-                },
-            });
-            // 把 picker 設成 bulk 模式 — submit 時偵測 entityId='__bulk__' 走 /bulk
-            window._assignPickerBulkIds = ids;
-        }
-
-        // Tier G-4:從 defect list 為勾選的 defect 各建一筆追蹤 todo
-        async function defectsBulkCreateTodos() {
-            if (_defectsSelected.size === 0) return;
-            const ids = Array.from(_defectsSelected);
-            await _bulkCreateTodosForTargets('defect', ids, async () => {
-                _defectsSelected.clear();
-                _defectsRefreshBulkBar();
-                await renderDefectsList();
-            });
-        }
-
-        async function renderDefectsList() {
-            const tbody = document.getElementById('defListBody');
-            const cntEl = document.getElementById('defListCount');
-            if (!tbody) return;
-            const pid = currentProjectId;
-            if (!pid) { tbody.innerHTML = '<tr><td colspan="9" class="p-6 text-center text-stone-400">請先選擇專案</td></tr>'; cntEl.textContent='0'; return; }
-            tbody.innerHTML = '<tr><td colspan="9" class="p-6 text-center text-stone-400">載入中…</td></tr>';
-            try {
-                const params = new URLSearchParams({project_id: pid});
-                const st = document.getElementById('defStatusFilter')?.value;
-                const sv = document.getElementById('defSeverityFilter')?.value;
-                if (st) params.set('status', st);
-                if (sv) params.set('severity', sv);
-                if (typeof window.appendTestVersionFilter === 'function') window.appendTestVersionFilter(params);
-                const res = await fetch('/api/defects?'+params);
-                if (!res.ok) throw new Error('HTTP '+res.status);
-                _defectsCache = await res.json();
-                const kw = (document.getElementById('defSearch')?.value || '').toLowerCase().trim();
-                let rows = _defectsCache;
-                if (kw) rows = rows.filter(r => (r.title||'').toLowerCase().includes(kw) || (r.code||'').toLowerCase().includes(kw));
-                cntEl.textContent = rows.length;
-                if (!rows.length) { tbody.innerHTML = '<tr><td colspan="9" class="p-6 text-center text-stone-400">尚無缺陷</td></tr>'; return; }
-                const sevColor = {Critical:'bg-red-100 text-red-700 border-red-200', Major:'bg-orange-100 text-orange-700 border-orange-200', Minor:'bg-amber-100 text-amber-700 border-amber-200', Trivial:'bg-stone-100 text-stone-600 border-stone-200'};
-                // 統一 7 值狀態 + 舊值相容(migration 過渡期)
-                const stColor = {
-                    New:'bg-blue-100 text-blue-700', Assigned:'bg-purple-100 text-purple-700',
-                    InProgress:'bg-amber-100 text-amber-700', InReview:'bg-cyan-100 text-cyan-700',
-                    ReworkRequired:'bg-rose-100 text-rose-700', Verified:'bg-emerald-100 text-emerald-700',
-                    Closed:'bg-stone-200 text-stone-500',
-                    Fixed:'bg-cyan-100 text-cyan-700', Reopened:'bg-rose-100 text-rose-700', WontFix:'bg-stone-100 text-stone-500',
-                };
-                tbody.innerHTML = rows.map(r => `<tr class="hover:bg-amber-50/30">
-                    <td class="p-3 text-center"><input type="checkbox" class="def-row-cb rounded border-stone-300 text-amber-500 focus:ring-amber-400" data-id="${_esc(r.id)}" ${_defectsSelected.has(r.id) ? 'checked' : ''} onchange="defectsToggleRow('${_esc(r.id)}', this.checked)"></td>
-                    <td class="p-3 font-mono text-xs text-stone-500">${_esc(r.code)}</td>
-                    <td class="p-3 font-semibold text-stone-800 break-all">${_esc(r.title)}</td>
-                    <td class="p-3"><span class="text-xs px-2 py-0.5 rounded font-medium border ${sevColor[r.severity]||''}">${_esc(_zh('defSeverity', r.severity))}</span></td>
-                    <td class="p-3 font-mono text-xs">${_esc(r.priority)}</td>
-                    <td class="p-3"><span class="text-xs px-2 py-0.5 rounded font-medium ${stColor[r.status]||'bg-stone-100'}">${_esc(_zh('defStatus', r.status))}</span></td>
-                    <td class="p-3 text-xs text-stone-600">${_esc(r.assigned_to || r.assignee || '—')}</td>
-                    <td class="p-3 text-xs text-stone-500 font-mono">${(r.created_at||'').slice(0,10)}</td>
-                    <td class="p-3 text-center whitespace-nowrap space-x-1">
-                        <button onclick="openDefectModal('${_esc(r.id)}')" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded"><i class="fa-solid fa-pen"></i></button>
-                        <button onclick="defectOpenAssign('${_esc(r.id)}')" title="指派" class="text-xs px-2 py-1 bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 rounded"><i class="fa-solid fa-user-tag"></i></button>
-                        <button onclick="deleteDefect('${_esc(r.id)}','${_esc(r.code)}')" class="text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded"><i class="fa-solid fa-trash"></i></button>
-                    </td>
-                </tr>`).join('');
-            } catch(e) {
-                tbody.innerHTML = `<tr><td colspan="9" class="p-6 text-center text-red-500">載入失敗：${_esc(e.message)}</td></tr>`;
-            }
-        }
-        function openDefectModal(id) {
-            if (!currentProjectId) { showToast('請先選擇專案', 'error'); return; }
-            _editingDefectId = id || null;
-            const r = id ? _defectsCache.find(x => x.id === id) : null;
-            document.getElementById('defectModalTitle').innerHTML = r ? `<i class="fa-solid fa-bug text-red-500"></i> 編輯缺陷 ${_esc(r.code)}` : '<i class="fa-solid fa-bug text-red-500"></i> 新增缺陷';
-            document.getElementById('defTitle').value = r?.title || '';
-            document.getElementById('defSeverity').value = r?.severity || 'Minor';
-            document.getElementById('defPriority').value = r?.priority || 'P2';
-            document.getElementById('defStatus').value = r?.status || 'New';
-            document.getElementById('defReporter').value = r?.reporter || (authCurrentUsername()||'');
-            document.getElementById('defAssignee').value = r?.assignee || '';
-            document.getElementById('defDesc').value = r?.description || '';
-            document.getElementById('defSteps').value = r?.steps_to_reproduce || '';
-            document.getElementById('defExpected').value = r?.expected_result || '';
-            document.getElementById('defActual').value = r?.actual_result || '';
-            // 關聯測試案例:從專案樹收集所有 testcase node 填入下拉
-            const linkedSel = document.getElementById('defLinkedTestcase');
-            if (linkedSel) {
-                const tcs = (typeof _collectAllTestCases === 'function') ? _collectAllTestCases() : [];
-                linkedSel.innerHTML = '<option value="">— 未關聯 —</option>' +
-                    tcs.map(tc => `<option value="${_esc(tc.id)}">${_esc(tc.path ? tc.path + ' / ' : '')}${_esc(tc.title)}</option>`).join('');
-                linkedSel.value = r?.linked_testcase_id || '';
-            }
-            // 發現於版號:從 _tvCache(本 project 的所有版號)填入下拉,group by platform
-            const tvSel = document.getElementById('defTestVersion');
-            if (tvSel) {
-                const opts = ['<option value="">— 不指定 —</option>'];
-                ['WEB', 'API', 'APP'].forEach(plat => {
-                    const items = (_tvCache || []).filter(v => v.platform === plat);
-                    if (!items.length) return;
-                    opts.push(`<optgroup label="${plat}">`);
-                    items.forEach(v => {
-                        opts.push(`<option value="${_esc(v.id)}">${_esc(v.version_label)}${v.status === 'deprecated' ? ' (deprecated)' : ''}</option>`);
-                    });
-                    opts.push('</optgroup>');
-                });
-                tvSel.innerHTML = opts.join('');
-                tvSel.value = r?.test_version_id || '';
-            }
-            // 附件：只在「編輯」模式可上傳，建立模式需先存後再上傳
-            _editingDefectAttachments = Array.isArray(r?.attachments_json) ? [...r.attachments_json] : [];
-            const upBtn = document.getElementById('defAttachmentUploadBtn');
-            const hint = document.getElementById('defAttachmentHint');
-            const fileInp = document.getElementById('defAttachmentInput');
-            if (fileInp) fileInp.value = '';
-            if (id) {
-                upBtn.disabled = false;
-                hint.textContent = '可選多檔（PNG / JPEG / WebP / PDF / TXT / ZIP，每檔 ≤ 20 MB）';
-            } else {
-                upBtn.disabled = true;
-                hint.textContent = '需先儲存缺陷後才能上傳附件';
-            }
-            renderDefectAttachments();
-            // G-2:相關待辦反向視圖(只在 edit 模式才顯示,新增時還沒有 id)
-            const linkedBox = document.getElementById('defectLinkedTodos');
-            if (linkedBox) {
-                if (id) {
-                    linkedBox.classList.remove('hidden');
-                    _renderLinkedTodosBlock('defectLinkedTodos', 'defect', id);
-                } else {
-                    linkedBox.classList.add('hidden');
-                }
-            }
-            document.getElementById('defectModal').classList.remove('hidden');
-        }
-        let _editingDefectAttachments = [];
-        function renderDefectAttachments() {
-            const box = document.getElementById('defAttachmentList');
-            if (!box) return;
-            if (!_editingDefectAttachments.length) {
-                box.innerHTML = '<div class="text-[11px] text-stone-400">尚無附件</div>';
-                return;
-            }
-            box.innerHTML = _editingDefectAttachments.map((a, idx) => {
-                const isImg = (a.type||'').startsWith('image/');
-                const thumb = isImg ? `<img src="${_esc(a.url)}" alt="" class="w-10 h-10 object-cover rounded border border-stone-200">` : `<div class="w-10 h-10 flex items-center justify-center bg-stone-100 rounded border border-stone-200 text-stone-400"><i class="fa-solid fa-file"></i></div>`;
-                const sizeKb = Math.round((a.size||0)/1024);
-                return `<div class="flex items-center gap-2 text-xs bg-white border border-stone-200 rounded p-1.5">
-                    ${thumb}
-                    <a href="${_esc(a.url)}" target="_blank" rel="noopener" class="flex-1 min-w-0 truncate text-blue-600 hover:underline">${_esc(a.name||'(未命名)')}</a>
-                    <span class="text-[10px] text-stone-400 font-mono">${sizeKb} KB</span>
-                    <button type="button" onclick="defectRemoveAttachment(${idx})" class="text-stone-400 hover:text-red-500 px-1" title="移除"><i class="fa-solid fa-xmark"></i></button>
-                </div>`;
-            }).join('');
-        }
-        async function defectUploadAttachments() {
-            if (!_editingDefectId) { showToast('請先儲存缺陷', 'error'); return; }
-            const inp = document.getElementById('defAttachmentInput');
-            if (!inp || !inp.files || !inp.files.length) { showToast('請先選擇檔案', 'error'); return; }
-            const btn = document.getElementById('defAttachmentUploadBtn');
-            btn.disabled = true;
-            try {
-                for (const f of inp.files) {
-                    const fd = new FormData();
-                    fd.append('file', f);
-                    const res = await fetch('/api/defects/'+_editingDefectId+'/attachments', { method:'POST', body: fd });
-                    if (!res.ok) {
-                        const err = await res.json().catch(()=>({detail: 'HTTP '+res.status}));
-                        throw new Error(err.detail || ('HTTP '+res.status));
-                    }
-                    const att = await res.json();
-                    _editingDefectAttachments.push(att);
-                }
-                inp.value = '';
-                renderDefectAttachments();
-                showToast('附件已上傳', 'success');
-            } catch(e) {
-                showToast('上傳失敗：'+e.message, 'error');
-            } finally {
-                btn.disabled = false;
-            }
-        }
-        async function defectRemoveAttachment(idx) {
-            if (!_editingDefectId) return;
-            if (!confirm('確定移除這個附件？')) return;
-            try {
-                const res = await fetch(`/api/defects/${_editingDefectId}/attachments/${idx}`, { method:'DELETE' });
-                if (!res.ok && res.status !== 204) throw new Error('HTTP '+res.status);
-                _editingDefectAttachments.splice(idx, 1);
-                renderDefectAttachments();
-                showToast('已移除', 'success');
-            } catch(e) {
-                showToast('移除失敗：'+e.message, 'error');
-            }
-        }
-        function closeDefectModal() { document.getElementById('defectModal').classList.add('hidden'); }
-        async function defectSubmit(ev) {
-            ev.preventDefault();
-            const payload = {
-                project_id: currentProjectId,
-                title: document.getElementById('defTitle').value.trim(),
-                severity: document.getElementById('defSeverity').value,
-                priority: document.getElementById('defPriority').value,
-                status: document.getElementById('defStatus').value,
-                reporter: document.getElementById('defReporter').value.trim() || null,
-                assignee: document.getElementById('defAssignee').value.trim() || null,
-                description: document.getElementById('defDesc').value || null,
-                steps_to_reproduce: document.getElementById('defSteps').value || null,
-                expected_result: document.getElementById('defExpected').value || null,
-                actual_result: document.getElementById('defActual').value || null,
-                linked_testcase_id: document.getElementById('defLinkedTestcase')?.value || null,
-                test_version_id: document.getElementById('defTestVersion')?.value || null,
-            };
-            try {
-                const url = _editingDefectId ? '/api/defects/'+_editingDefectId : '/api/defects';
-                const method = _editingDefectId ? 'PUT' : 'POST';
-                const res = await fetch(url, {method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
-                if (!res.ok) throw new Error('HTTP '+res.status);
-                const saved = await res.json();
-                showToast(_editingDefectId ? '已更新' : '已建立', 'success');
-                renderDefectsList();
-                // 建立模式：不關閉 modal，改切到「編輯」模式以便上傳附件
-                if (!_editingDefectId) {
-                    _editingDefectId = saved.id;
-                    document.getElementById('defectModalTitle').innerHTML = `<i class="fa-solid fa-bug text-red-500"></i> 編輯缺陷 ${_esc(saved.code)}`;
-                    document.getElementById('defAttachmentUploadBtn').disabled = false;
-                    document.getElementById('defAttachmentHint').textContent = '可選多檔（PNG / JPEG / WebP / PDF / TXT / ZIP，每檔 ≤ 20 MB）';
-                } else {
-                    closeDefectModal();
-                }
-            } catch(e) { showToast('儲存失敗：'+e.message, 'error'); }
-            return false;
-        }
-        async function deleteDefect(id, code) {
-            if (!confirm(`確定刪除缺陷 ${code}？`)) return;
-            try {
-                const res = await fetch('/api/defects/'+id, {method:'DELETE'});
-                if (!res.ok && res.status !== 204) throw new Error('HTTP '+res.status);
-                showToast('已刪除', 'success');
-                renderDefectsList();
-            } catch(e) { showToast('刪除失敗：'+e.message, 'error'); }
-        }
-
-        function defectOpenAssign(id) {
-            const r = (_defectsCache || []).find(x => x.id === id);
-            if (!r) { showToast('找不到缺陷', 'error'); return; }
-            openAssignPicker({
-                entityType: 'defect',
-                entityId: r.id,
-                label: `${r.code} ${r.title || ''}`.trim(),
-                currentAssignee: r.assigned_to || r.assignee,
-                currentAssigneeType: r.assigned_to_type || 'user',
-                onSaved: renderDefectsList,
-            });
-        }
 
         // ─── 設定（Settings）── 5 個 tab
         // 註:'groups' / 'invites' / 'orgMembers' 已隨自助註冊 / 邀請碼 /

@@ -67,7 +67,6 @@ class _EntitySpec:
 
 def _build_registry() -> dict[str, _EntitySpec]:
     # 延後 import 避免 circular(models 裡會 import service 之前的東西)
-    from app.models.defect import Defect
     from app.models.todo_item import TodoItem
     from app.models.tree_node import TreeNode
 
@@ -76,17 +75,6 @@ def _build_registry() -> dict[str, _EntitySpec]:
             TreeNode,
             fields=[
                 "name", "level_type", "parent_id", "sort_order",
-                "assigned_to", "assigned_to_type",
-            ],
-        ),
-        "defect": _EntitySpec(
-            Defect,
-            fields=[
-                "code", "title", "description", "steps_to_reproduce",
-                "expected_result", "actual_result",
-                "severity", "priority", "status",
-                "reporter", "assignee",
-                "linked_testcase_id", "linked_report_id",
                 "assigned_to", "assigned_to_type",
             ],
         ),

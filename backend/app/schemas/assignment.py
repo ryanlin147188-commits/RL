@@ -14,7 +14,6 @@ class AssignableEntityType(str, Enum):
     because `requirement` and `defect` aren't reviewable but ARE assignable."""
 
     REVIEW = "review"
-    DEFECT = "defect"
     TESTCASE = "testcase"   # tree_nodes with level_type=TESTCASE
 
 

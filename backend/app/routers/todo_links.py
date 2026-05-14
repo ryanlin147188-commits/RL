@@ -17,7 +17,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.dependencies import get_current_user
 from app.auth.project_membership import ensure_project_member
 from app.database import get_db
-from app.models.defect import Defect
 from app.models.project import Project
 from app.models.test_round import TestRound
 from app.models.todo_item import TodoItem
@@ -36,7 +35,6 @@ router = APIRouter()
 # ── 各 target_type 對應的 ORM model + 顯示用欄位 ─────────────────────
 # 統一介面:給定 target_type + target_id,可以撈 (id, title, code) 三件套
 _TARGET_REGISTRY = {
-    "defect": (Defect, "title", "code"),
     "test_round": (TestRound, "name", None),
     "project": (Project, "name", None),
     # testcase 特殊:tree_nodes 有 level_type 約束

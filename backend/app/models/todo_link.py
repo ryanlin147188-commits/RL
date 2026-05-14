@@ -23,7 +23,6 @@ from .base import Base
 # 後端驗證白名單;router 校驗 target_type 必須 in 此集合
 ALLOWED_TARGET_TYPES = {
     "testcase",
-    "defect",
     "test_round",
     "project",
 }
