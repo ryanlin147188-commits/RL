@@ -28,12 +28,65 @@
 
 ---
 
-## 🔥 v1.1.7 — FastAPI Users + Authlib + PyCasbin 三件套全面接上
+## 🔥 v1.1.8 — Auth router 真的走 fastapi-users(v1.1.7 是 wired but unused)
 
-`feat/fastapi-users` 分支八個 commit、四支 alembic migration 把 auth 後端從
-「手刻 bcrypt + 手刻 JWT + 手刻 OAuth」換到 fastapi-users 標準堆疊。SPA 完全
-沒動,既有 admin 帳號跟 100+ user data 完整保留 — 詳細 migration plan 跟
-phase-by-phase 設計取捨見 `memory/fastapi-users-migration-state.md`。
+老實話:v1.1.7 雖然 import 了 fastapi-users 進去、寫了一支整合 module、跑了
+四支 alembic migration,但 **request 路徑上實際只有 PasswordHelper 在用**,
+UserManager / JWTStrategy / current_active_user 全部是死碼,260 個
+`Depends(get_current_user)` 還是走我們手刻的 dependency。v1.1.8 把這條斷層
+補上,從 grep 就能看出來:
+
+```
+$ grep -rn "from fastapi_users" backend/app/
+backend/app/auth/security.py                    PasswordHelper
+backend/app/auth/fastapi_users_integration.py   (核心模組)
+backend/app/auth/dependencies.py                current_active_user 等
+backend/app/routers/auth.py                     UserManager + get_jwt_strategy
+```
+
+實際 cut over 的東西:
+
+- **260 個 `Depends(get_current_user)` 全部走 fastapi-users**:
+  `dependencies.py::get_current_user` 變成
+  `fastapi_users_integration.current_active_user` 的 thin alias。每個 request
+  進來會 `_fa_current_active_user`(fastapi-users 內建)→
+  `UsernameSubJWTStrategy.read_token` → `UserManager.get_by_username` → DB lookup。
+  我們的 `must_change_password` gate 由 wrapper 包在最外面。
+- **Login 走 `UserManager.authenticate_by_username`**:包了
+  - username lookup
+  - bcrypt verify
+  - **constant-time dummy hash for non-existent user**(防 timing attack 洩露
+    username 是否存在 — v1.1.7 以前的手刻 login 沒做這個防護)
+  - **bcrypt → argon2 progressive rehash**:成功 verify 後若 helper 建議升級,
+    自動持久化新 hash;每次登入完成一筆遷移,不必批次 reset。
+- **Access token 簽章用 `JWTStrategy.write_token`**:
+  `UsernameSubJWTStrategy` 子類化原 strategy,override `read_token` /
+  `write_token` 改成用 `sub=username` 而不是 fastapi-users 預設的 UUID id,
+  跟 SPA / Casbin / log 的 username 識別保持一致。refresh token 維持手刻
+  (fastapi-users 13 沒有 refresh 概念)。
+- **Admin user CRUD 走 `UserManager`**:
+  `POST /auth/users` 用 `password_helper.hash()` + `on_after_register()`,
+  `PUT /auth/users/{u}` 用 `UserManager._update()`,
+  `POST /auth/users/{u}/reset-password` 用 `_update()` + `password_helper.hash()`,
+  `DELETE /auth/users/{u}` 用 `UserManager.delete()`。
+
+刻意保留**不**走 fastapi-users 的:
+- JWT decode 在 :mod:`app.middleware` 仍是手刻 PyJWT — middleware 還要做
+  token revocation cache check / ContextVar setup / active_org cookie 解析,
+  fastapi-users 沒這些
+- refresh token / `must_change_password` gate / `org_id` cookie 都是自家業務,
+  fastapi-users 不管
+- Casbin RBAC 完全獨立 — fastapi-users 自己 docs 也說「我們不做 authorization」
+
+---
+
+## 🔥 v1.1.7 — FastAPI Users 基礎裝配 + Schema migration(stack 已備好但 hot path 沒切)
+
+`feat/fastapi-users` 分支八個 commit、四支 alembic migration 把 auth 後端的
+**schema 跟 dependency** 都裝好 fastapi-users 該有的形狀,但 request 路徑上
+fastapi-users 只在 `security.py::hash_password` 內部跑 — 整支整合 module
+等於 dead code。v1.1.8 才把這個遺漏補完。完整 phase 細節跟設計取捨見
+`memory/fastapi-users-migration-state.md`。
 
 - **Phase 1 — 基礎裝配**:`backend/app/auth/fastapi_users_integration.py` 接
   上 `UserManager` / `JWTStrategy` / `PasswordHelper` / `SQLAlchemyUserDatabase` /

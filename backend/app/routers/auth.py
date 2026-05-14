@@ -24,6 +24,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.storage_service import save_bytes
 
 from app.auth.dependencies import get_current_user
+from app.auth.fastapi_users_integration import (
+    UserManager,
+    get_jwt_strategy,
+    get_user_manager,
+)
 from app.auth.revocation import revoke as revoke_jti
 from app.auth.security import (
     ACCESS_TOKEN_TTL_MINUTES,
@@ -68,20 +73,31 @@ router = APIRouter()
 
 @router.post("/auth/login", response_model=TokenResponse, tags=["U · 認證"])
 @limiter.limit("10/minute")          # 暴力破解防護：同一 IP 每分鐘最多 10 次登入嘗試
-async def login(request: Request, payload: LoginRequest, db: AsyncSession = Depends(get_db)):
-    user = (
-        await db.execute(select(User).where(User.username == payload.username))
-    ).scalar_one_or_none()
-    if not user or not user.is_active:
+async def login(
+    request: Request,
+    payload: LoginRequest,
+    user_manager: UserManager = Depends(get_user_manager),
+):
+    """v1.1.8:整支走 fastapi-users。
+
+    - ``UserManager.authenticate_by_username`` 包了 username lookup + bcrypt
+      verify + constant-time dummy hash(防 timing attack)+ argon2 progressive
+      rehash。
+    - ``JWTStrategy.write_token`` 簽 access token,內部 claim format 對齊
+      v1.1.7 之前的(sub=username, org_id, is_superuser),SPA / Casbin 不變。
+    - refresh token 維持手刻(fastapi-users 13 沒有 refresh 概念);
+      ``must_change_password`` 跟 ``user`` object 也手動補進 response 給 SPA。
+    """
+    user = await user_manager.authenticate_by_username(
+        payload.username, payload.password
+    )
+    if user is None or not user.is_active:
         raise HTTPException(status_code=401, detail="帳號或密碼錯誤")
-    if not verify_password(payload.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="帳號或密碼錯誤")
-    user.last_login_at = datetime.utcnow()
-    await db.flush()
-    # 把 organization_id 塞進 JWT，避免每個 request 都要 lookup user
-    extra = {"org_id": user.organization_id, "is_superuser": user.is_superuser}
+    # on_after_login hook(寫 last_login_at)
+    await user_manager.on_after_login(user, request=request)
+    access_token = await get_jwt_strategy().write_token(user)
     return TokenResponse(
-        access_token=create_access_token(user.username, extra=extra),
+        access_token=access_token,
         refresh_token=create_refresh_token(user.username),
         expires_in=ACCESS_TOKEN_TTL_MINUTES * 60,
         must_change_password=bool(user.must_change_password),
@@ -600,17 +616,30 @@ async def create_user(
     payload: UserCreateRequest,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    user_manager: UserManager = Depends(get_user_manager),
 ):
+    """v1.1.8 — Admin user create 走 fastapi-users。
+
+    用 ``UserManager.password_helper`` 做密碼 hash(argon2 by default,跟
+    PasswordHelper 公用設定),用 ``UserManager.get_by_username`` 做存在性
+    檢查。User row 仍由我們建好交給 SQLAlchemy session — fastapi-users 的
+    :meth:`UserManager.create` 只支援單一 ``UserCreate`` Pydantic schema,塞
+    不下我們的 ``organization_id`` / ``role_id`` / ``is_superuser`` 等欄位,
+    所以這支自己組 User 物件,但密碼 hash 路徑走 fastapi-users。
+    """
     _require_superuser(user)
     if not payload.username or not payload.password:
         raise HTTPException(400, "帳號 / 密碼必填")
     if len(payload.password) < 6:
         raise HTTPException(400, "密碼至少 6 字元")
-    existing = (
-        await db.execute(select(User).where(User.username == payload.username))
-    ).scalar_one_or_none()
-    if existing:
+    try:
+        await user_manager.get_by_username(payload.username)
         raise HTTPException(409, f"帳號「{payload.username}」已存在")
+    except Exception as exc:
+        # get_by_username 不存在時會 raise UserNotExists,正是我們要的
+        from fastapi_users.exceptions import UserNotExists
+        if not isinstance(exc, UserNotExists):
+            raise
     if payload.role_id:
         role = await db.get(Role, payload.role_id)
         if not role:
@@ -619,7 +648,7 @@ async def create_user(
         username=payload.username,
         display_name=payload.display_name,
         email=payload.email,
-        password_hash=hash_password(payload.password),
+        password_hash=user_manager.password_helper.hash(payload.password),
         role_id=payload.role_id,
         # 沒指定 → 跟建立者同 org（普通 admin 不能跨 org 開使用者）
         organization_id=payload.organization_id or user.organization_id,
@@ -630,6 +659,8 @@ async def create_user(
     )
     db.add(new_user)
     await db.flush()
+    # on_after_register hook(UserManager 內含)
+    await user_manager.on_after_register(new_user)
     # 多組織模型:同步加 OrgMembership(預設這就是該 user 的 active org)。
     if new_user.organization_id:
         db.add(OrgMembership(
@@ -653,38 +684,54 @@ async def admin_update_user(
     payload: UserAdminUpdateRequest,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    user_manager: UserManager = Depends(get_user_manager),
 ):
-    """Superuser 修改其他使用者的基本資料 / 角色 / 啟用狀態 / superuser 旗標。
+    """v1.1.8 — Admin update 走 fastapi-users。
 
-    密碼不在這裡改,改密碼走 ``POST /auth/users/{username}/reset-password``。
+    target 用 ``UserManager.get_by_username`` 撈,基本資料用
+    :meth:`UserManager._update` 套上去(safe=False 讓 admin 能改
+    is_superuser / is_active 等 privileged 欄位)。``role_id`` 是我們的擴充
+    欄位,fastapi-users 不認識,直接寫 attribute 給 SQLAlchemy session。
     """
     _require_superuser(user)
-    target = (
-        await db.execute(select(User).where(User.username == username))
-    ).scalar_one_or_none()
-    if not target:
+    from fastapi_users.exceptions import UserNotExists
+    try:
+        target = await user_manager.get_by_username(username)
+    except UserNotExists:
         raise HTTPException(404, "使用者不存在")
+
+    # 防呆:不能停用 / 撤銷自己
+    if payload.is_active is False and target.username == user.username:
+        raise HTTPException(400, "不能停用自己")
+    if payload.is_superuser is False and target.username == user.username:
+        raise HTTPException(400, "不能撤銷自己的 superuser 權限")
+
+    # 收 update dict 給 UserManager._update;只把有給值的欄位塞進去。
+    update_dict: dict = {}
     if payload.display_name is not None:
-        target.display_name = payload.display_name.strip()[:120] or None
+        update_dict["display_name"] = payload.display_name.strip()[:120] or None
     if payload.email is not None:
-        target.email = payload.email.strip()[:255] or None
+        update_dict["email"] = payload.email.strip()[:255] or None
+    if payload.is_active is not None:
+        update_dict["is_active"] = bool(payload.is_active)
+    if payload.is_superuser is not None:
+        update_dict["is_superuser"] = bool(payload.is_superuser)
+
+    # role_id 是擴充欄位,UserManager._update 預設不知道;用 safe=False 跳過
+    # 它的 schema validation,直接傳過去,SQLAlchemy 會幫我們 ORM-level 寫入。
     if payload.role_id is not None:
         if payload.role_id:
             role = await db.get(Role, payload.role_id)
             if not role:
                 raise HTTPException(404, "找不到該角色")
-            target.role_id = payload.role_id
+            update_dict["role_id"] = payload.role_id
         else:
-            target.role_id = None
-    if payload.is_active is not None:
-        if target.username == user.username and not payload.is_active:
-            raise HTTPException(400, "不能停用自己")
-        target.is_active = bool(payload.is_active)
-    if payload.is_superuser is not None:
-        if target.username == user.username and not payload.is_superuser:
-            raise HTTPException(400, "不能撤銷自己的 superuser 權限")
-        target.is_superuser = bool(payload.is_superuser)
-    await db.flush()
+            update_dict["role_id"] = None
+
+    if update_dict:
+        # safe=False:admin 可改 is_superuser / is_active 等 privileged 欄位
+        await user_manager._update(target, update_dict)
+
     await db.refresh(target)
     from app.auth.casbin_sync import schedule_user_resync
     schedule_user_resync(target.username)
@@ -697,23 +744,28 @@ async def admin_reset_password(
     payload: UserResetPasswordRequest,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    user_manager: UserManager = Depends(get_user_manager),
 ):
-    """Superuser 為其他使用者強制重設密碼。
+    """v1.1.8 — Reset password 走 fastapi-users PasswordHelper。
 
-    重設後 ``must_change_password`` 一律設為 True,使用者下次登入會被前端
-    擋下並要求自行改密碼,管理員不會看到使用者的最終密碼。
+    新 hash 用 argon2(PasswordHelper default);``must_change_password=True``
+    保證使用者下次登入被擋下,管理員不會看到最終密碼。
     """
     _require_superuser(user)
     if not payload.new_password or len(payload.new_password) < 6:
         raise HTTPException(400, "新密碼至少 6 字元")
-    target = (
-        await db.execute(select(User).where(User.username == username))
-    ).scalar_one_or_none()
-    if not target:
+    from fastapi_users.exceptions import UserNotExists
+    try:
+        target = await user_manager.get_by_username(username)
+    except UserNotExists:
         raise HTTPException(404, "使用者不存在")
-    target.password_hash = hash_password(payload.new_password)
-    target.must_change_password = True
-    await db.flush()
+    await user_manager._update(
+        target,
+        {
+            "hashed_password": user_manager.password_helper.hash(payload.new_password),
+            "must_change_password": True,
+        },
+    )
     return {"ok": True, "must_change_password": True}
 
 
@@ -722,16 +774,18 @@ async def delete_user(
     username: str,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    user_manager: UserManager = Depends(get_user_manager),
 ):
+    """v1.1.8 — Delete user 走 ``UserManager.delete``,內含 on_before_delete
+    hook(目前我們 UserManager 沒實作 hook,後續想加 audit log 直接 override)。"""
     _require_superuser(user)
     if username == user.username:
         raise HTTPException(400, "不能刪除自己")
-    target = (
-        await db.execute(select(User).where(User.username == username))
-    ).scalar_one_or_none()
-    if not target:
+    from fastapi_users.exceptions import UserNotExists
+    try:
+        target = await user_manager.get_by_username(username)
+    except UserNotExists:
         raise HTTPException(404, "使用者不存在")
-    await db.delete(target)
-    await db.flush()
+    await user_manager.delete(target)
     from app.auth.casbin_sync import schedule_user_resync
     schedule_user_resync(username)
