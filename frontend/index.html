@@ -985,7 +985,6 @@
                 </div>
                 <div class="space-y-0.5">
                     <button type="button" onclick="closeNavDrawer(); showWbsView()"          class="nav-drawer-btn"><i class="fa-solid fa-sitemap text-yellow-600"></i><span data-i18n="nav.wbs">WBS / 工作分解</span></button>
-                    <button type="button" onclick="closeNavDrawer(); showTestPlanView()"     class="nav-drawer-btn"><i class="fa-solid fa-clipboard-list text-blue-600"></i><span data-i18n="nav.testPlan">測試計畫</span></button>
                 </div>
             </section>
 
@@ -1223,7 +1222,6 @@
                             <option value="requirement">📋 <span data-i18n="links.target.requirement">需求</span></option>
                             <option value="testcase">🧪 <span data-i18n="links.target.testcase">案例</span></option>
                             <option value="defect">🐛 <span data-i18n="links.target.defect">缺陷</span></option>
-                            <option value="test_plan">📑 <span data-i18n="links.target.test_plan">測試計畫</span></option>
                             <option value="test_round">🔁 <span data-i18n="links.target.test_round">測試回合</span></option>
                             <option value="test_milestone">🏁 <span data-i18n="links.target.test_milestone">里程碑</span></option>
                             <option value="wbs">📊 <span data-i18n="links.target.wbs">WBS</span></option>
@@ -3471,84 +3469,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                 </div>
             </div>
 
-            <!-- 測試計畫 全螢幕 Markdown 編輯器（六大段：Scope In / Scope Out / 策略 / 資源 / 時程 / 風險）-->
-            <div id="planModal" class="hidden fixed inset-0 z-[150] bg-black/50 flex items-center justify-center p-4">
-                <div class="bg-white rounded-xl shadow-2xl w-[96vw] max-w-7xl h-[92vh] border border-blue-200 flex flex-col">
-                    <div class="px-6 py-3 border-b border-stone-200 bg-blue-50/60 flex items-center justify-between gap-3 flex-wrap shrink-0">
-                        <h3 id="planModalTitle" class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-clipboard-list text-blue-500"></i> 新增測試計畫</h3>
-                        <div class="flex items-center gap-2 flex-wrap">
-                            <span class="text-[10px] text-stone-400 hidden md:inline">每個區段都可寫 Markdown，並用 ```mermaid 區塊畫流程圖</span>
-                            <button type="button" onclick="planEditorView('split')" id="planViewSplitBtn" class="text-xs px-2 py-1 border border-stone-300 rounded hover:bg-blue-50" title="編輯 + 預覽分欄"><i class="fa-solid fa-columns"></i> 分欄</button>
-                            <button type="button" onclick="planEditorView('edit')" id="planViewEditBtn" class="text-xs px-2 py-1 border border-stone-300 rounded hover:bg-blue-50"><i class="fa-solid fa-pen"></i> 編輯</button>
-                            <button type="button" onclick="planEditorView('preview')" id="planViewPreviewBtn" class="text-xs px-2 py-1 border border-stone-300 rounded hover:bg-blue-50"><i class="fa-solid fa-eye"></i> 預覽</button>
-                            <button type="button" onclick="closePlanModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700 ml-2"><i class="fa-solid fa-xmark text-lg"></i></button>
-                        </div>
-                    </div>
-                    <form id="planEditorForm" onsubmit="return planSubmit(event)" class="flex-1 flex flex-col min-h-0">
-                        <!-- Meta 列 -->
-                        <div class="px-6 py-3 border-b border-stone-200 grid grid-cols-1 md:grid-cols-12 gap-3 shrink-0">
-                            <div class="md:col-span-5"><label for="tpTitle" class="block text-[10px] font-semibold text-stone-600 mb-0.5">標題 *</label><input type="text" id="tpTitle" aria-label="標題" required class="w-full px-3 py-1.5 border border-stone-300 rounded-md text-sm"></div>
-                            <div class="md:col-span-2"><label for="tpVersion" class="block text-[10px] font-semibold text-stone-600 mb-0.5">版本</label><input type="text" id="tpVersion" aria-label="版本" placeholder="1.0" class="w-full px-3 py-1.5 border border-stone-300 rounded-md text-sm"></div>
-                            <div class="md:col-span-2"><label for="tpStatus" class="block text-[10px] font-semibold text-stone-600 mb-0.5">狀態</label>
-                                <select id="tpStatus" aria-label="狀態" class="w-full px-3 py-1.5 border border-stone-300 rounded-md text-sm bg-white">
-                                    <option value="New" selected>新建立</option>
-                                    <option value="Assigned">等待處理</option>
-                                    <option value="InProgress">進行中</option>
-                                    <option value="InReview">等待審核</option>
-                                    <option value="ReworkRequired">退回修改</option>
-                                    <option value="Verified">已驗證</option>
-                                    <option value="Closed">已關閉</option>
-                                </select>
-                            </div>
-                            <div class="md:col-span-3"><label for="tpOwner" class="block text-[10px] font-semibold text-stone-600 mb-0.5">負責人</label><input type="text" id="tpOwner" aria-label="負責人" class="w-full px-3 py-1.5 border border-stone-300 rounded-md text-sm"></div>
-                        </div>
-                        <!-- 區段切換 -->
-                        <div class="px-6 py-2 border-b border-stone-200 bg-stone-50 flex items-center gap-1 flex-wrap shrink-0" id="planSectionTabs">
-                            <!-- 6 個 tab 在 JS 動態生成，因為 active 樣式要切換 -->
-                        </div>
-                        <!-- 工具列 -->
-                        <div class="px-6 py-2 border-b border-stone-200 bg-stone-50/60 flex items-center gap-1 flex-wrap shrink-0">
-                            <button type="button" onclick="planInsertMd('# ', '', true)" title="標題" class="text-xs px-2 py-1 hover:bg-blue-50 rounded text-stone-600 font-semibold">H1</button>
-                            <button type="button" onclick="planInsertMd('## ', '', true)" title="次標題" class="text-xs px-2 py-1 hover:bg-blue-50 rounded text-stone-600 font-semibold">H2</button>
-                            <button type="button" onclick="planInsertMd('### ', '', true)" title="三級標題" class="text-xs px-2 py-1 hover:bg-blue-50 rounded text-stone-600 font-semibold">H3</button>
-                            <span class="w-px h-5 bg-stone-300 mx-1"></span>
-                            <button type="button" onclick="planInsertMd('**', '**')" title="粗體" class="text-xs px-2 py-1 hover:bg-blue-50 rounded text-stone-600 font-bold">B</button>
-                            <button type="button" onclick="planInsertMd('*', '*')" title="斜體" class="text-xs px-2 py-1 hover:bg-blue-50 rounded text-stone-600 italic">I</button>
-                            <button type="button" onclick="planInsertMd('`', '`')" title="行內程式碼" class="text-xs px-2 py-1 hover:bg-blue-50 rounded text-stone-600 font-mono">{ }</button>
-                            <span class="w-px h-5 bg-stone-300 mx-1"></span>
-                            <button type="button" onclick="planInsertMd('- ', '', true)" title="清單" class="text-xs px-2 py-1 hover:bg-blue-50 rounded text-stone-600"><i class="fa-solid fa-list-ul"></i></button>
-                            <button type="button" onclick="planInsertMd('1. ', '', true)" title="編號清單" class="text-xs px-2 py-1 hover:bg-blue-50 rounded text-stone-600"><i class="fa-solid fa-list-ol"></i></button>
-                            <button type="button" onclick="planInsertMd('- [ ] ', '', true)" title="待辦清單" class="text-xs px-2 py-1 hover:bg-blue-50 rounded text-stone-600"><i class="fa-regular fa-square-check"></i></button>
-                            <button type="button" onclick="planInsertMd('> ', '', true)" title="引用" class="text-xs px-2 py-1 hover:bg-blue-50 rounded text-stone-600"><i class="fa-solid fa-quote-left"></i></button>
-                            <button type="button" onclick="planInsertTable()" title="表格" class="text-xs px-2 py-1 hover:bg-blue-50 rounded text-stone-600"><i class="fa-solid fa-table"></i></button>
-                            <button type="button" onclick="planInsertCodeBlock()" title="程式碼區塊" class="text-xs px-2 py-1 hover:bg-blue-50 rounded text-stone-600"><i class="fa-solid fa-code"></i></button>
-                            <span class="w-px h-5 bg-stone-300 mx-1"></span>
-                            <button type="button" onclick="planInsertMermaidFlowchart()" title="Mermaid 流程圖" class="text-xs px-2 py-1 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded font-semibold"><i class="fa-solid fa-diagram-project"></i> 流程圖</button>
-                            <button type="button" onclick="planInsertMermaidSequence()" title="Mermaid 序列圖" class="text-xs px-2 py-1 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded font-semibold"><i class="fa-solid fa-arrow-right-arrow-left"></i> 序列圖</button>
-                            <button type="button" onclick="planInsertMermaidGantt()" title="Mermaid 甘特圖" class="text-xs px-2 py-1 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded font-semibold"><i class="fa-regular fa-calendar"></i> 甘特圖</button>
-                        </div>
-                        <!-- 編輯/預覽區（同時保留 6 個 textarea，僅顯示當前 tab 對應的） -->
-                        <div id="planEditorBody" class="flex-1 grid grid-cols-2 min-h-0 overflow-hidden">
-                            <div id="planEditorPane" class="h-full border-r border-stone-200 relative">
-                                <textarea id="tpScopeIn" data-section="ScopeIn" aria-label="範圍 (Scope In)" oninput="planOnContentChange()" spellcheck="false" class="plan-section absolute inset-0 w-full h-full p-4 font-mono text-sm focus:outline-none focus:bg-blue-50/20 resize-none" placeholder="# Scope In&#10;&#10;描述測試將涵蓋的功能、模組、平台…"></textarea>
-                                <textarea id="tpScopeOut" data-section="ScopeOut" aria-label="排除 (Scope Out)" oninput="planOnContentChange()" spellcheck="false" class="plan-section hidden absolute inset-0 w-full h-full p-4 font-mono text-sm focus:outline-none focus:bg-blue-50/20 resize-none" placeholder="# Scope Out&#10;&#10;描述本輪計畫不會涵蓋的部分…"></textarea>
-                                <textarea id="tpStrategy" data-section="Strategy" aria-label="測試策略" oninput="planOnContentChange()" spellcheck="false" class="plan-section hidden absolute inset-0 w-full h-full p-4 font-mono text-sm focus:outline-none focus:bg-blue-50/20 resize-none" placeholder="# 測試策略&#10;&#10;ATDD / BDD / DDT / 探索式 ……"></textarea>
-                                <textarea id="tpResources" data-section="Resources" aria-label="資源" oninput="planOnContentChange()" spellcheck="false" class="plan-section hidden absolute inset-0 w-full h-full p-4 font-mono text-sm focus:outline-none focus:bg-blue-50/20 resize-none" placeholder="# 資源&#10;&#10;人力 / 環境 / 工具…"></textarea>
-                                <textarea id="tpSchedule" data-section="Schedule" aria-label="時程" oninput="planOnContentChange()" spellcheck="false" class="plan-section hidden absolute inset-0 w-full h-full p-4 font-mono text-sm focus:outline-none focus:bg-blue-50/20 resize-none" placeholder="# 時程&#10;&#10;```mermaid&#10;gantt&#10;…&#10;```"></textarea>
-                                <textarea id="tpRisks" data-section="Risks" aria-label="風險" oninput="planOnContentChange()" spellcheck="false" class="plan-section hidden absolute inset-0 w-full h-full p-4 font-mono text-sm focus:outline-none focus:bg-blue-50/20 resize-none" placeholder="# 風險&#10;&#10;- 風險 1：…&#10;- 風險 2：…"></textarea>
-                            </div>
-                            <div id="planPreview" class="plan-md-preview w-full h-full p-6 overflow-y-auto bg-white"></div>
-                        </div>
-                        <!-- 底部 -->
-                        <div class="px-6 py-3 border-t border-stone-200 bg-stone-50 flex justify-end gap-2 shrink-0">
-                            <span id="planDirtyHint" class="text-[10px] text-stone-400 mr-auto"></span>
-                            <button type="button" onclick="closePlanModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button>
-                            <button type="submit" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-
             <!-- 需求 Modal -->
             <div id="requirementModal" class="hidden fixed inset-0 z-[150] bg-black/40 flex items-center justify-center p-4">
                 <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl border border-cyan-200 max-h-[90vh] overflow-y-auto">
@@ -3832,7 +3752,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                     '#wbs':             'wbsWorkspace',
                     '#backlog':         'backlogWorkspace',
                     '#testdatasets':    'testDataSetsWorkspace',
-                    '#testplan':        'testPlansWorkspace',
                     '#report':          'reportWorkspace',
                     '#recorder':        'recorderWorkspace',
                     '#testround':       'testRoundWorkspace',
@@ -6799,7 +6718,6 @@ driver.swipe(100, 800, 100, 200, 500)"
             'nav.section.settings': { 'zh-TW': '設定', 'en': 'CONFIG' },
             'nav.section.execution': { 'zh-TW': '執行 / 監控', 'en': 'RUN / MONITOR' },
             'nav.wbs': { 'zh-TW': 'WBS', 'en': 'WBS' },
-            'nav.testPlan': { 'zh-TW': '測試計畫', 'en': 'Test Plan' },
             'nav.requirements': { 'zh-TW': '需求/RTM', 'en': 'Reqs / RTM' },
             'nav.testCases': { 'zh-TW': '測試案例', 'en': 'Test Cases' },
             'nav.dataSets': { 'zh-TW': '測試資料集', 'en': 'Data Sets' },
@@ -6825,7 +6743,6 @@ driver.swipe(100, 800, 100, 200, 500)"
             'settings.title.short': { 'zh-TW': '設定', 'en': 'Settings' },
             // 各 view 的長/短標題(viewTitle 大標 / viewFilename 麵包屑)
             'view.wbs.title': { 'zh-TW': 'WBS 工作分解結構', 'en': 'WBS' },
-            'view.testPlan.title': { 'zh-TW': '測試計畫', 'en': 'Test Plan' },
             'view.requirements.title': { 'zh-TW': '需求 / RTM', 'en': 'Requirements / RTM' },
             'view.testCases.title': { 'zh-TW': '測試案例清單', 'en': 'Test Cases' },
             'view.dataSets.title': { 'zh-TW': '測試資料集', 'en': 'Data Sets' },
@@ -9325,7 +9242,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 'showReviewView', 'showTestRoundView', 'showEnvVarsView',
                 'showMockView',
                 'showDefectsView',
-                'showTestPlanView', 'showRequirementsView',
+                'showRequirementsView',
                 'showTestDataSetsView',
                 'showWbsView', 'showBacklogView',
             ];
@@ -10252,7 +10169,6 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('userSettingsWorkspace')?.classList.add('hidden');
             // 9 個測試管理擴充工作區
             document.getElementById('defectsWorkspace')?.classList.add('hidden');
-            document.getElementById('testPlansWorkspace')?.classList.add('hidden');
             document.getElementById('requirementsWorkspace')?.classList.add('hidden');
             document.getElementById('testDataSetsWorkspace')?.classList.add('hidden');
             document.getElementById('wbsWorkspace')?.classList.add('hidden');
@@ -15087,402 +15003,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                 currentAssigneeType: r.assigned_to_type || 'user',
                 onSaved: renderDefectsList,
             });
-        }
-
-        // ─── 測試計畫 ────────────────────────────────────────────────────
-        let _plansCache = [];
-        let _editingPlanId = null;
-        function showTestPlanView() {
-            if (!_setView('testPlansWorkspace',
-                '<i class="fa-solid fa-clipboard-list text-blue-500"></i> 測試計畫',
-                'Plans',
-                'bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium',
-                '測試計畫',
-                { titleKey: 'view.testPlan.title', filenameKey: 'view.testPlan.title' })) return false;
-            renderPlansList();
-        }
-        async function renderPlansList() {
-            const tbody = document.getElementById('tpListBody');
-            const cntEl = document.getElementById('tpListCount');
-            if (!tbody) return;
-            const pid = currentProjectId;
-            if (!pid) { tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-stone-400">請先選擇專案</td></tr>'; cntEl.textContent='0'; return; }
-            try {
-                const params = new URLSearchParams({project_id: pid});
-                const st = document.getElementById('tpStatusFilter')?.value;
-                if (st) params.set('status', st);
-                const res = await fetch('/api/plans?'+params);
-                if (!res.ok) throw new Error('HTTP '+res.status);
-                _plansCache = await res.json();
-                const kw = (document.getElementById('tpSearch')?.value || '').toLowerCase().trim();
-                let rows = _plansCache;
-                if (kw) rows = rows.filter(r => (r.title||'').toLowerCase().includes(kw) || (r.code||'').toLowerCase().includes(kw));
-                cntEl.textContent = rows.length;
-                if (!rows.length) { tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-stone-400">尚無測試計畫</td></tr>'; return; }
-                // 統一 7 值狀態 + 舊值相容
-                const stColor = {
-                    New:'bg-blue-100 text-blue-700', Assigned:'bg-purple-100 text-purple-700',
-                    InProgress:'bg-amber-100 text-amber-700', InReview:'bg-cyan-100 text-cyan-700',
-                    ReworkRequired:'bg-rose-100 text-rose-700', Verified:'bg-emerald-100 text-emerald-700',
-                    Closed:'bg-stone-200 text-stone-500',
-                    Draft:'bg-stone-100 text-stone-600', Approved:'bg-emerald-100 text-emerald-700', Active:'bg-blue-100 text-blue-700',
-                };
-                tbody.innerHTML = rows.map(r => `<tr class="hover:bg-amber-50/30">
-                    <td class="p-3 font-mono text-xs text-stone-500">${_esc(r.code)}</td>
-                    <td class="p-3 font-semibold text-stone-800 break-all">${_esc(r.title)}</td>
-                    <td class="p-3 text-xs">${_esc(r.version||'—')}</td>
-                    <td class="p-3"><span class="text-xs px-2 py-0.5 rounded font-medium ${stColor[r.status]||'bg-stone-100'}">${_esc(_zh('tpStatus', r.status))}</span></td>
-                    <td class="p-3 text-xs text-stone-600">${_esc(r.owner||'—')}</td>
-                    <td class="p-3 text-xs text-stone-500 font-mono">${(r.created_at||'').slice(0,10)}</td>
-                    <td class="p-3 text-center whitespace-nowrap space-x-1">
-                        <button onclick="openPlanModal('${_esc(r.id)}')" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded"><i class="fa-solid fa-pen"></i></button>
-                        <button onclick="deletePlan('${_esc(r.id)}','${_esc(r.code)}')" class="text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded"><i class="fa-solid fa-trash"></i></button>
-                    </td>
-                </tr>`).join('');
-            } catch(e) {
-                tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-red-500">載入失敗：${_esc(e.message)}</td></tr>`;
-            }
-        }
-        // 對齊 ISTQB / IEEE 829 測試計畫文件結構：
-        //  ScopeIn   → 簡介、識別、參考文件、測試項目、要測試的功能
-        //  ScopeOut  → 不測試的功能
-        //  Strategy  → 測試方法、通過/失敗準則、中止/恢復準則
-        //  Resources → 交付物、環境、任務、職責、人員與訓練
-        //  Schedule  → 時程、里程碑
-        //  Risks     → 規劃風險、應變、核准
-        const _PLAN_SECTIONS = [
-            { key:'ScopeIn',   label:'簡介 / 範圍 / 測試項目', textareaId:'tpScopeIn',   field:'scope_in_text' },
-            { key:'ScopeOut',  label:'不測試的功能',           textareaId:'tpScopeOut',  field:'scope_out_text' },
-            { key:'Strategy',  label:'測試方法 / 通過準則',    textareaId:'tpStrategy',  field:'test_strategy_text' },
-            { key:'Resources', label:'環境 / 職責 / 交付物',   textareaId:'tpResources', field:'resources_text' },
-            { key:'Schedule',  label:'時程 / 里程碑',          textareaId:'tpSchedule',  field:'schedule_text' },
-            { key:'Risks',     label:'風險 / 應變 / 核准',     textareaId:'tpRisks',     field:'risks_text' },
-        ];
-
-        // 建立新計畫時，每個 tab 自動填入符合 ISTQB / IEEE 829 的小節骨架
-        const _PLAN_ISTQB_TEMPLATES = {
-            ScopeIn: `## 1. 簡介 (Introduction)
-
-簡述本次測試計畫的目的、目標讀者，以及與專案／產品的對應關係。
-
-## 2. 測試計畫識別 (Test Plan Identifier)
-
-- 計畫代號：TP-001
-- 對應版本：1.0
-- 適用週期：YYYY-MM-DD ~ YYYY-MM-DD
-
-## 3. 參考文件 (References)
-
-- 需求規格 / PRD：
-- 系統架構文件：
-- 風險登錄表：
-
-## 4. 測試項目 (Test Items)
-
-列出本輪納入測試的元件 / 模組 / 服務 / 版本。
-
-| 項目 | 版本 | 說明 |
-| --- | --- | --- |
-| 模組 A | 1.2.0 | 主要結帳流程 |
-
-## 5. 要測試的功能 (Features To Be Tested)
-
-- 功能 A：……
-- 功能 B：……
-- 功能 C：……
-`,
-            ScopeOut: `## 6. 不測試的功能 (Features NOT To Be Tested)
-
-明確列出本輪不會涵蓋的功能、平台、瀏覽器、使用情境，以及不測試的理由（資源、優先級、技術限制…）。
-
-- 功能 X：因仍在開發中，預計下一輪納入。
-- iOS 17 之前版本：使用率 < 1%，不投入資源驗證。
-`,
-            Strategy: `## 7. 測試方法 / 策略 (Approach)
-
-- 測試類型：單元 / 整合 / 系統 / UAT / 回歸 / 效能 / 安全 / 相容性
-- 測試技術：BDD（Given-When-Then）、ATDD、DDT 資料驅動、KDT 關鍵字驅動、SBE
-- 自動化策略：Robot Framework + Playwright；UI 70%、API 90%、回歸 100% 自動化
-- 探索式測試比例：每輪 10–15%
-
-## 8. 項目通過 / 失敗準則 (Item Pass / Fail Criteria)
-
-- 通過：對應驗收條件全部 PASS、無 Critical / Major 缺陷
-- 失敗：任一驗收條件 FAIL，或新增 Critical 缺陷且未排定修復
-
-## 9. 中止與恢復準則 (Suspension & Resumption Criteria)
-
-- 中止條件：環境連續中斷 > 4 小時、阻擋性缺陷未修復、需求大幅異動
-- 恢復條件：阻擋因素解除並完成回歸驗證
-`,
-            Resources: `## 10. 測試交付物 (Test Deliverables)
-
-- 測試計畫（本文件）
-- 測試案例（連結到「測試案例」模組）
-- 測試資料（連結到「測試資料集」模組）
-- 缺陷紀錄（缺陷管理模組）
-- 測試報告 / 覆蓋率報告 / 風險評估表
-
-## 11. 環境需求 (Environmental Needs)
-
-- 測試環境：QA Stage / UAT
-- 硬體 / 瀏覽器 / 行動裝置矩陣：
-- 第三方服務：Mock / Sandbox API endpoints
-- 資料：Seed dataset、敏感資料遮罩
-
-## 12. 測試任務 (Testing Tasks)
-
-| 任務 | 負責人 | 預估工時 |
-| --- | --- | --- |
-| 撰寫測試計畫 | | |
-| 設計測試案例 | | |
-| 執行回歸測試 | | |
-
-## 13. 職責 (Responsibilities)
-
-- 測試經理：審核計畫、追蹤指標、決策中止 / 恢復
-- 測試工程師：撰寫案例、執行測試、回報缺陷
-- 開發：修復缺陷、提供 Mock / Stub
-- PM / PO：驗收簽核
-
-## 14. 人員配置與訓練 (Staffing & Training)
-
-- 人力：QA × N、自動化工程師 × M
-- 訓練：Robot Framework / Playwright、領域知識培訓
-`,
-            Schedule: `## 15. 時程 (Schedule)
-
-整體里程碑與每階段日期；可用 Mermaid 甘特圖表達：
-
-\`\`\`mermaid
-gantt
-    title 測試時程
-    dateFormat  YYYY-MM-DD
-    section 規劃
-    撰寫測試計畫       :a1, 2026-04-01, 5d
-    審核 / 簽核        :a2, after a1, 3d
-    section 執行
-    冒煙測試           :b1, after a2, 2d
-    回歸測試           :b2, after b1, 7d
-    UAT                :b3, after b2, 5d
-\`\`\`
-
-### 里程碑
-
-- M1 計畫定稿：YYYY-MM-DD
-- M2 測試環境就緒：YYYY-MM-DD
-- M3 主測試完成：YYYY-MM-DD
-- M4 簽核發布：YYYY-MM-DD
-`,
-            Risks: `## 16. 規劃風險與應變 (Planning Risks & Contingencies)
-
-| 風險 | 衝擊 | 機率 | 應變方案 |
-| --- | --- | --- | --- |
-| 第三方 API 不穩 | 高 | 中 | 啟用 Mock；降級驗證 |
-| 環境延遲就緒 | 中 | 中 | 切到本機環境並縮減情境 |
-| 人力不足 | 高 | 低 | 提前借調、優先級重排 |
-
-## 17. 核准 (Approvals)
-
-| 角色 | 姓名 | 簽核日期 | 簽名 |
-| --- | --- | --- | --- |
-| 測試經理 | | | |
-| 開發負責人 | | | |
-| 產品負責人 | | | |
-`
-        };
-        let _planActiveSection = 'ScopeIn';
-        let _planDirty = false;
-
-        function openPlanModal(id) {
-            if (!currentProjectId) { showToast('請先選擇專案', 'error'); return; }
-            _editingPlanId = id || null;
-            const r = id ? _plansCache.find(x => x.id === id) : null;
-            document.getElementById('planModalTitle').innerHTML = r
-                ? `<i class="fa-solid fa-clipboard-list text-blue-500"></i> 編輯計畫 ${_esc(r.code)}`
-                : '<i class="fa-solid fa-clipboard-list text-blue-500"></i> 新增測試計畫';
-            document.getElementById('tpTitle').value = r?.title || '';
-            document.getElementById('tpVersion').value = r?.version || '';
-            document.getElementById('tpStatus').value = r?.status || 'New';
-            document.getElementById('tpOwner').value = r?.owner || (typeof authCurrentUsername === 'function' ? (authCurrentUsername()||'') : '');
-            // 編輯既有計畫 → 用後端內容；建立新計畫 → 帶入 ISTQB 範本
-            const isNew = !id;
-            document.getElementById('tpScopeIn').value   = r?.scope_in_text       ?? (isNew ? _PLAN_ISTQB_TEMPLATES.ScopeIn   : '');
-            document.getElementById('tpScopeOut').value  = r?.scope_out_text      ?? (isNew ? _PLAN_ISTQB_TEMPLATES.ScopeOut  : '');
-            document.getElementById('tpStrategy').value  = r?.test_strategy_text  ?? (isNew ? _PLAN_ISTQB_TEMPLATES.Strategy  : '');
-            document.getElementById('tpResources').value = r?.resources_text      ?? (isNew ? _PLAN_ISTQB_TEMPLATES.Resources : '');
-            document.getElementById('tpSchedule').value  = r?.schedule_text       ?? (isNew ? _PLAN_ISTQB_TEMPLATES.Schedule  : '');
-            document.getElementById('tpRisks').value     = r?.risks_text          ?? (isNew ? _PLAN_ISTQB_TEMPLATES.Risks     : '');
-            _planDirty = false;
-            updatePlanDirtyHint();
-            document.getElementById('planModal').classList.remove('hidden');
-            renderPlanSectionTabs();
-            planEditorView('split');
-            planSwitchSection(_planActiveSection || 'ScopeIn');
-        }
-        function closePlanModal() {
-            if (_planDirty && !confirm('計畫有未儲存的修改，確定要關閉嗎？')) return;
-            document.getElementById('planModal').classList.add('hidden');
-            _editingPlanId = null;
-            _planDirty = false;
-        }
-
-        function renderPlanSectionTabs() {
-            const wrap = document.getElementById('planSectionTabs');
-            if (!wrap) return;
-            wrap.innerHTML = _PLAN_SECTIONS.map(s => {
-                const active = s.key === _planActiveSection;
-                const cls = active
-                    ? 'text-xs px-3 py-1 rounded font-semibold border bg-blue-100 text-blue-800 border-blue-300'
-                    : 'text-xs px-3 py-1 rounded font-medium border bg-white text-stone-600 border-stone-300 hover:bg-blue-50';
-                const ta = document.getElementById(s.textareaId);
-                const hasContent = ta && ta.value && ta.value.trim().length > 0;
-                const dot = hasContent ? '<span class="ml-1 inline-block w-1.5 h-1.5 rounded-full bg-blue-500" title="此區段有內容"></span>' : '';
-                return `<button type="button" onclick="planSwitchSection('${s.key}')" class="${cls}">${_esc(s.label)}${dot}</button>`;
-            }).join('');
-        }
-
-        function planSwitchSection(key) {
-            _planActiveSection = key;
-            // 顯示對應 textarea
-            document.querySelectorAll('#planEditorPane .plan-section').forEach(el => {
-                if (el.dataset.section === key) el.classList.remove('hidden');
-                else el.classList.add('hidden');
-            });
-            renderPlanSectionTabs();
-            // 重新渲染預覽（顯示「目前 tab 區段的內容」+ 標題）
-            renderPlanPreview();
-        }
-
-        function planEditorView(mode) {
-            const body = document.getElementById('planEditorBody');
-            const pane = document.getElementById('planEditorPane');
-            const pv = document.getElementById('planPreview');
-            if (!body) return;
-            body.classList.remove('grid-cols-1', 'grid-cols-2');
-            if (mode === 'edit') {
-                body.classList.add('grid-cols-1');
-                pane.classList.remove('hidden'); pv.classList.add('hidden');
-            } else if (mode === 'preview') {
-                body.classList.add('grid-cols-1');
-                pane.classList.add('hidden'); pv.classList.remove('hidden');
-                renderPlanPreview();
-            } else {
-                body.classList.add('grid-cols-2');
-                pane.classList.remove('hidden'); pv.classList.remove('hidden');
-                renderPlanPreview();
-            }
-            ['Split','Edit','Preview'].forEach(k => {
-                const b = document.getElementById('planView'+k+'Btn');
-                if (!b) return;
-                if (k.toLowerCase() === mode) b.classList.add('bg-blue-200','text-blue-800');
-                else b.classList.remove('bg-blue-200','text-blue-800');
-            });
-        }
-
-        async function renderPlanPreview() {
-            // 預覽模式 = 把整個計畫的 6 個區段串成一份完整 markdown，加上 H2 區段標題
-            const pv = document.getElementById('planPreview');
-            if (!pv) return;
-            const parts = _PLAN_SECTIONS.map(s => {
-                const txt = (document.getElementById(s.textareaId)?.value || '').trim();
-                if (!txt) return '';
-                return `## ${s.label}\n\n${txt}`;
-            }).filter(Boolean);
-            const md = parts.length ? parts.join('\n\n---\n\n') : '_（尚無內容；請選擇上方區段並開始撰寫）_';
-            await renderMarkdownInto(pv, md);
-        }
-
-        function planOnContentChange() {
-            _planDirty = true;
-            updatePlanDirtyHint();
-            clearTimeout(window._planPreviewTimer);
-            window._planPreviewTimer = setTimeout(renderPlanPreview, 180);
-            // 區段 tab 上的小圓點要隨內容更新（有/無內容）
-            renderPlanSectionTabs();
-        }
-
-        function updatePlanDirtyHint() {
-            const hint = document.getElementById('planDirtyHint');
-            if (hint) hint.textContent = _planDirty ? '● 有未儲存的修改' : '';
-        }
-
-        // ── 工具列：在「目前 active 區段的 textarea」插入 markdown ──
-        function _planActiveTextarea() {
-            const sec = _PLAN_SECTIONS.find(s => s.key === _planActiveSection);
-            return sec ? document.getElementById(sec.textareaId) : null;
-        }
-        function planInsertMd(prefix, suffix, asLine) {
-            const ta = _planActiveTextarea();
-            if (!ta) return;
-            const start = ta.selectionStart, end = ta.selectionEnd;
-            const sel = ta.value.substring(start, end);
-            let insert;
-            if (asLine) {
-                const lines = (sel || '').split('\n');
-                insert = lines.map(l => prefix + l).join('\n');
-                if (!sel) insert = prefix;
-            } else {
-                insert = prefix + (sel || '') + suffix;
-            }
-            ta.setRangeText(insert, start, end, 'end');
-            ta.focus();
-            planOnContentChange();
-        }
-        function planInsertTable() {
-            planInsertMd('\n| 欄位 1 | 欄位 2 | 欄位 3 |\n| --- | --- | --- |\n| A | B | C |\n| D | E | F |\n', '');
-        }
-        function planInsertCodeBlock() {
-            const lang = prompt('程式語言（如 python / bash / robot；可空）：', '') || '';
-            planInsertMd('\n```' + lang + '\n', '\n```\n');
-        }
-        function planInsertMermaidFlowchart() {
-            planInsertMd(`\n\`\`\`mermaid\nflowchart LR\n    A[開始] --> B{條件?}\n    B -- 是 --> C[執行 X]\n    B -- 否 --> D[執行 Y]\n    C --> E[結束]\n    D --> E\n\`\`\`\n`, '');
-        }
-        function planInsertMermaidSequence() {
-            planInsertMd(`\n\`\`\`mermaid\nsequenceDiagram\n    participant 使用者\n    participant 前端\n    participant 後端\n    使用者->>前端: 提交\n    前端->>後端: API 呼叫\n    後端-->>前端: 回應\n\`\`\`\n`, '');
-        }
-        function planInsertMermaidGantt() {
-            planInsertMd(`\n\`\`\`mermaid\ngantt\n    title 測試計畫時程\n    dateFormat  YYYY-MM-DD\n    section 規劃\n    撰寫計畫       :a1, 2026-04-01, 5d\n    審核           :a2, after a1, 3d\n    section 執行\n    冒煙測試       :b1, after a2, 2d\n    回歸測試       :b2, after b1, 7d\n\`\`\`\n`, '');
-        }
-        async function planSubmit(ev) {
-            ev.preventDefault();
-            const payload = {
-                project_id: currentProjectId,
-                title: document.getElementById('tpTitle').value.trim(),
-                version: document.getElementById('tpVersion').value.trim() || null,
-                status: document.getElementById('tpStatus').value,
-                owner: document.getElementById('tpOwner').value.trim() || null,
-                scope_in_text: document.getElementById('tpScopeIn').value || null,
-                scope_out_text: document.getElementById('tpScopeOut').value || null,
-                test_strategy_text: document.getElementById('tpStrategy').value || null,
-                resources_text: document.getElementById('tpResources').value || null,
-                schedule_text: document.getElementById('tpSchedule').value || null,
-                risks_text: document.getElementById('tpRisks').value || null,
-            };
-            try {
-                const url = _editingPlanId ? '/api/plans/'+_editingPlanId : '/api/plans';
-                const method = _editingPlanId ? 'PUT' : 'POST';
-                const res = await fetch(url, {method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
-                if (!res.ok) throw new Error('HTTP '+res.status);
-                const saved = await res.json();
-                _editingPlanId = saved.id;
-                _planDirty = false;
-                updatePlanDirtyHint();
-                document.getElementById('planModalTitle').innerHTML = `<i class="fa-solid fa-clipboard-list text-blue-500"></i> 編輯計畫 ${_esc(saved.code)}`;
-                showToast('已儲存', 'success');
-                renderPlansList();
-            } catch(e) { showToast('儲存失敗：'+e.message, 'error'); }
-            return false;
-        }
-        async function deletePlan(id, code) {
-            if (!confirm(`確定刪除測試計畫 ${code}？`)) return;
-            try {
-                const res = await fetch('/api/plans/'+id, {method:'DELETE'});
-                if (!res.ok && res.status !== 204) throw new Error('HTTP '+res.status);
-                showToast('已刪除', 'success');
-                renderPlansList();
-            } catch(e) { showToast('刪除失敗：'+e.message, 'error'); }
         }
 
         // ─── 需求 / RTM ─────────────────────────────────────────────────

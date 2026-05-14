@@ -36,7 +36,6 @@ from .review import (
 )
 from .step_screenshot_baseline import StepScreenshotBaseline
 from .test_data_set import DataSetCategory, TestDataSet
-from .test_plan import TestPlan, TestPlanStatus
 from .test_round import TestRound
 from .test_version import TestVersion, VersionPlatform, VersionStatus
 from .testcase_content import TestcaseContent
@@ -63,7 +62,6 @@ __all__ = [
     "RecordingSession",
     # Test management extensions (defect / milestone / plan / requirement / RTM)
     "Defect", "DefectSeverity", "DefectPriority", "DefectStatus",
-    "TestPlan", "TestPlanStatus",
     "TestVersion", "VersionPlatform", "VersionStatus",
     "Requirement", "RequirementSource", "RequirementPriority",
     "RequirementStatus", "RequirementTestcaseLink",
