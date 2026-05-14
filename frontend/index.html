@@ -14803,8 +14803,9 @@ driver.swipe(100, 800, 100, 200, 500)"
             wrap?.classList.remove('hidden');
             tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-stone-400">載入中…</td></tr>`;
             try {
-                const r = await apiFetch(`/api/projects/${encodeURIComponent(currentProjectId)}/role-permissions`);
-                _prpRows = await r.json();
+                // apiFetch 已經把 body 解成 JSON 並 throw ApiError on non-2xx,
+                // 不要再 .json() — 那只有原生 fetch Response 才有。
+                _prpRows = await apiFetch(`/api/projects/${encodeURIComponent(currentProjectId)}/role-permissions`);
                 if (!Array.isArray(_prpRows) || _prpRows.length === 0) {
                     tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-stone-400">沒有 project-scope role</td></tr>`;
                     return;
@@ -14839,8 +14840,8 @@ driver.swipe(100, 800, 100, 200, 500)"
             // 拉 permission catalogue 渲染 checkbox(分組)
             let items = [];
             try {
-                const r = await apiFetch('/api/settings/permissions/catalogue');
-                items = (await r.json()).items || [];
+                const catalogue = await apiFetch('/api/settings/permissions/catalogue');
+                items = catalogue?.items || [];
             } catch (_) { items = []; }
             const granted = new Set(row.effective_permissions);
             const groups = {};
@@ -14870,21 +14871,17 @@ driver.swipe(100, 800, 100, 200, 500)"
             if (!_prpEditingRoleId || !currentProjectId) return false;
             const perms = Array.from(document.querySelectorAll('.prp-perm-cb:checked')).map(c => c.value);
             try {
-                const r = await apiFetch(`/api/projects/${encodeURIComponent(currentProjectId)}/role-permissions/${encodeURIComponent(_prpEditingRoleId)}`, {
+                await apiFetch(`/api/projects/${encodeURIComponent(currentProjectId)}/role-permissions/${encodeURIComponent(_prpEditingRoleId)}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ permissions_json: perms }),
                 });
-                if (!r.ok) {
-                    const j = await r.json().catch(() => ({}));
-                    showToast('儲存失敗:' + (j.detail || r.statusText), 'error');
-                    return false;
-                }
                 showToast('本專案角色權限已覆蓋', 'success');
                 prpCloseEditModal();
                 prpReload();
             } catch (e) {
-                showToast('儲存失敗:' + (e.message || e), 'error');
+                // apiFetch throw ApiError({status, detail});底下取 e.detail / e.message。
+                showToast('儲存失敗:' + (e.detail || e.message || e), 'error');
             }
             return false;
         }
@@ -14899,18 +14896,13 @@ driver.swipe(100, 800, 100, 200, 500)"
 
         async function prpResetRole(role_id, role_name) {
             try {
-                const r = await apiFetch(`/api/projects/${encodeURIComponent(currentProjectId)}/role-permissions/${encodeURIComponent(role_id)}`, {
+                await apiFetch(`/api/projects/${encodeURIComponent(currentProjectId)}/role-permissions/${encodeURIComponent(role_id)}`, {
                     method: 'DELETE',
                 });
-                if (!r.ok && r.status !== 204) {
-                    const j = await r.json().catch(() => ({}));
-                    showToast('重設失敗:' + (j.detail || r.statusText), 'error');
-                    return;
-                }
                 showToast(`${role_name || '角色'} 已回到全域預設`, 'success');
                 prpReload();
             } catch (e) {
-                showToast('重設失敗:' + (e.message || e), 'error');
+                showToast('重設失敗:' + (e.detail || e.message || e), 'error');
             }
         }
 
