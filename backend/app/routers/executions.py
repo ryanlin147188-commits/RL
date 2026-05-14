@@ -70,6 +70,11 @@ async def run_execution(
         enable_recording=payload.enable_recording,
     )
 
+    # Celery worker 在另一個 process,要先 commit ExecutionReport 才能讓 worker
+    # 之後 db.get(ExecutionReport, report_id) 命中。沒 commit 過、worker 立刻
+    # 取到 task 並 INSERT execution_steps_log 時會撞上 FK violation。
+    await db.commit()
+
     if (payload.execution_mode or "docker").lower() == "local":
         return ExecutionRunResponse(
             task_id=task_id,

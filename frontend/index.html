@@ -15683,7 +15683,12 @@ driver.swipe(100, 800, 100, 200, 500)"
                     throw new Error(err.detail || ('HTTP ' + res.status));
                 }
                 const data = await res.json();
-                showToast(`已觸發：${data.testcase_count} 個測試案例；可到「測試報告」查看進度`, 'success');
+                showToast(`已觸發：${data.testcase_count} 個測試案例,跳轉到「測試報告」查看進度…`, 'success');
+                // 沒有自動跳頁,使用者只看到一個短 toast 就以為沒執行 — 直接帶他去
+                // 測試報告頁,新建立的 report 會在最上面 (sort by created_at desc)。
+                if (typeof showReportView === 'function') {
+                    setTimeout(() => showReportView(), 300);
+                }
             } catch (e) {
                 showToast('執行失敗：' + e.message, 'error');
             }
