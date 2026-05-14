@@ -23,7 +23,6 @@ from app.models.requirement import Requirement
 from app.models.test_milestone import TestMilestone
 from app.models.test_plan import TestPlan
 from app.models.test_round import TestRound
-from app.models.test_version import TestVersion
 from app.models.todo_item import TodoItem
 from app.models.todo_link import ALLOWED_TARGET_TYPES, TodoLink
 from app.models.tree_node import LevelType, TreeNode
@@ -46,7 +45,6 @@ _TARGET_REGISTRY = {
     "test_plan": (TestPlan, "name", None),
     "test_round": (TestRound, "name", None),
     "test_milestone": (TestMilestone, "name", None),
-    "test_version": (TestVersion, "version_label", "platform"),  # G-1:顯示為「[WEB] v1.5-rc1」
     "wbs": (WbsItem, "name", None),
     "project": (Project, "name", None),
     # testcase 特殊:tree_nodes 有 level_type 約束

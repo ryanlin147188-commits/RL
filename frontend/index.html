@@ -987,7 +987,6 @@
                     <button type="button" onclick="closeNavDrawer(); showWbsView()"          class="nav-drawer-btn"><i class="fa-solid fa-sitemap text-yellow-600"></i><span data-i18n="nav.wbs">WBS / 工作分解</span></button>
                     <button type="button" onclick="closeNavDrawer(); showTestPlanView()"     class="nav-drawer-btn"><i class="fa-solid fa-clipboard-list text-blue-600"></i><span data-i18n="nav.testPlan">測試計畫</span></button>
                     <button type="button" onclick="closeNavDrawer(); showTestMilestonesView()" class="nav-drawer-btn"><i class="fa-regular fa-calendar text-teal-600"></i><span data-i18n="nav.milestones">測試時程</span></button>
-                    <button type="button" onclick="closeNavDrawer(); showTestVersionsView()" class="nav-drawer-btn"><i class="fa-solid fa-tag text-amber-600"></i><span data-i18n="nav.testVersions">測試版號</span></button>
                 </div>
             </section>
 
@@ -1229,7 +1228,6 @@
                             <option value="test_plan">📑 <span data-i18n="links.target.test_plan">測試計畫</span></option>
                             <option value="test_round">🔁 <span data-i18n="links.target.test_round">測試回合</span></option>
                             <option value="test_milestone">🏁 <span data-i18n="links.target.test_milestone">里程碑</span></option>
-                            <option value="test_version">🏷️ <span data-i18n="links.target.test_version">測試版號</span></option>
                             <option value="wbs">📊 <span data-i18n="links.target.wbs">WBS</span></option>
                             <option value="project">📦 <span data-i18n="links.target.project">專案</span></option>
                         </select>
@@ -3260,149 +3258,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                 </div>
             </div>
 
-            <!-- 測試版號 Modal(新增 / 編輯) -->
-            <div id="tvModal" class="hidden fixed inset-0 z-[150] bg-black/40 flex items-center justify-center p-4">
-                <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg border border-amber-200 max-h-[92vh] overflow-y-auto">
-                    <div class="px-6 py-4 border-b border-stone-200 bg-amber-50/60 flex items-center justify-between">
-                        <h3 id="tvModalTitle" class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-tag text-amber-500"></i> 新增測試版號</h3>
-                        <button type="button" onclick="tvCloseModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
-                    </div>
-                    <form onsubmit="return tvSubmit(event)" class="p-6 space-y-3">
-                        <div class="grid grid-cols-2 gap-3">
-                            <div>
-                                <label for="tvPlatform" class="block text-xs font-semibold text-stone-600 mb-1">平台 <span class="text-rose-500">*</span></label>
-                                <select id="tvPlatform" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
-                                    <option value="WEB">🌐 WEB</option>
-                                    <option value="API">🔌 API</option>
-                                    <option value="APP">📱 APP</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label for="tvLabel" class="block text-xs font-semibold text-stone-600 mb-1">版號 <span class="text-rose-500">*</span></label>
-                                <input type="text" id="tvLabel" required placeholder="例:1.2.3 / v3.5-rc1 / build-1234" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm font-mono">
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-2 gap-3">
-                            <div>
-                                <label for="tvStatus" class="block text-xs font-semibold text-stone-600 mb-1">狀態</label>
-                                <select id="tvStatus" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
-                                    <option value="planned">📋 planned (規劃中)</option>
-                                    <option value="released" selected>✅ released (已發布)</option>
-                                    <option value="deprecated">🚫 deprecated (已停用)</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label for="tvReleasedAt" class="block text-xs font-semibold text-stone-600 mb-1">發布日期</label>
-                                <input type="date" id="tvReleasedAt" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm">
-                            </div>
-                        </div>
-                        <div>
-                            <label for="tvDesc" class="block text-xs font-semibold text-stone-600 mb-1">說明 / Release notes</label>
-                            <textarea id="tvDesc" rows="4" placeholder="這個版號包含哪些功能 / 修正…" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea>
-                        </div>
-                        <p id="tvUsageHint" class="hidden text-[11px] text-stone-500 bg-stone-50 border border-stone-200 rounded p-2"></p>
-                        <!-- G-2:相關待辦反向視圖 -->
-                        <section id="tvLinkedTodos" class="border border-stone-200 rounded-md bg-stone-50/40 p-3 hidden"></section>
-                        <div class="flex justify-between items-center pt-2">
-                            <button type="button" id="tvDeleteBtn" onclick="tvDeleteCurrent()" class="hidden px-3 py-2 bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 rounded-md text-sm font-medium"><i class="fa-solid fa-trash"></i> 刪除</button>
-                            <div class="flex gap-2 ml-auto">
-                                <button type="button" onclick="tvCloseModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button>
-                                <button type="submit" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button>
-                            </div>
-                        </div>
-                    </form>
-                </div>
-            </div>
-
-            <!-- 群組 Modal(新增 / 編輯) -->
-            <div id="groupModal" class="hidden fixed inset-0 z-[150] bg-black/40 flex items-center justify-center p-4">
-                <div class="bg-white rounded-xl shadow-2xl w-full max-w-xl border border-amber-200 max-h-[92vh] overflow-y-auto">
-                    <div class="px-6 py-4 border-b border-stone-200 bg-amber-50/60 flex items-center justify-between">
-                        <h3 id="groupModalTitle" class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-people-group text-amber-500"></i> 新增群組</h3>
-                        <button type="button" onclick="closeGroupModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
-                    </div>
-                    <form onsubmit="return groupSubmit(event)" class="p-6 space-y-3">
-                        <div class="grid grid-cols-2 gap-3">
-                            <div>
-                                <label for="groupName" class="block text-xs font-semibold text-stone-600 mb-1">群組名稱 *</label>
-                                <input type="text" id="groupName" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm">
-                            </div>
-                            <div>
-                                <label for="groupType" class="block text-xs font-semibold text-stone-600 mb-1">類型</label>
-                                <select id="groupType" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
-                                    <option value="team">team(團隊)</option>
-                                    <option value="squad">squad(小組)</option>
-                                    <option value="dept">dept(部門)</option>
-                                    <option value="project">project(專案)</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div>
-                            <label for="groupParent" class="block text-xs font-semibold text-stone-600 mb-1">父群組(留空 = 頂層)</label>
-                            <select id="groupParent" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
-                                <option value="">— 無 (頂層) —</option>
-                            </select>
-                            <p class="text-[10px] text-stone-400 mt-0.5">巢狀群組:子群組成員會在父群組被指派時也收到通知</p>
-                        </div>
-                        <div>
-                            <label for="groupDesc" class="block text-xs font-semibold text-stone-600 mb-1">說明</label>
-                            <textarea id="groupDesc" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea>
-                        </div>
-                        <div id="groupInitialMembersBox">
-                            <label class="block text-xs font-semibold text-stone-600 mb-1">起始成員(可多選;建立者自動是 owner)</label>
-                            <select id="groupInitialMembers" aria-label="起始成員" multiple size="6" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"></select>
-                        </div>
-                        <div class="flex justify-end gap-2 pt-2">
-                            <button type="button" onclick="closeGroupModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button>
-                            <button type="submit" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-
-            <!-- ════════════════════════════════════════════════════════════════
-                 5 個測試管理擴充工作區（缺陷 / 時程 / 計畫 / 需求 / 看版）
-                 每個 workspace 都是 hidden 預設；由 show*View() 切換顯示。
-                 ════════════════════════════════════════════════════════════════ -->
-
-            <!-- 通用指派對話框 — Tier D-5 改造:加搜尋 / 群組 fan-out 預覽 / audit 後設 / stale CTA -->
-            <div id="assignPickerModal" class="hidden fixed inset-0 z-[170] bg-black/40 flex items-center justify-center p-4">
-                <div class="bg-white rounded-xl shadow-2xl w-full max-w-md border border-amber-200 overflow-hidden flex flex-col max-h-[85vh]">
-                    <div class="px-6 py-4 border-b border-stone-200 bg-amber-50/60 flex items-center justify-between flex-shrink-0">
-                        <h3 class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-user-tag text-amber-500"></i> 指派</h3>
-                        <button type="button" onclick="closeAssignPicker()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
-                    </div>
-                    <form onsubmit="return assignPickerSubmit(event)" class="p-6 space-y-3 overflow-y-auto">
-                        <p id="assignPickerSubtitle" class="text-xs text-stone-500"></p>
-                        <!-- 既有指派(audit metadata)-->
-                        <div id="assignPickerCurrent" class="hidden bg-stone-50 border border-stone-200 rounded p-2 text-[11px] text-stone-600"></div>
-                        <!-- Stale 警示 -->
-                        <div id="assignPickerStale" class="hidden bg-rose-50 border border-rose-200 rounded p-2 flex items-center justify-between text-[11px] text-rose-700">
-                            <span><i class="fa-solid fa-triangle-exclamation"></i> 舊指派對象已不存在</span>
-                            <button type="button" onclick="assignPickerClearStale()" class="px-2 py-0.5 bg-rose-100 hover:bg-rose-200 rounded text-rose-700 font-semibold">清除指派</button>
-                        </div>
-                        <!-- 搜尋 -->
-                        <div class="relative">
-                            <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-xs"></i>
-                            <input type="search" id="assignPickerSearch" oninput="assignPickerOnSearch(this.value)" placeholder="搜尋使用者 / 群組…"
-                                class="w-full pl-8 pr-3 py-2 border border-stone-300 rounded-md text-sm">
-                        </div>
-                        <!-- 候選清單 -->
-                        <div>
-                            <label for="assignPickerSelect" class="block text-xs font-semibold text-stone-600 mb-1">指派給</label>
-                            <select id="assignPickerSelect" size="6" onchange="assignPickerOnChange()" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"></select>
-                        </div>
-                        <!-- 群組 fan-out 預覽 -->
-                        <div id="assignPickerFanout" class="hidden bg-amber-50 border border-amber-200 rounded p-2 text-[11px] text-amber-800"></div>
-                        <p class="text-[10px] text-stone-500">選擇使用者或群組;群組會通知所有成員(含巢狀子群組)。清空 = 解除指派。</p>
-                        <div class="flex justify-end gap-2 pt-2">
-                            <button type="button" onclick="closeAssignPicker()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button>
-                            <button type="submit" id="assignPickerSubmitBtn" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-
             <!-- ── 缺陷管理 ── -->
             <div id="defectsWorkspace" class="flex-1 overflow-y-auto p-6 bg-amber-50/30 hidden">
                 <div class="max-w-7xl mx-auto">
@@ -3784,55 +3639,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                             <span class="text-[11px] text-stone-500 ml-auto"><i class="fa-solid fa-circle-info"></i> 提示：頂層需求＝User Story；子需求＝AC（在新增需求 modal 設「父需求」）；缺陷需設「關聯測試案例」才會出現在鏈上</span>
                         </div>
                         <div id="rtmChainBody" class="space-y-3"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ── 測試版號 (Test Versions) — 漢堡選單「設定 → 測試版號」入口 ── -->
-            <div id="testVersionsWorkspace" class="flex-1 overflow-y-auto p-6 bg-amber-50/30 hidden">
-                <div class="max-w-7xl mx-auto">
-                    <div class="bg-white rounded-lg border border-amber-200 shadow-sm p-4 mb-4">
-                        <div class="flex flex-wrap items-center gap-3">
-                            <div class="flex-1 min-w-[200px] relative">
-                                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm"></i>
-                                <input id="tvSearch" type="search" oninput="_tvRenderTable()" placeholder="搜尋版號 / 說明…"
-                                    class="w-full pl-9 pr-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
-                            </div>
-                            <select id="tvPlatformFilter" onchange="_tvRenderTable()" aria-label="平台" class="px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
-                                <option value="">全部平台</option>
-                                <option value="WEB">🌐 WEB</option>
-                                <option value="API">🔌 API</option>
-                                <option value="APP">📱 APP</option>
-                            </select>
-                            <select id="tvStatusFilter" onchange="_tvRenderTable()" aria-label="狀態" class="px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
-                                <option value="">全部狀態</option>
-                                <option value="planned">📋 planned</option>
-                                <option value="released">✅ released</option>
-                                <option value="deprecated">🚫 deprecated</option>
-                            </select>
-                            <button onclick="tvReloadList()" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
-                            <button onclick="tvOpenCreate()" class="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold shadow-sm"><i class="fa-solid fa-plus"></i> 新增版號</button>
-                            <div class="text-xs text-stone-500 ml-auto">共 <span id="tvListCount" class="font-bold text-stone-700">0</span> 筆</div>
-                        </div>
-                        <p class="text-xs text-stone-500 mt-2"><i class="fa-solid fa-circle-info text-amber-500"></i> 點任一列「篩選」按鈕,可把報告 / 缺陷 / 測試回合三個視圖自動過濾為該版號相關項目;再點一次取消篩選。當前篩選:<span id="tvActiveFilterLabel" class="font-mono text-rose-600">— 無 —</span></p>
-                    </div>
-                    <div class="bg-white rounded-lg border border-amber-200 shadow-sm overflow-hidden">
-                        <table class="w-full text-sm">
-                            <thead class="bg-amber-50/60 border-b border-amber-200 text-stone-600 text-xs uppercase">
-                                <tr>
-                                    <th class="p-3 text-left w-20">平台</th>
-                                    <th class="p-3 text-left">版號</th>
-                                    <th class="p-3 text-left w-28">狀態</th>
-                                    <th class="p-3 text-left w-32">發布日期</th>
-                                    <th class="p-3 text-left">說明</th>
-                                    <th class="p-3 text-center w-20">引用數</th>
-                                    <th class="p-3 text-center w-32">操作</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tvTableBody" class="divide-y divide-stone-100">
-                                <tr><td colspan="7" class="p-6 text-center text-stone-400">尚未載入</td></tr>
-                            </tbody>
-                        </table>
                     </div>
                 </div>
             </div>
@@ -4481,7 +4287,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                     '#requirements':    'requirementsWorkspace',
                     '#wbs':             'wbsWorkspace',
                     '#backlog':         'backlogWorkspace',
-                    '#testversions':    'testVersionsWorkspace',
                     '#testdatasets':    'testDataSetsWorkspace',
                     '#testmilestones':  'testMilestonesWorkspace',
                     '#testplan':        'testPlansWorkspace',
@@ -4627,224 +4432,6 @@ driver.swipe(100, 800, 100, 200, 500)"
         let currentProjectId = null;
         let currentTestCase = null;
         let activeTreeData = [];
-
-        // ─── 測試版號(sidebar 底部 panel + CRUD + 全域過濾) ───────────────
-        let _tvCache = [];               // 當前 project 的版號列表
-        let _tvEditingId = null;
-        let _tvFilterId = null;          // 全域過濾:點某個版號 → reports/defects/rounds 套 ?test_version_id=
-
-        // 給其他模組用:回傳當前 filter 對應的版號物件;沒過濾就 null
-        window.getActiveTestVersion = () => {
-            if (!_tvFilterId) return null;
-            return _tvCache.find(v => v.id === _tvFilterId) || null;
-        };
-        // 給其他模組用:把 ?test_version_id=... 加到 URLSearchParams
-        window.appendTestVersionFilter = (params) => {
-            if (_tvFilterId && params && typeof params.set === 'function') {
-                params.set('test_version_id', _tvFilterId);
-            }
-            return params;
-        };
-
-        // 進入「測試版號」view(漢堡選單 → 設定 → 測試版號)
-        // 沿用其他 view 的 _setView 統一 pattern(一次處理 hideAll + unhide + header + mainActions)
-        function showTestVersionsView() {
-            if (!_setView('testVersionsWorkspace',
-                '<i class="fa-solid fa-tag text-amber-500"></i>',
-                'Versions',
-                'bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium',
-                '測試版號',
-                { titleKey: 'view.testVersions.title', filenameKey: 'view.testVersions.title' })) return false;
-            tvReloadList();
-        }
-
-        async function tvReloadList() {
-            const tbody = document.getElementById('tvTableBody');
-            const cnt = document.getElementById('tvListCount');
-            if (!currentProjectId) {
-                if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-stone-400">請先選擇專案(左側專案選擇器)</td></tr>';
-                if (cnt) cnt.textContent = '0';
-                _tvCache = [];
-                return;
-            }
-            if (tbody) tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-stone-400">載入中…</td></tr>';
-            try {
-                const params = new URLSearchParams();
-                params.set('project_id', currentProjectId);
-                const r = await fetch('/api/test-versions?' + params.toString());
-                if (!r.ok) throw new Error('HTTP '+r.status);
-                _tvCache = await r.json();
-                _tvRenderTable();
-            } catch (e) {
-                if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-rose-500">載入失敗:${_esc(e.message)}</td></tr>`;
-            }
-        }
-
-        function _tvRenderTable() {
-            const tbody = document.getElementById('tvTableBody');
-            const cnt = document.getElementById('tvListCount');
-            if (!tbody) return;
-            const kw = (document.getElementById('tvSearch')?.value || '').toLowerCase().trim();
-            const platFilter = document.getElementById('tvPlatformFilter')?.value || '';
-            const statusFilter = document.getElementById('tvStatusFilter')?.value || '';
-            const rows = (_tvCache || []).filter(v => {
-                if (platFilter && v.platform !== platFilter) return false;
-                if (statusFilter && v.status !== statusFilter) return false;
-                if (kw && !((v.version_label || '').toLowerCase().includes(kw)
-                         || (v.description || '').toLowerCase().includes(kw))) return false;
-                return true;
-            });
-            if (cnt) cnt.textContent = rows.length;
-            // 篩選狀態 label
-            const lbl = document.getElementById('tvActiveFilterLabel');
-            if (lbl) {
-                const active = (_tvCache || []).find(v => v.id === _tvFilterId);
-                lbl.textContent = active ? `${active.platform} ${active.version_label}` : '— 無 —';
-            }
-            if (!rows.length) {
-                tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-stone-400">無符合條件的版號;點右上「+ 新增版號」開始</td></tr>';
-                return;
-            }
-            const platMeta = {
-                WEB: { icon: '🌐', color: 'blue' },
-                API: { icon: '🔌', color: 'purple' },
-                APP: { icon: '📱', color: 'pink' },
-            };
-            const statusBadge = (s) => ({
-                planned:    '<span class="text-[10px] px-2 py-0.5 rounded bg-amber-100 text-amber-700">📋 planned</span>',
-                released:   '<span class="text-[10px] px-2 py-0.5 rounded bg-emerald-100 text-emerald-700">✅ released</span>',
-                deprecated: '<span class="text-[10px] px-2 py-0.5 rounded bg-stone-200 text-stone-500">🚫 deprecated</span>',
-            }[s] || _esc(s || ''));
-            tbody.innerHTML = rows.map(v => {
-                const meta = platMeta[v.platform] || { icon: '', color: 'stone' };
-                const isActive = v.id === _tvFilterId;
-                const filterBtn = isActive
-                    ? `<button onclick="tvToggleFilter('${_esc(v.id)}')" class="text-xs px-2 py-1 bg-rose-500 text-white border border-rose-600 rounded font-semibold" title="點擊取消篩選"><i class="fa-solid fa-filter-circle-xmark"></i> 取消</button>`
-                    : `<button onclick="tvToggleFilter('${_esc(v.id)}')" class="text-xs px-2 py-1 bg-amber-50 text-amber-700 border border-amber-300 hover:bg-amber-100 rounded" title="把報告 / 缺陷 / 回合過濾為此版號"><i class="fa-solid fa-filter"></i> 篩選</button>`;
-                return `<tr class="${isActive ? 'bg-amber-50/40' : 'hover:bg-amber-50/20'}">
-                    <td class="p-3"><span class="text-xs font-medium text-${meta.color}-700">${meta.icon} ${_esc(v.platform)}</span></td>
-                    <td class="p-3"><span class="font-mono text-sm text-stone-800">${_esc(v.version_label)}</span></td>
-                    <td class="p-3">${statusBadge(v.status)}</td>
-                    <td class="p-3 text-xs text-stone-600">${_esc(v.released_at || '—')}</td>
-                    <td class="p-3 text-xs text-stone-600 max-w-md truncate" title="${_esc(v.description || '')}">${_esc(v.description || '')}</td>
-                    <td class="p-3 text-center text-xs ${v.usage_count > 0 ? 'text-stone-700 font-semibold' : 'text-stone-400'}">${v.usage_count || 0}</td>
-                    <td class="p-3 text-center whitespace-nowrap space-x-1">
-                        ${filterBtn}
-                        <button onclick="tvOpenEdit('${_esc(v.id)}')" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded" title="編輯"><i class="fa-solid fa-pen"></i></button>
-                    </td>
-                </tr>`;
-            }).join('');
-        }
-
-        function tvToggleFilter(versionId) {
-            _tvFilterId = (_tvFilterId === versionId) ? null : versionId;
-            _tvRenderTable();
-            // 觸發各 view 重載(若目前在那 view)
-            try { if (typeof renderDefectsList === 'function' && document.getElementById('defectsWorkspace') && !document.getElementById('defectsWorkspace').classList.contains('hidden')) renderDefectsList(); } catch (_) {}
-            try { if (typeof loadReports === 'function' && document.getElementById('reportWorkspace') && !document.getElementById('reportWorkspace').classList.contains('hidden')) loadReports(); } catch (_) {}
-            try { if (typeof reloadTestRounds === 'function' && document.getElementById('testRoundWorkspace') && !document.getElementById('testRoundWorkspace').classList.contains('hidden')) reloadTestRounds(); } catch (_) {}
-            const v = (_tvCache || []).find(x => x.id === _tvFilterId);
-            if (v) showToast(`已過濾為 ${v.platform} ${v.version_label}`, 'info');
-            else if (versionId) showToast('已取消篩選', 'info');
-        }
-
-        function tvOpenCreate() {
-            if (!currentProjectId) { showToast('請先選擇專案', 'error'); return; }
-            _tvEditingId = null;
-            document.getElementById('tvModalTitle').innerHTML = '<i class="fa-solid fa-tag text-amber-500"></i> 新增測試版號';
-            document.getElementById('tvPlatform').value = 'WEB';
-            document.getElementById('tvLabel').value = '';
-            document.getElementById('tvStatus').value = 'released';
-            document.getElementById('tvReleasedAt').value = new Date().toISOString().slice(0, 10);
-            document.getElementById('tvDesc').value = '';
-            document.getElementById('tvDeleteBtn').classList.add('hidden');
-            document.getElementById('tvUsageHint').classList.add('hidden');
-            // G-2:create 模式不顯示反向視圖(還沒 id)
-            document.getElementById('tvLinkedTodos')?.classList.add('hidden');
-            document.getElementById('tvModal').classList.remove('hidden');
-        }
-
-        function tvOpenEdit(id) {
-            const v = _tvCache.find(x => x.id === id);
-            if (!v) return;
-            _tvEditingId = id;
-            document.getElementById('tvModalTitle').innerHTML = `<i class="fa-solid fa-tag text-amber-500"></i> 編輯版號 · ${_esc(v.platform)} ${_esc(v.version_label)}`;
-            document.getElementById('tvPlatform').value = v.platform;
-            document.getElementById('tvLabel').value = v.version_label;
-            document.getElementById('tvStatus').value = v.status;
-            document.getElementById('tvReleasedAt').value = v.released_at || '';
-            document.getElementById('tvDesc').value = v.description || '';
-            document.getElementById('tvDeleteBtn').classList.remove('hidden');
-            const hint = document.getElementById('tvUsageHint');
-            if (v.usage_count > 0) {
-                hint.textContent = `⚠ 此版號已被 ${v.usage_count} 筆紀錄(報告 / 缺陷 / 回合)引用;刪除時要加 force 才會生效(被引用方 test_version_id 會 set null)。`;
-                hint.classList.remove('hidden');
-            } else {
-                hint.classList.add('hidden');
-            }
-            // G-2:相關待辦反向視圖
-            const tvLinked = document.getElementById('tvLinkedTodos');
-            if (tvLinked) {
-                tvLinked.classList.remove('hidden');
-                _renderLinkedTodosBlock('tvLinkedTodos', 'test_version', id);
-            }
-            document.getElementById('tvModal').classList.remove('hidden');
-        }
-
-        function tvCloseModal() {
-            document.getElementById('tvModal').classList.add('hidden');
-            _tvEditingId = null;
-        }
-
-        async function tvSubmit(ev) {
-            ev.preventDefault();
-            const payload = {
-                project_id: currentProjectId,
-                platform: document.getElementById('tvPlatform').value,
-                version_label: document.getElementById('tvLabel').value.trim(),
-                status: document.getElementById('tvStatus').value,
-                released_at: document.getElementById('tvReleasedAt').value || null,
-                description: document.getElementById('tvDesc').value.trim() || null,
-            };
-            if (!payload.version_label) { showToast('版號必填', 'error'); return false; }
-            try {
-                const url = _tvEditingId ? '/api/test-versions/'+_tvEditingId : '/api/test-versions';
-                const method = _tvEditingId ? 'PUT' : 'POST';
-                const r = await fetch(url, { method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-                if (!r.ok && r.status !== 201) {
-                    const detail = (await r.json().catch(()=>({}))).detail || ('HTTP '+r.status);
-                    throw new Error(detail);
-                }
-                showToast(_tvEditingId ? '已更新' : '已建立', 'success');
-                tvCloseModal();
-                tvReloadList();
-            } catch (e) { showToast('儲存失敗:'+e.message, 'error'); }
-            return false;
-        }
-
-        async function tvDeleteCurrent() {
-            if (!_tvEditingId) return;
-            const v = _tvCache.find(x => x.id === _tvEditingId);
-            if (!v) return;
-            const force = (v.usage_count > 0);
-            const msg = force
-                ? `此版號被 ${v.usage_count} 筆紀錄引用,確定強制刪除?(被引用方的 test_version_id 會 set null)`
-                : `確定刪除版號 ${v.platform} ${v.version_label}?`;
-            if (!confirm(msg)) return;
-            try {
-                const url = '/api/test-versions/'+_tvEditingId + (force ? '?force=1' : '');
-                const r = await fetch(url, { method: 'DELETE' });
-                if (!r.ok && r.status !== 204) {
-                    const detail = (await r.json().catch(()=>({}))).detail || ('HTTP '+r.status);
-                    throw new Error(detail);
-                }
-                showToast('已刪除', 'success');
-                if (_tvFilterId === _tvEditingId) _tvFilterId = null;
-                tvCloseModal();
-                tvReloadList();
-            } catch (e) { showToast('刪除失敗:'+e.message, 'error'); }
-        }
-
 
         // ==================== 1. 終端機功能 ====================
         async function runTest() {
@@ -7697,8 +7284,6 @@ driver.swipe(100, 800, 100, 200, 500)"
             'settings.title': { 'zh-TW': '設定', 'en': 'Settings' },
             'settings.title.short': { 'zh-TW': '設定', 'en': 'Settings' },
             // 各 view 的長/短標題(viewTitle 大標 / viewFilename 麵包屑)
-            'view.testVersions.title': { 'zh-TW': '測試版號', 'en': 'Test Versions' },
-            'nav.testVersions': { 'zh-TW': '測試版號', 'en': 'Test Versions' },
             'view.wbs.title': { 'zh-TW': 'WBS 工作分解結構', 'en': 'WBS' },
             'view.testPlan.title': { 'zh-TW': '測試計畫', 'en': 'Test Plan' },
             'view.requirements.title': { 'zh-TW': '需求 / RTM', 'en': 'Requirements / RTM' },
@@ -10200,7 +9785,7 @@ driver.swipe(100, 800, 100, 200, 500)"
         // parsed and the function bindings exist on window.
         (function () {
             const KNOWN_VIEWS = [
-                'showHomeView', 'showTestCasesView', 'showTestVersionsView',
+                'showHomeView', 'showTestCasesView',
                 'showReportView', 'showUserSettingsView', 'showRecorderView',
                 'showReviewView', 'showTestRoundView', 'showEnvVarsView',
                 'showMockView',
@@ -11136,7 +10721,6 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('testMilestonesWorkspace')?.classList.add('hidden');
             document.getElementById('testPlansWorkspace')?.classList.add('hidden');
             document.getElementById('requirementsWorkspace')?.classList.add('hidden');
-            document.getElementById('testVersionsWorkspace')?.classList.add('hidden');
             document.getElementById('testDataSetsWorkspace')?.classList.add('hidden');
             document.getElementById('wbsWorkspace')?.classList.add('hidden');
             document.getElementById('backlogWorkspace')?.classList.add('hidden');
