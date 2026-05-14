@@ -37,12 +37,9 @@ sentry-sdk[fastapi,celery,sqlalchemy]==2.16.0
 #   provider),Zoho 走 OpenID custom OAuth2 subclass 接上去。
 # - cryptography 仍另外 pin 給 Fernet 用(DB 內存密碼 / AI key)。
 PyJWT==2.8.0           # fastapi-users 13 pins exactly 2.8.0
-passlib==1.7.4         # 過渡期保留;v1.1.8 cutover 後拔除
-# bcrypt 4.x 跟 passlib 1.7.4 共存會在 import 時印一行 deprecation warning
-# (passlib 想讀 bcrypt.__about__,bcrypt 4 拿掉了);hash/verify 本身仍正常,
-# 而且 fastapi-users 13 內部的 pwdlib 要求 bcrypt>=4。bcrypt hash 格式
-# ($2b$...)跨 lib 互通,passlib 種的 hash 跟 pwdlib 種的可互相 verify。
-bcrypt>=4.0.0,<5.0.0
+# Phase 4 完成後 passlib + bcrypt 由 fastapi-users 的 pwdlib 依賴自帶,不必
+# 在這裡顯式 pin。bcrypt hash 格式($2b$...)跨 lib 互通,既有 password_hash
+# 不必 rehash 就能 verify。
 fastapi-users[sqlalchemy]==13.0.0
 httpx-oauth==0.15.1
 cryptography==43.0.1   # Fernet 對稱加密：DB 內存密碼/AI key 用

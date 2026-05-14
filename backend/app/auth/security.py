@@ -18,7 +18,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import jwt
-from passlib.context import CryptContext
+from fastapi_users.password import PasswordHelper
 
 # ── 設定 ──────────────────────────────────────────────────────────────
 # 環境變數必填:無 fallback。任何 fallback 字串都會被 codebase 公開,等同無認證。
@@ -35,21 +35,28 @@ JWT_ALGORITHM: str = "HS256"
 ACCESS_TOKEN_TTL_MINUTES: int = int(os.environ.get("AUTOTEST_ACCESS_TTL_MIN", "120"))   # 2h
 REFRESH_TOKEN_TTL_DAYS: int = int(os.environ.get("AUTOTEST_REFRESH_TTL_DAYS", "14"))    # 14d
 
-# bcrypt 設定（passlib 會自動處理 salt）
-_pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# v1.1.7 Phase 4: 密碼 hash 內部走 fastapi-users PasswordHelper(pwdlib +
+# bcrypt 4.x backend)。public API hash_password / verify_password 不變,30+
+# callsite 不用改。bcrypt $2b$ hash 格式跨 lib 相容,既有 password_hash 不必
+# rehash。passlib import 已拔掉。
+_password_helper = PasswordHelper()
 
 
 # ── 密碼 ──────────────────────────────────────────────────────────────
 
 def hash_password(plain: str) -> str:
-    return _pwd_ctx.hash(plain)
+    return _password_helper.hash(plain)
 
 
 def verify_password(plain: str, hashed: str) -> bool:
     if not plain or not hashed:
         return False
     try:
-        return _pwd_ctx.verify(plain, hashed)
+        verified, _maybe_new_hash = _password_helper.verify_and_update(plain, hashed)
+        # verify_and_update 第二個值 = 若 hash 該升級成更強演算法時的新 hash。
+        # 我們不在這支接口提供 rehash;Phase 5 cutover 後若想啟用,改在
+        # UserManager.on_after_login 裡持久化新 hash。
+        return bool(verified)
     except Exception:
         return False
 
