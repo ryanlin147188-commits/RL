@@ -1014,7 +1014,6 @@
                 <div class="space-y-0.5">
                     <button type="button" onclick="closeNavDrawer(); showDevicesView()"      class="nav-drawer-btn"><i class="fa-solid fa-mobile-screen text-rose-600"></i><span data-i18n="nav.devices">設備資訊</span></button>
                     <button type="button" onclick="closeNavDrawer(); showEnvVarsView()"      class="nav-drawer-btn"><i class="fa-solid fa-key text-emerald-600"></i><span data-i18n="nav.envVars">環境變數</span></button>
-                    <button type="button" onclick="closeNavDrawer(); showDbConfigView()"     class="nav-drawer-btn"><i class="fa-solid fa-database text-indigo-600"></i><span data-i18n="nav.dbConfig">DB 資訊</span></button>
                     <button type="button" onclick="closeNavDrawer(); showMockView()"         class="nav-drawer-btn"><i class="fa-solid fa-plug text-amber-600"></i><span data-i18n="nav.mock">Mock 設定</span></button>
                 </div>
             </section>
@@ -1930,193 +1929,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                                 <i class="fa-solid fa-check"></i> 產生並加入
                             </button>
                         </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 視圖 8: DB 資訊工作區（主從式）-->
-            <div id="dbConfigWorkspace" class="flex-1 overflow-hidden bg-slate-50/50 hidden flex">
-                <!-- 左側清單 -->
-                <aside class="w-[300px] shrink-0 border-r border-slate-200 bg-white flex flex-col">
-                    <div class="px-4 py-3 border-b border-slate-200">
-                        <h3 class="font-bold text-slate-700 text-sm flex items-center gap-2 mb-2">
-                            <i class="fa-solid fa-database text-indigo-500"></i> DB 連線清單
-                        </h3>
-                        <div class="grid grid-cols-2 gap-2">
-                            <button type="button" onclick="addDbConfig('MYSQL')"
-                                class="text-xs px-2 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 rounded font-medium flex items-center justify-center gap-1"
-                                title="新增 MySQL 連線">
-                                <i class="fa-solid fa-database"></i> MySQL
-                            </button>
-                            <button type="button" onclick="addDbConfig('POSTGRES')"
-                                class="text-xs px-2 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded font-medium flex items-center justify-center gap-1"
-                                title="新增 PostgreSQL 連線">
-                                <i class="fa-solid fa-database"></i> Postgres
-                            </button>
-                            <button type="button" onclick="addDbConfig('MSSQL')"
-                                class="text-xs px-2 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded font-medium flex items-center justify-center gap-1"
-                                title="新增 SQL Server 連線">
-                                <i class="fa-solid fa-database"></i> MSSQL
-                            </button>
-                            <button type="button" onclick="addDbConfig('MONGO')"
-                                class="text-xs px-2 py-1.5 bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 rounded font-medium flex items-center justify-center gap-1"
-                                title="新增 MongoDB 連線">
-                                <i class="fa-solid fa-leaf"></i> Mongo
-                            </button>
-                            <button type="button" onclick="addDbConfig('REDIS')"
-                                class="text-xs px-2 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded font-medium flex items-center justify-center gap-1"
-                                title="新增 Redis 連線">
-                                <i class="fa-solid fa-bolt"></i> Redis
-                            </button>
-                            <button type="button" onclick="addDbConfig('SQLITE')"
-                                class="text-xs px-2 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded font-medium flex items-center justify-center gap-1"
-                                title="新增 SQLite 連線">
-                                <i class="fa-solid fa-hard-drive"></i> SQLite
-                            </button>
-                        </div>
-                        <div class="relative mt-2">
-                            <i class="fa-solid fa-magnifying-glass absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
-                            <input id="dbConfigSearch" type="text" placeholder="搜尋 name / host / db..." oninput="renderDbConfigList()"
-                                class="w-full text-xs pl-7 pr-2 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-indigo-400 outline-none" />
-                        </div>
-                    </div>
-                    <div id="dbConfigListLeft" class="flex-1 overflow-y-auto p-2 space-y-1"></div>
-                    <div class="px-4 py-3 border-t border-slate-200 bg-slate-50/50 flex items-center justify-between">
-                        <span id="dbConfigListCount" class="text-xs text-slate-500"></span>
-                        <button type="button" onclick="saveDbConfigs()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-medium flex items-center gap-1">
-                            <i class="fa-solid fa-floppy-disk"></i> 儲存全部
-                        </button>
-                    </div>
-                </aside>
-                <!-- 右側編輯區 -->
-                <div class="flex-1 overflow-y-auto p-6">
-                    <div id="dbConfigEditorEmpty" class="h-full flex flex-col items-center justify-center text-slate-400">
-                        <i class="fa-solid fa-database text-6xl mb-3 text-slate-200"></i>
-                        <p class="text-sm">請從左側選擇一筆 DB 連線，或按上方按鈕新增</p>
-                    </div>
-                    <div id="dbConfigEditorPane" class="hidden w-full space-y-4">
-                        <section class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
-                            <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
-                                <h3 class="font-bold text-slate-700 flex items-center gap-2 text-base">
-                                    <i id="dbEditorTypeIcon" class="fa-solid fa-database text-indigo-500 text-2xl"></i>
-                                    <span id="dbEditorTitle">DB 連線編輯</span>
-                                    <span id="dbEditorStatus" class="text-[11px] font-normal ml-2 px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">尚未測試</span>
-                                </h3>
-                                <div class="flex gap-2">
-                                    <button type="button" onclick="testSelectedDbConfig()" class="text-xs px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded shadow-sm flex items-center gap-1.5" title="測試連線">
-                                        <i class="fa-solid fa-plug-circle-check"></i> 測試連線
-                                    </button>
-                                    <button type="button" onclick="duplicateSelectedDbConfig()" class="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded flex items-center gap-1.5" title="複製為新連線">
-                                        <i class="fa-regular fa-clone"></i> 複製
-                                    </button>
-                                    <button type="button" onclick="removeSelectedDbConfig()" class="text-xs px-3 py-1.5 text-red-600 hover:bg-red-50 border border-red-200 rounded">
-                                        <i class="fa-solid fa-trash"></i> 移除
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label class="text-xs font-semibold text-slate-600 block mb-1">名稱 <span class="text-red-500">*</span></label>
-                                    <input id="dbCfgName" type="text" placeholder="如 staging_mysql"
-                                        oninput="updateSelectedDbConfigField('name', this.value)"
-                                        class="w-full text-xs font-mono px-2 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-indigo-400 outline-none" />
-                                    <p class="text-[10px] text-slate-400 mt-1">限英數+底線；會注入為 <code class="bg-slate-100 px-1 rounded">&{DB_&lt;name&gt;}</code></p>
-                                </div>
-                                <div>
-                                    <label class="text-xs font-semibold text-slate-600 block mb-1">類型</label>
-                                    <select id="dbCfgType" onchange="updateSelectedDbConfigField('type', this.value)"
-                                        aria-label="DB 類型" title="DB 類型"
-                                        class="w-full text-xs px-2 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-indigo-400 outline-none bg-white">
-                                        <option value="MYSQL">MySQL</option>
-                                        <option value="POSTGRES">PostgreSQL</option>
-                                        <option value="MSSQL">SQL Server</option>
-                                        <option value="ORACLE">Oracle</option>
-                                        <option value="MONGO">MongoDB</option>
-                                        <option value="REDIS">Redis</option>
-                                        <option value="SQLITE">SQLite</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label class="text-xs font-semibold text-slate-600 block mb-1">Host</label>
-                                    <input id="dbCfgHost" type="text" placeholder="127.0.0.1"
-                                        oninput="updateSelectedDbConfigField('host', this.value)"
-                                        class="w-full text-xs font-mono px-2 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-indigo-400 outline-none" />
-                                </div>
-                                <div>
-                                    <label class="text-xs font-semibold text-slate-600 block mb-1">Port</label>
-                                    <input id="dbCfgPort" type="number" placeholder="3306"
-                                        oninput="updateSelectedDbConfigField('port', this.value)"
-                                        class="w-full text-xs font-mono px-2 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-indigo-400 outline-none" />
-                                </div>
-                                <div>
-                                    <label class="text-xs font-semibold text-slate-600 block mb-1">使用者</label>
-                                    <input id="dbCfgUser" type="text" placeholder="username"
-                                        oninput="updateSelectedDbConfigField('username', this.value)"
-                                        class="w-full text-xs font-mono px-2 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-indigo-400 outline-none" />
-                                </div>
-                                <div>
-                                    <label class="text-xs font-semibold text-slate-600 block mb-1">密碼</label>
-                                    <div class="flex gap-1">
-                                        <input id="dbCfgPassword" type="password" placeholder="password"
-                                            oninput="updateSelectedDbConfigField('password', this.value)"
-                                            class="flex-1 text-xs font-mono px-2 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-indigo-400 outline-none" />
-                                        <button type="button" onclick="togglePwdVisibility('dbCfgPassword', this)" class="text-slate-400 hover:text-slate-700 px-2 border border-slate-200 rounded" title="顯示/遮蔽">
-                                            <i class="fa-solid fa-eye"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                                <div>
-                                    <label class="text-xs font-semibold text-slate-600 block mb-1">Database / Schema</label>
-                                    <input id="dbCfgDatabase" type="text" placeholder="mydb"
-                                        oninput="updateSelectedDbConfigField('database', this.value)"
-                                        class="w-full text-xs font-mono px-2 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-indigo-400 outline-none" />
-                                </div>
-                                <div>
-                                    <label class="text-xs font-semibold text-slate-600 block mb-1">字元集 / SSL</label>
-                                    <input id="dbCfgCharset" type="text" placeholder="utf8mb4 或 require / disable"
-                                        oninput="updateSelectedDbConfigField('charset', this.value)"
-                                        class="w-full text-xs font-mono px-2 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-indigo-400 outline-none" />
-                                </div>
-                                <div class="col-span-2">
-                                    <label class="text-xs font-semibold text-slate-600 block mb-1">自訂連線字串 / DSN（選填；若填寫會覆蓋上方欄位）</label>
-                                    <input id="dbCfgDsn" type="text" placeholder="mysql://user:pass@host:3306/db?charset=utf8mb4"
-                                        oninput="updateSelectedDbConfigField('dsn', this.value)"
-                                        class="w-full text-xs font-mono px-2 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-indigo-400 outline-none" />
-                                </div>
-                                <div class="col-span-2">
-                                    <label class="text-xs font-semibold text-slate-600 block mb-1">說明</label>
-                                    <input id="dbCfgDesc" type="text" placeholder="（選填）用途、環境、維護人..."
-                                        oninput="updateSelectedDbConfigField('description', this.value)"
-                                        class="w-full text-xs px-2 py-1.5 border border-slate-200 rounded focus:ring-1 focus:ring-indigo-400 outline-none" />
-                                </div>
-                            </div>
-                        </section>
-
-                        <!-- SQL 測試區 -->
-                        <section class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
-                            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
-                                <h4 class="font-bold text-slate-700 text-sm flex items-center gap-2">
-                                    <i class="fa-solid fa-terminal text-indigo-500"></i> SQL / Query 測試
-                                </h4>
-                                <button type="button" onclick="runDbConfigQuery()" class="text-xs px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded flex items-center gap-1">
-                                    <i class="fa-solid fa-play"></i> 執行
-                                </button>
-                            </div>
-                            <textarea id="dbCfgQuery" rows="4" placeholder="SELECT 1;"
-                                class="w-full text-xs font-mono px-3 py-2 border border-slate-300 rounded focus:ring-1 focus:ring-indigo-400 outline-none"></textarea>
-                            <pre id="dbCfgQueryResult" class="mt-3 bg-slate-900 text-emerald-300 rounded p-3 text-[11px] font-mono overflow-x-auto min-h-[60px]">尚未執行</pre>
-                        </section>
-
-                        <!-- Preview / 注入格式 -->
-                        <section class="bg-slate-900 text-slate-100 rounded-lg border border-slate-700 shadow-sm overflow-hidden">
-                            <div class="px-4 py-2 bg-slate-800 border-b border-slate-700 flex items-center justify-between">
-                                <h4 class="text-xs font-semibold flex items-center gap-2">
-                                    <i class="fa-solid fa-code text-indigo-400"></i> 注入格式 Preview
-                                    <span class="text-[10px] text-slate-400 font-normal">執行時會注入為 Robot suite 變數</span>
-                                </h4>
-                            </div>
-                            <pre id="dbCfgPreview" class="p-4 text-[11px] font-mono text-indigo-300 overflow-x-auto leading-relaxed"></pre>
-                        </section>
                     </div>
                 </div>
             </div>
@@ -5187,7 +4999,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                     '#testround':       'testRoundWorkspace',
                     '#envvars':         'envVarsWorkspace',
                     '#devices':         'devicesWorkspace',
-                    '#dbconfig':        'dbConfigWorkspace',
                     '#mock':            'mockWorkspace',
                     '#usersettings':    'userSettingsWorkspace',
                 };
@@ -8375,7 +8186,6 @@ driver.swipe(100, 800, 100, 200, 500)"
             'nav.documents': { 'zh-TW': '測試文件', 'en': 'Docs' },
             'nav.devices': { 'zh-TW': '設備資訊', 'en': 'Devices' },
             'nav.envVars': { 'zh-TW': '環境變數', 'en': 'Env Vars' },
-            'nav.dbConfig': { 'zh-TW': 'DB資訊', 'en': 'DB Config' },
             'nav.mock': { 'zh-TW': 'Mock', 'en': 'Mock' },
             'nav.milestones': { 'zh-TW': '測試時程', 'en': 'Milestones' },
             'nav.testRound': { 'zh-TW': '測試回合', 'en': 'Test Rounds' },
@@ -8507,7 +8317,6 @@ driver.swipe(100, 800, 100, 200, 500)"
             'home.card.reports.desc': { 'zh-TW': 'Dashboard / 歷史 / Trace 檢視', 'en': 'Dashboard / history / Trace' },
             'home.card.defects.desc': { 'zh-TW': '缺陷列表 + 附件 + 工作流', 'en': 'Defect list + attachments + workflow' },
             'home.card.review.desc': { 'zh-TW': '案例 / 文件 / 腳本 / 報告 核可工作流', 'en': 'Approval workflow for cases / docs / scripts / reports' },
-            'home.card.dbConfig.title': { 'zh-TW': 'DB 資訊', 'en': 'DB Config' },
             'home.card.requirements.title': { 'zh-TW': '需求 / RTM', 'en': 'Reqs / RTM' },
             // 左側專案目錄
             'sidebar.projectDir': { 'zh-TW': '專案目錄', 'en': 'Projects' },
@@ -8590,11 +8399,9 @@ driver.swipe(100, 800, 100, 200, 500)"
         'Body': 'Body',
         'CPU 使用率': 'CPU Usage',
         'Cron 表示式': 'Cron expression',
-        'DB 資訊': 'DB Config',
         'DB 連線清單': 'DB connections',
         'DB 連線編輯': 'Edit DB connection',
         'DB 類型': 'DB Type',
-        'DB資訊': 'DB Config',
         'DDT 資料表 (No / Key / Value)': 'DDT data table (No/Key/Value)',
         'DDT 預設僅以第一列當變數來源執行一次': 'DDT defaults to running once with the first row as variable source',
         'Dashboard / 歷史 / Trace 檢視': 'Dashboard / history / Trace',
@@ -10912,7 +10719,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 'showHomeView', 'showTestCasesView', 'showTestVersionsView',
                 'showReportView', 'showUserSettingsView', 'showRecorderView',
                 'showReviewView', 'showTestRoundView', 'showEnvVarsView',
-                'showDevicesView', 'showDbConfigView', 'showMockView',
+                'showDevicesView', 'showMockView',
                 'showScheduleView', 'showDefectsView', 'showTestMilestonesView',
                 'showTestPlanView', 'showRequirementsView',
                 'showTestDataSetsView',
@@ -11837,7 +11644,6 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('testRoundWorkspace').classList.add('hidden');
             document.getElementById('envVarsWorkspace')?.classList.add('hidden');
             document.getElementById('devicesWorkspace')?.classList.add('hidden');
-            document.getElementById('dbConfigWorkspace')?.classList.add('hidden');
             document.getElementById('mockWorkspace')?.classList.add('hidden');
             document.getElementById('homeWorkspace')?.classList.add('hidden');
             document.getElementById('testcasesWorkspace')?.classList.add('hidden');
@@ -13782,350 +13588,6 @@ driver.swipe(100, 800, 100, 200, 500)"
             showToast(`已產生 ${checked.length} 個（新增 ${added} / 更新 ${replaced}）；別忘了按「儲存」`, 'success');
         }
 
-        // ==================== DB 資訊 ====================
-        let dbConfigsBuffer = [];   // [{id, name, type, host, port, username, password, database, charset, dsn, description}, ...]
-        let _selectedDbCfgIdx = null;
-        const _dbCfgStatus = new Map();  // id -> 'ok' / 'fail' / 'pending'
-
-        // 已被刪除但尚未 commit 的後端 ID(save 時 DELETE)
-        let _dbConfigsPendingDelete = new Set();
-        // 前端 type(MYSQL/POSTGRES/...) ↔ 後端 db_type(mysql/postgresql/...) 對應
-        const _DB_TYPE_FE_TO_BE = {
-            MYSQL: 'mysql', POSTGRES: 'postgresql', MSSQL: 'mssql',
-            ORACLE: 'oracle', MONGO: 'mongodb', REDIS: 'redis', SQLITE: 'sqlite',
-        };
-        const _DB_TYPE_BE_TO_FE = Object.fromEntries(
-            Object.entries(_DB_TYPE_FE_TO_BE).map(([k, v]) => [v, k])
-        );
-        function _apiToFeDbCfg(row) {
-            return {
-                id: row.id,
-                _backendId: row.id,
-                name: row.name || '',
-                type: _DB_TYPE_BE_TO_FE[row.db_type] || 'MYSQL',
-                host: row.host || '',
-                port: row.port || 0,
-                username: row.username || '',
-                password: row.password || '',
-                _hasPassword: !!row.has_password,
-                database: row.database || '',
-                charset: row.extra_options || '',
-                dsn: row.custom_dsn || '',
-                description: row.description || '',
-            };
-        }
-        function _feToApiDbCfg(d) {
-            return {
-                project_id: currentProjectId || null,
-                name: d.name,
-                db_type: _DB_TYPE_FE_TO_BE[d.type] || 'mysql',
-                host: d.host || null,
-                port: d.port ? Number(d.port) : null,
-                database: d.database || null,
-                username: d.username || null,
-                password: d.password || null,
-                extra_options: d.charset || null,
-                custom_dsn: d.dsn || null,
-                description: d.description || null,
-                enabled: true,
-            };
-        }
-        async function loadDbConfigs() {
-            dbConfigsBuffer = [];
-            _dbConfigsPendingDelete = new Set();
-            try {
-                const qs = currentProjectId ? `?project_id=${encodeURIComponent(currentProjectId)}` : '';
-                const rows = await apiFetch(`/api/db-configs${qs}`);
-                dbConfigsBuffer = (rows || []).map(_apiToFeDbCfg);
-            } catch (e) {
-                showToast(`載入 DB 連線失敗:${e.message || e}`, 'error');
-                dbConfigsBuffer = [];
-            }
-            _selectedDbCfgIdx = dbConfigsBuffer.length ? 0 : null;
-            renderDbConfigList();
-            renderDbConfigEditor();
-        }
-        async function saveDbConfigs() {
-            for (const d of dbConfigsBuffer) {
-                if (!(d.name || '').trim()) { showToast('DB 連線必須填寫 name', 'error'); return; }
-                if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(d.name)) {
-                    showToast(`name 不合法:${d.name}(限英數+底線、不可數字開頭)`, 'error'); return;
-                }
-            }
-            let created = 0, updated = 0, deleted = 0, errors = 0;
-            for (const id of _dbConfigsPendingDelete) {
-                try {
-                    await apiFetch(`/api/db-configs/${id}`, { method: 'DELETE' });
-                    deleted++;
-                } catch (e) { errors++; }
-            }
-            _dbConfigsPendingDelete = new Set();
-            for (const d of dbConfigsBuffer) {
-                try {
-                    if (d._backendId) {
-                        await apiFetch(`/api/db-configs/${d._backendId}`, {
-                            method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(_feToApiDbCfg(d)),
-                        });
-                        updated++;
-                    } else {
-                        const created_row = await apiFetch('/api/db-configs', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(_feToApiDbCfg(d)),
-                        });
-                        d._backendId = created_row.id;
-                        d.id = created_row.id;
-                        created++;
-                    }
-                } catch (e) { errors++; }
-            }
-            const msg = `DB 連線儲存:新增 ${created} / 更新 ${updated} / 刪除 ${deleted}` + (errors ? ` / ${errors} 筆失敗` : '');
-            showToast(msg, errors ? 'error' : 'success');
-            renderDbConfigList();
-        }
-        function _defaultPortFor(type) {
-            return ({ MYSQL: 3306, POSTGRES: 5432, MSSQL: 1433, ORACLE: 1521, MONGO: 27017, REDIS: 6379, SQLITE: 0 })[type] || 0;
-        }
-        function _dbTypeIcon(type) {
-            const m = {
-                MYSQL: 'fa-solid fa-database text-sky-500',
-                POSTGRES: 'fa-solid fa-database text-indigo-500',
-                MSSQL: 'fa-solid fa-database text-red-500',
-                ORACLE: 'fa-solid fa-database text-orange-500',
-                MONGO: 'fa-solid fa-leaf text-green-500',
-                REDIS: 'fa-solid fa-bolt text-rose-500',
-                SQLITE: 'fa-solid fa-hard-drive text-slate-500',
-            };
-            return m[type] || 'fa-solid fa-database text-indigo-500';
-        }
-        function addDbConfig(type) {
-            const t = type || 'MYSQL';
-            dbConfigsBuffer.push({
-                id: 'db_' + _uuid4().slice(0, 8),
-                name: '',
-                type: t,
-                host: '127.0.0.1',
-                port: _defaultPortFor(t),
-                username: '',
-                password: '',
-                database: '',
-                charset: '',
-                dsn: '',
-                description: '',
-            });
-            _selectedDbCfgIdx = dbConfigsBuffer.length - 1;
-            renderDbConfigList();
-            renderDbConfigEditor();
-            setTimeout(() => document.getElementById('dbCfgName')?.focus(), 50);
-        }
-        function selectDbConfig(i) {
-            _selectedDbCfgIdx = i;
-            renderDbConfigList();
-            renderDbConfigEditor();
-        }
-        function renderDbConfigList() {
-            const left = document.getElementById('dbConfigListLeft');
-            const countEl = document.getElementById('dbConfigListCount');
-            if (!left) return;
-            const search = (document.getElementById('dbConfigSearch')?.value || '').toLowerCase();
-            const filtered = dbConfigsBuffer.map((d, i) => ({ d, i })).filter(({ d }) => {
-                if (!search) return true;
-                return (d.name + ' ' + d.host + ' ' + d.database + ' ' + d.type).toLowerCase().includes(search);
-            });
-            if (countEl) countEl.textContent = search
-                ? `${filtered.length} / ${dbConfigsBuffer.length} 筆`
-                : `${dbConfigsBuffer.length} 筆連線`;
-            if (dbConfigsBuffer.length === 0) {
-                left.innerHTML = '<p class="text-xs text-slate-400 italic p-3 text-center">尚無連線<br>按上方按鈕新增</p>';
-                return;
-            }
-            if (filtered.length === 0) {
-                left.innerHTML = `<p class="text-xs text-slate-400 italic p-3 text-center">沒有符合「${escapeAttr(search)}」</p>`;
-                return;
-            }
-            left.innerHTML = filtered.map(({ d, i }) => {
-                const selected = _selectedDbCfgIdx === i;
-                const status = _dbCfgStatus.get(d.id) || '';
-                const dot = status === 'ok' ? '<span class="w-2 h-2 rounded-full bg-green-500 inline-block" title="測試成功"></span>'
-                          : status === 'fail' ? '<span class="w-2 h-2 rounded-full bg-red-500 inline-block" title="測試失敗"></span>'
-                          : '<span class="w-2 h-2 rounded-full bg-slate-300 inline-block" title="尚未測試"></span>';
-                const labelTxt = (d.name || '').trim() || `(未命名 #${i + 1})`;
-                const sub = [d.type, d.host, d.database].filter(Boolean).join(' · ');
-                return `
-                <div onclick="selectDbConfig(${i})"
-                    class="cursor-pointer rounded border transition px-3 py-2 ${selected ? 'bg-indigo-50 border-indigo-300 shadow-inner' : 'bg-white border-slate-200 hover:bg-slate-50 hover:border-slate-300'}">
-                    <div class="flex items-center gap-2">
-                        <i class="${_dbTypeIcon(d.type)} text-base"></i>
-                        <div class="flex-1 min-w-0">
-                            <div class="text-xs font-mono font-semibold text-slate-700 truncate flex items-center gap-1.5">${dot} ${escapeAttr(labelTxt)}</div>
-                            <div class="text-[10px] text-slate-500 truncate">${escapeAttr(sub) || '<span class="italic">未填細節</span>'}</div>
-                        </div>
-                    </div>
-                </div>`;
-            }).join('');
-        }
-        function renderDbConfigEditor() {
-            const empty = document.getElementById('dbConfigEditorEmpty');
-            const pane = document.getElementById('dbConfigEditorPane');
-            if (!empty || !pane) return;
-            if (_selectedDbCfgIdx == null || _selectedDbCfgIdx >= dbConfigsBuffer.length) {
-                empty.classList.remove('hidden');
-                pane.classList.add('hidden');
-                return;
-            }
-            const d = dbConfigsBuffer[_selectedDbCfgIdx];
-            empty.classList.add('hidden');
-            pane.classList.remove('hidden');
-            const icon = document.getElementById('dbEditorTypeIcon');
-            icon.className = `${_dbTypeIcon(d.type)} text-2xl`;
-            document.getElementById('dbEditorTitle').textContent = (d.name || '(未命名)') + ` — ${d.type}`;
-            // 狀態 badge
-            const badge = document.getElementById('dbEditorStatus');
-            const st = _dbCfgStatus.get(d.id) || '';
-            const bmap = {
-                ok: ['連線成功', 'bg-green-100 text-green-700'],
-                fail: ['連線失敗', 'bg-red-100 text-red-700'],
-                pending: ['測試中…', 'bg-amber-100 text-amber-700'],
-            };
-            const [bt, bc] = bmap[st] || ['尚未測試', 'bg-slate-100 text-slate-500'];
-            badge.textContent = bt;
-            badge.className = `text-[11px] font-normal ml-2 px-2 py-0.5 rounded-full ${bc}`;
-            document.getElementById('dbCfgName').value = d.name || '';
-            document.getElementById('dbCfgType').value = d.type || 'MYSQL';
-            document.getElementById('dbCfgHost').value = d.host || '';
-            document.getElementById('dbCfgPort').value = d.port || '';
-            document.getElementById('dbCfgUser').value = d.username || '';
-            const pwdInput = document.getElementById('dbCfgPassword');
-            pwdInput.value = d.password || '';
-            pwdInput.placeholder = d._hasPassword ? '已儲存密碼；留空表示保留原值' : 'password';
-            document.getElementById('dbCfgDatabase').value = d.database || '';
-            document.getElementById('dbCfgCharset').value = d.charset || '';
-            document.getElementById('dbCfgDsn').value = d.dsn || '';
-            document.getElementById('dbCfgDesc').value = d.description || '';
-            renderDbConfigPreview();
-        }
-        function updateSelectedDbConfigField(field, value) {
-            if (_selectedDbCfgIdx == null) return;
-            const d = dbConfigsBuffer[_selectedDbCfgIdx];
-            if (field === 'port') value = value === '' ? '' : Number(value);
-            d[field] = value;
-            if (field === 'type') {
-                // 自動帶預設 port
-                if (!d.port) d.port = _defaultPortFor(value);
-                document.getElementById('dbCfgPort').value = d.port || '';
-                renderDbConfigEditor();
-                return;
-            }
-            renderDbConfigList();
-            renderDbConfigPreview();
-            if (field === 'name' || field === 'type') {
-                const icon = document.getElementById('dbEditorTypeIcon');
-                icon.className = `${_dbTypeIcon(d.type)} text-2xl`;
-                document.getElementById('dbEditorTitle').textContent = (d.name || '(未命名)') + ` — ${d.type}`;
-            }
-        }
-        function renderDbConfigPreview() {
-            const pre = document.getElementById('dbCfgPreview');
-            if (!pre || _selectedDbCfgIdx == null) return;
-            const d = dbConfigsBuffer[_selectedDbCfgIdx];
-            const dsn = d.dsn ? d.dsn : _buildDsn(d);
-            const name = (d.name || '<name>').trim();
-            const robot = `&{DB_${name}}    type=${d.type}    host=${d.host}    port=${d.port}    username=${d.username}    database=${d.database}`;
-            const pyDict = JSON.stringify({
-                type: d.type, host: d.host, port: d.port, username: d.username,
-                password: (d.password || d._hasPassword) ? '***' : '', database: d.database, charset: d.charset, dsn,
-            }, null, 2);
-            pre.innerHTML = `<span class="text-slate-400"># Robot 注入格式：</span>\n<span class="text-indigo-300">${escapeAttr(robot)}</span>\n\n<span class="text-slate-400"># 連線 DSN：</span>\n<span class="text-emerald-300">${escapeAttr(dsn)}</span>\n\n<span class="text-slate-400"># Python dict：</span>\n<span class="text-blue-300">${escapeAttr(pyDict)}</span>`;
-        }
-        function _buildDsn(d) {
-            const shownPwd = d.password || (d._hasPassword ? '***' : '');
-            const up = d.username ? `${encodeURIComponent(d.username)}${shownPwd ? ':' + encodeURIComponent(shownPwd) : ''}@` : '';
-            const hp = d.host ? `${d.host}${d.port ? ':' + d.port : ''}` : '';
-            const db = d.database ? '/' + d.database : '';
-            const qs = d.charset ? (d.type === 'POSTGRES' ? `?sslmode=${d.charset}` : `?charset=${d.charset}`) : '';
-            const scheme = ({ MYSQL: 'mysql', POSTGRES: 'postgresql', MSSQL: 'mssql', ORACLE: 'oracle', MONGO: 'mongodb', REDIS: 'redis', SQLITE: 'sqlite' })[d.type] || d.type.toLowerCase();
-            if (d.type === 'SQLITE') return `sqlite:///${d.database || 'memory.db'}`;
-            return `${scheme}://${up}${hp}${db}${qs}`;
-        }
-        function duplicateSelectedDbConfig() {
-            if (_selectedDbCfgIdx == null) return;
-            const src = dbConfigsBuffer[_selectedDbCfgIdx];
-            const copy = { ...src, id: 'db_' + _uuid4().slice(0, 8), name: (src.name || 'cfg') + '_copy' };
-            dbConfigsBuffer.push(copy);
-            _selectedDbCfgIdx = dbConfigsBuffer.length - 1;
-            renderDbConfigList();
-            renderDbConfigEditor();
-        }
-        function removeSelectedDbConfig() {
-            if (_selectedDbCfgIdx == null) return;
-            if (!confirm('確定移除此 DB 連線？(需按「儲存」才會同步到後端)')) return;
-            const removed = dbConfigsBuffer.splice(_selectedDbCfgIdx, 1)[0];
-            if (removed && removed._backendId) {
-                _dbConfigsPendingDelete.add(removed._backendId);
-            }
-            if (_selectedDbCfgIdx >= dbConfigsBuffer.length) _selectedDbCfgIdx = dbConfigsBuffer.length - 1;
-            if (_selectedDbCfgIdx < 0) _selectedDbCfgIdx = null;
-            renderDbConfigList();
-            renderDbConfigEditor();
-        }
-        async function testSelectedDbConfig() {
-            if (_selectedDbCfgIdx == null) return;
-            const d = dbConfigsBuffer[_selectedDbCfgIdx];
-            if (!d.host && !d.dsn && d.type !== 'SQLITE') { showToast('請至少填寫 Host 或 DSN', 'error'); return; }
-            _dbCfgStatus.set(d.id, 'pending');
-            renderDbConfigEditor();
-            showToast(`正在測試 ${d.name || d.type} 連線...`, 'info');
-            try {
-                const res = await apiFetch('/api/db/test', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(d),
-                });
-                _dbCfgStatus.set(d.id, res?.ok ? 'ok' : 'fail');
-                showToast(res?.ok ? '連線成功' : ('連線失敗：' + (res?.error || 'unknown')), res?.ok ? 'success' : 'error');
-            } catch (e) {
-                // 後端未實作：mock 一個假成功 + 提示
-                _dbCfgStatus.set(d.id, 'ok');
-                showToast(`後端未接 /api/db/test，前端模擬為成功。實際執行會以 DSN：${_buildDsn(d)} 嘗試連線`, 'info');
-            }
-            renderDbConfigList();
-            renderDbConfigEditor();
-        }
-        async function runDbConfigQuery() {
-            if (_selectedDbCfgIdx == null) return;
-            const d = dbConfigsBuffer[_selectedDbCfgIdx];
-            const sql = document.getElementById('dbCfgQuery').value.trim();
-            const out = document.getElementById('dbCfgQueryResult');
-            if (!sql) { showToast('請輸入 SQL / Query', 'error'); return; }
-            out.textContent = '執行中...';
-            try {
-                const res = await apiFetch('/api/db/query', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ config: d, query: sql }),
-                });
-                out.textContent = JSON.stringify(res, null, 2);
-            } catch (e) {
-                // 後端未實作：顯示模擬結果
-                const mockRows = [
-                    { id: 1, name: 'Alice', created_at: new Date().toISOString() },
-                    { id: 2, name: 'Bob', created_at: new Date().toISOString() },
-                ];
-                out.textContent = `# 後端 /api/db/query 未接，顯示模擬結果：\n` +
-                    JSON.stringify({ query: sql, rows: mockRows, rowcount: mockRows.length }, null, 2);
-            }
-        }
-        function togglePwdVisibility(inputId, btn) {
-            const el = document.getElementById(inputId);
-            if (!el) return;
-            const show = el.type === 'password';
-            el.type = show ? 'text' : 'password';
-            const ic = btn.querySelector('i');
-            if (ic) ic.className = show ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
-        }
-
         // ==================== Mock 端點 ====================
         let mocksBuffer = [];   // [{id, method, path, status, delay_ms, content_type, headers, body, description, enabled}, ...]
         let _selectedMockIdx = null;
@@ -14522,18 +13984,6 @@ driver.swipe(100, 800, 100, 200, 500)"
         }
 
         // ==================== DB / Mock：顯示視圖 ====================
-        function showDbConfigView() {
-            if (!confirmDiscardIfDirty()) return false;
-            _hideAllWorkspaces();
-            _setViewMeta('view.dbConfig.title', 'view.dbConfig.title', '<i class="fa-solid fa-database text-indigo-500"></i>', 'DB', 'bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-medium');
-            document.getElementById('dbConfigWorkspace').classList.remove('hidden');
-            document.getElementById('mainHeader').classList.remove('hidden');
-            document.getElementById('mainActions').classList.add('hidden');
-            currentTestCase = null;
-            loadDbConfigs();
-            try { _afterViewChange(); } catch (_) {}
-        
-        }
         function showMockView() {
             if (!confirmDiscardIfDirty()) return false;
             _hideAllWorkspaces();

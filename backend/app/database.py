@@ -79,7 +79,6 @@ async def init_db() -> None:
         hermes_session,
         hermes_gateway_credential,
         hermes_memory_consent,
-        db_config,
         execution_report,
         execution_step_log,
         group,

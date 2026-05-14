@@ -16,7 +16,6 @@ from .hermes_gateway_credential import HermesGatewayCredential
 from .hermes_memory_consent import HermesMemoryConsent
 from .hermes_session import HermesSessionRef
 from .audit_log import AuditLog
-from .db_config import DbConfig
 from .email_config import EmailConfig
 from .entity_version import EntityVersion
 from .group import Group, GroupMembership
@@ -101,7 +100,7 @@ __all__ = [
     # SSO / OIDC
     "OidcProvider",
     # Mock + DB connection persistence (取代 localStorage)
-    "MockEndpoint", "DbConfig",
+    "MockEndpoint",
     # Groups (團隊群組,可巢狀,可作為 todo assignee)
     "Group", "GroupMembership",
     # Project-level config + execution artefacts
