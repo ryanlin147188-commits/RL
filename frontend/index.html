@@ -986,7 +986,6 @@
                 <div class="space-y-0.5">
                     <button type="button" onclick="closeNavDrawer(); showWbsView()"          class="nav-drawer-btn"><i class="fa-solid fa-sitemap text-yellow-600"></i><span data-i18n="nav.wbs">WBS / 工作分解</span></button>
                     <button type="button" onclick="closeNavDrawer(); showTestPlanView()"     class="nav-drawer-btn"><i class="fa-solid fa-clipboard-list text-blue-600"></i><span data-i18n="nav.testPlan">測試計畫</span></button>
-                    <button type="button" onclick="closeNavDrawer(); showTestMilestonesView()" class="nav-drawer-btn"><i class="fa-regular fa-calendar text-teal-600"></i><span data-i18n="nav.milestones">測試時程</span></button>
                 </div>
             </section>
 
@@ -1023,7 +1022,6 @@
                 </div>
                 <div class="space-y-0.5">
                     <button type="button" onclick="closeNavDrawer(); showTestRoundView()"   class="nav-drawer-btn"><i class="fa-solid fa-layer-group text-purple-600"></i><span data-i18n="nav.testRound">測試回合</span></button>
-                    <button type="button" onclick="closeNavDrawer(); showScheduleView()"    class="nav-drawer-btn"><i class="fa-solid fa-calendar-days text-emerald-600"></i><span data-i18n="nav.schedule">測試排程</span></button>
                     <button type="button" onclick="closeNavDrawer(); showRecorderView()"    class="nav-drawer-btn"><i class="fa-solid fa-video text-rose-600"></i><span data-i18n="nav.recorder">測試錄製</span></button>
                 </div>
             </section>
@@ -1602,38 +1600,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                             </thead>
                             <tbody id="recListBody" class="divide-y divide-slate-100">
                                 <tr><td colspan="5" class="p-4 text-center text-slate-400">載入中...</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
-            </div>
-
-            <!-- 視圖 4: 排程工作區 (Schedule) -->
-            <div id="scheduleWorkspace" class="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/50 hidden">
-                <section class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
-                    <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
-                        <h3 class="font-bold text-slate-700 flex items-center gap-2"><i class="fa-solid fa-calendar-days text-emerald-500"></i> 排程</h3>
-                        <div class="flex gap-2">
-                            <button type="button" onclick="openScheduleModal()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-sm font-medium flex items-center gap-1"><i class="fa-solid fa-plus"></i> 新增排程</button>
-                            <button type="button" onclick="refreshScheduleList()" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-sm font-medium flex items-center gap-1"><i class="fa-solid fa-rotate"></i> 重新整理</button>
-                        </div>
-                    </div>
-                    <p class="text-xs text-slate-500 mb-4"><i class="fa-solid fa-circle-info text-amber-500"></i> 排程會在設定時間自動觸發測試執行；後端每 30 秒輪詢一次。選取的節點若是 FEATURE / PAGE / SCENARIO，會展開其下所有測試案例一次執行。</p>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-sm">
-                            <thead class="bg-slate-100 text-slate-600 text-xs uppercase tracking-wider">
-                                <tr>
-                                    <th class="p-2 text-left">啟用</th>
-                                    <th class="p-2 text-left">排程名稱</th>
-                                    <th class="p-2 text-left">目標節點</th>
-                                    <th class="p-2 text-left">重複</th>
-                                    <th class="p-2 text-left">下次執行</th>
-                                    <th class="p-2 text-left">上次執行</th>
-                                    <th class="p-2 text-left">操作</th>
-                                </tr>
-                            </thead>
-                            <tbody id="scheduleListBody" class="divide-y divide-slate-100">
-                                <tr><td colspan="7" class="p-4 text-center text-slate-400">載入中...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -3505,349 +3471,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                 </div>
             </div>
 
-            <!-- ── 測試時程 ── -->
-            <div id="testMilestonesWorkspace" class="flex-1 overflow-y-auto p-6 bg-amber-50/30 hidden">
-                <div class="max-w-7xl mx-auto">
-                    <div class="bg-white rounded-lg border border-teal-100 shadow-sm p-4 mb-4">
-                        <div class="flex flex-wrap items-center gap-3">
-                            <div class="flex-1 min-w-[200px] relative">
-                                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm"></i>
-                                <input id="msSearch" type="search" oninput="renderMilestonesList()" placeholder="搜尋時程名稱…"
-                                    class="w-full pl-9 pr-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-teal-400">
-                            </div>
-                            <select id="msStatusFilter" onchange="renderMilestonesList()" aria-label="依狀態過濾" class="px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
-                                <option value="">全部狀態</option>
-                                <option value="New">新建立</option><option value="Assigned">等待處理</option>
-                                <option value="InProgress">進行中</option><option value="InReview">等待審核</option>
-                                <option value="ReworkRequired">退回修改</option>
-                                <option value="Verified">已驗證</option><option value="Closed">已關閉</option>
-                            </select>
-                            <button onclick="renderMilestonesList()" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
-                            <button onclick="openMilestoneModal()" class="px-3 py-2 bg-teal-500 hover:bg-teal-600 text-white rounded-md text-sm font-semibold shadow-sm"><i class="fa-solid fa-plus"></i> 新增時程</button>
-                            <div class="text-xs text-stone-500 ml-auto">共 <span id="msListCount" class="font-bold text-stone-700">0</span> 筆</div>
-                        </div>
-                    </div>
-                    <!-- 時間軸視覺化（簡化 Gantt：橫條依日期長度） -->
-                    <div id="msGanttArea" class="bg-white rounded-lg border border-teal-100 shadow-sm p-4 mb-4">
-                        <h3 class="text-sm font-bold text-stone-600 mb-3 flex items-center gap-2"><i class="fa-solid fa-stream text-teal-500"></i> 時間軸概覽</h3>
-                        <div id="msGanttRows" class="space-y-2"></div>
-                    </div>
-                    <div class="bg-white rounded-lg border border-teal-100 shadow-sm overflow-hidden">
-                        <table class="w-full text-sm">
-                            <thead class="bg-teal-50/60 border-b border-teal-100 text-stone-600 text-xs uppercase">
-                                <tr><th class="p-3 text-left">名稱</th><th class="p-3 w-32">起始</th><th class="p-3 w-32">結束</th><th class="p-3 w-28">狀態</th><th class="p-3 w-28">負責人</th><th class="p-3 w-28 text-center">操作</th></tr>
-                            </thead>
-                            <tbody id="msListBody" class="divide-y divide-stone-100"></tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ── 測試計畫 ── -->
-            <div id="testPlansWorkspace" class="flex-1 overflow-y-auto p-6 bg-amber-50/30 hidden">
-                <div class="max-w-7xl mx-auto">
-                    <div class="bg-white rounded-lg border border-blue-100 shadow-sm p-4 mb-4">
-                        <div class="flex flex-wrap items-center gap-3">
-                            <div class="flex-1 min-w-[200px] relative">
-                                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm"></i>
-                                <input id="tpSearch" type="search" oninput="renderPlansList()" placeholder="搜尋測試計畫…"
-                                    class="w-full pl-9 pr-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
-                            </div>
-                            <select id="tpStatusFilter" onchange="renderPlansList()" aria-label="依狀態過濾" class="px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
-                                <option value="">全部狀態</option>
-                                <option value="New">新建立</option><option value="Assigned">等待處理</option>
-                                <option value="InProgress">進行中</option><option value="InReview">等待審核</option>
-                                <option value="ReworkRequired">退回修改</option>
-                                <option value="Verified">已驗證</option><option value="Closed">已關閉</option>
-                            </select>
-                            <button onclick="renderPlansList()" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
-                            <button onclick="openPlanModal()" class="px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md text-sm font-semibold shadow-sm"><i class="fa-solid fa-plus"></i> 新增計畫</button>
-                            <div class="text-xs text-stone-500 ml-auto">共 <span id="tpListCount" class="font-bold text-stone-700">0</span> 筆</div>
-                        </div>
-                    </div>
-                    <div class="bg-white rounded-lg border border-blue-100 shadow-sm overflow-hidden">
-                        <table class="w-full text-sm">
-                            <thead class="bg-blue-50/60 border-b border-blue-100 text-stone-600 text-xs uppercase">
-                                <tr><th class="p-3 text-left w-24">代號</th><th class="p-3 text-left">標題</th><th class="p-3 w-20">版本</th><th class="p-3 w-28">狀態</th><th class="p-3 w-28">負責人</th><th class="p-3 w-32">建立時間</th><th class="p-3 w-32 text-center">操作</th></tr>
-                            </thead>
-                            <tbody id="tpListBody" class="divide-y divide-stone-100"></tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ── 需求 / RTM 追溯矩陣 ── -->
-            <div id="requirementsWorkspace" class="flex-1 overflow-y-auto p-6 bg-amber-50/30 hidden">
-                <div class="max-w-7xl mx-auto">
-                    <!-- 子分頁切換 -->
-                    <div class="bg-white rounded-lg border border-cyan-100 shadow-sm p-2 mb-4 flex gap-2 flex-wrap">
-                        <button id="rtmTabRequirements" onclick="rtmSwitchTab('requirements')" class="px-3 py-1.5 text-sm font-medium rounded text-cyan-700 bg-cyan-50 border border-cyan-300"><i class="fa-solid fa-list"></i> 需求清單</button>
-                        <button id="rtmTabMatrix" onclick="rtmSwitchTab('matrix')" class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-table-cells-large"></i> RTM 矩陣</button>
-                        <button id="rtmTabChain" onclick="rtmSwitchTab('chain')" class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-link"></i> 追溯鏈 (Story → AC → 案例 → 缺陷)</button>
-                    </div>
-                    <!-- 子分頁 1：需求列表 -->
-                    <div id="rtmPaneRequirements">
-                        <div class="bg-white rounded-lg border border-cyan-100 shadow-sm p-4 mb-4">
-                            <div class="flex flex-wrap items-center gap-3">
-                                <div class="flex-1 min-w-[200px] relative">
-                                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm"></i>
-                                    <input id="reqSearch" type="search" oninput="renderRequirementsList()" placeholder="搜尋需求…"
-                                        class="w-full pl-9 pr-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-cyan-400">
-                                </div>
-                                <button onclick="renderRequirementsList()" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
-                                <button onclick="openRequirementModal()" class="px-3 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-md text-sm font-semibold shadow-sm"><i class="fa-solid fa-plus"></i> 新增需求</button>
-                                <div class="text-xs text-stone-500 ml-auto">共 <span id="reqListCount" class="font-bold text-stone-700">0</span> 筆</div>
-                            </div>
-                        </div>
-                        <div class="bg-white rounded-lg border border-cyan-100 shadow-sm overflow-hidden">
-                            <table class="w-full text-sm">
-                                <thead class="bg-cyan-50/60 border-b border-cyan-100 text-stone-600 text-xs uppercase">
-                                    <tr><th class="p-3 text-left w-24">代號</th><th class="p-3 text-left">標題</th><th class="p-3 w-24">來源</th><th class="p-3 w-24">優先</th><th class="p-3 w-28">狀態</th><th class="p-3 w-24 text-center">關聯案例</th><th class="p-3 w-32 text-center">連結 Backlog</th><th class="p-3 w-40 text-center">操作</th></tr>
-                                </thead>
-                                <tbody id="reqListBody" class="divide-y divide-stone-100"></tbody>
-                            </table>
-                        </div>
-                    </div>
-                    <!-- 子分頁 2：RTM 矩陣 -->
-                    <div id="rtmPaneMatrix" class="hidden">
-                        <div class="bg-white rounded-lg border border-cyan-100 shadow-sm p-4 mb-4 flex items-center gap-3 flex-wrap">
-                            <button onclick="renderRtmMatrix()" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新計算</button>
-                            <span class="text-xs text-stone-500">每格表示「需求 × 案例」最近一次執行狀態：<span class="bg-green-100 text-green-700 border border-green-200 px-1.5 rounded">PASSED</span> <span class="bg-red-100 text-red-700 border border-red-200 px-1.5 rounded">FAILED</span> <span class="bg-stone-100 text-stone-500 border border-stone-200 px-1.5 rounded">未跑</span></span>
-                            <span class="ml-auto text-xs text-stone-500">覆蓋率：<span id="rtmCoverage" class="font-bold text-cyan-700">—</span></span>
-                        </div>
-                        <div class="bg-white rounded-lg border border-cyan-100 shadow-sm overflow-auto">
-                            <table id="rtmMatrixTable" class="text-xs">
-                                <thead class="bg-cyan-50/60 border-b border-cyan-100"></thead>
-                                <tbody></tbody>
-                            </table>
-                        </div>
-                    </div>
-                    <!-- 子分頁 3：追溯鏈（User Story → AC → Test Case → Bug） -->
-                    <div id="rtmPaneChain" class="hidden">
-                        <!-- KPI 摘要 -->
-                        <section class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4" id="rtmChainKpis">
-                            <div class="bg-white rounded-xl p-3 border border-cyan-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-solid fa-book text-cyan-500"></i> User Story</div><div class="text-2xl font-bold text-cyan-700" id="rtm_kpi_us">—</div></div>
-                            <div class="bg-white rounded-xl p-3 border border-cyan-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-solid fa-check-double text-blue-500"></i> AC</div><div class="text-2xl font-bold text-blue-700" id="rtm_kpi_ac">—</div></div>
-                            <div class="bg-white rounded-xl p-3 border border-cyan-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-solid fa-list-check text-emerald-500"></i> 測試案例</div><div class="text-2xl font-bold text-emerald-700" id="rtm_kpi_tc">—</div></div>
-                            <div class="bg-white rounded-xl p-3 border border-cyan-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-solid fa-bug text-red-500"></i> 缺陷（鏈內）</div><div class="text-2xl font-bold text-red-700" id="rtm_kpi_bug">—</div></div>
-                            <div class="bg-white rounded-xl p-3 border border-cyan-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-solid fa-link-slash text-amber-600"></i> 未連結缺陷</div><div class="text-2xl font-bold text-amber-700" id="rtm_kpi_orphan">—</div></div>
-                        </section>
-                        <div class="bg-white rounded-lg border border-cyan-100 shadow-sm p-4 mb-4 flex items-center gap-3 flex-wrap">
-                            <button onclick="renderRtmChain()" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
-                            <button onclick="rtmChainExpandAll(true)" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50"><i class="fa-solid fa-angles-down"></i> 全展開</button>
-                            <button onclick="rtmChainExpandAll(false)" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50"><i class="fa-solid fa-angles-up"></i> 全收合</button>
-                            <span class="text-[11px] text-stone-500 ml-auto"><i class="fa-solid fa-circle-info"></i> 提示：頂層需求＝User Story；子需求＝AC（在新增需求 modal 設「父需求」）；缺陷需設「關聯測試案例」才會出現在鏈上</span>
-                        </div>
-                        <div id="rtmChainBody" class="space-y-3"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ── 測試資料集 (Test Data Set / DDT) ── -->
-            <div id="testDataSetsWorkspace" class="flex-1 overflow-y-auto p-6 bg-amber-50/30 hidden">
-                <div class="max-w-7xl mx-auto">
-                    <div class="bg-white rounded-lg border border-violet-200 shadow-sm p-4 mb-4">
-                        <div class="flex flex-wrap items-center gap-3">
-                            <div class="flex-1 min-w-[200px] relative">
-                                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm"></i>
-                                <input id="dsSearch" type="search" oninput="renderDataSetsList()" placeholder="搜尋資料集名稱、代號…"
-                                    class="w-full pl-9 pr-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-violet-400">
-                            </div>
-                            <button onclick="renderDataSetsList()" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
-                            <button onclick="openDataSetModal()" class="px-3 py-2 bg-violet-500 hover:bg-violet-600 text-white rounded-md text-sm font-semibold shadow-sm"><i class="fa-solid fa-plus"></i> 新增資料集</button>
-                            <div class="text-xs text-stone-500 ml-auto">共 <span id="dsListCount" class="font-bold text-stone-700">0</span> 筆</div>
-                        </div>
-                    </div>
-                    <div class="bg-white rounded-lg border border-violet-200 shadow-sm overflow-hidden">
-                        <table class="w-full text-sm">
-                            <thead class="bg-violet-50/60 border-b border-violet-200 text-stone-600 text-xs uppercase">
-                                <tr><th class="p-3 text-left w-24">代號</th><th class="p-3 text-left">名稱</th><th class="p-3 w-20">欄位</th><th class="p-3 w-20">資料列</th><th class="p-3 w-32">負責人</th><th class="p-3 w-36 text-center">操作</th></tr>
-                            </thead>
-                            <tbody id="dsListBody" class="divide-y divide-stone-100"></tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ── WBS (Work Breakdown Structure) ── -->
-            <div id="wbsWorkspace" class="flex-1 overflow-y-auto p-6 bg-amber-50/30 hidden">
-                <div class="max-w-7xl mx-auto">
-                    <div class="bg-white rounded-lg border border-yellow-200 shadow-sm p-4 mb-4">
-                        <div class="flex flex-wrap items-center gap-3">
-                            <div class="flex-1 min-w-[200px] relative">
-                                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm"></i>
-                                <input id="wbsSearch" type="search" oninput="renderWbsTree()" placeholder="搜尋工作項目名稱、代號…"
-                                    class="w-full pl-9 pr-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400">
-                            </div>
-                            <select id="wbsStatusFilter" onchange="renderWbsTree()" aria-label="依狀態過濾" class="px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
-                                <option value="">全部狀態</option>
-                                <option value="New">新建立</option><option value="Assigned">等待處理</option>
-                                <option value="InProgress">進行中</option><option value="InReview">等待審核</option>
-                                <option value="ReworkRequired">退回修改</option>
-                                <option value="Verified">已驗證</option><option value="Closed">已關閉</option>
-                            </select>
-                            <button onclick="loadWbsAndRender()" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
-                            <button onclick="wbsExpandAll(true)" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50"><i class="fa-solid fa-angles-down"></i> 全展開</button>
-                            <button onclick="wbsExpandAll(false)" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50"><i class="fa-solid fa-angles-up"></i> 全收合</button>
-                            <button onclick="openWbsModal()" class="px-3 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-md text-sm font-semibold shadow-sm"><i class="fa-solid fa-plus"></i> 新增項目</button>
-                            <div class="text-xs text-stone-500 ml-auto">總計 <span id="wbsListCount" class="font-bold text-stone-700">0</span> 項 · 整體進度 <span id="wbsOverallProgress" class="font-bold text-yellow-700">0%</span></div>
-                        </div>
-                    </div>
-                    <!-- KPI 摘要 -->
-                    <section class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4" id="wbsKpis">
-                        <div class="bg-white rounded-xl p-3 border border-yellow-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-regular fa-circle-dot text-stone-400"></i> 未開始</div><div class="text-2xl font-bold text-stone-600" id="wbs_kpi_notstarted">—</div></div>
-                        <div class="bg-white rounded-xl p-3 border border-yellow-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-solid fa-spinner text-amber-500"></i> 進行中</div><div class="text-2xl font-bold text-amber-600" id="wbs_kpi_inprogress">—</div></div>
-                        <div class="bg-white rounded-xl p-3 border border-yellow-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-solid fa-check text-emerald-500"></i> 已完成</div><div class="text-2xl font-bold text-emerald-600" id="wbs_kpi_completed">—</div></div>
-                        <div class="bg-white rounded-xl p-3 border border-yellow-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-solid fa-ban text-rose-500"></i> 已阻擋</div><div class="text-2xl font-bold text-rose-600" id="wbs_kpi_blocked">—</div></div>
-                        <div class="bg-white rounded-xl p-3 border border-yellow-100 shadow-sm"><div class="text-xs text-stone-500"><i class="fa-regular fa-clock text-blue-500"></i> 預計工時</div><div class="text-2xl font-bold text-blue-600" id="wbs_kpi_effort">—</div></div>
-                    </section>
-                    <!-- 樹狀清單 -->
-                    <div class="bg-white rounded-lg border border-yellow-200 shadow-sm overflow-hidden">
-                        <div class="grid grid-cols-12 gap-2 bg-yellow-50/60 border-b border-yellow-200 text-stone-600 text-xs uppercase font-semibold px-3 py-2 sticky top-0">
-                            <div class="col-span-5">代號 / 名稱</div>
-                            <div class="col-span-2">狀態</div>
-                            <div class="col-span-2">負責人</div>
-                            <div class="col-span-2">進度</div>
-                            <div class="col-span-1 text-right">操作</div>
-                        </div>
-                        <div id="wbsTreeBody" class="text-sm"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ════════════════════════════════════════════════════════════════
-                 7 個對應的 Modal（建立 / 編輯）
-                 ════════════════════════════════════════════════════════════════ -->
-
-            <!-- 測試資料集 Modal -->
-            <div id="testDataSetModal" class="hidden fixed inset-0 z-[150] bg-black/40 flex items-center justify-center p-4">
-                <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl border border-violet-200 max-h-[90vh] overflow-y-auto">
-                    <div class="px-6 py-4 border-b border-stone-200 bg-violet-50/60 flex items-center justify-between">
-                        <h3 id="testDataSetModalTitle" class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-table text-violet-500"></i> 新增測試資料集</h3>
-                        <button type="button" onclick="closeDataSetModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
-                    </div>
-                    <form onsubmit="return dataSetSubmit(event)" class="p-6 space-y-3">
-                        <div><label for="dsName" class="block text-xs font-semibold text-stone-600 mb-1">名稱 *</label><input type="text" id="dsName" aria-label="名稱" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
-                        <div class="grid grid-cols-2 gap-3">
-                            <div><label for="dsOwner" class="block text-xs font-semibold text-stone-600 mb-1">負責人</label><input type="text" id="dsOwner" aria-label="負責人" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
-                            <div><label for="dsDesc" class="block text-xs font-semibold text-stone-600 mb-1">說明</label><input type="text" id="dsDesc" aria-label="說明" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-semibold text-stone-600 mb-1">資料表（行 × 欄）</label>
-                            <div class="bg-stone-50 border border-stone-200 rounded p-3 space-y-2">
-                                <div class="flex items-center gap-2 flex-wrap">
-                                    <input type="file" id="dsJsonImportInput" accept=".json,application/json" multiple aria-label="匯入 JSON 測試資料（可複選）" class="hidden" onchange="dsImportJson(event)">
-                                    <button type="button" onclick="document.getElementById('dsJsonImportInput').click()" class="text-xs px-2 py-1 border border-stone-300 bg-white rounded hover:bg-violet-50" title="可一次選取多個 JSON 檔；巢狀結構會以點記法展開為 Key 路徑"><i class="fa-solid fa-file-import"></i> 匯入 JSON</button>
-                                    <button type="button" onclick="dsExportJson()" class="text-xs px-2 py-1 border border-stone-300 bg-white rounded hover:bg-violet-50" title="把目前資料表下載成 JSON 檔（rows_json 結構）"><i class="fa-solid fa-file-export"></i> 匯出 JSON</button>
-                                    <button type="button" onclick="dsClearGrid()" class="text-xs px-2 py-1 border border-rose-200 text-rose-600 bg-white rounded hover:bg-rose-50" title="清空所有欄列"><i class="fa-solid fa-eraser"></i> 清空</button>
-                                    <span class="text-[11px] text-stone-500 ml-auto">總計 <span id="dsColCount" class="font-mono font-bold text-stone-700">0</span> 欄 × <span id="dsRowCount" class="font-mono font-bold text-stone-700">0</span> 列</span>
-                                </div>
-                                <div id="dsGridTableWrap" class="overflow-auto max-h-[55vh] border border-violet-100 rounded bg-white">
-                                    <table id="dsGridTable" class="text-xs w-full">
-                                        <thead class="bg-violet-100/40 sticky top-0 z-[1]"><tr id="dsGridHead"></tr></thead>
-                                        <tbody id="dsGridBody"></tbody>
-                                    </table>
-                                </div>
-                                <p class="text-[10px] text-stone-500">資料以 JSON 為單一來源；上方按鈕可匯入 / 匯出 / 清空整份資料表。匯入時會自動展平為 No / Key / Value 三欄。</p>
-                            </div>
-                        </div>
-                        <div class="flex justify-end gap-2 pt-2"><button type="button" onclick="closeDataSetModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button><button type="submit" class="px-4 py-2 bg-violet-500 hover:bg-violet-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button></div>
-                    </form>
-                </div>
-            </div>
-
-            <!-- ════════════════════════════════════════════════════════════════
-                 5 個對應的 Modal（建立 / 編輯）
-                 ════════════════════════════════════════════════════════════════ -->
-
-            <!-- 缺陷 Modal -->
-            <div id="defectModal" class="hidden fixed inset-0 z-[150] bg-black/40 flex items-center justify-center p-4">
-                <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl border border-red-200 max-h-[90vh] overflow-y-auto">
-                    <div class="px-6 py-4 border-b border-stone-200 bg-red-50/60 flex items-center justify-between">
-                        <h3 id="defectModalTitle" class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-bug text-red-500"></i> 新增缺陷</h3>
-                        <div class="flex items-center gap-2">
-                            <button type="button" onclick="if(_editingDefectId)openEntityVersionsModal('defect',_editingDefectId,document.getElementById('defTitle').value)" id="defectVersionsBtn" class="hidden text-xs px-2.5 py-1 border border-amber-300 text-amber-700 rounded hover:bg-amber-50" title="檢視版本歷史 / 還原"><i class="fa-solid fa-clock-rotate-left"></i> 版本歷史</button>
-                            <button type="button" onclick="closeDefectModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
-                        </div>
-                    </div>
-                    <form onsubmit="return defectSubmit(event)" class="p-6 space-y-3">
-                        <div><label for="defTitle" class="block text-xs font-semibold text-stone-600 mb-1">標題 *</label><input type="text" id="defTitle" aria-label="標題" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
-                        <div class="grid grid-cols-3 gap-3">
-                            <div><label for="defSeverity" class="block text-xs font-semibold text-stone-600 mb-1">嚴重性</label><select id="defSeverity" aria-label="嚴重性" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option value="Critical">嚴重 (Critical)</option><option value="Major">重大 (Major)</option><option value="Minor" selected>次要 (Minor)</option><option value="Trivial">輕微 (Trivial)</option></select></div>
-                            <div><label for="defPriority" class="block text-xs font-semibold text-stone-600 mb-1">優先</label><select id="defPriority" aria-label="優先" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option value="P0">P0 (最高)</option><option value="P1">P1 (高)</option><option value="P2" selected>P2 (中)</option><option value="P3">P3 (低)</option></select></div>
-                            <div><label for="defStatus" class="block text-xs font-semibold text-stone-600 mb-1">狀態</label><select id="defStatus" aria-label="狀態" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option value="New" selected>新建立</option><option value="Assigned">等待處理</option><option value="InProgress">進行中</option><option value="InReview">等待審核</option><option value="ReworkRequired">退回修改</option><option value="Verified">已驗證</option><option value="Closed">已關閉</option></select></div>
-                        </div>
-                        <div class="grid grid-cols-2 gap-3">
-                            <div><label for="defReporter" class="block text-xs font-semibold text-stone-600 mb-1">回報者</label><input type="text" id="defReporter" aria-label="回報者" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
-                            <div><label for="defAssignee" class="block text-xs font-semibold text-stone-600 mb-1">指派</label><input type="text" id="defAssignee" aria-label="指派" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
-                        </div>
-                        <div><label for="defDesc" class="block text-xs font-semibold text-stone-600 mb-1">描述</label><textarea id="defDesc" aria-label="描述" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
-                        <div><label for="defSteps" class="block text-xs font-semibold text-stone-600 mb-1">重現步驟</label><textarea id="defSteps" aria-label="重現步驟" rows="3" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm font-mono"></textarea></div>
-                        <div class="grid grid-cols-2 gap-3">
-                            <div><label for="defExpected" class="block text-xs font-semibold text-stone-600 mb-1">預期結果</label><textarea id="defExpected" aria-label="預期結果" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
-                            <div><label for="defActual" class="block text-xs font-semibold text-stone-600 mb-1">實際結果</label><textarea id="defActual" aria-label="實際結果" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
-                        </div>
-                        <div class="grid grid-cols-2 gap-3">
-                            <div>
-                                <label for="defLinkedTestcase" class="block text-xs font-semibold text-stone-600 mb-1">
-                                    關聯測試案例
-                                    <span class="text-[10px] text-stone-400 font-normal">(RTM 追溯)</span>
-                                </label>
-                                <select id="defLinkedTestcase" aria-label="關聯測試案例" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
-                                    <option value="">— 未關聯 —</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label for="defTestVersion" class="block text-xs font-semibold text-stone-600 mb-1">
-                                    發現於版號
-                                    <span class="text-[10px] text-stone-400 font-normal">(同 project 各平台)</span>
-                                </label>
-                                <select id="defTestVersion" aria-label="發現於版號" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
-                                    <option value="">— 不指定 —</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div>
-                            <label for="defAttachmentInput" class="block text-xs font-semibold text-stone-600 mb-1">附件(圖片或文件,可多選)</label>
-                            <div class="flex items-center gap-2 flex-wrap">
-                                <input type="file" id="defAttachmentInput" aria-label="選擇附件" multiple
-                                    accept="image/png,image/jpeg,image/webp,image/gif,application/pdf,text/plain,text/csv,application/json,application/zip"
-                                    class="text-xs file:mr-2 file:px-3 file:py-1.5 file:rounded file:border file:border-stone-300 file:bg-white file:text-stone-700 file:cursor-pointer hover:file:bg-stone-50">
-                                <button type="button" id="defAttachmentUploadBtn" onclick="defectUploadAttachments()" class="text-xs px-2 py-1.5 bg-red-100 text-red-700 border border-red-200 rounded hover:bg-red-200 disabled:opacity-50" disabled><i class="fa-solid fa-upload"></i> 上傳</button>
-                                <span id="defAttachmentHint" class="text-[10px] text-stone-500">需先儲存缺陷後才能上傳附件</span>
-                            </div>
-                            <div id="defAttachmentList" class="mt-2 space-y-1"></div>
-                        </div>
-                        <!-- G-2:相關待辦反向視圖 -->
-                        <section id="defectLinkedTodos" class="border border-stone-200 rounded-md bg-stone-50/40 p-3 hidden"></section>
-                        <div class="flex justify-end gap-2 pt-2"><button type="button" onclick="closeDefectModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button><button type="submit" class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button></div>
-                    </form>
-                </div>
-            </div>
-
-            <!-- 時程 Modal -->
-            <div id="milestoneModal" class="hidden fixed inset-0 z-[150] bg-black/40 flex items-center justify-center p-4">
-                <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg border border-teal-200">
-                    <div class="px-6 py-4 border-b border-stone-200 bg-teal-50/60 flex items-center justify-between">
-                        <h3 id="milestoneModalTitle" class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-regular fa-calendar text-teal-500"></i> 新增測試時程</h3>
-                        <button type="button" onclick="closeMilestoneModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
-                    </div>
-                    <form onsubmit="return milestoneSubmit(event)" class="p-6 space-y-3">
-                        <div><label for="msName" class="block text-xs font-semibold text-stone-600 mb-1">名稱 *</label><input type="text" id="msName" aria-label="名稱" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
-                        <div class="grid grid-cols-2 gap-3">
-                            <div><label for="msStart" class="block text-xs font-semibold text-stone-600 mb-1">起始日期 *</label><span class="date-zh"><input type="date" id="msStart" aria-label="起始日期" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></span></div>
-                            <div><label for="msEnd" class="block text-xs font-semibold text-stone-600 mb-1">結束日期 *</label><span class="date-zh"><input type="date" id="msEnd" aria-label="結束日期" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></span></div>
-                        </div>
-                        <div class="grid grid-cols-2 gap-3">
-                            <div><label for="msStatus" class="block text-xs font-semibold text-stone-600 mb-1">狀態</label><select id="msStatus" aria-label="狀態" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white"><option value="New" selected>新建立</option><option value="Assigned">等待處理</option><option value="InProgress">進行中</option><option value="InReview">等待審核</option><option value="ReworkRequired">退回修改</option><option value="Verified">已驗證</option><option value="Closed">已關閉</option></select></div>
-                            <div><label for="msOwner" class="block text-xs font-semibold text-stone-600 mb-1">負責人</label><input type="text" id="msOwner" aria-label="負責人" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
-                        </div>
-                        <div><label for="msDesc" class="block text-xs font-semibold text-stone-600 mb-1">說明</label><textarea id="msDesc" aria-label="說明" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
-                        <div class="flex justify-end gap-2 pt-2"><button type="button" onclick="closeMilestoneModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button><button type="submit" class="px-4 py-2 bg-teal-500 hover:bg-teal-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button></div>
-                    </form>
-                </div>
-            </div>
-
             <!-- 測試計畫 全螢幕 Markdown 編輯器（六大段：Scope In / Scope Out / 策略 / 資源 / 時程 / 風險）-->
             <div id="planModal" class="hidden fixed inset-0 z-[150] bg-black/50 flex items-center justify-center p-4">
                 <div class="bg-white rounded-xl shadow-2xl w-[96vw] max-w-7xl h-[92vh] border border-blue-200 flex flex-col">
@@ -4089,85 +3712,6 @@ driver.swipe(100, 800, 100, 200, 500)"
         </div>
     </div>
 
-    <!-- 排程 Modal（新增 / 編輯） -->
-    <div id="scheduleModal" class="fixed inset-0 bg-slate-900/50 hidden z-[160] flex items-center justify-center opacity-0 transition-opacity">
-        <div class="bg-white rounded-lg shadow-xl w-[520px] max-w-[95vw] transform scale-95 transition-transform" id="scheduleModalContent">
-            <div class="p-4 border-b border-slate-200 flex items-center gap-2">
-                <i class="fa-solid fa-calendar-days text-emerald-500"></i>
-                <h3 id="scheduleModalTitle" class="text-lg font-bold text-slate-800">新增排程</h3>
-            </div>
-            <div class="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
-                <div>
-                    <label for="schedName" class="block text-sm font-medium text-slate-700 mb-1">排程名稱</label>
-                    <input type="text" id="schedName" placeholder="例：每日回歸 Login 流程" class="w-full border border-slate-300 rounded p-2 text-sm focus:ring-2 focus:ring-emerald-100 focus:border-emerald-400 outline-none">
-                </div>
-                <div>
-                    <div class="flex items-center justify-between mb-1">
-                        <label class="block text-sm font-medium text-slate-700">選擇測試案例（可多選）</label>
-                        <div class="flex items-center gap-2 text-xs">
-                            <input type="text" id="schedNodeFilter" placeholder="搜尋..."
-                                oninput="renderScheduleNodeList()"
-                                class="border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-emerald-400 outline-none">
-                            <span id="schedNodeSelCount" class="text-slate-500">已選 0</span>
-                        </div>
-                    </div>
-                    <div id="schedNodeList"
-                        class="border border-slate-300 rounded bg-white max-h-48 overflow-y-auto divide-y divide-slate-100 text-xs">
-                        <div class="p-3 text-slate-400 text-center">載入專案後才能選擇</div>
-                    </div>
-                    <p class="text-xs text-slate-500 mt-1">只列出 .md 測試案例；可搜尋關鍵字過濾。</p>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">重複設定</label>
-                    <div class="grid grid-cols-4 gap-2 text-sm">
-                        <label class="flex items-center gap-1 cursor-pointer"><input type="radio" name="schedRepeat" value="ONCE" checked onchange="updateScheduleRepeatUi()"> 指定時間</label>
-                        <label class="flex items-center gap-1 cursor-pointer"><input type="radio" name="schedRepeat" value="DAILY" onchange="updateScheduleRepeatUi()"> 每天</label>
-                        <label class="flex items-center gap-1 cursor-pointer"><input type="radio" name="schedRepeat" value="WEEKLY" onchange="updateScheduleRepeatUi()"> 每週</label>
-                        <label class="flex items-center gap-1 cursor-pointer"><input type="radio" name="schedRepeat" value="MONTHLY" onchange="updateScheduleRepeatUi()"> 每月</label>
-                    </div>
-                </div>
-                <!-- ONCE：完整日期時間；DAILY/WEEKLY/MONTHLY：只需當天的 HH:mm -->
-                <div id="schedDateTimeRow">
-                    <label for="schedTime" class="block text-sm font-medium text-slate-700 mb-1">執行時間（首次）</label>
-                    <input type="datetime-local" id="schedTime" step="60" class="w-full border border-slate-300 rounded p-2 text-sm focus:ring-2 focus:ring-emerald-100 focus:border-emerald-400 outline-none" lang="zh-TW">
-                    <p class="text-xs text-slate-500 mt-1">使用伺服器本地時間（Asia/Taipei），24 小時制。</p>
-                </div>
-                <div id="schedTimeOfDayRow" class="hidden">
-                    <label for="schedTimeOfDay" class="block text-sm font-medium text-slate-700 mb-1">每次執行時間（24 小時制 HH:mm）</label>
-                    <input type="time" id="schedTimeOfDay" step="60" class="w-40 border border-slate-300 rounded p-2 text-sm font-mono focus:ring-2 focus:ring-emerald-100 focus:border-emerald-400 outline-none" value="09:00">
-                    <p class="text-xs text-slate-500 mt-1">例如 <code>09:00</code>、<code>18:30</code>；不需要設定日期，後端會依重複規則自動推算下次執行。</p>
-                </div>
-                <div id="schedWeeklyRow" class="hidden">
-                    <label class="block text-sm font-medium text-slate-700 mb-1">每週執行星期</label>
-                    <div class="flex flex-wrap gap-2 text-sm" id="schedWeekdays">
-                        <!-- JS 動態產生七個 checkbox -->
-                    </div>
-                </div>
-                <div id="schedMonthlyRow" class="hidden">
-                    <label for="schedMonthDay" class="block text-sm font-medium text-slate-700 mb-1">每月第幾天</label>
-                    <input type="number" id="schedMonthDay" min="1" max="31" value="1" class="w-24 border border-slate-300 rounded p-2 text-sm focus:ring-2 focus:ring-emerald-100 focus:border-emerald-400 outline-none">
-                    <p class="text-xs text-slate-500 mt-1">若當月沒有這天（如 2/31）會自動使用該月最後一天。</p>
-                </div>
-                <div>
-                    <label for="schedExecMode" class="block text-sm font-medium text-slate-700 mb-1">執行環境</label>
-                    <select id="schedExecMode" class="w-full border border-slate-300 rounded p-2 text-sm bg-white focus:ring-2 focus:ring-emerald-100 focus:border-emerald-400 outline-none">
-                        <option value="docker">Docker（容器內 headless 執行）</option>
-                        <option value="local">本機（本機 agent + 有頭瀏覽器）</option>
-                    </select>
-                    <p class="text-xs text-slate-500 mt-1">選「本機」時需要在本機事先啟動 <code>local_agent.py</code>，並保持連線。</p>
-                </div>
-                <label class="flex items-center gap-2 text-sm text-slate-700">
-                    <input type="checkbox" id="schedActive" checked class="accent-emerald-600">
-                    啟用此排程
-                </label>
-            </div>
-            <div class="p-4 border-t border-slate-200 flex justify-end gap-2 bg-slate-50 rounded-b-lg">
-                <button type="button" onclick="closeScheduleModal()" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 rounded transition">取消</button>
-                <button type="button" onclick="saveSchedule()" class="px-4 py-2 text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 rounded shadow-sm transition">儲存</button>
-            </div>
-        </div>
-    </div>
-
     <!-- 測試回合 Modal（新增 / 編輯） -->
     <div id="testRoundModal" class="fixed inset-0 bg-slate-900/50 hidden z-[160] flex items-center justify-center opacity-0 transition-opacity">
         <div class="bg-white rounded-lg shadow-xl w-[560px] max-w-[95vw] transform scale-95 transition-transform" id="testRoundModalContent">
@@ -4288,11 +3832,9 @@ driver.swipe(100, 800, 100, 200, 500)"
                     '#wbs':             'wbsWorkspace',
                     '#backlog':         'backlogWorkspace',
                     '#testdatasets':    'testDataSetsWorkspace',
-                    '#testmilestones':  'testMilestonesWorkspace',
                     '#testplan':        'testPlansWorkspace',
                     '#report':          'reportWorkspace',
                     '#recorder':        'recorderWorkspace',
-                    '#schedule':        'scheduleWorkspace',
                     '#testround':       'testRoundWorkspace',
                     '#envvars':         'envVarsWorkspace',
                     '#mock':            'mockWorkspace',
@@ -7263,9 +6805,7 @@ driver.swipe(100, 800, 100, 200, 500)"
             'nav.dataSets': { 'zh-TW': '測試資料集', 'en': 'Data Sets' },
             'nav.envVars': { 'zh-TW': '環境變數', 'en': 'Env Vars' },
             'nav.mock': { 'zh-TW': 'Mock', 'en': 'Mock' },
-            'nav.milestones': { 'zh-TW': '測試時程', 'en': 'Milestones' },
             'nav.testRound': { 'zh-TW': '測試回合', 'en': 'Test Rounds' },
-            'nav.schedule': { 'zh-TW': '測試排程', 'en': 'Schedules' },
             'nav.recorder': { 'zh-TW': '測試錄製', 'en': 'Recorder' },
             'nav.reports': { 'zh-TW': '測試報告', 'en': 'Reports' },
             'nav.defects': { 'zh-TW': '缺陷管理', 'en': 'Defects' },
@@ -7292,9 +6832,7 @@ driver.swipe(100, 800, 100, 200, 500)"
             'view.envVars.title': { 'zh-TW': '環境變數', 'en': 'Environment Variables' },
             'view.dbConfig.title': { 'zh-TW': 'DB 連線資訊', 'en': 'DB Configurations' },
             'view.mock.title': { 'zh-TW': 'Mock 端點管理', 'en': 'Mock Endpoints' },
-            'view.milestones.title': { 'zh-TW': '測試時程', 'en': 'Test Milestones' },
             'view.testRound.title': { 'zh-TW': '測試回合', 'en': 'Test Rounds' },
-            'view.schedule.title': { 'zh-TW': '自動化測試排程', 'en': 'Test Schedule' },
             'view.recorder.title': { 'zh-TW': '錄製測試操作步驟', 'en': 'Recorder' },
             'view.reports.title': { 'zh-TW': '自動化測試執行報告', 'en': 'Test Reports' },
             'view.defects.title': { 'zh-TW': '缺陷管理', 'en': 'Defect Management' },
@@ -7913,7 +7451,6 @@ driver.swipe(100, 800, 100, 200, 500)"
         '新增步驟': 'Add step',
         '新增測試回合': 'New test round',
         '新增測試文件': 'New test document',
-        '新增測試時程': 'New milestone',
         '新增測試案例': 'New test case',
         '新增測試計畫': 'New test plan',
         '新增測試資料集': 'New test data set',
@@ -8014,9 +7551,7 @@ driver.swipe(100, 800, 100, 200, 500)"
         '測試名稱': 'Test name',
         '測試回合': 'Test Rounds',
         '測試報告': 'Test Reports',
-        '測試排程': 'Test Schedules',
         '測試文件': 'Test Documents',
-        '測試時程': 'Test Milestones',
         '測試案例': 'Test Cases',
         '測試案例名稱': 'Test case name',
         '測試案例與步驟': 'Test case & steps',
@@ -9178,7 +8713,7 @@ driver.swipe(100, 800, 100, 200, 500)"
         }
 
         function closeModals() {
-            ['nodeModal', 'deleteModal', 'scheduleModal', 'testRoundModal', 'localAgentModal'].forEach(id => {
+            ['nodeModal', 'deleteModal', 'testRoundModal', 'localAgentModal'].forEach(id => {
                 const modal = document.getElementById(id);
                 modal.classList.add('opacity-0');
                 const content = modal.querySelector('[id$="Content"], [id$="ModalContent"]');
@@ -9789,7 +9324,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 'showReportView', 'showUserSettingsView', 'showRecorderView',
                 'showReviewView', 'showTestRoundView', 'showEnvVarsView',
                 'showMockView',
-                'showScheduleView', 'showDefectsView', 'showTestMilestonesView',
+                'showDefectsView',
                 'showTestPlanView', 'showRequirementsView',
                 'showTestDataSetsView',
                 'showWbsView', 'showBacklogView',
@@ -10708,7 +10243,6 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('emptyWorkspace').classList.add('hidden');
             document.getElementById('detailReportWorkspace').classList.add('hidden');
             document.getElementById('recorderWorkspace')?.classList.add('hidden');
-            document.getElementById('scheduleWorkspace')?.classList.add('hidden');
             document.getElementById('reportWorkspace').classList.add('hidden');
             document.getElementById('testRoundWorkspace').classList.add('hidden');
             document.getElementById('envVarsWorkspace')?.classList.add('hidden');
@@ -10718,7 +10252,6 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('userSettingsWorkspace')?.classList.add('hidden');
             // 9 個測試管理擴充工作區
             document.getElementById('defectsWorkspace')?.classList.add('hidden');
-            document.getElementById('testMilestonesWorkspace')?.classList.add('hidden');
             document.getElementById('testPlansWorkspace')?.classList.add('hidden');
             document.getElementById('requirementsWorkspace')?.classList.add('hidden');
             document.getElementById('testDataSetsWorkspace')?.classList.add('hidden');
@@ -13788,430 +13321,6 @@ driver.swipe(100, 800, 100, 200, 500)"
             }
         }
 
-        function showScheduleView() {
-            if (!confirmDiscardIfDirty()) return false;
-            _hideAllWorkspaces();
-            _setViewMeta('view.schedule.title', 'view.schedule.title', '<i class="fa-solid fa-calendar-days text-emerald-500"></i>', 'Schedule', 'bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-medium');
-            document.getElementById('scheduleWorkspace').classList.remove('hidden');
-            document.getElementById('mainHeader').classList.remove('hidden');
-            document.getElementById('mainActions').classList.add('hidden');
-            currentTestCase = null;
-            refreshScheduleList();
-            try { _afterViewChange(); } catch (_) {}
-        
-        }
-
-        // 把樹狀結構攤平成 [{id, label(含層級前綴)}]，供節點下拉選單使用
-        function collectAllSchedulableNodes(nodes, prefix, out) {
-            if (!nodes) return;
-            for (const n of nodes) {
-                const label = (prefix ? prefix + ' / ' : '') + (n.title || n.name || n.id);
-                out.push({ id: n.id, label, level_type: n.level_type, isFile: !!n.isFile });
-                if (n.children && n.children.length) {
-                    collectAllSchedulableNodes(n.children, label, out);
-                }
-            }
-        }
-
-        // 排程 modal：節點多選 state
-        const schedNodeSelection = new Set();
-        function setScheduleSelection(ids) {
-            schedNodeSelection.clear();
-            (ids || []).forEach(id => schedNodeSelection.add(id));
-            renderScheduleNodeList();
-        }
-        function toggleScheduleNode(id, checked) {
-            if (checked) schedNodeSelection.add(id);
-            else schedNodeSelection.delete(id);
-            updateSchedSelCount();
-        }
-        function updateSchedSelCount() {
-            const el = document.getElementById('schedNodeSelCount');
-            if (el) el.textContent = `已選 ${schedNodeSelection.size}`;
-        }
-
-        function renderScheduleNodeList() {
-            const box = document.getElementById('schedNodeList');
-            if (!box) return;
-            if (!activeTreeData || !activeTreeData.length) {
-                box.innerHTML = '<div class="p-3 text-slate-400 text-center">請先在左側載入專案</div>';
-                updateSchedSelCount();
-                return;
-            }
-            const all = [];
-            collectAllSchedulableNodes(activeTreeData, '', all);
-            const testcases = all.filter(n => n.level_type === 'TESTCASE' || n.isFile);
-            const filter = (document.getElementById('schedNodeFilter')?.value || '').trim().toLowerCase();
-            const filtered = filter
-                ? testcases.filter(n => (n.label || '').toLowerCase().includes(filter))
-                : testcases;
-            if (!filtered.length) {
-                box.innerHTML = testcases.length
-                    ? `<div class="p-3 text-slate-400 text-center">無符合「${filter}」的案例</div>`
-                    : '<div class="p-3 text-slate-400 text-center">此專案尚無 .md 案例</div>';
-                updateSchedSelCount();
-                return;
-            }
-            box.innerHTML = filtered.map((n) => `
-                <label class="flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-slate-50">
-                    <input type="checkbox" class="accent-emerald-600"
-                        ${schedNodeSelection.has(n.id) ? 'checked' : ''}
-                        onchange="toggleScheduleNode('${n.id}', this.checked)">
-                    <span class="flex-1">${escapeAttrBasic(n.label)}</span>
-                </label>
-            `).join('');
-            updateSchedSelCount();
-        }
-
-        function renderScheduleWeekdays(selectedList) {
-            const container = document.getElementById('schedWeekdays');
-            if (!container) return;
-            const days = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
-            const sel = new Set((selectedList || []).map(Number));
-            container.innerHTML = days.map((name, i) =>
-                `<label class="flex items-center gap-1 cursor-pointer bg-slate-50 px-2 py-1 rounded border border-slate-200">
-                    <input type="checkbox" class="sched-weekday accent-emerald-600" value="${i}" ${sel.has(i) ? 'checked' : ''}> ${name}
-                </label>`
-            ).join('');
-        }
-
-        function updateScheduleRepeatUi() {
-            const value = document.querySelector('input[name="schedRepeat"]:checked')?.value || 'ONCE';
-            document.getElementById('schedWeeklyRow').classList.toggle('hidden', value !== 'WEEKLY');
-            document.getElementById('schedMonthlyRow').classList.toggle('hidden', value !== 'MONTHLY');
-            // ONCE 才顯示完整日期時間選擇器；DAILY / WEEKLY / MONTHLY 只顯示 HH:mm 時分
-            document.getElementById('schedDateTimeRow').classList.toggle('hidden', value !== 'ONCE');
-            document.getElementById('schedTimeOfDayRow').classList.toggle('hidden', value === 'ONCE');
-        }
-
-        function openScheduleModal(id) {
-            scheduleEditingId = id || null;
-            const target = id ? scheduleList.find(s => s.id === id) : null;
-            document.getElementById('scheduleModalTitle').textContent = target ? '編輯排程' : '新增排程';
-            // 重設欄位
-            document.getElementById('schedName').value = target ? target.name : '';
-            // 多選節點：編輯時塞入 target.node_ids；新增時清空
-            const initialIds = target && Array.isArray(target.node_ids) && target.node_ids.length
-                ? target.node_ids
-                : (target && target.node_id ? [target.node_id] : []);
-            setScheduleSelection(initialIds);
-            // 清空搜尋框並渲染列表
-            const filterBox = document.getElementById('schedNodeFilter');
-            if (filterBox) filterBox.value = '';
-            renderScheduleNodeList();
-            // ONCE 用完整日期時間、其他類型用 HH:mm；兩個 input 分開填
-            const dt = target ? new Date(target.next_run_at) : new Date(Date.now() + 5 * 60 * 1000);
-            document.getElementById('schedTime').value = toDatetimeLocal(dt);
-            document.getElementById('schedTimeOfDay').value = toTimeOfDay(dt);
-            const rt = target ? target.repeat_type : 'ONCE';
-            document.querySelectorAll('input[name="schedRepeat"]').forEach((el) => { el.checked = (el.value === rt); });
-            const weekly = (target && rt === 'WEEKLY' && target.repeat_config) ? target.repeat_config.split(',') : [];
-            renderScheduleWeekdays(weekly);
-            document.getElementById('schedMonthDay').value = (target && rt === 'MONTHLY' && target.repeat_config) ? target.repeat_config : '1';
-            document.getElementById('schedActive').checked = target ? !!target.active : true;
-            // 編輯：使用 target 的 execution_mode；新增：預設跟全域環境切換一致
-            document.getElementById('schedExecMode').value = target ? (target.execution_mode || 'docker') : getExecutionMode();
-            updateScheduleRepeatUi();
-            // 顯示 modal
-            const modal = document.getElementById('scheduleModal');
-            modal.classList.remove('hidden');
-            setTimeout(() => {
-                modal.classList.remove('opacity-0');
-                document.getElementById('scheduleModalContent').classList.remove('scale-95');
-            }, 10);
-        }
-
-        // 由 Date 產生 'HH:mm' 字串（24 小時制）
-        function toTimeOfDay(d) {
-            if (!(d instanceof Date) || isNaN(d.getTime())) return '09:00';
-            const pad = (n) => String(n).padStart(2, '0');
-            return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-        }
-
-        // DAILY / WEEKLY / MONTHLY：把使用者選的 'HH:mm' 轉成「今天（或最近符合重複規則的那天）」的完整日期時間字串
-        // 回傳值型態同 toDatetimeLocal 的 'YYYY-MM-DDTHH:mm:00'，存進 next_run_at。
-        function computeFirstRunFromTimeOfDay(repeat, hhmm, weekdays, monthDay) {
-            const [h, m] = (hhmm || '09:00').split(':').map(Number);
-            const now = new Date();
-            const candidate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0, 0);
-            // 今天同一時刻已過 → 往後找
-            if (repeat === 'DAILY') {
-                if (candidate <= now) candidate.setDate(candidate.getDate() + 1);
-                return candidate;
-            }
-            if (repeat === 'WEEKLY') {
-                const wanted = new Set((weekdays || []).map(Number));
-                if (!wanted.size) { if (candidate <= now) candidate.setDate(candidate.getDate() + 1); return candidate; }
-                for (let i = 0; i < 14; i++) {
-                    const d = new Date(candidate);
-                    d.setDate(d.getDate() + i);
-                    if (wanted.has(d.getDay()) && d > now) return d;
-                }
-                return candidate;
-            }
-            if (repeat === 'MONTHLY') {
-                const day = Math.max(1, Math.min(31, parseInt(monthDay, 10) || 1));
-                const d = new Date(now.getFullYear(), now.getMonth(), day, h, m, 0, 0);
-                if (d > now) return d;
-                // 這個月已過 → 下個月
-                const next = new Date(now.getFullYear(), now.getMonth() + 1, 1, h, m, 0, 0);
-                const lastDayNextMonth = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
-                next.setDate(Math.min(day, lastDayNextMonth));
-                return next;
-            }
-            return candidate;
-        }
-
-        function closeScheduleModal() {
-            const modal = document.getElementById('scheduleModal');
-            modal.classList.add('opacity-0');
-            document.getElementById('scheduleModalContent').classList.add('scale-95');
-            setTimeout(() => modal.classList.add('hidden'), 200);
-            scheduleEditingId = null;
-        }
-
-        function toDatetimeLocal(d) {
-            if (!(d instanceof Date) || isNaN(d.getTime())) return '';
-            const pad = (n) => String(n).padStart(2, '0');
-            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-        }
-
-        function formatScheduleDate(iso) {
-            if (!iso) return '—';
-            const d = new Date(iso);
-            if (isNaN(d.getTime())) return iso;
-            const pad = (n) => String(n).padStart(2, '0');
-            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-        }
-
-        function describeRepeat(s) {
-            const rt = s.repeat_type;
-            if (rt === 'ONCE') return '單次';
-            if (rt === 'DAILY') return '每天';
-            if (rt === 'WEEKLY') {
-                const names = ['日', '一', '二', '三', '四', '五', '六'];
-                const picks = (s.repeat_config || '').split(',').map(x => x.trim()).filter(x => x !== '').map(x => names[+x]).filter(Boolean);
-                return '每週 ' + (picks.length ? picks.join('、') : '(未指定)');
-            }
-            if (rt === 'MONTHLY') return `每月 ${s.repeat_config || '?'} 號`;
-            return rt;
-        }
-
-        async function refreshScheduleList() {
-            const tbody = document.getElementById('scheduleListBody');
-            if (!tbody) return;
-            tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-slate-400">載入中...</td></tr>';
-            try {
-                const res = await fetch('/api/schedules');
-                if (!res.ok) throw new Error('HTTP ' + res.status);
-                scheduleList = await res.json();
-                if (!scheduleList.length) {
-                    tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-slate-400">尚無排程，請點右上角「新增排程」</td></tr>';
-                    return;
-                }
-                tbody.innerHTML = '';
-                scheduleList.forEach((s) => {
-                    const tr = document.createElement('tr');
-                    tr.className = 'hover:bg-slate-50';
-                    tr.innerHTML = `
-                        <td class="p-2">
-                            <label class="inline-flex items-center cursor-pointer">
-                                <input type="checkbox" ${s.active ? 'checked' : ''} onchange="toggleScheduleActive('${s.id}', this.checked)" class="accent-emerald-600">
-                            </label>
-                        </td>
-                        <td class="p-2 font-medium text-slate-700">${escapeAttrBasic(s.name)}</td>
-                        <td class="p-2 text-slate-600 text-xs" title="${escapeAttrBasic((s.node_titles || []).join('\\n'))}">
-                            ${escapeAttrBasic((s.node_titles && s.node_titles.length) ? s.node_titles[0] : (s.node_title || s.node_id))}
-                            ${(s.node_ids && s.node_ids.length > 1)
-                                ? `<span class="ml-1 inline-block bg-slate-100 text-slate-600 border border-slate-200 rounded px-1.5 py-0.5 text-[10px] font-mono">+${s.node_ids.length - 1}</span>`
-                                : ''}
-                        </td>
-                        <td class="p-2 text-slate-600">
-                            ${escapeAttrBasic(describeRepeat(s))}
-                            ${s.execution_mode === 'local'
-                                ? '<span class="ml-2 inline-block bg-amber-50 text-amber-700 border border-amber-200 rounded px-1.5 py-0.5 text-[10px] font-mono"><i class="fa-solid fa-laptop mr-0.5"></i>本機</span>'
-                                : '<span class="ml-2 inline-block bg-indigo-50 text-indigo-700 border border-indigo-200 rounded px-1.5 py-0.5 text-[10px] font-mono"><i class="fa-brands fa-docker mr-0.5"></i>Docker</span>'}
-                        </td>
-                        <td class="p-2 font-mono text-xs">${formatScheduleDate(s.next_run_at)}</td>
-                        <td class="p-2 font-mono text-xs text-slate-500">${formatScheduleDate(s.last_run_at)}</td>
-                        <td class="p-2 space-x-1 whitespace-nowrap">
-                            <button type="button" onclick="triggerScheduleNow('${s.id}')" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded" title="立即執行一次"><i class="fa-solid fa-play"></i> 立即</button>
-                            <button type="button" onclick="openScheduleModal('${s.id}')" class="text-xs px-2 py-1 bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 rounded"><i class="fa-solid fa-pen"></i> 編輯</button>
-                            <button type="button" onclick="deleteSchedule('${s.id}')" class="text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded"><i class="fa-solid fa-trash"></i> 刪除</button>
-                        </td>`;
-                    tbody.appendChild(tr);
-                });
-            } catch (e) {
-                tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-red-500">載入失敗：${e.message}</td></tr>`;
-            }
-        }
-
-        function escapeAttrBasic(s) {
-            return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-        }
-
-        async function saveSchedule() {
-            const name = document.getElementById('schedName').value.trim();
-            // 同 saveTestRound:依樹順排序,而非點擊順序。
-            const _so = [];
-            try { collectAllSchedulableNodes(activeTreeData || [], '', _so); } catch (_) {}
-            const _soIdx = new Map(_so.map((n, i) => [n.id, i]));
-            const nodeIds = Array.from(schedNodeSelection)
-                .sort((a, b) => (_soIdx.get(a) ?? 1e9) - (_soIdx.get(b) ?? 1e9));
-            const repeat = document.querySelector('input[name="schedRepeat"]:checked')?.value || 'ONCE';
-            const active = document.getElementById('schedActive').checked;
-            const execMode = (document.getElementById('schedExecMode')?.value || 'docker');
-            if (!name) return showToast('請輸入排程名稱', 'error');
-            if (!nodeIds.length) return showToast('請至少選一個測試案例', 'error');
-
-            let repeatConfig = '';
-            let weekdays = [];
-            let monthDay = 1;
-            if (repeat === 'WEEKLY') {
-                weekdays = Array.from(document.querySelectorAll('.sched-weekday:checked')).map(el => el.value);
-                if (!weekdays.length) return showToast('每週排程請至少勾選一個星期', 'error');
-                repeatConfig = weekdays.join(',');
-            } else if (repeat === 'MONTHLY') {
-                monthDay = parseInt(document.getElementById('schedMonthDay').value, 10);
-                if (!(monthDay >= 1 && monthDay <= 31)) return showToast('每月第幾天需為 1-31', 'error');
-                repeatConfig = String(monthDay);
-            }
-
-            // ONCE → 使用 datetime-local；其他重複類型 → 只取 HH:mm 並依規則推算首次執行時間
-            let nextRunAt;
-            if (repeat === 'ONCE') {
-                const dtStr = document.getElementById('schedTime').value;
-                if (!dtStr) return showToast('請選擇執行時間', 'error');
-                nextRunAt = dtStr + ':00';
-            } else {
-                const hhmm = document.getElementById('schedTimeOfDay').value;
-                if (!hhmm) return showToast('請輸入執行時間（HH:mm）', 'error');
-                const first = computeFirstRunFromTimeOfDay(repeat, hhmm, weekdays, monthDay);
-                nextRunAt = toDatetimeLocal(first) + ':00';
-            }
-
-            const payload = {
-                name,
-                node_id: nodeIds[0],
-                node_ids: nodeIds,
-                repeat_type: repeat,
-                repeat_config: repeatConfig || null,
-                // 無時區字串，後端視為伺服器本地時間（Asia/Taipei）
-                next_run_at: nextRunAt,
-                active,
-                execution_mode: execMode,
-            };
-            try {
-                const url = scheduleEditingId ? `/api/schedules/${scheduleEditingId}` : '/api/schedules';
-                const method = scheduleEditingId ? 'PUT' : 'POST';
-                const res = await fetch(url, {
-                    method,
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload),
-                });
-                if (!res.ok) {
-                    const err = await res.json().catch(() => ({}));
-                    throw new Error(err.detail || ('HTTP ' + res.status));
-                }
-                showToast(scheduleEditingId ? '排程已更新' : '排程已建立', 'success');
-                closeScheduleModal();
-                refreshScheduleList();
-            } catch (e) {
-                showToast('儲存失敗：' + e.message, 'error');
-            }
-        }
-
-        async function toggleScheduleActive(id, active) {
-            try {
-                const res = await fetch(`/api/schedules/${id}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ active }),
-                });
-                if (!res.ok) throw new Error('HTTP ' + res.status);
-                showToast(active ? '已啟用' : '已停用', 'success');
-                refreshScheduleList();
-            } catch (e) {
-                showToast('更新失敗：' + e.message, 'error');
-            }
-        }
-
-        async function triggerScheduleNow(id) {
-            const mode = getExecutionMode();
-            if (!confirm(`確定以「${mode === 'local' ? '本機' : 'Docker'}」模式立即執行這個排程一次？（不會影響下次自動觸發時間）`)) return;
-            try {
-                const res = await fetch(`/api/schedules/${id}/trigger-now?execution_mode=${mode}`, { method: 'POST' });
-                if (!res.ok) {
-                    const err = await res.json().catch(() => ({}));
-                    throw new Error(err.detail || ('HTTP ' + res.status));
-                }
-                showToast('已觸發執行，可切到「測試報告」查看進度', 'success');
-                refreshScheduleList();
-            } catch (e) {
-                showToast('觸發失敗：' + e.message, 'error');
-            }
-        }
-
-        async function deleteSchedule(id) {
-            const s = scheduleList.find(x => x.id === id);
-            if (!confirm(`確定刪除排程「${s?.name || id}」？`)) return;
-            try {
-                const res = await fetch(`/api/schedules/${id}`, { method: 'DELETE' });
-                if (!res.ok && res.status !== 204) throw new Error('HTTP ' + res.status);
-                showToast('已刪除', 'success');
-                refreshScheduleList();
-            } catch (e) {
-                showToast('刪除失敗：' + e.message, 'error');
-            }
-        }
-
-        async function recCreateSession() {
-            const url = document.getElementById('recUrl').value.trim();
-            if (!url) { showToast('請輸入目標 URL', 'error'); return; }
-            try {
-                const body = { target_url: url };
-                if (currentProjectId) body.project_id = currentProjectId;
-                const res = await fetch('/api/recordings', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body),
-                });
-                if (!res.ok) throw new Error('HTTP ' + res.status);
-                const data = await res.json();
-                recCurrentSession = data.session;
-                document.getElementById('recSessionInfo').innerHTML =
-                    `<i class="fa-solid fa-check text-green-500"></i> Session: <code class="text-rose-600">${data.session.id}</code>`;
-                document.getElementById('cmdNpx').value = data.commands.npx_command || '';
-                document.getElementById('cmdPip').value = data.commands.pip_command || '';
-                document.getElementById('cmdRfb').value = data.commands.rfbrowser_command || '';
-                document.getElementById('cmdPs').value = data.commands.powershell_oneliner || '';
-                const bashEl = document.getElementById('cmdBash');
-                if (bashEl) bashEl.value = data.commands.bash_oneliner || '';
-                // APP:Appium server 指令 + Inspector 下載連結
-                const appiumEl = document.getElementById('cmdAppium');
-                if (appiumEl) appiumEl.value = data.commands.appium_server_command || '';
-                const appiumLink = document.getElementById('cmdAppiumInspectorLink');
-                if (appiumLink && data.commands.appium_inspector_url) {
-                    appiumLink.href = data.commands.appium_inspector_url;
-                }
-                document.getElementById('recCmdSection')?.classList.remove('hidden');
-                // Sprint 11.9 — recUploadSection / recScriptName / recTraceName 已移除(只支援 Docker)
-                document.getElementById('recUploadSection')?.classList.remove('hidden');
-                document.getElementById('recPreviewSection')?.classList.add('hidden');
-                const stEl = document.getElementById('recStatus');
-                if (stEl) stEl.textContent = '';
-                const sn = document.getElementById('recScriptName');
-                if (sn) sn.textContent = '尚未選擇';
-                const tn = document.getElementById('recTraceName');
-                if (tn) tn.textContent = '尚未選擇';
-                recScriptFile = null; recTraceFile = null;
-                showToast('Session 已建立;請按下「啟動容器並開始錄製」', 'success');
-                recRefreshList();
-            } catch (e) {
-                showToast('建立失敗：' + e.message, 'error');
-            }
-        }
-
         // ─── Docker 模式錄製(Phase 1) ─────────────────────────────────
         let _recDockerInfo = null;       // 啟動後存 backend 回的 host_port / novnc_path
         let _recDockerPollTimer = null;
@@ -15978,142 +15087,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                 currentAssigneeType: r.assigned_to_type || 'user',
                 onSaved: renderDefectsList,
             });
-        }
-
-        // ─── 測試時程 ────────────────────────────────────────────────────
-        let _milestonesCache = [];
-        let _editingMilestoneId = null;
-        function showTestMilestonesView() {
-            if (!_setView('testMilestonesWorkspace',
-                '<i class="fa-regular fa-calendar text-teal-500"></i> 測試時程',
-                'Schedule',
-                'bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded font-medium',
-                '測試時程',
-                { titleKey: 'view.milestones.title', filenameKey: 'view.milestones.title' })) return false;
-            renderMilestonesList();
-        }
-        async function renderMilestonesList() {
-            const tbody = document.getElementById('msListBody');
-            const cntEl = document.getElementById('msListCount');
-            const gantt = document.getElementById('msGanttRows');
-            if (!tbody) return;
-            const pid = currentProjectId;
-            if (!pid) { tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-stone-400">請先選擇專案</td></tr>'; cntEl.textContent='0'; gantt.innerHTML=''; return; }
-            try {
-                const res = await fetch('/api/milestones?project_id='+encodeURIComponent(pid));
-                if (!res.ok) throw new Error('HTTP '+res.status);
-                _milestonesCache = await res.json();
-                const kw = (document.getElementById('msSearch')?.value || '').toLowerCase().trim();
-                const st = document.getElementById('msStatusFilter')?.value;
-                let rows = _milestonesCache;
-                if (kw) rows = rows.filter(r => (r.name||'').toLowerCase().includes(kw));
-                if (st) rows = rows.filter(r => r.status === st);
-                cntEl.textContent = rows.length;
-                // 表格
-                if (!rows.length) { tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-stone-400">尚無時程</td></tr>'; }
-                else {
-                    // 統一 7 值狀態 + 舊值相容
-                    const stColor = {
-                        New:'bg-blue-100 text-blue-700', Assigned:'bg-purple-100 text-purple-700',
-                        InProgress:'bg-amber-100 text-amber-700', InReview:'bg-cyan-100 text-cyan-700',
-                        ReworkRequired:'bg-rose-100 text-rose-700', Verified:'bg-emerald-100 text-emerald-700',
-                        Closed:'bg-stone-200 text-stone-500',
-                        Planned:'bg-blue-100 text-blue-700', Completed:'bg-emerald-100 text-emerald-700', Cancelled:'bg-stone-100 text-stone-500',
-                    };
-                    tbody.innerHTML = rows.map(r => `<tr class="hover:bg-amber-50/30">
-                        <td class="p-3 font-semibold text-stone-800">${_esc(r.name)}</td>
-                        <td class="p-3 text-xs font-mono">${_esc(r.start_date)}</td>
-                        <td class="p-3 text-xs font-mono">${_esc(r.end_date)}</td>
-                        <td class="p-3"><span class="text-xs px-2 py-0.5 rounded font-medium ${stColor[r.status]||'bg-stone-100'}">${_esc(_zh('msStatus', r.status))}</span></td>
-                        <td class="p-3 text-xs text-stone-600">${_esc(r.owner||'—')}</td>
-                        <td class="p-3 text-center whitespace-nowrap space-x-1">
-                            <button onclick="openMilestoneModal('${_esc(r.id)}')" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded"><i class="fa-solid fa-pen"></i></button>
-                            <button onclick="deleteMilestone('${_esc(r.id)}','${_esc(r.name)}')" class="text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded"><i class="fa-solid fa-trash"></i></button>
-                        </td>
-                    </tr>`).join('');
-                }
-                // Gantt 簡圖
-                if (rows.length) {
-                    const allDates = rows.flatMap(r => [r.start_date, r.end_date]).filter(Boolean).sort();
-                    const minD = new Date(allDates[0]); const maxD = new Date(allDates[allDates.length-1]);
-                    const span = Math.max(1, (maxD - minD)/(1000*60*60*24));
-                    gantt.innerHTML = rows.map(r => {
-                        const s = new Date(r.start_date); const e = new Date(r.end_date);
-                        const offset = ((s-minD)/(1000*60*60*24)) / span * 100;
-                        const width = Math.max(2, ((e-s)/(1000*60*60*24)) / span * 100);
-                        // 甘特長條色:統一 7 值 + 舊值相容
-                        const stColor = {
-                            New:'bg-blue-400', Assigned:'bg-purple-400',
-                            InProgress:'bg-amber-500', InReview:'bg-cyan-500',
-                            ReworkRequired:'bg-rose-500', Verified:'bg-emerald-500',
-                            Closed:'bg-stone-400',
-                            Planned:'bg-blue-400', Completed:'bg-emerald-500', Cancelled:'bg-stone-400',
-                        };
-                        return `<div class="flex items-center gap-2 text-xs">
-                            <div class="w-32 truncate text-stone-600" title="${_esc(r.name)}">${_esc(r.name)}</div>
-                            <div class="flex-1 h-4 bg-stone-100 rounded relative overflow-hidden">
-                                <div class="absolute h-full ${stColor[r.status]||'bg-stone-400'} rounded" data-offset="${offset.toFixed(1)}" data-width="${width.toFixed(1)}"></div>
-                            </div>
-                            <div class="w-44 text-stone-500 font-mono">${r.start_date} → ${r.end_date}</div>
-                        </div>`;
-                    }).join('');
-                    // 用 dataset 寫入 left/width，避免 inline style lint warning
-                    gantt.querySelectorAll('[data-offset]').forEach(el => {
-                        el.style.left = el.dataset.offset+'%';
-                        el.style.width = el.dataset.width+'%';
-                    });
-                } else { gantt.innerHTML = '<div class="text-xs text-stone-400">尚無時程資料</div>'; }
-            } catch(e) {
-                tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-red-500">載入失敗：${_esc(e.message)}</td></tr>`;
-            }
-        }
-        function openMilestoneModal(id) {
-            if (!currentProjectId) { showToast('請先選擇專案', 'error'); return; }
-            _editingMilestoneId = id || null;
-            const r = id ? _milestonesCache.find(x => x.id === id) : null;
-            document.getElementById('milestoneModalTitle').innerHTML = r ? '<i class="fa-regular fa-calendar text-teal-500"></i> 編輯時程' : '<i class="fa-regular fa-calendar text-teal-500"></i> 新增測試時程';
-            document.getElementById('msName').value = r?.name || '';
-            document.getElementById('msStart').value = r?.start_date || '';
-            document.getElementById('msEnd').value = r?.end_date || '';
-            document.getElementById('msStatus').value = r?.status || 'New';
-            document.getElementById('msOwner').value = r?.owner || '';
-            document.getElementById('msDesc').value = r?.description || '';
-            document.getElementById('milestoneModal').classList.remove('hidden');
-        }
-        function closeMilestoneModal() { document.getElementById('milestoneModal').classList.add('hidden'); }
-        async function milestoneSubmit(ev) {
-            ev.preventDefault();
-            const payload = {
-                project_id: currentProjectId,
-                name: document.getElementById('msName').value.trim(),
-                start_date: document.getElementById('msStart').value,
-                end_date: document.getElementById('msEnd').value,
-                status: document.getElementById('msStatus').value,
-                owner: document.getElementById('msOwner').value.trim() || null,
-                description: document.getElementById('msDesc').value || null,
-            };
-            try {
-                const url = _editingMilestoneId ? '/api/milestones/'+_editingMilestoneId : '/api/milestones';
-                const method = _editingMilestoneId ? 'PUT' : 'POST';
-                const res = await fetch(url, {method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
-                if (!res.ok) {
-                    const err = await res.json().catch(()=>({}));
-                    throw new Error(err.detail || ('HTTP '+res.status));
-                }
-                showToast(_editingMilestoneId ? '已更新' : '已建立', 'success');
-                closeMilestoneModal();
-                renderMilestonesList();
-            } catch(e) { showToast('儲存失敗：'+e.message, 'error'); }
-            return false;
-        }
-        async function deleteMilestone(id, name) {
-            if (!confirm(`確定刪除時程「${name}」？`)) return;
-            try {
-                const res = await fetch('/api/milestones/'+id, {method:'DELETE'});
-                if (!res.ok && res.status !== 204) throw new Error('HTTP '+res.status);
-                showToast('已刪除', 'success');
-                renderMilestonesList();
-            } catch(e) { showToast('刪除失敗：'+e.message, 'error'); }
         }
 
         // ─── 測試計畫 ────────────────────────────────────────────────────

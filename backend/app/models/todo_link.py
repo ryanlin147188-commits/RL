@@ -27,7 +27,6 @@ ALLOWED_TARGET_TYPES = {
     "defect",
     "test_plan",
     "test_round",
-    "test_milestone",
     "wbs",
     "project",
 }

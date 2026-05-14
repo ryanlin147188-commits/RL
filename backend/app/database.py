@@ -85,7 +85,6 @@ async def init_db() -> None:
         project,
         project_env_var,
         recording,
-        schedule,
         step_screenshot_baseline,
         test_round,
         testcase_content,
