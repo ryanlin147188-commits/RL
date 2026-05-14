@@ -87,6 +87,16 @@ async def oidc_enabled(provider: str) -> dict:
     return {"enabled": _oidc.is_enabled(provider)}
 
 
+# ── 舊 OIDC router compat stub ────────────────────────────────────────
+# v1.1.3 之前有 ``/api/auth/oidc/providers``(回 OIDC provider 清單給 SPA 畫
+# SSO 按鈕)。v1.1.5 router 完全卸載,但 SPA 登入頁仍會 probe 它 → 404 紅字。
+# 回 200 空陣列保持安靜,authlib 版單 provider 用 env 配置不需要 DB-driven 清單。
+
+@router.get("/auth/oidc/providers", tags=["U · 認證"])
+async def oidc_providers_compat() -> list:
+    return []
+
+
 # ── /api/auth/{provider}/login — 302 到 IdP authorize ──────────────────
 
 

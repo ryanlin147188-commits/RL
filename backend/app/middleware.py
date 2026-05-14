@@ -53,6 +53,8 @@ _PUBLIC_PATTERNS: list[re.Pattern] = [
     re.compile(r"^/api/auth/zoho/login$"),
     re.compile(r"^/api/auth/zoho/callback$"),
     re.compile(r"^/api/auth/zoho/enabled$"),
+    # 舊 SPA 登入頁殘留的 probe;v1.1.5 後永遠回 200 [],只是讓 DevTools 不紅。
+    re.compile(r"^/api/auth/oidc/providers$"),
     # Artifact routes perform their own scoped token / access-token validation.
     re.compile(r"^/pics/"),
     re.compile(r"^/results/"),
