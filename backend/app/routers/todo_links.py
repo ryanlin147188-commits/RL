@@ -19,7 +19,6 @@ from app.auth.project_membership import ensure_project_member
 from app.database import get_db
 from app.models.defect import Defect
 from app.models.project import Project
-from app.models.requirement import Requirement
 from app.models.test_round import TestRound
 from app.models.todo_item import TodoItem
 from app.models.todo_link import ALLOWED_TARGET_TYPES, TodoLink
@@ -37,7 +36,6 @@ router = APIRouter()
 # ── 各 target_type 對應的 ORM model + 顯示用欄位 ─────────────────────
 # 統一介面:給定 target_type + target_id,可以撈 (id, title, code) 三件套
 _TARGET_REGISTRY = {
-    "requirement": (Requirement, "title", "code"),
     "defect": (Defect, "title", "code"),
     "test_round": (TestRound, "name", None),
     "project": (Project, "name", None),

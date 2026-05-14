@@ -49,7 +49,6 @@ def _model_for(entity_type: AssignableEntityType):
     """Look up the SQLAlchemy model that holds the assignment columns for
     a given entity_type. Imported lazily to avoid circular imports."""
     from app.models.defect import Defect
-    from app.models.requirement import Requirement
     from app.models.review import ReviewRecord
     from app.models.tree_node import LevelType, TreeNode
 
@@ -57,7 +56,6 @@ def _model_for(entity_type: AssignableEntityType):
         AssignableEntityType.REVIEW: (ReviewRecord, None),
         AssignableEntityType.DEFECT: (Defect, None),
         AssignableEntityType.TESTCASE: (TreeNode, LevelType.TESTCASE),
-        AssignableEntityType.REQUIREMENT: (Requirement, None),
     }[entity_type]
 
 
@@ -68,7 +66,7 @@ def _human_label(entity_type: AssignableEntityType, obj) -> str:
     most useful to surface in the bell."""
     if entity_type == AssignableEntityType.REVIEW:
         return f"{obj.entity_type.value} {obj.entity_id[:8]}"
-    if entity_type in (AssignableEntityType.TESTCASE, AssignableEntityType.REQUIREMENT):
+    if entity_type == AssignableEntityType.TESTCASE:
         return getattr(obj, "name", obj.id)
     if entity_type == AssignableEntityType.DEFECT:
         return f"{obj.code} {obj.title[:40]}" if obj.title else obj.code

@@ -246,7 +246,6 @@ async def get_group_usage(
     """
     from app.models.todo_item import TodoItem
     from app.models.defect import Defect
-    from app.models.requirement import Requirement
     from app.models.tree_node import TreeNode
     from app.models.review import ReviewRecord
 
@@ -272,7 +271,6 @@ async def get_group_usage(
     for label, model in (
         ("defects", Defect),
         ("testcases", TreeNode),
-        ("requirements", Requirement),
         ("reviews", ReviewRecord),
     ):
         try:
