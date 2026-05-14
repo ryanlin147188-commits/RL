@@ -14958,10 +14958,15 @@ driver.swipe(100, 800, 100, 200, 500)"
             const sel = document.getElementById('pmEuRoleId');
             sel.innerHTML = '<option value="">— 無角色 —</option>';
             const roles = await _pmLoadAdminRoles();
+            // 注意:這個 modal 的「系統角色」對應到 ``users.role_id``(全域),
+            // 不是 ``ProjectMember.role_id``(本專案 override)。後端
+            // list_project_members 回傳 ``global_role_id`` 給此 modal 預填用,
+            // 不要用 ``m.role_id``(那是專案內 override)。
+            const selectedRoleId = m.global_role_id || null;
             roles.forEach(r => {
                 const opt = document.createElement('option');
                 opt.value = r.id; opt.textContent = r.name;
-                if (m.role_id === r.id) opt.selected = true;
+                if (selectedRoleId === r.id) opt.selected = true;
                 sel.appendChild(opt);
             });
             document.getElementById('pmEditUserModal').classList.remove('hidden');

@@ -338,9 +338,14 @@ async def list_project_members(
             "username": u.username,
             "display_name": u.display_name,
             "email": u.email,
+            # ``role_id`` / ``role_name`` 是 ProjectMember.role_id(本專案 override);
+            # NULL = 沿用全域 role。``global_role_id`` 是 ``users.role_id``(全域),
+            # 給「編輯使用者」modal 預填用,避免 modal 改全域 role 後重整顯示
+            # 「無角色」的錯位(此 modal PUT /auth/users/{u} 改的就是全域)。
             "role_id": role.id if role else None,
             "role_name": role.name if role else None,
             "role_scope": role.scope if role else None,
+            "global_role_id": u.role_id,
             "status": pm.status,
             "joined_at": pm.joined_at.isoformat() if pm.joined_at else None,
             # 給「編輯使用者」modal 預填用(superuser 才看得到該按鈕在後端 PUT/DELETE 上的效力)
