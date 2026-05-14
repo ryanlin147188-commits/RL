@@ -28,19 +28,29 @@ alembic==1.13.3
 prometheus-fastapi-instrumentator==7.0.0
 sentry-sdk[fastapi,celery,sqlalchemy]==2.16.0
 
-# Auth：JWT 簽發/驗證 + bcrypt 密碼雜湊
-# 注意：passlib 1.7.4 對 bcrypt 4.x 有相容性問題（_about_ 屬性消失），
-# 因此將 bcrypt 鎖在 3.x（最後一個相容版本）。
-# v1.1.5 切回 HS256 only(authlib 接 OIDC 後不需要 RS256 / JWKS),拔掉
-# [crypto] extra 縮減 image size。cryptography 仍另外 pin 給 Fernet 用。
-PyJWT==2.9.0
-passlib==1.7.4
-bcrypt==3.2.2
+# Auth (v1.1.7): FastAPI Users + Authlib + PyCasbin
+# Phased migration:現階段 fastapi-users primitives 跟舊 passlib + 手刻 JWT
+# 共存,等 schema migration / endpoint cutover 完成才會把 passlib/bcrypt 移除。
+# - fastapi-users 提供 UserManager / SQLAlchemyUserDatabase / JWTStrategy /
+#   PasswordHelper / Bearer transport。
+# - httpx-oauth 是 fastapi-users 親緣 OAuth2 client(內含 Google / GitHub 等
+#   provider),Zoho 走 OpenID custom OAuth2 subclass 接上去。
+# - cryptography 仍另外 pin 給 Fernet 用(DB 內存密碼 / AI key)。
+PyJWT==2.8.0           # fastapi-users 13 pins exactly 2.8.0
+passlib==1.7.4         # 過渡期保留;v1.1.8 cutover 後拔除
+# bcrypt 4.x 跟 passlib 1.7.4 共存會在 import 時印一行 deprecation warning
+# (passlib 想讀 bcrypt.__about__,bcrypt 4 拿掉了);hash/verify 本身仍正常,
+# 而且 fastapi-users 13 內部的 pwdlib 要求 bcrypt>=4。bcrypt hash 格式
+# ($2b$...)跨 lib 互通,passlib 種的 hash 跟 pwdlib 種的可互相 verify。
+bcrypt>=4.0.0,<5.0.0
+fastapi-users[sqlalchemy]==13.0.0
+httpx-oauth==0.15.1
 cryptography==43.0.1   # Fernet 對稱加密：DB 內存密碼/AI key 用
 
 # OIDC client(v1.1.5 in-process,接 Zoho / Google / 任意 OIDC IdP)。
 # authlib 1.3.x 提供 ``AsyncOAuth2Client`` 給 httpx-based async OAuth2 / OIDC
-# code flow + id_token verify;比直接手刻 httpx + PyJWKClient 安全得多。
+# code flow + id_token verify;Zoho 走 authlib,其他 provider(GitHub / Google)
+# 改走 httpx-oauth 跟 fastapi-users 的 OAuth router 整合得比較緊。
 authlib>=1.3,<2
 
 # RBAC / ABAC：Casbin 進程內 enforcer + SQLAlchemy adapter(把 policy 落地到
@@ -58,7 +68,7 @@ httpx==0.27.2
 slowapi==0.1.9
 
 # File upload
-python-multipart==0.0.12
+python-multipart==0.0.9  # fastapi-users 13 pins exactly 0.0.9
 aiofiles==24.1.0
 
 # 物件儲存（S3-compatible，後端用 SeaweedFS 取代 MinIO；boto3 同樣相容）
