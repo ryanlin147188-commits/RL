@@ -28,6 +28,65 @@
 
 ---
 
+## 🔥 v1.1.7 — FastAPI Users + Authlib + PyCasbin, end-to-end
+
+Eight commits and four alembic migrations on `feat/fastapi-users` move the
+auth backend off hand-rolled bcrypt + JWT + OAuth onto the standard
+fastapi-users stack. The SPA didn't change. Existing admin and 100+ users
+survive the migration intact — full design rationale lives in
+`memory/fastapi-users-migration-state.md`.
+
+- **Phase 1 — Foundation**: `backend/app/auth/fastapi_users_integration.py`
+  wires `UserManager`, `JWTStrategy`, `PasswordHelper`,
+  `SQLAlchemyUserDatabase`, `BearerTransport`. `token_audience` is left
+  empty so both auth paths sign mutually-verifiable JWTs and sessions don't
+  get evicted during cutover.
+- **Phase 2 — Users schema**: alembic `0027` adds `users.id` UUID with
+  `gen_random_uuid()::text` default; existing rows are backfilled.
+- **Phase 3 — Shadow FK columns**: alembic `0028` adds nullable `user_id`
+  UUID shadow columns to the six FK sites (project_members ×2,
+  org_memberships ×2, group_memberships, password_reset_tokens) and
+  JOIN-backfills them. The migration refuses to leave a NOT-NULL source
+  with a NULL backfill — orphan rows surface as RuntimeError.
+- **Phase 4 — PasswordHelper cutover**: `security.py` swaps passlib for
+  pwdlib via `PasswordHelper`. argon2 for new hashes, bcrypt verify
+  fallback for existing `$2b$` rows. 30+ call sites of `hash_password` /
+  `verify_password` keep their signature.
+- **Phase 5 — Dual-write listener**: `backend/app/auth/user_id_dualwrite.py`
+  registers SQLAlchemy `before_insert` hooks on the four FK models so new
+  rows auto-populate `user_id` from `username` — no caller has to know the
+  shadow column exists. Unresolvable usernames raise instead of silently
+  inserting NULL.
+- **Phase 6 — OAuth migrated to httpx-oauth**: Zoho client moves from
+  authlib `AsyncOAuth2Client` to `httpx-oauth.BaseOAuth2` (the OAuth2
+  client family fastapi-users is built around). Behavior is identical;
+  future migration to fastapi-users' OAuth router won't need another
+  rewrite.
+- **Phase 7 — Promote users.id to PK**: alembic `0029` drops the six FKs
+  bound to `users_pkey`, swaps the PK from `username` to `id`, then
+  recreates the six FKs with explicit `REFERENCES users(username)` so
+  they bind to the new `uq_users_username` unique constraint. Application
+  code is untouched — JWT `sub` is still username, Casbin policy subjects
+  are still username, SPA URL paths are unchanged, `User.username == X`
+  lookups still hit a unique index.
+- **Phase 8 — Cleanup**: passlib and the bcrypt 4.x pin drop out of
+  `requirements.txt` (pulled transitively by fastapi-users 13's pwdlib).
+  SPA version bumps from v1.1.1 → v1.1.7.
+
+### Deploy notes
+
+1. `git pull && docker compose build backend && docker compose up -d backend` —
+   alembic 0027–0029 run in order; existing users get UUIDs.
+2. Backend startup logs should show four "Running upgrade" lines. Confirm
+   with `SELECT username, id FROM users;` — every row has a UUID.
+3. Existing SSO sessions, admin tokens, SPA logins all survive — no
+   forced re-login.
+4. To verify the dual-write listener: create a user from the admin modal,
+   then `SELECT username, user_id FROM org_memberships WHERE
+   username='<new user>'` — `user_id` should equal the user's `users.id`.
+
+---
+
 ## 🔥 v1.1.6 — Per-project role permission override + three-field first-login modal
 
 Targeted at the "solo-owner platform + multi-collaborator projects" scenario,

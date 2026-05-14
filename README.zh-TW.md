@@ -28,6 +28,57 @@
 
 ---
 
+## 🔥 v1.1.7 — FastAPI Users + Authlib + PyCasbin 三件套全面接上
+
+`feat/fastapi-users` 分支八個 commit、四支 alembic migration 把 auth 後端從
+「手刻 bcrypt + 手刻 JWT + 手刻 OAuth」換到 fastapi-users 標準堆疊。SPA 完全
+沒動,既有 admin 帳號跟 100+ user data 完整保留 — 詳細 migration plan 跟
+phase-by-phase 設計取捨見 `memory/fastapi-users-migration-state.md`。
+
+- **Phase 1 — 基礎裝配**:`backend/app/auth/fastapi_users_integration.py` 接
+  上 `UserManager` / `JWTStrategy` / `PasswordHelper` / `SQLAlchemyUserDatabase` /
+  `BearerTransport`。token_audience 留空讓兩條 auth path 簽出來的 JWT 互通,
+  cutover 過程 session 不會被踢。
+- **Phase 2 — Users schema**:alembic `0027` 加 `users.id` UUID 欄位 +
+  `gen_random_uuid()::text` 預設值;既有 user 全部 JOIN-backfill 一個 UUID。
+- **Phase 3 — Shadow FK columns**:alembic `0028` 對 6 個 `users.username` FK
+  欄位(project_members ×2、org_memberships ×2、group_memberships、
+  password_reset_tokens)都加一個 `user_id UUID` shadow column,JOIN backfill。
+  sanity-check 任何 backfill 後仍 NULL 的孤兒 row 直接 raise。
+- **Phase 4 — PasswordHelper cutover**:`backend/app/auth/security.py` 把
+  passlib `CryptContext` 換成 `PasswordHelper`(內部 pwdlib,argon2 給新 hash,
+  bcrypt 給既有 `$2b$` hash 反向驗證)。30+ callsite 不變,公開的
+  `hash_password` / `verify_password` 簽名一致。
+- **Phase 5 — Dual-write listener**:`backend/app/auth/user_id_dualwrite.py`
+  用 SQLAlchemy `before_insert` 事件 hook 4 個 model,新 row 自動把
+  `username → users.id` 寫到 shadow column,9 個 instantiation site 一個都不
+  改。找不到對應 user 時直接 raise,避免 NULL 靜默落地。
+- **Phase 6 — OAuth 切到 httpx-oauth**:`backend/app/auth/oidc.py` 把 Zoho
+  client 從 authlib `AsyncOAuth2Client` 換成 httpx-oauth `BaseOAuth2`(fastapi-
+  users 親緣的 OAuth2 client family)。功能對等,API 形狀相近,差別是 future
+  若想接 fastapi-users 內建 OAuth router 不必再寫一次 client。
+- **Phase 7 — Promote users.id 為 PK**:alembic `0029` drop 6 FK constraint →
+  swap PK from username to id → recreate 6 FK 顯式 `REFERENCES users(username)`
+  指向新的 `uq_users_username` unique constraint。應用層完全沒動 — JWT sub
+  繼續用 username、Casbin policy subject 繼續用 username、SPA `/api/auth/
+  users/{username}` URL 不變、`User.username == X` lookup 走新的 unique index
+  一樣快。
+- **Phase 8 — 收尾**:requirements 拔 passlib 跟 bcrypt 4.x pin(由 fastapi-
+  users 13 的 pwdlib 自帶);版號 v1.1.1 → v1.1.7。
+
+### 部署後 deploy 注意
+
+1. `git pull && docker compose build backend && docker compose up -d backend` —
+   alembic 0027–0029 會依序跑完,既有 user 都會拿到 UUID。
+2. 啟動 log 應該看得到 4 行 alembic upgrade 訊息;`SELECT username, id FROM
+   users` 確認每個 user.id 都有值。
+3. 既有 SSO session、admin token、SPA login 全部保留;不必使用者重新登入。
+4. 想驗 dual-write listener:從 admin modal 建一個 user,進 postgres `SELECT
+   username, user_id FROM org_memberships WHERE username='<新 user>'`,
+   user_id 應該等於該 user 的 `users.id`。
+
+---
+
 ## 🔥 v1.1.6 — Per-project role permission override + 三欄位首登 modal
 
 針對「平台一人主場 + 多人協作專案」情境補完角色 / 權限細粒度,讓客戶 / 外包等
