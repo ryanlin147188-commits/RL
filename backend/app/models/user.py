@@ -19,17 +19,17 @@ from .base import Base
 class User(Base):
     __tablename__ = "users"
 
-    # v1.1.7 Phase 2: 加 UUID id column。username 仍是 PK,Phase 7 才會把 PK
-    # 換成 id。先讓 fastapi-users 有正式的 id 欄位可用,Phase 1 的 property
-    # shim 已經拔掉。
+    # v1.1.7 Phase 7: id (UUID) 升格成 PK;username 保留為 NOT NULL UNIQUE,
+    # 既有 6 個 ForeignKey("users.username") 繼續有效,不必動 30+ application
+    # files 跟 SPA 100+ URL pattern。
     id: Mapped[str] = mapped_column(
         String(36),
-        nullable=False,
+        primary_key=True,
         server_default=text("gen_random_uuid()::text"),
-        unique=True,
-        index=True,
     )
-    username: Mapped[str] = mapped_column(String(80), primary_key=True)
+    username: Mapped[str] = mapped_column(
+        String(80), nullable=False, unique=True, index=True,
+    )
     display_name: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
     email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     # SeaweedFS URL(/pics/avatars/<uuid>.jpg);空 → 用 username 首字當文字頭像
