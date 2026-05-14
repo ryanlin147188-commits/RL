@@ -984,7 +984,6 @@
                     <span data-i18n="nav.section.project">專案管理</span>
                 </div>
                 <div class="space-y-0.5">
-                    <button type="button" onclick="closeNavDrawer(); showTestProjectsView()" class="nav-drawer-btn"><i class="fa-solid fa-folder-tree text-amber-600"></i><span data-i18n="nav.testProjects">測試專案</span></button>
                     <button type="button" onclick="closeNavDrawer(); showWbsView()"          class="nav-drawer-btn"><i class="fa-solid fa-sitemap text-yellow-600"></i><span data-i18n="nav.wbs">WBS / 工作分解</span></button>
                     <button type="button" onclick="closeNavDrawer(); showTestPlanView()"     class="nav-drawer-btn"><i class="fa-solid fa-clipboard-list text-blue-600"></i><span data-i18n="nav.testPlan">測試計畫</span></button>
                     <button type="button" onclick="closeNavDrawer(); showTestMilestonesView()" class="nav-drawer-btn"><i class="fa-regular fa-calendar text-teal-600"></i><span data-i18n="nav.milestones">測試時程</span></button>
@@ -4286,39 +4285,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                 </div>
             </div>
 
-            <!-- ── 測試專案 (Test Projects) ── -->
-            <div id="testProjectsWorkspace" class="flex-1 overflow-y-auto p-6 bg-amber-50/30 hidden">
-                <div class="max-w-7xl mx-auto">
-                    <div class="bg-white rounded-lg border border-amber-200 shadow-sm p-4 mb-4">
-                        <div class="flex flex-wrap items-center gap-3">
-                            <div class="flex-1 min-w-[200px] relative">
-                                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm"></i>
-                                <input id="tprjSearch" type="search" oninput="renderTestProjectsList()" placeholder="搜尋專案名稱…"
-                                    class="w-full pl-9 pr-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
-                            </div>
-                            <select id="tprjStatusFilter" onchange="renderTestProjectsList()" aria-label="依狀態過濾" class="px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
-                                <option value="">全部狀態</option>
-                                <option value="New">新建立</option><option value="Assigned">等待處理</option>
-                                <option value="InProgress">進行中</option><option value="InReview">等待審核</option>
-                                <option value="ReworkRequired">退回修改</option>
-                                <option value="Verified">已驗證</option><option value="Closed">已關閉</option>
-                            </select>
-                            <button onclick="renderTestProjectsList()" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
-                            <button onclick="openTestProjectModal()" class="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold shadow-sm"><i class="fa-solid fa-plus"></i> 新增專案</button>
-                            <div class="text-xs text-stone-500 ml-auto">共 <span id="tprjListCount" class="font-bold text-stone-700">0</span> 筆</div>
-                        </div>
-                    </div>
-                    <div class="bg-white rounded-lg border border-amber-200 shadow-sm overflow-hidden">
-                        <table class="w-full text-sm">
-                            <thead class="bg-amber-50/60 border-b border-amber-200 text-stone-600 text-xs uppercase">
-                                <tr><th class="p-3 text-left">名稱</th><th class="p-3 w-32">狀態</th><th class="p-3 w-32">負責人</th><th class="p-3 w-32">起始</th><th class="p-3 w-32">目標</th><th class="p-3 w-40">標籤</th><th class="p-3 w-36 text-center">操作</th></tr>
-                            </thead>
-                            <tbody id="tprjListBody" class="divide-y divide-stone-100"></tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
             <!-- ── 測試版號 (Test Versions) — 漢堡選單「設定 → 測試版號」入口 ── -->
             <div id="testVersionsWorkspace" class="flex-1 overflow-y-auto p-6 bg-amber-50/30 hidden">
                 <div class="max-w-7xl mx-auto">
@@ -4641,40 +4607,6 @@ driver.swipe(100, 800, 100, 200, 500)"
             <!-- ════════════════════════════════════════════════════════════════
                  7 個對應的 Modal（建立 / 編輯）
                  ════════════════════════════════════════════════════════════════ -->
-
-            <!-- 測試專案 Modal -->
-            <div id="testProjectModal" class="hidden fixed inset-0 z-[150] bg-black/40 flex items-center justify-center p-4">
-                <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl border border-amber-200 max-h-[90vh] overflow-y-auto">
-                    <div class="px-6 py-4 border-b border-stone-200 bg-amber-50/60 flex items-center justify-between">
-                        <h3 id="testProjectModalTitle" class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-folder-tree text-amber-500"></i> 新增測試專案</h3>
-                        <button type="button" onclick="closeTestProjectModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
-                    </div>
-                    <form onsubmit="return testProjectSubmit(event)" class="p-6 space-y-3">
-                        <div><label for="tprjName" class="block text-xs font-semibold text-stone-600 mb-1">專案名稱 *</label><input type="text" id="tprjName" aria-label="專案名稱" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
-                        <div><label for="tprjDesc" class="block text-xs font-semibold text-stone-600 mb-1">專案簡介</label><textarea id="tprjDesc" aria-label="專案簡介" rows="2" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
-                        <div class="grid grid-cols-2 gap-3">
-                            <div><label for="tprjStatus" class="block text-xs font-semibold text-stone-600 mb-1">狀態</label>
-                                <select id="tprjStatus" aria-label="狀態" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
-                                    <option value="New">新建立</option>
-                                    <option value="Assigned">等待處理</option>
-                                    <option value="InProgress" selected>進行中</option>
-                                    <option value="InReview">等待審核</option>
-                                    <option value="ReworkRequired">退回修改</option>
-                                    <option value="Verified">已驗證</option>
-                                    <option value="Closed">已關閉</option>
-                                </select>
-                            </div>
-                            <div><label for="tprjOwner" class="block text-xs font-semibold text-stone-600 mb-1">負責人</label><input type="text" id="tprjOwner" aria-label="負責人" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
-                        </div>
-                        <div class="grid grid-cols-2 gap-3">
-                            <div><label for="tprjStart" class="block text-xs font-semibold text-stone-600 mb-1">起始日期</label><span class="date-zh"><input type="date" id="tprjStart" aria-label="起始日期" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></span></div>
-                            <div><label for="tprjTarget" class="block text-xs font-semibold text-stone-600 mb-1">目標日期</label><span class="date-zh"><input type="date" id="tprjTarget" aria-label="目標日期" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></span></div>
-                        </div>
-                        <div><label for="tprjTags" class="block text-xs font-semibold text-stone-600 mb-1">標籤（用逗號分隔）</label><input type="text" id="tprjTags" aria-label="標籤" placeholder="UI, API, 回歸" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
-                        <div class="flex justify-end gap-2 pt-2"><button type="button" onclick="closeTestProjectModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button><button type="submit" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button></div>
-                    </form>
-                </div>
-            </div>
 
             <!-- 測試資料集 Modal -->
             <div id="testDataSetModal" class="hidden fixed inset-0 z-[150] bg-black/40 flex items-center justify-center p-4">
@@ -5245,7 +5177,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                     '#testdocuments':   'testDocumentsWorkspace',
                     '#wbs':             'wbsWorkspace',
                     '#backlog':         'backlogWorkspace',
-                    '#testprojects':    'testProjectsWorkspace',
                     '#testversions':    'testVersionsWorkspace',
                     '#testdatasets':    'testDataSetsWorkspace',
                     '#testmilestones':  'testMilestonesWorkspace',
@@ -8436,7 +8367,6 @@ driver.swipe(100, 800, 100, 200, 500)"
             'nav.section.planning': { 'zh-TW': '規劃', 'en': 'PLAN' },
             'nav.section.settings': { 'zh-TW': '設定', 'en': 'CONFIG' },
             'nav.section.execution': { 'zh-TW': '執行 / 監控', 'en': 'RUN / MONITOR' },
-            'nav.testProjects': { 'zh-TW': '測試專案', 'en': 'Projects' },
             'nav.wbs': { 'zh-TW': 'WBS', 'en': 'WBS' },
             'nav.testPlan': { 'zh-TW': '測試計畫', 'en': 'Test Plan' },
             'nav.requirements': { 'zh-TW': '需求/RTM', 'en': 'Reqs / RTM' },
@@ -8468,7 +8398,6 @@ driver.swipe(100, 800, 100, 200, 500)"
             'settings.title': { 'zh-TW': '設定', 'en': 'Settings' },
             'settings.title.short': { 'zh-TW': '設定', 'en': 'Settings' },
             // 各 view 的長/短標題(viewTitle 大標 / viewFilename 麵包屑)
-            'view.testProjects.title': { 'zh-TW': '測試專案', 'en': 'Test Projects' },
             'view.testVersions.title': { 'zh-TW': '測試版號', 'en': 'Test Versions' },
             'nav.testVersions': { 'zh-TW': '測試版號', 'en': 'Test Versions' },
             'view.wbs.title': { 'zh-TW': 'WBS 工作分解結構', 'en': 'WBS' },
@@ -9106,7 +9035,6 @@ driver.swipe(100, 800, 100, 200, 500)"
         '新增案例': 'New case',
         '新增步驟': 'Add step',
         '新增測試回合': 'New test round',
-        '新增測試專案': 'New test project',
         '新增測試文件': 'New test document',
         '新增測試時程': 'New milestone',
         '新增測試案例': 'New test case',
@@ -9209,7 +9137,6 @@ driver.swipe(100, 800, 100, 200, 500)"
         '測試名稱': 'Test name',
         '測試回合': 'Test Rounds',
         '測試報告': 'Test Reports',
-        '測試專案': 'Test Projects',
         '測試排程': 'Test Schedules',
         '測試文件': 'Test Documents',
         '測試時程': 'Test Milestones',
@@ -10988,7 +10915,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 'showDevicesView', 'showDbConfigView', 'showMockView',
                 'showScheduleView', 'showDefectsView', 'showTestMilestonesView',
                 'showTestPlanView', 'showRequirementsView',
-                'showTestProjectsView', 'showTestDataSetsView',
+                'showTestDataSetsView',
                 'showTestDocumentsView', 'showWbsView', 'showBacklogView',
             ];
             const _hashToFn = {};   // '#defects' → 'showDefectsView'
@@ -11920,7 +11847,6 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('testMilestonesWorkspace')?.classList.add('hidden');
             document.getElementById('testPlansWorkspace')?.classList.add('hidden');
             document.getElementById('requirementsWorkspace')?.classList.add('hidden');
-            document.getElementById('testProjectsWorkspace')?.classList.add('hidden');
             document.getElementById('testVersionsWorkspace')?.classList.add('hidden');
             document.getElementById('testDataSetsWorkspace')?.classList.add('hidden');
             document.getElementById('testDocumentsWorkspace')?.classList.add('hidden');
@@ -18816,117 +18742,6 @@ gantt
         }
 
 
-        // ─── 測試專案 (Test Projects) ────────────────────────────────────
-        let _testProjectsCache = [];
-        let _editingTestProjectId = null;
-        function showTestProjectsView() {
-            if (!_setView('testProjectsWorkspace',
-                '<i class="fa-solid fa-folder-tree text-amber-500"></i> 測試專案',
-                'Projects',
-                'bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium',
-                '測試專案',
-                { titleKey: 'view.testProjects.title', filenameKey: 'view.testProjects.title' })) return false;
-            renderTestProjectsList();
-        }
-        async function renderTestProjectsList() {
-            const tbody = document.getElementById('tprjListBody');
-            const cnt = document.getElementById('tprjListCount');
-            if (!tbody) return;
-            tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-stone-400">載入中…</td></tr>';
-            try {
-                const res = await fetch('/api/projects');
-                if (!res.ok) throw new Error('HTTP '+res.status);
-                _testProjectsCache = await res.json();
-                const kw = (document.getElementById('tprjSearch')?.value || '').toLowerCase().trim();
-                const st = document.getElementById('tprjStatusFilter')?.value;
-                let rows = _testProjectsCache;
-                if (kw) rows = rows.filter(r => (r.name||'').toLowerCase().includes(kw));
-                if (st) rows = rows.filter(r => r.status === st);
-                cnt.textContent = rows.length;
-                if (!rows.length) { tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-stone-400">尚無專案</td></tr>'; return; }
-                // 統一 7 值狀態 + 舊值相容
-                const stColor = {
-                    New:'bg-blue-100 text-blue-700', Assigned:'bg-purple-100 text-purple-700',
-                    InProgress:'bg-amber-100 text-amber-700', InReview:'bg-cyan-100 text-cyan-700',
-                    ReworkRequired:'bg-rose-100 text-rose-700', Verified:'bg-emerald-100 text-emerald-700',
-                    Closed:'bg-stone-200 text-stone-500',
-                    Planning:'bg-stone-100 text-stone-600', Active:'bg-emerald-100 text-emerald-700', OnHold:'bg-amber-100 text-amber-700', Archived:'bg-stone-200 text-stone-500',
-                };
-                tbody.innerHTML = rows.map(r => `<tr class="hover:bg-amber-50/30">
-                    <td class="p-3"><div class="font-semibold text-stone-800">${_esc(r.name)}</div>${r.description ? `<div class="text-[11px] text-stone-500 line-clamp-1">${_esc(r.description)}</div>` : ''}</td>
-                    <td class="p-3"><span class="text-xs px-2 py-0.5 rounded font-medium ${stColor[r.status]||'bg-stone-100'}">${_esc(_zh('tprjStatus', r.status))}</span></td>
-                    <td class="p-3 text-xs text-stone-600">${_esc(r.owner||'—')}</td>
-                    <td class="p-3 text-xs font-mono">${_esc(r.start_date||'—')}</td>
-                    <td class="p-3 text-xs font-mono">${_esc(r.target_date||'—')}</td>
-                    <td class="p-3 text-xs text-stone-500">${_esc(r.tags||'')}</td>
-                    <td class="p-3 text-center whitespace-nowrap space-x-1">
-                        <button onclick="testProjectActivate('${_esc(r.id)}')" title="切換為當前專案" class="text-xs px-2 py-1 bg-amber-100 text-amber-700 border border-amber-200 hover:bg-amber-200 rounded"><i class="fa-solid fa-arrow-right-to-bracket"></i></button>
-                        <button onclick="openTestProjectModal('${_esc(r.id)}')" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded"><i class="fa-solid fa-pen"></i></button>
-                        <button onclick="deleteTestProject('${_esc(r.id)}','${_esc(r.name)}')" class="text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded"><i class="fa-solid fa-trash"></i></button>
-                    </td>
-                </tr>`).join('');
-            } catch(e) {
-                tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-red-500">載入失敗：${_esc(e.message)}</td></tr>`;
-            }
-        }
-        function openTestProjectModal(id) {
-            _editingTestProjectId = id || null;
-            const r = id ? _testProjectsCache.find(x => x.id === id) : null;
-            document.getElementById('testProjectModalTitle').innerHTML = r ? `<i class="fa-solid fa-folder-tree text-amber-500"></i> 編輯專案 ${_esc(r.name)}` : '<i class="fa-solid fa-folder-tree text-amber-500"></i> 新增測試專案';
-            document.getElementById('tprjName').value = r?.name || '';
-            document.getElementById('tprjDesc').value = r?.description || '';
-            document.getElementById('tprjStatus').value = r?.status || 'InProgress';
-            document.getElementById('tprjOwner').value = r?.owner || (typeof authCurrentUsername === 'function' ? (authCurrentUsername()||'') : '');
-            document.getElementById('tprjStart').value = r?.start_date || '';
-            document.getElementById('tprjTarget').value = r?.target_date || '';
-            document.getElementById('tprjTags').value = r?.tags || '';
-            document.getElementById('testProjectModal').classList.remove('hidden');
-        }
-        function closeTestProjectModal() { document.getElementById('testProjectModal').classList.add('hidden'); }
-        async function testProjectSubmit(ev) {
-            ev.preventDefault();
-            const payload = {
-                name: document.getElementById('tprjName').value.trim(),
-                description: document.getElementById('tprjDesc').value || null,
-                status: document.getElementById('tprjStatus').value,
-                owner: document.getElementById('tprjOwner').value.trim() || null,
-                start_date: document.getElementById('tprjStart').value || null,
-                target_date: document.getElementById('tprjTarget').value || null,
-                tags: document.getElementById('tprjTags').value.trim() || null,
-            };
-            try {
-                const url = _editingTestProjectId ? '/api/projects/'+_editingTestProjectId : '/api/projects';
-                const method = _editingTestProjectId ? 'PUT' : 'POST';
-                const res = await fetch(url, {method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
-                if (!res.ok) throw new Error('HTTP '+res.status);
-                showToast(_editingTestProjectId ? '已更新' : '已建立', 'success');
-                closeTestProjectModal();
-                renderTestProjectsList();
-                if (typeof loadProjectList === 'function') loadProjectList();  // 同步左側專案下拉
-            } catch(e) { showToast('儲存失敗：'+e.message, 'error'); }
-            return false;
-        }
-        async function deleteTestProject(id, name) {
-            if (!confirm(`確定刪除專案「${name}」？此操作會連帶刪除其下所有節點與案例！`)) return;
-            try {
-                const res = await fetch('/api/projects/'+id, {method:'DELETE'});
-                if (!res.ok && res.status !== 204) throw new Error('HTTP '+res.status);
-                showToast('已刪除', 'success');
-                renderTestProjectsList();
-                if (typeof loadProjectList === 'function') loadProjectList();
-            } catch(e) { showToast('刪除失敗：'+e.message, 'error'); }
-        }
-        function testProjectActivate(id) {
-            if (typeof setCurrentProject === 'function') {
-                setCurrentProject(id);
-                showToast('已切換為當前專案', 'success');
-            } else {
-                window.currentProjectId = id;
-                showToast('已切換為當前專案', 'success');
-            }
-        }
-
-        // ─── 測試資料集 (Test Data Set / DDT) ────────────────────────────
         let _dataSetsCache = [];
         let _editingDataSetId = null;
         let _dsCols = [];        // 編輯中的欄位名稱列表
