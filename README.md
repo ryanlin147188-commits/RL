@@ -55,6 +55,42 @@ concept), `active_org_id` cookie signing, `/auth/change-password` and
 `/auth/profile-setup` (could be `UserManager._update`-ified but pure
 cosmetic), and the artifact signed-URL JWTs (separate purpose, not auth).
 
+### 🧹 Ops runbook: container log rotation is required
+
+The Docker daemon ships **without** log rotation by default — container
+logs will grow without bound and eventually fill the disk. After
+deploying this stack, set a host-level daemon config once:
+
+```bash
+sudo tee /etc/docker/daemon.json >/dev/null <<'EOF'
+{
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3"
+  }
+}
+EOF
+sudo systemctl restart docker
+```
+
+This caps every container's logs at `10MB × 3 files = 30MB`. New writes
+rotate over the oldest file. All 16 services under `docker compose up`
+inherit the rule. **One-time setup — don't repeat per deploy.**
+
+To reclaim already-grown logs, truncate them in-place:
+
+```bash
+sudo find /var/lib/docker/containers -name '*-json.log' -exec truncate -s 0 {} +
+```
+
+Orphan cleanup: `docker volume prune -f` + `docker image prune -f` +
+`docker builder prune -af`. **Do NOT run** `docker image prune -a -f` —
+the platform spawns `autotest-robot-runner` / `autotest-recorder` /
+`autotest-mcp` on demand via `docker.sock`, and those images aren't
+held by long-running containers; a blanket `-a` prune deletes them and
+breaks test execution.
+
 ---
 
 ## 🔥 v1.1.8 — Auth router actually goes through fastapi-users (v1.1.7 was wired but unused)

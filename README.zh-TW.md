@@ -51,6 +51,38 @@ v1.1.8 補完之後最高價值的兩個剩下缺口:
 (這兩支可以再進一步 UserManager._update 化,但純 cosmetic 沒有
 security/maintainability 收益)、artifact signed URL(不是 auth concern)。
 
+### 🧹 Ops runbook:container log rotation 必設
+
+Docker daemon 預設 **沒有** log rotation,container log 會無上限成長吃光磁碟。
+部署這套 stack 後請立刻設一份 host 級 daemon config:
+
+```bash
+sudo tee /etc/docker/daemon.json >/dev/null <<'EOF'
+{
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3"
+  }
+}
+EOF
+sudo systemctl restart docker
+```
+
+效果:所有 container log 走 `10MB × 3 份 = 30MB` 上限,寫滿後自動 rotate
+覆蓋最舊的那份。`docker compose up` 起來的 16 個 service 都吃這條規則。
+**這條設一次就好,不必每次部署重設。**
+
+歷史 log 已經肥的話手動 truncate 一次:
+
+```bash
+sudo find /var/lib/docker/containers -name '*-json.log' -exec truncate -s 0 {} +
+```
+
+orphan volume / image 清理:`docker volume prune -f` + `docker image prune -f` +
+`docker builder prune -af`。**不要**跑 `docker image prune -a -f`,會把
+on-demand spawn 的 robot-runner / recorder / mcp 砍掉,平台跑測試會卡。
+
 ---
 
 ## 🔥 v1.1.8 — Auth router 真的走 fastapi-users(v1.1.7 是 wired but unused)

@@ -4,6 +4,14 @@
 # - Preloaded image bundle: docker compose up -d --no-build
 # - Backend debug: AUTOTEST_DEBUG=True docker compose up -d --force-recreate backend
 #
+# 注意:container log rotation 沒寫進每個 service 的 ``logging:`` block(會多
+# 16 處 boilerplate),改為部署時在 host 端設一份 ``/etc/docker/daemon.json``:
+#
+#     {"log-driver": "json-file", "log-opts": {"max-size": "10m", "max-file": "3"}}
+#
+# 然後 ``sudo systemctl restart docker``。所有 container 的 log 都會走 10MB ×
+# 3 份 = 30MB 上限。詳見 README v1.1.8.x 部署段落。
+#
 services:
   # ── PostgreSQL：原 MySQL，改為 PostgreSQL（PostgreSQL License，類 MIT）─────────
   postgres:
