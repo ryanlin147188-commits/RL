@@ -40,6 +40,10 @@ class PasswordResetToken(Base):
     username: Mapped[str] = mapped_column(
         String(80), ForeignKey("users.username", ondelete="CASCADE"), nullable=False, index=True,
     )
+    # v1.1.7 Phase 3 shadow column。Phase 7 換 PK 時 user_id 升格成 FK。
+    user_id: Mapped[Optional[str]] = mapped_column(
+        String(36), nullable=True, index=True,
+    )
     # 寄信送達的 email(存下來 audit 用,跟 user.email 可能不同 — 例如使用者
     # 後續又換了 email,我們仍能追溯這封信當時是寄到哪裡)。
     email_sent_to: Mapped[str] = mapped_column(String(255), nullable=False)
