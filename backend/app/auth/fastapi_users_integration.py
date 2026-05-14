@@ -123,6 +123,77 @@ class UserManager(BaseUserManager[User, str]):
             await self.user_db.update(user, {"hashed_password": updated_hash})
         return user
 
+    # ─ OIDC / OAuth JIT(v1.1.8.1 Task 5)─────────────────────────────
+    async def get_or_provision_via_oidc(
+        self,
+        provider: str,
+        sub: str,
+        email: Optional[str],
+        display_name: Optional[str],
+    ) -> User:
+        """OIDC JIT provisioning,搬到 UserManager 統一管理。
+
+        替代 ``routers/oidc_auth.py::_provision_from_claims``。lookup 順序:
+
+        1. ``(oidc_provider, oidc_subject)`` 對齊 → 已綁定的回鍋使用者
+        2. ``email`` 對齊 → 之前是本地帳號 / 第一次走 SSO,binding 過去
+        3. 都沒有 → 用 ``password_helper.hash(random)`` 建一個 SSO-only user
+
+        binding 跟建 user 過程仍維持「不會洩漏既有 active_org / role 結構」的
+        v1.1.5 設計;Casbin sync hook 由 router 自己呼(這支只負責 User row)。
+
+        ``password_helper`` 來自 fastapi-users(argon2);SSO-only 帳號的密碼
+        hash 是 32-byte 隨機,使用者不能用它走密碼登入,管理員後續要讓他能
+        密碼登入再走 ``/auth/users/{u}/reset-password``。
+        """
+        import secrets as _secrets
+
+        # 1) by (provider, sub)
+        row = await self.user_db.session.execute(  # type: ignore[attr-defined]
+            select(User)
+            .where(User.oidc_provider == provider)
+            .where(User.oidc_subject == sub)
+        )
+        user = row.scalar_one_or_none()
+
+        # 2) by email — binding 上去
+        if user is None and email:
+            row = await self.user_db.session.execute(  # type: ignore[attr-defined]
+                select(User).where(User.email == email)
+            )
+            user = row.scalar_one_or_none()
+            if user is not None:
+                user.oidc_provider = provider
+                user.oidc_subject = sub
+
+        if user is not None:
+            if not user.is_active:
+                raise fa_exc.UserInactive()
+            # 同步最新 display_name
+            if display_name and user.display_name != display_name:
+                user.display_name = display_name
+            return user
+
+        # 3) JIT 新建。密碼 hash 走 fastapi-users PasswordHelper(argon2)。
+        username = (email or sub).lower()
+        new_user = User(
+            username=username,
+            display_name=display_name or username,
+            email=email,
+            password_hash=self.password_helper.hash(_secrets.token_urlsafe(32)),
+            oidc_provider=provider,
+            oidc_subject=sub,
+            is_active=True,
+            is_superuser=False,
+        )
+        self.user_db.session.add(new_user)  # type: ignore[attr-defined]
+        await self.user_db.session.flush()  # type: ignore[attr-defined]
+        # 跑一次 on_after_register hook(目前內含 must_change_password=True 邏輯
+        # — SSO 進來的人不必首登改密碼,所以 SSO 路徑要把 flag 拔掉)
+        await self.on_after_register(new_user)
+        new_user.must_change_password = False
+        return new_user
+
     # ─ Lifecycle hooks ───────────────────────────────────────────────
     async def on_after_register(
         self, user: User, request: Optional[Request] = None
@@ -148,30 +219,43 @@ async def get_user_manager(
 # SPA / Casbin / audit log 全部認 username — 換掉等於要動 SPA 100+ callsite。
 # 這支改 sub = username,token shape 跟 v1.1.7 之前完全一樣,新舊 token 互通。
 
+def decode_access_token_payload(token: str) -> dict:
+    """Single source of truth for「我們系統認為 access token 長什麼樣子」。
+
+    v1.1.8.1 把這個 decode 邏輯從 :func:`app.auth.security.decode_token` 移過來,
+    讓 middleware + fastapi-users 的 ``read_token`` 共用同一段。callers:
+
+    * :class:`UsernameSubJWTStrategy.read_token` — Depends(current_active_user) 走的 path
+    * :class:`app.middleware.AuthMiddleware` — 每個 /api/* request 進來時的 pre-route 攔截
+
+    成功 → 回 payload dict。失敗(過期 / 簽章錯 / typ 不是 access)→ 拋
+    :class:`jwt.PyJWTError` 的子例外,caller 決定要 401 還是 None。
+    """
+    data = jwt.decode(
+        token,
+        JWT_SECRET,
+        algorithms=[JWT_ALGORITHM],
+        audience=None,
+        options={"verify_aud": False},
+    )
+    if data.get("typ") != "access":
+        # 用 InvalidTokenError 而非 ValueError,讓 caller 可以 catch jwt.PyJWTError。
+        raise jwt.InvalidTokenError("需要 access token(不是 refresh token)")
+    return data
+
+
 class UsernameSubJWTStrategy(JWTStrategy[User, str]):
     async def read_token(
         self, token: Optional[str], user_manager: BaseUserManager[User, str]
     ) -> Optional[User]:
         if token is None:
             return None
-        # 不用 fastapi-users.jwt.decode_jwt — 它強制要 aud claim,但我們既有
-        # token 沒有(對齊 v1.1.7 之前的格式)。直接用 PyJWT 並 audience=None
-        # 跳過該檢查。
         try:
-            data = jwt.decode(
-                token,
-                self.decode_key,
-                algorithms=[self.algorithm],
-                audience=None,
-                options={"verify_aud": False},
-            )
+            data = decode_access_token_payload(token)
         except jwt.PyJWTError:
             return None
         sub = data.get("sub")
         if sub is None:
-            return None
-        # access token only,refresh 不能拿來認 user。
-        if data.get("typ") != "access":
             return None
         try:
             assert isinstance(user_manager, UserManager)
@@ -316,4 +400,5 @@ __all__ = [
     "get_user_db",
     "get_user_manager",
     "get_jwt_strategy",
+    "decode_access_token_payload",
 ]

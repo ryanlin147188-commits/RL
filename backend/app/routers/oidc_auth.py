@@ -35,6 +35,11 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import oidc as _oidc
+from app.auth.fastapi_users_integration import (
+    UserManager,
+    get_jwt_strategy,
+    get_user_manager,
+)
 from app.auth.security import (
     ACCESS_TOKEN_TTL_MINUTES,
     ACTIVE_ORG_COOKIE_NAME,
@@ -42,7 +47,6 @@ from app.auth.security import (
     JWT_ALGORITHM,
     JWT_SECRET,
     REFRESH_TOKEN_TTL_DAYS,
-    create_access_token,
     create_refresh_token,
     sign_active_org_cookie,
 )
@@ -140,6 +144,7 @@ async def oidc_callback(
     error_description: Optional[str] = Query(None),
     state_cookie: Optional[str] = Cookie(None, alias=_STATE_COOKIE_NAME),
     db: AsyncSession = Depends(get_db),
+    user_manager: UserManager = Depends(get_user_manager),
 ):
     if error:
         return RedirectResponse(
@@ -188,14 +193,27 @@ async def oidc_callback(
             status_code=302,
         )
 
-    # JIT provisioning(in-line,複用 security helpers)
-    user = await _provision_from_claims(db, provider, claims)
-    user.last_login_at = datetime.utcnow()
+    # v1.1.8.1 Task 5:JIT 走 UserManager.get_or_provision_via_oidc。
+    # password_helper / on_after_register hook / Casbin sync 都在 UserManager
+    # 統一管理,routers/oidc_auth.py 不再自己 hash 密碼或塞 User row。
+    try:
+        user = await user_manager.get_or_provision_via_oidc(
+            provider=provider,
+            sub=claims["sub"],
+            email=claims.get("email"),
+            display_name=claims.get("display_name"),
+        )
+    except Exception as exc:
+        logger.warning("OIDC JIT provisioning failed: %s", exc)
+        return RedirectResponse(
+            f"/?oidc_error=provision&desc={str(exc)[:200]}", status_code=302,
+        )
+    await user_manager.on_after_login(user, request=request)
     await db.commit()
 
-    # 自簽 HS256 token 給 SPA — 同 v1.1.2 密碼登入路徑,middleware 一視同仁
-    extra = {"org_id": user.organization_id, "is_superuser": user.is_superuser}
-    access = create_access_token(user.username, extra=extra)
+    # Access token 走 fastapi-users 的 JWTStrategy。refresh token 仍手刻
+    # (fastapi-users 13 沒 refresh 概念)。
+    access = await get_jwt_strategy().write_token(user)
     refresh = create_refresh_token(user.username)
 
     target = decoded.get("redirect_to") or "/"
@@ -225,70 +243,6 @@ async def oidc_callback(
     return resp
 
 
-# ── JIT provisioning helper ────────────────────────────────────────────
-
-
-async def _provision_from_claims(db: AsyncSession, provider: str, claims: dict):
-    """根據 normalized claims(``{sub, email, display_name}``)找/建 user。
-
-    優先順序:
-    1. ``(oidc_provider, oidc_subject)`` 對齊 → 已綁定的回鍋使用者
-    2. ``email`` 對齊 → 之前是本地帳號 / 第一次走 SSO,直接綁上去
-    3. 都沒有 → JIT 新建 user;role_id = NULL,沒 OrgMembership,
-       使用者看得到 ``/api/auth/me`` 但所有專案級端點 deny(Casbin
-       fail-closed)。管理員後續可在「設定 → 專案協作成員」加入專案。
-    """
-    import secrets as _secrets
-
-    from sqlalchemy import select
-
-    from app.auth.security import hash_password
-    from app.models.user import User
-
-    sub = claims["sub"]
-    email = claims.get("email")
-    display = claims.get("display_name")
-
-    # 1) by (provider, sub)
-    user = (
-        await db.execute(
-            select(User)
-            .where(User.oidc_provider == provider)
-            .where(User.oidc_subject == sub)
-        )
-    ).scalar_one_or_none()
-
-    # 2) by email(沒綁過任何 provider)
-    if user is None and email:
-        user = (
-            await db.execute(select(User).where(User.email == email))
-        ).scalar_one_or_none()
-        if user is not None:
-            user.oidc_provider = provider
-            user.oidc_subject = sub
-
-    if user is not None:
-        if not user.is_active:
-            raise HTTPException(403, f"使用者「{user.username}」已被停用")
-        # 更新 display_name 為最新值(讓 IdP 端改名能反映過來)
-        if display and user.display_name != display:
-            user.display_name = display
-        return user
-
-    # 3) JIT 新建
-    username = (email or sub).lower()
-    # 跟 SSO-only 走的路徑一樣:password_hash 用隨機 32 byte;管理員之後
-    # 想讓他用密碼登入再走 ``/auth/users/{username}/reset-password``。
-    user = User(
-        username=username,
-        display_name=display or username,
-        email=email,
-        password_hash=hash_password(_secrets.token_urlsafe(32)),
-        oidc_provider=provider,
-        oidc_subject=sub,
-        is_active=True,
-        is_superuser=False,
-    )
-    db.add(user)
-    await db.flush()
-    return user
+# v1.1.8.1 Task 5:之前在這裡的 ``_provision_from_claims`` 已搬到
+# :meth:`UserManager.get_or_provision_via_oidc`,callback 直接用 dep 取
+# user_manager 後呼這個方法。router 不再自己 hash 密碼或建 User row。

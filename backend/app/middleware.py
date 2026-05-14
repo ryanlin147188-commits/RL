@@ -20,10 +20,14 @@ from app.auth.context import (
     reset_request_context,
     set_request_context,
 )
+# v1.1.8.1 Task 1:JWT decode 集中到 fastapi_users_integration,middleware 跟
+# fastapi-users 的 read_token 共用同一份 JWT 規格定義。本檔不再自己呼
+# ``security.decode_token`` — 改透過 ``decode_access_token_payload``,內部仍
+# 是 PyJWT 解碼,只是出處變成 fastapi-users 整合層,避免兩處規格漂移。
+from app.auth.fastapi_users_integration import decode_access_token_payload
 from app.auth.revocation import is_revoked
 from app.auth.security import (
     ACTIVE_ORG_COOKIE_NAME,
-    decode_token,
     verify_active_org_cookie,
 )
 
@@ -139,7 +143,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             payload: dict | None = None
             if token:
                 try:
-                    payload = decode_token(token)
+                    payload = decode_access_token_payload(token)
                 except pyjwt.PyJWTError:
                     payload = None
             request.state.user_payload = payload
@@ -149,7 +153,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
             finally:
                 reset_request_context(snap)
 
-        # /api/* — 必須有有效 access token
+        # /api/* — 必須有有效 access token。decode_access_token_payload 內含
+        # ``typ == access`` 檢查,refresh token 拿來打 /api/* 會直接被擋下。
         token = _extract_token(request)
         if not token:
             return JSONResponse(
@@ -157,16 +162,11 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 status_code=401,
             )
         try:
-            payload = decode_token(token)
+            payload = decode_access_token_payload(token)
         except pyjwt.ExpiredSignatureError:
             return JSONResponse({"detail": "Token 已過期，請重新登入"}, status_code=401)
         except pyjwt.PyJWTError as e:
             return JSONResponse({"detail": f"Token 無效：{e}"}, status_code=401)
-
-        if payload.get("typ") != "access":
-            return JSONResponse(
-                {"detail": "需要 access token（不是 refresh token）"}, status_code=401
-            )
 
         # Token revocation check — rejects logged-out tokens before the handler
         # runs. Fail-open if the cache is unreachable (see revocation.is_revoked).

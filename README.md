@@ -28,6 +28,35 @@
 
 ---
 
+## 🔥 v1.1.8.1 — Middleware decode + OIDC JIT also go through fastapi-users
+
+Follow-up to v1.1.8: close the two highest-value remaining gaps where
+hand-rolled code lived alongside the fastapi-users primitives.
+
+- **Task 1 — Middleware JWT decode**: `app.middleware.AuthMiddleware` no
+  longer imports `app.auth.security.decode_token`. It now calls
+  `fastapi_users_integration.decode_access_token_payload`, which is the
+  same function `UsernameSubJWTStrategy.read_token` uses. There is now a
+  **single source of truth** for "what does a valid access token look
+  like" — the dependency chain and the middleware can never drift apart.
+  The `typ == "access"` check is also pulled into that helper, so
+  refresh tokens sent to `/api/*` get a 401 from the same code path.
+- **Task 5 — OIDC JIT through UserManager**: `routers/oidc_auth.py` no
+  longer hand-rolls the "by (provider, sub) → by email → create" flow.
+  The logic now lives on `UserManager.get_or_provision_via_oidc()`, and
+  the Zoho callback resolves a `user_manager` dependency and calls into
+  it. SSO-created users now get **argon2** password hashes (via
+  PasswordHelper) rather than bcrypt — direct verify in the container
+  confirms `$argon2id$...`. Access token issuance also moves from
+  hand-rolled `create_access_token` to `JWTStrategy.write_token`.
+
+Intentionally still hand-rolled: refresh tokens (fastapi-users 13 has no
+concept), `active_org_id` cookie signing, `/auth/change-password` and
+`/auth/profile-setup` (could be `UserManager._update`-ified but pure
+cosmetic), and the artifact signed-URL JWTs (separate purpose, not auth).
+
+---
+
 ## 🔥 v1.1.8 — Auth router actually goes through fastapi-users (v1.1.7 was wired but unused)
 
 Straight talk: v1.1.7 imported fastapi-users, wrote the integration module,

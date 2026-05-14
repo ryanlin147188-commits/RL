@@ -28,6 +28,31 @@
 
 ---
 
+## 🔥 v1.1.8.1 — Middleware JWT decode 跟 OIDC JIT 也走 fastapi-users
+
+v1.1.8 補完之後最高價值的兩個剩下缺口:
+
+- **Task 1 — Middleware JWT decode**:`app.middleware.AuthMiddleware` 不再
+  import `app.auth.security.decode_token`,改呼
+  `fastapi_users_integration.decode_access_token_payload` — 跟
+  `UsernameSubJWTStrategy.read_token` 同一支。**JWT 規格只有一個權威**,
+  middleware 跟 dependency 不可能再漂移開。`typ == "access"` 檢查也搬進這
+  支 helper,refresh token 拿來打 /api/* 由同一段 code 給 401。
+- **Task 5 — OIDC JIT 走 UserManager**:`routers/oidc_auth.py` 不再自己刻
+  「by (provider, sub) → by email → 建 user」流程,搬到
+  `UserManager.get_or_provision_via_oidc()`。Zoho callback 拿 user_manager
+  依賴然後直接呼這個方法。SSO 進來建的使用者現在拿 **argon2** hash(走
+  PasswordHelper)而不是舊的 bcrypt — 直接在 container 內 verify 印出
+  `$argon2id$...`。Access token issuance 也從手刻 `create_access_token`
+  改成 `JWTStrategy.write_token`。
+
+刻意保留手刻的:refresh token(fastapi-users 13 沒這概念)、
+`active_org_id` cookie、`/auth/change-password` / `/auth/profile-setup`
+(這兩支可以再進一步 UserManager._update 化,但純 cosmetic 沒有
+security/maintainability 收益)、artifact signed URL(不是 auth concern)。
+
+---
+
 ## 🔥 v1.1.8 — Auth router 真的走 fastapi-users(v1.1.7 是 wired but unused)
 
 老實話:v1.1.7 雖然 import 了 fastapi-users 進去、寫了一支整合 module、跑了
