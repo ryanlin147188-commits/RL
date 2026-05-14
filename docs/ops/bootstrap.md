@@ -4,7 +4,7 @@ A fresh AutoTest deployment **automatically seeds a default admin** on first
 backend start. There is no longer a self-service registration path or invite
 mint endpoint — every account in the system is created by an admin.
 
-## TL;DR — first login
+## TL;DR — first login (v1.1.5+)
 
 ```
 帳號:   admin
@@ -16,6 +16,26 @@ the API returns `must_change_password=true` on `/auth/login`, and every
 non-`/auth/me` / non-`/auth/change-password` endpoint returns `403`
 until the password is rotated. The frontend pops a forced-change modal
 that blocks all other UI.
+
+## Optional: enable Zoho OIDC SSO
+
+v1.1.5 起 OIDC 走 in-process `authlib`,不需要 Casdoor sidecar。設好 `.env`
+即生效:
+
+```bash
+# 1. https://api-console.zoho.com → Add Client → Server-based Applications
+#    Authorized Redirect URIs: http://<host>/api/auth/zoho/callback
+# 2. 把 client_id / secret 寫進 .env:
+echo "ZOHO_CLIENT_ID=<id>" >> .env
+echo "ZOHO_CLIENT_SECRET=<secret>" >> .env
+echo "ZOHO_REDIRECT_URL=http://<host>/api/auth/zoho/callback" >> .env
+docker compose up -d --force-recreate backend
+# 3. 重整 SPA 登入頁 — 橘色「使用 Zoho 登入」按鈕出現
+```
+
+第一次走 Zoho 登入的使用者會 JIT 建本地 `users` row(`oidc_provider='zoho'`
++ `oidc_subject=<Zoho ZUID>`),`role_id=NULL`、沒任何 `project_members`。
+管理員到「設定 → 專案協作成員」分配後該使用者才能進專案。
 
 ## How the seed works
 
@@ -117,3 +137,53 @@ docker exec autotest-postgres psql -U admin -d autotest_db -c \
 | `python -m app.cli create-admin` | CLI 仍可用,但不再是「首次部署必跑」 — 系統會自動 seed |
 
 `AUTOTEST_BOOTSTRAP_TOKEN` env var 已不再被 backend 讀取 — 設了也不會啟用任何流程。
+
+---
+
+## HTTPS / 自簽憑證(v1.1.2+)
+
+從 v1.1.2 起,frontend container 同時 listen `:80`(HTTP)和 `:443`(HTTPS)。
+HTTPS 走 **build-time 產的自簽憑證**(`CN=autotest-platform`,10 年效期),為了讓
+Playwright Trace Viewer 用到的 SharedArrayBuffer + Service Worker 在 secure
+context 下可用(瀏覽器規定 SAB / SW 只在 HTTPS 或 `http://localhost` 啟用)。
+
+### LAN 部署接受 cert 的兩種方式
+
+**方式 A — 拖放工作流(免裝 cert,推薦)**
+
+報告頁的「**Trace Viewer**」按鈕已改成「自動下載 trace.zip + 開官方
+trace.playwright.dev」。把下載的 .zip 拖進 trace.playwright.dev 分頁即可,**完全
+不用接觸自簽憑證**。
+
+**方式 B — 把自簽 cert 加進 OS 信任(一次裝終身用)**
+
+macOS 一行:
+
+```bash
+curl -o /tmp/autotest.crt http://<server-ip>/install-cert/server.crt && \
+sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain /tmp/autotest.crt
+```
+
+Linux(Debian / Ubuntu):
+```bash
+sudo curl -o /usr/local/share/ca-certificates/autotest.crt http://<server-ip>/install-cert/server.crt
+sudo update-ca-certificates
+```
+
+Windows(PowerShell, 系統管理員):
+```powershell
+Invoke-WebRequest -Uri "http://<server-ip>/install-cert/server.crt" -OutFile "$env:TEMP\autotest.crt"
+Import-Certificate -FilePath "$env:TEMP\autotest.crt" -CertStoreLocation Cert:\LocalMachine\Root
+```
+
+裝完重啟瀏覽器,連 `https://<server-ip>/` 不再警告,Trace Viewer 自托管版本可用。
+
+### Production 部署應該換成 CA-signed cert
+
+LAN 自簽僅供 dev / staging。Production 建議:
+- 用真實 DNS + Let's Encrypt(若 server 對外可達)
+- 內部 PKI 簽發(若你公司有 CA)
+- 在 nginx 前面套 reverse proxy(Caddy / Traefik)做 TLS termination
+
+替換 cert 時:把新的 cert/key 用 `volumes:` 蓋掉 image 內的
+`/etc/nginx/certs/server.crt` + `server.key` 即可,不必重 build image。

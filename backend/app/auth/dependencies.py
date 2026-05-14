@@ -23,6 +23,7 @@ from app.models.user import User
 _PASSWORD_RESET_ALLOWED_PATHS = (
     "/api/auth/me",
     "/api/auth/change-password",
+    "/api/auth/profile-setup",  # v1.1.6:首登一次性補齊 display_name + email + 改密碼
     "/api/auth/logout",
     "/api/auth/refresh",
 )

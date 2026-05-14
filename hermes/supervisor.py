@@ -709,8 +709,24 @@ async def handle_provision(request: web.Request) -> web.Response:
     home = HERMES_DATA_ROOT / ws
     home.mkdir(parents=True, exist_ok=True)
     home.chmod(0o700)
+    # Phase 2:workspace 內分離 read-only 「original/」 與 writable 「generated/」。
+    # AI 任何意外觸發到的 filesystem 寫操作都會在 OS perm 層被擋下(hermes 跑在
+    # uid 10000,不是 root)。是「最終一道防線」— 第一道是 acp_lockdown toolset
+    # 黑名單(file/terminal/code_execution 全 disable),第二道是 system_prompt。
+    original_dir = home / "original"
+    generated_dir = home / "generated"
+    original_dir.mkdir(exist_ok=True)
+    generated_dir.mkdir(exist_ok=True)
+    # original/ 設成 r-xr-xr-x:即使 owner (hermes user) 也不能 write。要 admin
+    # 手動 chmod 0700 才能放新「原始檔」進去 → 故意設計成「pull-only」工作流。
+    original_dir.chmod(0o555)
+    generated_dir.chmod(0o775)
     env_lines = provider_env_lines(provider, api_key, base_url)
     env_lines.append(f"HERMES_HOME={home}")
+    # Phase 2:acp_lockdown 讀此 env 做 tool 層 path policy(防 MCP 外掛新增 tool
+    # 時繞過 OS perm)。冒號分隔多個 read-only roots。
+    env_lines.append(f"RL_AI_READONLY_PATHS={original_dir}")
+    env_lines.append(f"RL_AI_WRITABLE_PATHS={generated_dir}")
     env_path = home / ".env"
     env_path.write_text("\n".join(env_lines) + "\n")
     env_path.chmod(0o600)

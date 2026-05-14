@@ -333,10 +333,13 @@ async def get_report_steps(
         db, report.project_id if report else None, user, not_found_detail="Report not found"
     )
 
+    # 以執行順序呈現:created_at(整批寫入的時間,setup 整批先寫、main 後寫)
+    # 為主排序,同 testcase 內再以 step_index 排;這樣前端 bucketing 時 setup
+    # 整段會在 main 之前,且每個 case 內步驟仍依編號排。
     steps_result = await db.execute(
         select(ExecutionStepLog)
         .where(ExecutionStepLog.report_id == report_id)
-        .order_by(ExecutionStepLog.step_index)
+        .order_by(ExecutionStepLog.created_at, ExecutionStepLog.step_index)
     )
     steps = steps_result.scalars().all()
     return ReportStepsResponse(

@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
 from app.auth.dependencies import get_current_user
-from app.auth.permissions import require_permission
+from app.auth.permissions import require_casbin
 from app.auth.permissions_catalog import P
 from app.auth.project_membership import ensure_project_member
 from app.auth.scope import (
@@ -57,7 +57,7 @@ def _resolve_enum(enum_cls, val, default):
     response_model=list[DefectResponse],
     tags=["L · 缺陷管理"],
     dependencies=[
-        Depends(require_permission(P.DEFECT_READ)),
+        Depends(require_casbin(P.DEFECT_READ)),
         Depends(ensure_project_member),
     ],
 )
@@ -90,7 +90,7 @@ async def list_defects(
     response_model=DefectResponse,
     status_code=201,
     tags=["L · 缺陷管理"],
-    dependencies=[Depends(require_permission(P.DEFECT_WRITE))],
+    dependencies=[Depends(require_casbin(P.DEFECT_WRITE))],
 )
 async def create_defect(
     payload: DefectCreate,
@@ -136,7 +136,7 @@ async def create_defect(
     "/defects/{defect_id}",
     response_model=DefectResponse,
     tags=["L · 缺陷管理"],
-    dependencies=[Depends(require_permission(P.DEFECT_READ))],
+    dependencies=[Depends(require_casbin(P.DEFECT_READ))],
 )
 async def get_defect(
     defect_id: str,
@@ -154,7 +154,7 @@ async def get_defect(
     "/defects/{defect_id}",
     response_model=DefectResponse,
     tags=["L · 缺陷管理"],
-    dependencies=[Depends(require_permission(P.DEFECT_WRITE))],
+    dependencies=[Depends(require_casbin(P.DEFECT_WRITE))],
 )
 async def update_defect(
     defect_id: str,
@@ -222,7 +222,7 @@ async def update_defect(
     "/defects/{defect_id}",
     status_code=204,
     tags=["L · 缺陷管理"],
-    dependencies=[Depends(require_permission(P.DEFECT_DELETE))],
+    dependencies=[Depends(require_casbin(P.DEFECT_DELETE))],
 )
 async def delete_defect(
     defect_id: str,
@@ -241,7 +241,7 @@ async def delete_defect(
     "/defects/stats/summary",
     tags=["L · 缺陷管理"],
     dependencies=[
-        Depends(require_permission(P.DEFECT_READ)),
+        Depends(require_casbin(P.DEFECT_READ)),
         Depends(ensure_project_member),
     ],
 )

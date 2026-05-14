@@ -46,6 +46,12 @@ class ProjectMember(Base):
         nullable=False,
         index=True,
     )
+    # v1.1.7 Phase 3: shadow column。alembic 0028 backfill 一次,Phase 4 起
+    # application 寫入 ProjectMember 時要同步寫 user_id;Phase 7 PK 切到
+    # users.id 時 username 欄位下台,user_id 升格成 FK PK 之一。
+    user_id: Mapped[Optional[str]] = mapped_column(
+        String(36), nullable=True, index=True,
+    )
     # NULL = 從 OrgMembership.role_id 繼承;非 NULL = 該專案 override 的角色
     role_id: Mapped[Optional[str]] = mapped_column(
         String(36), ForeignKey("roles.id", ondelete="SET NULL"), nullable=True,
@@ -57,4 +63,8 @@ class ProjectMember(Base):
         String(80),
         ForeignKey("users.username", ondelete="SET NULL"),
         nullable=True,
+    )
+    # v1.1.7 Phase 3 shadow column,同 user_id 的 lifecycle。
+    invited_by_user_id: Mapped[Optional[str]] = mapped_column(
+        String(36), nullable=True,
     )

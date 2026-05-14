@@ -37,6 +37,11 @@ class OrgMembership(Base):
         nullable=False,
         index=True,
     )
+    # v1.1.7 Phase 3 shadow column。Phase 7 PK cutover 之前 application 仍
+    # 主要讀寫 username,只有 fastapi-users 內部走 user_id。
+    user_id: Mapped[Optional[str]] = mapped_column(
+        String(36), nullable=True, index=True,
+    )
     organization_id: Mapped[str] = mapped_column(
         String(36),
         ForeignKey("organizations.id", ondelete="CASCADE"),
@@ -55,4 +60,7 @@ class OrgMembership(Base):
         String(80),
         ForeignKey("users.username", ondelete="SET NULL"),
         nullable=True,
+    )
+    invited_by_user_id: Mapped[Optional[str]] = mapped_column(
+        String(36), nullable=True,
     )

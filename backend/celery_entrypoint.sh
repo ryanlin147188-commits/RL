@@ -39,4 +39,8 @@ if [ "$NEED_XVFB" = "1" ] && command -v Xvfb >/dev/null 2>&1; then
     trap 'if [ -n "${XVFB_PID:-}" ]; then kill "$XVFB_PID" 2>/dev/null || true; fi' TERM INT EXIT
 fi
 
-exec celery -A tasks.celery_app worker --loglevel=info --concurrency=2
+# Phase 6.3:同進程啟動 beat scheduler(``-B``),讓 Casdoor 5 分鐘 reconcile
+# 自動跑;``-s /tmp/celerybeat-schedule`` 把 schedule state 寫在容器 tmpfs,
+# 重啟即重置(無狀態 beat,我們的 schedule 都是純秒數間隔,不依賴 last-run)。
+exec celery -A tasks.celery_app worker --loglevel=info --concurrency=2 \
+    -B -s /tmp/celerybeat-schedule

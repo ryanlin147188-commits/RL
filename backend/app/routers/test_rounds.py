@@ -215,6 +215,12 @@ async def execute_round(
         execution_mode=mode, source_node_id=nids[0],
     )
 
+    # Celery worker 在另一個 process/connection,如果我們還沒 commit 它就拿到
+    # task 並 db.get(ExecutionReport, report_id) 會回 None → 後續 INSERT
+    # execution_steps_log 觸發 FK violation。在 send_task 之前先強制 commit,
+    # 確保 worker 看得到。
+    await db.commit()
+
     if mode == "docker":
         try:
             from tasks.celery_app import celery_app

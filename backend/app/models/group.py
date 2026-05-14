@@ -58,6 +58,11 @@ class GroupMembership(Base):
         ForeignKey("users.username", ondelete="CASCADE"),
         primary_key=True,
     )
+    # v1.1.7 Phase 3 shadow column。Phase 7 換 PK 時 username 退場,user_id
+    # 跟 group_id 一起當 composite PK。
+    user_id: Mapped[Optional[str]] = mapped_column(
+        String(36), nullable=True, index=True,
+    )
     # owner / admin / member;owner 至少要一人,UI 上負責防呆
     role_in_group: Mapped[str] = mapped_column(String(20), nullable=False, default="member")
     joined_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

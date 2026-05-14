@@ -10,7 +10,7 @@ from sqlalchemy import asc, desc, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
-from app.auth.permissions import require_permission
+from app.auth.permissions import require_casbin
 from app.auth.permissions_catalog import P
 from app.database import get_db
 from app.models.ai_token_config import AiTokenConfig
@@ -29,9 +29,16 @@ from app.schemas.settings import (
     EmailConfigUpdate,
     NotificationPreferenceResponse,
     NotificationPreferenceUpdate,
+    PreferredAgentResponse,
+    PreferredAgentUpdate,
     RoleCreate,
     RoleResponse,
     RoleUpdate,
+)
+from app.services.agent_runtimes import (
+    AGENT_RUNTIMES,
+    check_agent_capabilities,
+    resolve_preferred_agent,
 )
 
 router = APIRouter()
@@ -126,7 +133,7 @@ _NOTIFICATION_EVENT_CATALOGUE = [
 @router.get(
     "/settings/permissions/catalogue",
     tags=["S · 設定"],
-    dependencies=[Depends(require_permission(P.SETTINGS_READ))],
+    dependencies=[Depends(require_casbin(P.SETTINGS_READ))],
 )
 async def list_permission_catalogue():
     """前端建構角色 checkbox 用：所有可指派的權限 key 與顯示名稱。"""
@@ -139,7 +146,7 @@ _PERMISSION_KEYS = {p["key"] for p in _PERMISSION_CATALOGUE}
 @router.get(
     "/settings/permissions/{key}/usage",
     tags=["S · 設定"],
-    dependencies=[Depends(require_permission(P.SETTINGS_READ))],
+    dependencies=[Depends(require_casbin(P.SETTINGS_READ))],
 )
 async def get_permission_usage(
     key: str,
@@ -184,7 +191,7 @@ async def get_permission_usage(
 @router.get(
     "/settings/notifications/catalogue",
     tags=["S · 設定"],
-    dependencies=[Depends(require_permission(P.SETTINGS_READ))],
+    dependencies=[Depends(require_casbin(P.SETTINGS_READ))],
 )
 async def list_notification_catalogue():
     """前端建構通知設定 grid 用：所有可訂閱的事件。"""
@@ -215,7 +222,7 @@ _ROLE_SORT_COLS = {
     "/settings/roles",
     response_model=list[RoleResponse],
     tags=["S · 設定"],
-    dependencies=[Depends(require_permission(P.SETTINGS_READ))],
+    dependencies=[Depends(require_casbin(P.SETTINGS_READ))],
 )
 async def list_roles(
     response: Response,
@@ -268,7 +275,7 @@ async def list_roles(
     response_model=RoleResponse,
     status_code=201,
     tags=["S · 設定"],
-    dependencies=[Depends(require_permission(P.ROLE_MANAGE))],
+    dependencies=[Depends(require_casbin(P.ROLE_MANAGE))],
 )
 async def create_role(
     payload: RoleCreate,
@@ -303,7 +310,7 @@ async def create_role(
     "/settings/roles/{role_id}",
     response_model=RoleResponse,
     tags=["S · 設定"],
-    dependencies=[Depends(require_permission(P.ROLE_MANAGE))],
+    dependencies=[Depends(require_casbin(P.ROLE_MANAGE))],
 )
 async def update_role(
     role_id: str,
@@ -335,6 +342,10 @@ async def update_role(
             setattr(r, k, v)
     await db.flush()
     await db.refresh(r)
+    # role.permissions_json / scope 改了會影響所有持有此 role 的 user 的
+    # Casbin g + p 規則 → 全表 truncate-and-rewrite
+    from app.auth.casbin_sync import schedule_full_resync
+    schedule_full_resync()
     return r
 
 
@@ -342,7 +353,7 @@ async def update_role(
     "/settings/roles/{role_id}",
     status_code=204,
     tags=["S · 設定"],
-    dependencies=[Depends(require_permission(P.ROLE_MANAGE))],
+    dependencies=[Depends(require_casbin(P.ROLE_MANAGE))],
 )
 async def delete_role(
     role_id: str,
@@ -358,13 +369,15 @@ async def delete_role(
         raise HTTPException(400, "系統角色不可刪除")
     await db.delete(r)
     await db.flush()
+    from app.auth.casbin_sync import schedule_full_resync
+    schedule_full_resync()
 
 
 # ─── Tier B2:角色使用數(讓 admin 看清能否安全刪除 / 改權限) ─────────
 @router.get(
     "/settings/roles/{role_id}/usage",
     tags=["S · 設定"],
-    dependencies=[Depends(require_permission(P.SETTINGS_READ))],
+    dependencies=[Depends(require_casbin(P.SETTINGS_READ))],
 )
 async def get_role_usage(
     role_id: str,
@@ -422,7 +435,7 @@ async def get_role_usage(
     response_model=RoleResponse,
     status_code=201,
     tags=["S · 設定"],
-    dependencies=[Depends(require_permission(P.ROLE_MANAGE))],
+    dependencies=[Depends(require_casbin(P.ROLE_MANAGE))],
 )
 async def clone_role(
     role_id: str,
@@ -475,7 +488,7 @@ async def clone_role(
     "/settings/notifications",
     response_model=list[NotificationPreferenceResponse],
     tags=["S · 設定"],
-    dependencies=[Depends(require_permission(P.SETTINGS_READ))],
+    dependencies=[Depends(require_casbin(P.SETTINGS_READ))],
 )
 async def list_notification_prefs(
     user: User = Depends(get_current_user),
@@ -562,7 +575,7 @@ async def _get_or_create_email_for_org(db: AsyncSession, org_id: Optional[str]) 
     "/settings/email",
     response_model=EmailConfigResponse,
     tags=["S · 設定"],
-    dependencies=[Depends(require_permission(P.SETTINGS_READ))],
+    dependencies=[Depends(require_casbin(P.SETTINGS_READ))],
 )
 async def get_email_config(
     user: User = Depends(get_current_user),
@@ -575,7 +588,7 @@ async def get_email_config(
     "/settings/email",
     response_model=EmailConfigResponse,
     tags=["S · 設定"],
-    dependencies=[Depends(require_permission(P.SETTINGS_WRITE))],
+    dependencies=[Depends(require_casbin(P.SETTINGS_WRITE))],
 )
 async def update_email_config(
     payload: EmailConfigUpdate,
@@ -608,7 +621,7 @@ class _EmailTestResponse(BaseModel):
     "/settings/email/test",
     response_model=_EmailTestResponse,
     tags=["S · 設定"],
-    dependencies=[Depends(require_permission(P.SETTINGS_WRITE))],
+    dependencies=[Depends(require_casbin(P.SETTINGS_WRITE))],
 )
 async def send_test_email(
     payload: _EmailTestRequest,
@@ -682,11 +695,25 @@ def _check_ai_token_or_404(t: Optional[AiTokenConfig], user: User) -> AiTokenCon
     return t
 
 
+# 已停用的 provider — 前端下拉拔掉了,後端也不接受新增/編輯成這些值。
+# 比對用 lower-case + strip,擋掉「Ollama / OLLAMA / ollama 」等變體。
+_DISABLED_AI_PROVIDERS = frozenset({"ollama", "local", "openai-oauth"})
+
+
+def _reject_disabled_ai_provider(provider: str) -> None:
+    p = (provider or "").strip().lower()
+    if p in _DISABLED_AI_PROVIDERS:
+        raise HTTPException(
+            400,
+            f"provider 不支援:{provider}(本地 Ollama / LM Studio 與 OpenClaw OAuth 已停用,請改用 OpenAI / Anthropic / Google)",
+        )
+
+
 @router.get(
     "/settings/ai-tokens",
     response_model=list[AiTokenConfigResponse],
     tags=["S · 設定"],
-    dependencies=[Depends(require_permission(P.SETTINGS_READ))],
+    dependencies=[Depends(require_casbin(P.SETTINGS_READ))],
 )
 async def list_ai_tokens(
     provider: Optional[str] = Query(None),
@@ -707,7 +734,7 @@ async def list_ai_tokens(
     response_model=AiTokenConfigResponse,
     status_code=201,
     tags=["S · 設定"],
-    dependencies=[Depends(require_permission(P.SETTINGS_WRITE))],
+    dependencies=[Depends(require_casbin(P.SETTINGS_WRITE))],
 )
 async def create_ai_token(
     payload: AiTokenConfigCreate,
@@ -718,6 +745,7 @@ async def create_ai_token(
     provider_str = (payload.provider or "OpenAI").strip()
     if not provider_str:
         raise HTTPException(400, "provider 不能為空")
+    _reject_disabled_ai_provider(provider_str)
     token = AiTokenConfig(
         name=payload.name,
         organization_id=user.organization_id,
@@ -762,7 +790,7 @@ async def create_ai_token(
     "/settings/ai-tokens/{token_id}",
     response_model=AiTokenConfigResponse,
     tags=["S · 設定"],
-    dependencies=[Depends(require_permission(P.SETTINGS_WRITE))],
+    dependencies=[Depends(require_casbin(P.SETTINGS_WRITE))],
 )
 async def update_ai_token(
     token_id: str,
@@ -776,6 +804,7 @@ async def update_ai_token(
         data.pop("api_key")
     if "provider" in data and data["provider"] is not None:
         data["provider"] = (data["provider"] or "").strip() or t.provider
+        _reject_disabled_ai_provider(data["provider"])
     for k, v in data.items():
         setattr(t, k, v)
     await db.flush()
@@ -863,7 +892,7 @@ def _detect_reasoning_support(model_id: str) -> bool:
 @router.post(
     "/settings/ai-tokens/fetch-models",
     tags=["S · 設定"],
-    dependencies=[Depends(require_permission(P.SETTINGS_WRITE))],
+    dependencies=[Depends(require_casbin(P.SETTINGS_WRITE))],
 )
 async def fetch_models(
     payload: FetchModelsRequest,
@@ -939,7 +968,7 @@ async def fetch_models(
     "/settings/ai-tokens/{token_id}",
     status_code=204,
     tags=["S · 設定"],
-    dependencies=[Depends(require_permission(P.SETTINGS_WRITE))],
+    dependencies=[Depends(require_casbin(P.SETTINGS_WRITE))],
 )
 async def delete_ai_token(
     token_id: str,
@@ -957,3 +986,62 @@ async def delete_ai_token(
     invalidate_user_workspace(user.username)
     # mem0 sidecar 的 per-user llm_config cache 也跟著新狀態同步(push or clear)
     await sync_mem0_llm_config(user, db)
+
+
+# ── Agent Runtime preference (Phase 1) ────────────────────────────────
+
+async def _list_user_org_tokens(db: AsyncSession, user: User) -> list[AiTokenConfig]:
+    stmt = select(AiTokenConfig)
+    if not user.is_superuser:
+        if user.organization_id is None:
+            stmt = stmt.where(AiTokenConfig.organization_id.is_(None))
+        else:
+            stmt = stmt.where(AiTokenConfig.organization_id == user.organization_id)
+    return list((await db.execute(stmt)).scalars().all())
+
+
+@router.get(
+    "/users/me/preferred-agent",
+    response_model=PreferredAgentResponse,
+    tags=["S · 設定"],
+)
+async def get_preferred_agent(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    tokens = await _list_user_org_tokens(db, user)
+    available = check_agent_capabilities(tokens)
+    return PreferredAgentResponse(
+        preferred_agent=user.preferred_agent,
+        effective_agent=resolve_preferred_agent(user.preferred_agent, tokens),
+        available=available,  # type: ignore[arg-type]
+    )
+
+
+@router.patch(
+    "/users/me/preferred-agent",
+    response_model=PreferredAgentResponse,
+    tags=["S · 設定"],
+)
+async def update_preferred_agent(
+    payload: PreferredAgentUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    new_pref = payload.preferred_agent
+    if new_pref is not None:
+        valid_keys = {spec.key for spec in AGENT_RUNTIMES}
+        if new_pref not in valid_keys:
+            raise HTTPException(400, f"未知 agent runtime: {new_pref}")
+    user.preferred_agent = new_pref
+    await db.flush()
+    # 切 agent 後 Hermes sidecar 仍可能仍跑(下次請求才路由),這裡讓 workspace
+    # 重 provision 確保 token/config 是當前生效那組。
+    from app.services.hermes_provisioning import invalidate_user_workspace
+    invalidate_user_workspace(user.username)
+    tokens = await _list_user_org_tokens(db, user)
+    return PreferredAgentResponse(
+        preferred_agent=user.preferred_agent,
+        effective_agent=resolve_preferred_agent(user.preferred_agent, tokens),
+        available=check_agent_capabilities(tokens),  # type: ignore[arg-type]
+    )

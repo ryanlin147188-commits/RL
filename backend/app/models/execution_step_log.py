@@ -1,9 +1,11 @@
 import enum
 import uuid
+from datetime import datetime
 from typing import Any, Optional
 
-from sqlalchemy import JSON, Enum, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, DateTime, Enum, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql import func
 
 from app.auth.tenant import TenantScoped
 from .base import Base
@@ -29,6 +31,12 @@ class ExecutionStepLog(TenantScoped, Base):
         String(36), ForeignKey("tree_nodes.id", ondelete="SET NULL"), nullable=True
     )
     step_index: Mapped[int] = mapped_column(Integer, default=0)
+    # 寫入時間,backend ORDER BY 用來決定「執行順序」呈現(per-testcase
+    # step_index 在 setup+main 同跑時都從 0 開始,光排 step_index 兩個 case
+    # 的 step 會交錯)。created_at 確保 setup 整批先於 main 出現。
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
     status: Mapped[StepStatus] = mapped_column(
         Enum(StepStatus), default=StepStatus.RUNNING
     )

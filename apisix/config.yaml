@@ -17,6 +17,13 @@ apisix:
   control:
     ip: "0.0.0.0"
     port: 9092
+  # 用 Docker 內建 DNS(127.0.0.11)做動態 DNS 解析,並設 30s 短 TTL。
+  # 沒這個的話 APISIX 啟動時 gethostbyname 一次拿到 backend 容器當下 IP,
+  # 之後就快取永遠不變;backend 重建拿到新 IP → APISIX 還連舊地址 → 502。
+  dns_resolver:
+    - 127.0.0.11
+  dns_resolver_valid: 30
+  resolver_timeout: 5
 
 nginx_config:
   error_log_level: warn

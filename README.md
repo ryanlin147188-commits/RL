@@ -28,6 +28,331 @@
 
 ---
 
+## 🔥 v1.1.7 — FastAPI Users + Authlib + PyCasbin, end-to-end
+
+Eight commits and four alembic migrations on `feat/fastapi-users` move the
+auth backend off hand-rolled bcrypt + JWT + OAuth onto the standard
+fastapi-users stack. The SPA didn't change. Existing admin and 100+ users
+survive the migration intact — full design rationale lives in
+`memory/fastapi-users-migration-state.md`.
+
+- **Phase 1 — Foundation**: `backend/app/auth/fastapi_users_integration.py`
+  wires `UserManager`, `JWTStrategy`, `PasswordHelper`,
+  `SQLAlchemyUserDatabase`, `BearerTransport`. `token_audience` is left
+  empty so both auth paths sign mutually-verifiable JWTs and sessions don't
+  get evicted during cutover.
+- **Phase 2 — Users schema**: alembic `0027` adds `users.id` UUID with
+  `gen_random_uuid()::text` default; existing rows are backfilled.
+- **Phase 3 — Shadow FK columns**: alembic `0028` adds nullable `user_id`
+  UUID shadow columns to the six FK sites (project_members ×2,
+  org_memberships ×2, group_memberships, password_reset_tokens) and
+  JOIN-backfills them. The migration refuses to leave a NOT-NULL source
+  with a NULL backfill — orphan rows surface as RuntimeError.
+- **Phase 4 — PasswordHelper cutover**: `security.py` swaps passlib for
+  pwdlib via `PasswordHelper`. argon2 for new hashes, bcrypt verify
+  fallback for existing `$2b$` rows. 30+ call sites of `hash_password` /
+  `verify_password` keep their signature.
+- **Phase 5 — Dual-write listener**: `backend/app/auth/user_id_dualwrite.py`
+  registers SQLAlchemy `before_insert` hooks on the four FK models so new
+  rows auto-populate `user_id` from `username` — no caller has to know the
+  shadow column exists. Unresolvable usernames raise instead of silently
+  inserting NULL.
+- **Phase 6 — OAuth migrated to httpx-oauth**: Zoho client moves from
+  authlib `AsyncOAuth2Client` to `httpx-oauth.BaseOAuth2` (the OAuth2
+  client family fastapi-users is built around). Behavior is identical;
+  future migration to fastapi-users' OAuth router won't need another
+  rewrite.
+- **Phase 7 — Promote users.id to PK**: alembic `0029` drops the six FKs
+  bound to `users_pkey`, swaps the PK from `username` to `id`, then
+  recreates the six FKs with explicit `REFERENCES users(username)` so
+  they bind to the new `uq_users_username` unique constraint. Application
+  code is untouched — JWT `sub` is still username, Casbin policy subjects
+  are still username, SPA URL paths are unchanged, `User.username == X`
+  lookups still hit a unique index.
+- **Phase 8 — Cleanup**: passlib and the bcrypt 4.x pin drop out of
+  `requirements.txt` (pulled transitively by fastapi-users 13's pwdlib).
+  SPA version bumps from v1.1.1 → v1.1.7.
+
+### Deploy notes
+
+1. `git pull && docker compose build backend && docker compose up -d backend` —
+   alembic 0027–0029 run in order; existing users get UUIDs.
+2. Backend startup logs should show four "Running upgrade" lines. Confirm
+   with `SELECT username, id FROM users;` — every row has a UUID.
+3. Existing SSO sessions, admin tokens, SPA logins all survive — no
+   forced re-login.
+4. To verify the dual-write listener: create a user from the admin modal,
+   then `SELECT username, user_id FROM org_memberships WHERE
+   username='<new user>'` — `user_id` should equal the user's `users.id`.
+
+---
+
+## 🔥 v1.1.6 — Per-project role permission override + three-field first-login modal
+
+Targeted at the "solo-owner platform + multi-collaborator projects" scenario,
+this release adds **per-project role permission overrides** so the same
+`Project-Tester` role can have different effective permissions in different
+projects without cloning the whole role.
+
+- **Per-project override table** `project_role_permissions(project_id, role_id,
+  permissions_json)`. In the SPA, 設定 → 專案協作成員 panel now shows a new
+  「本專案角色權限」section listing the 4 project-scope roles with their
+  effective permission count + override badge; click 編輯 to flip individual
+  permission checkboxes for this project only.
+- **Casbin sync writes alias roles** `<role>@<short_pid>` to `casbin_rule`
+  for any (project, role) that has an override row. The 42 `require_casbin`
+  call-sites stay unchanged — enforce automatically matches the alias's
+  p rules in the specific `project:<pid>` domain.
+- **First-login profile modal** expanded to three fields (display_name + email
+  + new password) via new endpoint `POST /api/auth/profile-setup`. Triggered
+  the same way as before (`users.must_change_password=True`).
+- **`create_user` defaults `must_change_password=True`** so any user that an
+  admin creates locally will be walked through profile setup on first login,
+  guaranteeing display_name / email get filled in.
+- New API:
+  - `GET /api/projects/{pid}/role-permissions` — list effective permissions
+    + override badge for all project-scope roles
+  - `PUT /api/projects/{pid}/role-permissions/{role_id}` — upsert override
+  - `DELETE /api/projects/{pid}/role-permissions/{role_id}` — reset to default
+  - `POST /api/auth/profile-setup` — first-login three-field write
+- Migration `0026_project_role_permissions` creates the new table with
+  `UNIQUE(project_id, role_id)` and `ON DELETE CASCADE` from both FKs.
+
+### Recommended collaboration SOP
+
+| Persona | Global `users.role_id` | `ProjectMember.role_id` | Use case |
+|---|---|---|---|
+| Platform owner (you) | NULL + `is_superuser=True` | — | Full platform write |
+| Customer PM | NULL | `Project-Reviewer` | View plans, approve |
+| External QA | NULL | `Project-Tester` (+ override if needed) | Write cases, run tests |
+| Read-only stakeholder | NULL | `Project-Viewer` | Dashboards, reports |
+
+External collaborators sign up with `role_id=NULL` and can see nothing;
+the platform owner invites them per-project via 「加入現有使用者」 and
+optionally fine-tunes role permissions via 「本專案角色權限」. Removing them
+from a project deletes only the `ProjectMember` row — no spillover to other
+projects.
+
+---
+
+## 🔥 v1.1.5 — Casdoor sidecar dropped, in-process authlib takes over
+
+After spending two minor releases (v1.1.3 / v1.1.4) running Casdoor as a side-
+car, hitting subpath SPA whitescreens, session-cookie config trapdoors, and
+silent `enable_signin_session=false` defaults, IAM is now back to running
+entirely inside the FastAPI process.
+
+* **Casdoor sidecar removed.** Compose service / configs / `casdoor` Postgres DB
+  / 14 backend modules all gone. `docker compose ps` no longer shows
+  `autotest-casdoor` or `autotest-casdoor-init`. The `casdoor/` config dir is
+  deleted.
+* **OIDC handled in-process with `authlib`** (`authlib>=1.3,<2`,
+  `AsyncOAuth2Client`). New routes `GET /api/auth/{provider}/login` and
+  `/callback` walk the OAuth code flow directly with the IdP. Currently
+  only `zoho` is wired; adding Google / Microsoft / Okta is one 30-line
+  `OIDCProvider` dataclass per provider in
+  [backend/app/auth/oidc.py](backend/app/auth/oidc.py).
+* **Token format reverted to HS256 in-house JWT** (same as v1.1.2). Backend
+  mints its own token after OIDC handshake; `decode_token` no longer
+  attempts RS256/JWKS dual-mode (`PyJWT[crypto]` → `PyJWT`, smaller image).
+* **Local password endpoints resurrected**: `POST /auth/login` /
+  `/auth/forgot-password` / `/auth/reset-password` / `/auth/change-password`
+  / `POST,PUT,DELETE /auth/users/...` / `/settings/roles` POST/PUT/DELETE/clone
+  back to live code (all were HTTP 410 in v1.1.3–v1.1.4). SPA modals
+  (`pmCreateUserModal` / `pmEditUserModal` / `pmResetPwdModal` / `roleModal`)
+  re-wired to the original local handlers.
+* **Migrations**: `0024_rename_oidc_columns` renames `users.casdoor_user_id`
+  → `users.oidc_subject` and adds `users.oidc_provider` with a `(provider,
+  subject)` partial unique index. `0025_recreate_password_reset_tokens`
+  restores the table that 0023 dropped.
+* **Casbin retained, no behavior change.** Enforcer still runs in-process
+  with `casbin_rule` table as source of truth. The 5-min reconcile beat is
+  removed (no Casdoor to sync from); `schedule_user_resync` mutation hooks
+  remain for immediate Casbin grant rebuild after role / membership changes.
+* **Default after v1.1.5 deploy**:
+  | URL | Account | Password |
+  |---|---|---|
+  | `http://<host>/` (帳密登入) | `admin` | `admin123` (forced-change on first login) |
+  | "使用 Zoho 登入" 按鈕 | (your Zoho account) | — |
+
+### Activating Zoho SSO
+
+```bash
+# 1. https://api-console.zoho.com → Add Client → Server-based Applications
+#    Authorized Redirect URIs: http://<your-host>/api/auth/zoho/callback
+#    (this is YOUR backend now, no longer Casdoor:8001/callback)
+# 2. Add to .env:
+echo "ZOHO_CLIENT_ID=<client_id>"     >> .env
+echo "ZOHO_CLIENT_SECRET=<secret>"     >> .env
+echo "ZOHO_REDIRECT_URL=http://<host>/api/auth/zoho/callback" >> .env
+# 3. Restart backend:
+docker compose up -d --force-recreate backend
+# 4. Refresh SPA login page — orange "使用 Zoho 登入" button appears.
+```
+
+---
+
+## 🔥 v1.1.4 — Zoho OIDC login via Casdoor (deprecated, replaced in v1.1.5)
+
+- New "**使用 Zoho 登入**" shortcut button on the SPA login overlay (orange,
+  below the "使用 Casdoor 登入" button). One click → `/api/auth/casdoor/login?provider=zoho-corp`
+  → Casdoor → Zoho Accounts → back to your `/api/auth/callback`, no extra
+  click on Casdoor's login page.
+- `GET /api/auth/casdoor/login` now accepts `provider=<name>` query — passed
+  through to Casdoor's authorize URL so Casdoor can skip its own login form
+  and 302 straight to the upstream IdP. Versions of Casdoor that don't honor
+  the param degrade gracefully (Casdoor login page just shows the Zoho
+  button instead).
+- Backend JIT provisioning unchanged — Casdoor unifies the Zoho identity
+  into a Casdoor user row, so the JWT we receive always has `sub = <Casdoor uuid>`,
+  not Zoho's raw `sub`. `provision_user_from_casdoor_claims` already
+  treats `casdoor_user_id` as the stable key for dedup.
+
+### Activating Zoho login (operator runbook, ~15 min)
+
+```bash
+# 1. https://api-console.zoho.com → Add Client → Server-based Applications
+#    Authorized Redirect URI: http://<your-host>:8001/callback
+# 2. Copy the Client ID + Client Secret out (shown once).
+
+# 3. Add as a Casdoor Provider via Casdoor admin UI (http://<host>:8001/providers)
+#    Name: zoho-corp · Category: OAuth · Type: Custom · Sub type: OAuth
+#    Auth URL:     https://accounts.zoho.com/oauth/v2/auth
+#    Token URL:    https://accounts.zoho.com/oauth/v2/token
+#    UserInfo URL: https://accounts.zoho.com/oauth/user/info
+#    Scopes:       AaaServer.profile.READ email openid
+#    User mapping: id=ZUID, displayName=Display_Name, email=Email
+
+# 4. Attach the provider to the application:
+docker compose exec postgres psql -U admin -d casdoor -c \
+  "UPDATE application SET providers='[{\"name\":\"zoho-corp\",\"canSignUp\":true,\"canSignIn\":true,\"canUnlink\":true,\"prompted\":false,\"rule\":\"None\",\"signupGroup\":\"\"}]'::jsonb WHERE name='app-built-in';"
+
+# 5. Refresh the SPA login page — the orange "使用 Zoho 登入" button is live.
+```
+
+> **No email-domain restriction** is enforced by default — any Zoho account
+> can JIT in. The local default role is `Project-Viewer` (read-only),
+> and with no `project_members` row the user can't see any project. Add
+> domain restriction in the Casdoor provider's `emailRegex` if you need
+> tighter gating.
+
+---
+
+## 🔥 v1.1.3 — Casdoor + Casbin IAM cutover
+
+### 🔐 SSO / Identity — Casdoor takes over
+- New **Casdoor IAM sidecar** at `/casdoor/*` (opt-in via `--profile casdoor`) owns users / organizations / applications / SSO providers — federation to Google / GitHub / SAML / LDAP now configurable from the admin UI
+- Login flow: SPA → `GET /api/auth/casdoor/login` → 302 → Casdoor authorize → `/api/auth/callback` → backend sets httpOnly cookies (`access_token` / `refresh_token` / `active_org_id`) → redirects with `#casdoor_login=1` so the SPA hydrates user info via `/api/auth/me`
+- Dual-mode JWT verify: backend tries RS256 (JWKS-cached) first then falls back to HS256 — Casdoor tokens and legacy tokens both work during cutover
+- `users.casdoor_user_id` (partial unique index) + `users.token_generation` columns added (migration `0021`)
+
+### 🛡 Authorisation — Casbin in-process enforcer
+- `pycasbin` 1.36.3 + `casbin-sqlalchemy-adapter` 1.4.0 running in the FastAPI process; policies persisted to a `casbin_rule` table the adapter auto-creates
+- RBAC-with-domains model (`app/auth/casbin_model.conf`) using `keyMatch2` for `<resource>:*` wildcards
+- New `require_casbin(P.X)` dependency with the same signature as the old `require_permission` — all 44 router call-sites switched (5 routers, mechanical)
+- Sync layer **flattens 3-level role resolution** (ProjectMember > OrgMembership > User) into plain `g` rules; reload via `python -m app.cli seed-casbin`
+- Opt-in via `CASBIN_ENABLED=True` — when False, `require_casbin` falls back to the legacy `list[str]` check so the cutover is rollback-safe
+- Shadow mode (`CASBIN_SHADOW_ENABLED=True`) compares Casbin verdicts against legacy `require_permission` and logs divergence to `app.auth.permissions.shadow` for offline diff review
+
+### 🧹 Legacy auth endpoints decommissioned (HTTP 410 + `moved_to` hint)
+- `POST /api/auth/login`, `/auth/forgot-password`, `/auth/reset-password`, `/auth/change-password` — Casdoor's own forms now handle these
+- `POST /api/auth/users` + `PUT` + `DELETE` + reset-password — admin user CRUD moved to `/casdoor/users`
+- Role CRUD `/api/settings/roles` POST / PUT / DELETE / clone — moved to `/casdoor/roles`
+- Old OIDC router (`/auth/oidc/login`, `/auth/oidc/callback`) unmounted; `/auth/oidc/providers` kept as a `200 []` stub so the SPA doesn't 404
+- Tables dropped: `oidc_providers` (migration `0022`), `password_reset_tokens` (migration `0023`)
+- SPA modals (`roleModal` / `pmCreateUserModal` / `pmEditUserModal` / `pmResetPwdModal`) now `window.open('/casdoor/...')` instead of opening locally
+
+### 🔁 Hardening — webhook + 5-min reconcile
+- `POST /api/auth/casdoor-webhook` accepts Casdoor's `add-user` / `update-user` / `delete-user` / `update-role` events; verified by `X-Casdoor-Webhook-Token` shared secret + Valkey `SET NX` idempotency (1h window)
+- Celery beat task `tasks.casdoor_reconcile.run` every **5 minutes** as a fallback: pulls `/api/get-users` + `/api/get-roles` from Casdoor, diffs against local `users` + `org_memberships`, calls `rebuild_all_policies()` to refresh `casbin_rule`
+- All mutations write an `audit_logs` row (method=`SYNC`/`WEBHOOK`, `change_summary` JSON for diff replay)
+- Celery worker entrypoint adds `-B` so beat runs in the same container
+
+### Default credentials after v1.1.3 deploy
+| System | URL | Username | Password |
+|---|---|---|---|
+| App SPA | `http://<host>/` | (via Casdoor SSO) | — |
+| **Casdoor admin** | `http://<host>/casdoor/` | `admin` | `admin123` |
+
+### Activating Casdoor on an existing deployment
+```bash
+# 1. start sidecar (first boot uses Casdoor's built-in org + admin user)
+docker compose --profile casdoor up -d casdoor
+
+# 2. grab clientId / clientSecret from the application table
+docker compose exec postgres psql -U admin -d casdoor \
+  -c "SELECT client_id, client_secret FROM application WHERE name='app-built-in';"
+
+# 3. add redirect URI for your host
+docker compose exec postgres psql -U admin -d casdoor -c \
+  "UPDATE application SET redirect_uris='[\"http://<host>/api/auth/callback\"]' WHERE name='app-built-in';"
+
+# 4. flip the gates + supply the credentials
+cat >> .env <<EOF
+CASDOOR_ENABLED=True
+CASDOOR_ORG=built-in
+CASDOOR_APP=app-built-in
+CASDOOR_CLIENT_ID=<step 2>
+CASDOOR_CLIENT_SECRET=<step 2>
+CASDOOR_REDIRECT_URL=http://<host>/api/auth/callback
+CASBIN_ENABLED=True
+CASDOOR_RECONCILE_ENABLED=True
+EOF
+docker compose up -d --force-recreate backend celery frontend
+
+# 5. seed Casbin policies from the existing DB state (idempotent, re-runnable)
+docker compose exec backend python -m app.cli seed-casbin
+```
+
+---
+
+## 🔥 v1.1.2 — Recent Updates
+
+### 🛡 Self-hosted Trace Viewer + HTTPS
+- Frontend image bundles Playwright trace viewer at `/trace-viewer/` (extracted from `playwright-core@1.49.1` at build time)
+- nginx serves HTTPS on port 443 with a build-time self-signed cert (10-year validity); cert downloadable via `http://<host>/install-cert/server.crt`. One-shot macOS trust install:
+  ```bash
+  curl -o /tmp/autotest.crt http://<host>/install-cert/server.crt && \
+  sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain /tmp/autotest.crt
+  ```
+- Don't want to install the cert? The report's **Trace Viewer button now auto-downloads the .zip + opens `trace.playwright.dev`** — drag the file in, no setup needed
+- COOP / COEP / CORP / `application/manifest+json` all wired so SharedArrayBuffer + Service Worker run in cross-origin-isolated mode
+- APISIX `artifact_routes` CORS opened to `**`
+
+### 🔁 Execution flow hardening
+- **Precondition continuity**: the setup chain inlines into the main case's steps and runs in the **same docker container** — cookies / browser context / storage carry over from setup to main
+- **Per-testcase step attribution**: step logs split back to source testcase ids with local indices starting at 0 (no more "Step 7 / Empty" when the main case only has 3 steps)
+- **Short-polling** container wait (every 2s) replaces long-poll `container.wait()` — sidesteps docker-socket-proxy haproxy 10m timeout
+- Two-tier timeout: `RUNNER_CONTAINER_TIMEOUT_SEC` (default 1800s) + `ROBOT_SUBPROCESS_TIMEOUT_SEC` (1680s); SIGTERM with 30s grace before SIGKILL so RF Teardown can finalize video/trace
+- **Goto** uses `wait_until=domcontentloaded timeout=30s` — no more hanging forever when SPA XHR never returns
+- **Click overlay cleanup**: pre-click JS dismisses modal backdrops, sidebar/drawer overlays, toast containers (Bootstrap / MUI / Ant Design / SweetAlert / CDK / metismenu / offcanvas)
+- Wait timeout 60s → 20s — cascade-failure no longer freezes video for an hour
+- AppiumLibrary conditional import (only when `Mobile.*` steps exist) avoids `Get Text` clash with Browser Library
+- Robot listener: **first-error-wins** — cascade failures don't overwrite root cause with "Variable not found"
+- Cancel API also kills orphan runner containers + writes a synthetic step log so cancelled reports aren't blank
+- Full-page screenshots (`fullPage=True`) for Pre/Post Action — captures entire scrollable page
+
+### 🧪 Test case editor
+- **Copy testcase** button (green) — duplicates `ac_text` / `setup_text` / `steps_json` / `ddt_json` into the same parent, auto-numbered ("副本", "副本 (2)", ...)
+- **Bulk step delete** — select-all checkbox + per-row checkbox + red "Delete N selected" button
+- **Step reorder**: drag-handle replaced by **▲ / ▼ arrow buttons** (boundary auto-disabled)
+- **Precondition link editor** under "Pre-Setup": dropdown picker + enable toggle + remove (wires to `testcase_precondition_links`)
+- Auto-create-case failures now pop `alert()` dialogs (no SCENARIO selected / no steps captured / API didn't return id / exception)
+- **Goto action** added to dropdown alongside Navigate (backend treats them identically)
+- **Test Execution Console** is now an in-flow flex panel with ESC-to-close — no longer overlays test steps
+
+### 🧠 Multi-agent runtime
+- New `users.preferred_agent` column (migration `0019`) — switch between Hermes (default) and OpenClaw
+- **OpenClaw runtime now accepts regular OpenAI API keys** — sidecar passes the key as `OPENAI_API_KEY` to `openclaw agent --local`. Graceful fallback to Hermes when no token / sidecar unreachable
+- AI Token UI removed "Ollama / LM Studio" and "OpenClaw (ChatGPT subscription)" provider options; backend enforces with HTTP 400 on POST/PUT
+
+### 🔒 Auth fixes
+- Force-password-change modal: background polls receiving `403 must_change_password` no longer clear tokens while the modal is open
+- `GET /api/users/me/preferred-agent` no longer sends `Authorization: Bearer ` (empty) — fixed broken `window.getAccessToken` ternary
+- Bulk-selection state on the test-case list now persists across pages with a "已勾選 N 筆(跨頁保留)" badge
+
+---
+
 ## Quick Start (Docker, ~5 minutes)
 
 **Prerequisites**: Docker 24+ and Docker Compose v2.23+. Works on Linux, macOS, and Windows (Docker Desktop). All commands below work identically on every platform — no platform-specific deploy scripts needed.

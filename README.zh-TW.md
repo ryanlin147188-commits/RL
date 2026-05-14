@@ -28,6 +28,308 @@
 
 ---
 
+## 🔥 v1.1.7 — FastAPI Users + Authlib + PyCasbin 三件套全面接上
+
+`feat/fastapi-users` 分支八個 commit、四支 alembic migration 把 auth 後端從
+「手刻 bcrypt + 手刻 JWT + 手刻 OAuth」換到 fastapi-users 標準堆疊。SPA 完全
+沒動,既有 admin 帳號跟 100+ user data 完整保留 — 詳細 migration plan 跟
+phase-by-phase 設計取捨見 `memory/fastapi-users-migration-state.md`。
+
+- **Phase 1 — 基礎裝配**:`backend/app/auth/fastapi_users_integration.py` 接
+  上 `UserManager` / `JWTStrategy` / `PasswordHelper` / `SQLAlchemyUserDatabase` /
+  `BearerTransport`。token_audience 留空讓兩條 auth path 簽出來的 JWT 互通,
+  cutover 過程 session 不會被踢。
+- **Phase 2 — Users schema**:alembic `0027` 加 `users.id` UUID 欄位 +
+  `gen_random_uuid()::text` 預設值;既有 user 全部 JOIN-backfill 一個 UUID。
+- **Phase 3 — Shadow FK columns**:alembic `0028` 對 6 個 `users.username` FK
+  欄位(project_members ×2、org_memberships ×2、group_memberships、
+  password_reset_tokens)都加一個 `user_id UUID` shadow column,JOIN backfill。
+  sanity-check 任何 backfill 後仍 NULL 的孤兒 row 直接 raise。
+- **Phase 4 — PasswordHelper cutover**:`backend/app/auth/security.py` 把
+  passlib `CryptContext` 換成 `PasswordHelper`(內部 pwdlib,argon2 給新 hash,
+  bcrypt 給既有 `$2b$` hash 反向驗證)。30+ callsite 不變,公開的
+  `hash_password` / `verify_password` 簽名一致。
+- **Phase 5 — Dual-write listener**:`backend/app/auth/user_id_dualwrite.py`
+  用 SQLAlchemy `before_insert` 事件 hook 4 個 model,新 row 自動把
+  `username → users.id` 寫到 shadow column,9 個 instantiation site 一個都不
+  改。找不到對應 user 時直接 raise,避免 NULL 靜默落地。
+- **Phase 6 — OAuth 切到 httpx-oauth**:`backend/app/auth/oidc.py` 把 Zoho
+  client 從 authlib `AsyncOAuth2Client` 換成 httpx-oauth `BaseOAuth2`(fastapi-
+  users 親緣的 OAuth2 client family)。功能對等,API 形狀相近,差別是 future
+  若想接 fastapi-users 內建 OAuth router 不必再寫一次 client。
+- **Phase 7 — Promote users.id 為 PK**:alembic `0029` drop 6 FK constraint →
+  swap PK from username to id → recreate 6 FK 顯式 `REFERENCES users(username)`
+  指向新的 `uq_users_username` unique constraint。應用層完全沒動 — JWT sub
+  繼續用 username、Casbin policy subject 繼續用 username、SPA `/api/auth/
+  users/{username}` URL 不變、`User.username == X` lookup 走新的 unique index
+  一樣快。
+- **Phase 8 — 收尾**:requirements 拔 passlib 跟 bcrypt 4.x pin(由 fastapi-
+  users 13 的 pwdlib 自帶);版號 v1.1.1 → v1.1.7。
+
+### 部署後 deploy 注意
+
+1. `git pull && docker compose build backend && docker compose up -d backend` —
+   alembic 0027–0029 會依序跑完,既有 user 都會拿到 UUID。
+2. 啟動 log 應該看得到 4 行 alembic upgrade 訊息;`SELECT username, id FROM
+   users` 確認每個 user.id 都有值。
+3. 既有 SSO session、admin token、SPA login 全部保留;不必使用者重新登入。
+4. 想驗 dual-write listener:從 admin modal 建一個 user,進 postgres `SELECT
+   username, user_id FROM org_memberships WHERE username='<新 user>'`,
+   user_id 應該等於該 user 的 `users.id`。
+
+---
+
+## 🔥 v1.1.6 — Per-project role permission override + 三欄位首登 modal
+
+針對「平台一人主場 + 多人協作專案」情境補完角色 / 權限細粒度,讓客戶 / 外包等
+協作者進來後可以**按專案精修同一個角色的權限**,不必為了一個專案的特殊需求
+複製整套系統角色。
+
+- **Per-project role override**:新表 `project_role_permissions(project_id,
+  role_id, permissions_json)`。同一個 `Project-Tester` 在 project A 預設可
+  read+write+execute,在 project B 可被 override 成只 read。設定頁 →
+  「專案協作成員」面板下方多一個「**本專案角色權限**」section,點編輯即可
+  勾選想開放的 23 個 permission,儲存後即時生效。
+- **Casbin sync 認識 override**:有 override 的 (project, role) 自動產生
+  alias role `<role>@<pid 前 8 碼>` 寫到 `casbin_rule` 表,enforce 時
+  Casbin 自動 match alias 的 p rules,完全不必改 `require_casbin` 那 42 個
+  site。沒 override 的 (project, role) 走原本全域 `project:*` domain 的
+  p rules,行為跟 v1.1.5 一致。
+- **首登三欄位 modal**:`forcePwdModal` 擴成首登 profile-setup 流程,一次填
+  完**顯示名稱 + Email + 新密碼**,改打新端點 `POST /api/auth/profile-setup`。
+  觸發條件仍然是 `users.must_change_password=True`。
+- **admin 建立的新 user 預設 must_change_password=True**:即使 admin 在
+  建立時設了密碼,新 user 第一次登入仍會被引導完成 profile setup。確保
+  外部協作者進來時 display_name / email 一定都填好。
+- **API**:
+  - `GET    /api/projects/{pid}/role-permissions` 列出所有 4 個 project-scope
+    role 在該專案內的有效權限 + override 狀態
+  - `PUT    /api/projects/{pid}/role-permissions/{role_id}` upsert override
+  - `DELETE /api/projects/{pid}/role-permissions/{role_id}` 回到預設
+  - `POST   /api/auth/profile-setup` 首登一次提交三欄位
+- **Migration**:`0026_project_role_permissions` 建新表,UNIQUE(project_id, role_id)。
+
+### 推薦的協作 SOP
+
+| Persona | 全域 `users.role_id` | `ProjectMember.role_id` | 用途 |
+|---|---|---|---|
+| 平台主(你) | NULL + `is_superuser=True` | 不用 | 全平台寫 |
+| 客戶 PM | NULL | `Project-Reviewer` | 看 plan、核准 |
+| 外包 QA | NULL | `Project-Tester`(+ 必要時 override) | 寫案例、跑測試 |
+| 唯讀 stakeholder | NULL | `Project-Viewer` | dashboard / 報告 |
+
+外部協作者進來預設 `role_id=NULL`,什麼都看不到;管理員透過「設定 → 專案協作
+成員 → 加入現有使用者」邀請進專案,再用「本專案角色權限」精修若需要的話。
+退出專案只刪 `ProjectMember` row,不影響該 user 其他專案 / 全域。
+
+---
+
+## 🔥 v1.1.5 — Casdoor sidecar 下架,改 in-process authlib
+
+跑了 v1.1.3 / v1.1.4 兩個版本的 Casdoor sidecar 之後,遇到 subpath SPA 白屏 /
+session cookie config 各種坑 / `enable_signin_session` 預設關 / `init_data.json`
+不被 latest image 讀進去等問題,維運成本超出原本期待。v1.1.5 把 IAM 全部
+搬回 FastAPI 進程內。
+
+- **Casdoor sidecar 完全移除**:compose service / configs / `casdoor` Postgres
+  DB / 14 個 backend 檔案全清。`docker compose ps` 不再看到
+  `autotest-casdoor` / `autotest-casdoor-init`,`casdoor/` config 目錄也刪除。
+- **OIDC 改用 `authlib` 在進程內處理**(`authlib>=1.3,<2`,
+  `AsyncOAuth2Client`)。新路徑 `GET /api/auth/{provider}/login` 跟
+  `/callback` 直接跟 IdP 做 OAuth code flow。目前只串 `zoho`;要加 Google /
+  Microsoft / Okta 在 [backend/app/auth/oidc.py](backend/app/auth/oidc.py)
+  加一份 30 行的 `OIDCProvider` dataclass 即可。
+- **Token 簽章回到 HS256 in-house JWT**(跟 v1.1.2 一樣)。Backend 在 OIDC
+  handshake 完之後自己 mint HS256 token;`decode_token` 拔掉 RS256 / JWKS
+  dual-mode(`PyJWT[crypto]` → `PyJWT`,image 也小一點)。
+- **本地密碼端點復活**:`POST /auth/login` / `forgot-password` / `reset-password` /
+  `change-password` / `POST,PUT,DELETE /auth/users/...` / `/settings/roles`
+  POST/PUT/DELETE/clone 全部回到 live code(v1.1.3–v1.1.4 是 HTTP 410)。SPA 內
+  4 個 modal(`pmCreateUserModal` / `pmEditUserModal` / `pmResetPwdModal` /
+  `roleModal`)接回原本的本地 handler,不再跳新分頁開 Casdoor。
+- **Migrations**:`0024_rename_oidc_columns` 把 `users.casdoor_user_id`
+  → `users.oidc_subject`、新增 `users.oidc_provider`,並建 `(provider,
+  subject)` partial unique index。`0025_recreate_password_reset_tokens` 把
+  0023 drop 掉的表建回來。
+- **Casbin 保留,行為不變**。Enforcer 仍跑進程內,`casbin_rule` 表是 source
+  of truth。5 分鐘 reconcile beat 拿掉(沒 Casdoor 可同步);
+  `schedule_user_resync` mutation hook 保留,角色 / 成員變動時即時重建
+  Casbin grants。
+- **v1.1.5 部署後預設帳密**:
+  | URL | 帳號 | 密碼 |
+  |---|---|---|
+  | `http://<host>/`(帳密登入) | `admin` | `admin123`(首次登入強制改) |
+  | 「使用 Zoho 登入」按鈕 | (你的 Zoho 帳號) | — |
+
+### 啟用 Zoho SSO
+
+```bash
+# 1. https://api-console.zoho.com → Add Client → Server-based Applications
+#    Authorized Redirect URIs: http://<your-host>/api/auth/zoho/callback
+#    (這是「你的 backend」,不再是 Casdoor:8001/callback)
+# 2. 寫進 .env:
+echo "ZOHO_CLIENT_ID=<client_id>"     >> .env
+echo "ZOHO_CLIENT_SECRET=<secret>"     >> .env
+echo "ZOHO_REDIRECT_URL=http://<host>/api/auth/zoho/callback" >> .env
+# 3. 重啟 backend:
+docker compose up -d --force-recreate backend
+# 4. 重整 SPA 登入頁 — 橘色「使用 Zoho 登入」按鈕出現
+```
+
+---
+
+## 🔥 v1.1.4 — Zoho OIDC 登入(透過 Casdoor)(已被 v1.1.5 取代)
+
+- 登入頁多了一顆橘色「**使用 Zoho 登入**」捷徑按鈕(放在「使用 Casdoor 登入」下方)。一鍵打到 `/api/auth/casdoor/login?provider=zoho-corp` → Casdoor 略過自家登入頁 → 直接 302 到 accounts.zoho.com → 回應用 SPA,中間不用在 Casdoor 頁面多點一次
+- `GET /api/auth/casdoor/login` 新增 `provider=<name>` query 參數,傳給 Casdoor authorize URL。Casdoor 版本不支援此參數時自動退化為「跳到 Casdoor 登入頁,使用者在頁面上點 Zoho 按鈕」— 功能仍可用
+- backend JIT 邏輯**完全不動** — Casdoor 把 Zoho 身分統一進自己的 user row,我們收到的 JWT `sub` 永遠是 Casdoor UUID 不是 Zoho 的 sub。既有 `provision_user_from_casdoor_claims` 用 `casdoor_user_id` 做 stable dedup,Zoho-origin / 本地原生使用者一視同仁
+
+### 啟用 Zoho 登入(operator runbook,約 15 分鐘)
+
+```bash
+# 1. https://api-console.zoho.com → Add Client → Server-based Applications
+#    Authorized Redirect URI: http://<your-host>:8001/callback
+# 2. 抄出 Client ID + Client Secret(只顯示一次)
+
+# 3. 進 Casdoor admin UI (http://<host>:8001/providers) → Add 新 provider
+#    Name: zoho-corp · Category: OAuth · Type: Custom · Sub type: OAuth
+#    Auth URL:     https://accounts.zoho.com/oauth/v2/auth
+#    Token URL:    https://accounts.zoho.com/oauth/v2/token
+#    UserInfo URL: https://accounts.zoho.com/oauth/user/info
+#    Scopes:       AaaServer.profile.READ email openid
+#    User mapping: id=ZUID, displayName=Display_Name, email=Email
+
+# 4. 掛 provider 到 application:
+docker compose exec postgres psql -U admin -d casdoor -c \
+  "UPDATE application SET providers='[{\"name\":\"zoho-corp\",\"canSignUp\":true,\"canSignIn\":true,\"canUnlink\":true,\"prompted\":false,\"rule\":\"None\",\"signupGroup\":\"\"}]'::jsonb WHERE name='app-built-in';"
+
+# 5. 重整 SPA 登入頁 — 橘色「使用 Zoho 登入」按鈕出現
+```
+
+> **預設不限制 email domain**,任何 Zoho 帳號都可以 JIT 進來。本地預設角色是 `Project-Viewer`(只讀),且沒有 `project_members` row 的人什麼專案都看不到。要更嚴格時在 Casdoor provider 的 `emailRegex` 設成 `^.+@<your-domain>$` 即可。
+
+---
+
+## 🔥 v1.1.3 — Casdoor + Casbin IAM 切換
+
+### 🔐 SSO / 身分:Casdoor 接管帳號管理
+- 新增 **Casdoor IAM sidecar**(`/casdoor/*`,`--profile casdoor` 啟用)接手 users / organizations / applications / SSO providers — Google / GitHub / SAML / LDAP 等聯邦設定都在 admin UI 操作
+- 登入流程:SPA → `GET /api/auth/casdoor/login` → 302 → Casdoor authorize → `/api/auth/callback` → backend 設 httpOnly cookies(`access_token` / `refresh_token` / `active_org_id`)→ redirect 帶 `#casdoor_login=1` 讓 SPA 透過 `/api/auth/me` hydrate 使用者資訊
+- JWT 驗證雙模式:backend 先試 RS256(JWKS 1h cache)失敗才退回 HS256 — Casdoor token 與舊本地 token 在 cutover 期間並存
+- 新增 `users.casdoor_user_id`(partial unique index)+ `users.token_generation` 欄位(migration `0021`)
+
+### 🛡 授權:Casbin 進程內 enforcer
+- `pycasbin` 1.36.3 + `casbin-sqlalchemy-adapter` 1.4.0 在 FastAPI 進程內跑;policy 落地到 `casbin_rule` 表(adapter 自動建立)
+- RBAC-with-domains 模型(`app/auth/casbin_model.conf`),用 `keyMatch2` 支援 `<resource>:*` 萬用字元
+- 新 `require_casbin(P.X)` dependency 跟舊 `require_permission` 同 signature — 5 個 router 共 44 個 site 機械置換完成
+- Sync 層把 **3 階層角色解析**(ProjectMember > OrgMembership > User)flatten 成平面 `g` rules;重灌走 `python -m app.cli seed-casbin`
+- `CASBIN_ENABLED=True` 才啟用 — False 時 `require_casbin` 自動 fall back 舊 list[str] 邏輯,cutover 可 rollback
+- Shadow 模式(`CASBIN_SHADOW_ENABLED=True`):同時跑 Casbin + legacy 比對,差異 log 到 `app.auth.permissions.shadow` 給離線 diff
+
+### 🧹 舊認證端點下架(HTTP 410 + `moved_to` 指引)
+- `POST /api/auth/login` / forgot-password / reset-password / change-password — Casdoor 自帶頁面接手
+- `POST /api/auth/users` + PUT + DELETE + reset-password — 管理員建/改/刪/重設使用者搬到 `/casdoor/users`
+- 角色 CRUD `/api/settings/roles` POST/PUT/DELETE/clone — 搬到 `/casdoor/roles`
+- 舊 OIDC router(`/auth/oidc/login`, `/auth/oidc/callback`)卸載;`/auth/oidc/providers` 保留 `200 []` stub 避免 SPA 404
+- 表 drop:`oidc_providers`(migration `0022`)、`password_reset_tokens`(migration `0023`)
+- SPA 內 `roleModal` / `pmCreateUserModal` / `pmEditUserModal` / `pmResetPwdModal` 都改成 `window.open('/casdoor/...')` 開新分頁
+
+### 🔁 加固:Webhook + 5 分鐘 reconcile
+- `POST /api/auth/casdoor-webhook` 接 Casdoor 的 `add-user` / `update-user` / `delete-user` / `update-role` 事件,共享 `X-Casdoor-Webhook-Token` secret 驗證 + Valkey `SET NX` idempotency(1 小時 dedup window)
+- Celery beat 任務 `tasks.casdoor_reconcile.run` 每 **5 分鐘**整批同步:拉 `/api/get-users` + `/api/get-roles` → diff 本地 `users` + `org_memberships` → 呼叫 `rebuild_all_policies()` 重建 `casbin_rule`
+- 所有 mutation 都寫一筆 `audit_logs`(method=`SYNC`/`WEBHOOK`,`change_summary` JSON 供 diff 回放)
+- Celery worker entrypoint 加 `-B`,同進程跑 beat,不用另起 process
+
+### v1.1.3 部署後預設帳密
+| 系統 | 網址 | 帳號 | 密碼 |
+|---|---|---|---|
+| App SPA | `http://<host>/` | (走 Casdoor SSO) | — |
+| **Casdoor admin** | `http://<host>/casdoor/` | `admin` | `admin123` |
+
+### 既有部署啟用 Casdoor 的流程
+```bash
+# 1. 啟動 sidecar(首次 boot 使用 Casdoor 內建 built-in org + admin)
+docker compose --profile casdoor up -d casdoor
+
+# 2. 從 application 表撈 clientId / clientSecret
+docker compose exec postgres psql -U admin -d casdoor \
+  -c "SELECT client_id, client_secret FROM application WHERE name='app-built-in';"
+
+# 3. 加入本機的 redirect URI
+docker compose exec postgres psql -U admin -d casdoor -c \
+  "UPDATE application SET redirect_uris='[\"http://<host>/api/auth/callback\"]' WHERE name='app-built-in';"
+
+# 4. 打開 gates 並填憑證
+cat >> .env <<EOF
+CASDOOR_ENABLED=True
+CASDOOR_ORG=built-in
+CASDOOR_APP=app-built-in
+CASDOOR_CLIENT_ID=<step 2>
+CASDOOR_CLIENT_SECRET=<step 2>
+CASDOOR_REDIRECT_URL=http://<host>/api/auth/callback
+CASBIN_ENABLED=True
+CASDOOR_RECONCILE_ENABLED=True
+EOF
+docker compose up -d --force-recreate backend celery frontend
+
+# 5. seed Casbin policies(冪等可重跑)
+docker compose exec backend python -m app.cli seed-casbin
+```
+
+---
+
+## 🔥 v1.1.2 改動摘要
+
+### 🛡 自托管 Trace Viewer + HTTPS
+- frontend image build-time 從 `playwright-core@1.49.1` 抽出 Playwright trace viewer 靜態檔到 `/trace-viewer/`
+- nginx 同時 listen 443,build-time 用 openssl 產 10 年自簽 cert(CN=`autotest-platform`)
+- Cert 可從 `http://<host>/install-cert/server.crt` 下載;macOS 一行裝信任:
+  ```bash
+  curl -o /tmp/autotest.crt http://<host>/install-cert/server.crt && \
+  sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain /tmp/autotest.crt
+  ```
+- **不想裝 cert 的替代**:報告頁的「Trace Viewer」按鈕現在會**自動下載 trace.zip + 開 trace.playwright.dev**,使用者拖檔即可,完全免設定
+- COOP / COEP / CORP / `application/manifest+json` 都設好,SharedArrayBuffer + Service Worker 在 cross-origin-isolated 下運作
+- APISIX `artifact_routes` CORS 從 `http://localhost` 開到 `**`
+
+### 🔁 執行流程強化(robot_runner / execution_tasks)
+- **前置案例串接**:setup chain 直接 inline 進 main case 的 steps,**同一個 docker container** 跑完 setup → main,browser cookie / context / storage 完整繼承
+- **Per-testcase step attribution**:step log 各自掛 source testcase id + local idx 從 0 編,前端不會再「Step 7 / Empty」
+- Container wait 改 2 秒短輪詢,避開 docker-socket-proxy haproxy 10m server timeout
+- 兩層 timeout 對齊:`RUNNER_CONTAINER_TIMEOUT_SEC`(預設 1800s)+ `ROBOT_SUBPROCESS_TIMEOUT_SEC`(1680s);超時送 SIGTERM + 30s grace 讓 Teardown 寫完 video / trace
+- Goto 改 `wait_until=domcontentloaded timeout=30s`,不再卡 SPA XHR 永遠不返回
+- Click 前 JS 清掉 modal backdrop / sidebar / drawer / toast(涵蓋 Bootstrap / MUI / AntD / SweetAlert / Angular CDK / metismenu / offcanvas)
+- Wait For Elements State 預設 60s → **20s**(cascade fail 不再讓影片錄 1 小時靜止畫面)
+- AppiumLibrary 改 conditional import — 沒 `Mobile.*` step 就不 import,避免 `Get Text` 跟 Browser Library 衝突
+- Robot listener **first-error-wins** — cascade fail 不再覆寫真因(避免「Variable not found」蓋住「element not found」)
+- Cancel API 順手 docker kill 孤兒 runner 容器 + 寫 synthetic「使用者取消」step log
+- Pre / Post Action 改 `fullPage=True` 全頁截圖,包含捲動區
+
+### 🧪 測試案例編輯體驗
+- **複製測試案例**:操作欄新增綠色按鈕,整包搬 `ac_text` / `setup_text` / `steps_json` / `ddt_json` 到同 parent,自動避開重名(「副本」/「副本 (2)」/...)
+- **步驟批次刪除**:表頭加全選 checkbox + 每列加 checkbox +「刪除已勾選 (N)」紅色按鈕
+- **步驟排序拖曳改成 ▲ / ▼ 上下箭頭按鈕**(邊界自動 disabled)
+- **前置案例 UI 編輯器**:「前置動作 (Pre-Setup)」section 下新增 dropdown 選 testcase + 加入按鈕 + 啟用 toggle + 移除(對應 `testcase_precondition_links` table)
+- 自動建案模式失敗時跳明顯 `alert()` 視窗(沒選 SCENARIO / 沒抓到 step / API 沒回 id / catch 例外)
+- 「**Goto**」動作加進下拉(原本只有 Navigate,backend 認三個同義字)
+- 測試執行 Console 改成 flex 流內 panel + ESC 關閉 — 不再覆蓋下方步驟
+- 測試案例清單跨頁勾選顯示「已勾選 N 筆(跨頁保留)」黃色徽章
+
+### 🧠 Multi-agent runtime
+- 新增 `users.preferred_agent` 欄位(migration `0019`)— 可在 Hermes(預設)/ OpenClaw 切換
+- **OpenClaw runtime 改吃一般 OpenAI sk-... key** — sidecar 把 token 寫成 `OPENAI_API_KEY` 給 `openclaw agent --local`;沒 token 自動 fallback 回 Hermes
+- AI Token UI 移除「本地 (Ollama / LM Studio)」與「OpenClaw (ChatGPT 訂閱)」provider 選項;backend `create_ai_token` / `update_ai_token` 同步擋 `Ollama` / `Local` / `openai-oauth`(HTTP 400)
+
+### 🔒 Auth flow 修正
+- 強制改密 modal 開啟期間,擋掉背景 fetch 收到 `403 must_change_password` → `auth-required` → `authClearTokens` 的 race(避免 modal 一打開背景 poll 就清掉剛拿到的 token)
+- `GET /api/users/me/preferred-agent` 修壞掉的 `window.getAccessToken` 三元式(改讓 fetch wrapper 自動補 Authorization + auto-refresh)
+
+### 📋 報告呈現
+- `selectReportStep` 用該 step 真正所屬的 caseIdx(原本寫死 0 → 點 main case step 顯示 setup case 內容)
+- 軌跡 / 錄影按鈕:完整錄影(inline modal 保留)/ 下載錄影 / 下載 Trace / Trace Viewer(drag-drop 流程)— 嵌入式 trace iframe 已移除
+
+---
+
 ## 🤖 AI 原生:平台會自己寫案例、自己跑測試
 
 RL **不是** 把 ChatGPT 嵌進對話框就叫 AI 化的傳統測試工具。

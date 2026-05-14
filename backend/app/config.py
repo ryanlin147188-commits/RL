@@ -38,12 +38,14 @@ class Settings(BaseSettings):
     DEBUG: bool = False
 
     # ─── Docker 模式錄製(Phase 1) ────────────────────────────────────
+    # 預設 tag 與 docker-compose.yml 的 ${AUTOTEST_TAG:-1.1.1} 對齊;升版時
+    # 同步改這三個 + compose 檔的 AUTOTEST_TAG。可用 env var 覆蓋(RECORDER_IMAGE / 等)。
     # WEB:容器內透過此 image 跑 Xvfb + noVNC + Playwright codegen
-    RECORDER_IMAGE: str = "autotest-recorder:1.1.0"
+    RECORDER_IMAGE: str = "autotest-recorder:1.1.1"
     # API:容器內跑 mitmweb(HTTP proxy + web UI)+ HAR addon
-    RECORDER_API_IMAGE: str = "autotest-recorder-api:1.1.0"
+    RECORDER_API_IMAGE: str = "autotest-recorder-api:1.1.1"
     # MCP:Playwright MCP server,讓 LLM 透過 tool calling 操作 chromium
-    MCP_IMAGE: str = "autotest-mcp:1.1.0"
+    MCP_IMAGE: str = "autotest-mcp:1.1.1"
     # 啟動的容器加入 docker compose 的同一 network(讓 codegen 完成後 curl
     # 上傳能解析到 backend hostname);預設與 docker-compose.yml networks 一致
     RECORDER_NETWORK: str = "autotest_default"

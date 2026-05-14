@@ -5,7 +5,7 @@ from sqlalchemy import asc, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
-from app.auth.permissions import require_permission
+from app.auth.permissions import require_casbin
 from app.auth.permissions_catalog import P
 from app.auth.project_membership import ensure_project_member
 from app.database import get_db
@@ -52,7 +52,7 @@ def _scope_filter(stmt, user: User):
 @router.get(
     "/projects",
     response_model=list[ProjectResponse],
-    dependencies=[Depends(require_permission(P.PROJECT_READ))],
+    dependencies=[Depends(require_casbin(P.PROJECT_READ))],
 )
 async def list_projects(
     user: User = Depends(get_current_user),
@@ -77,7 +77,7 @@ async def list_projects(
     "/projects",
     response_model=ProjectResponse,
     status_code=201,
-    dependencies=[Depends(require_permission(P.PROJECT_WRITE))],
+    dependencies=[Depends(require_casbin(P.PROJECT_WRITE))],
 )
 async def create_project(
     payload: ProjectCreate,
@@ -123,7 +123,7 @@ def _check_org_or_404(proj: Optional[Project], user: User) -> Project:
 @router.get(
     "/projects/{project_id}/tree",
     dependencies=[
-        Depends(require_permission(P.PROJECT_READ)),
+        Depends(require_casbin(P.PROJECT_READ)),
         Depends(ensure_project_member),
     ],
 )
@@ -150,7 +150,7 @@ async def get_project_tree(
     "/projects/{project_id}",
     status_code=204,
     dependencies=[
-        Depends(require_permission(P.PROJECT_DELETE)),
+        Depends(require_casbin(P.PROJECT_DELETE)),
         Depends(ensure_project_member),
     ],
 )
@@ -172,7 +172,7 @@ async def delete_project(
     "/projects/{project_id}",
     response_model=ProjectResponse,
     dependencies=[
-        Depends(require_permission(P.PROJECT_WRITE)),
+        Depends(require_casbin(P.PROJECT_WRITE)),
         Depends(ensure_project_member),
     ],
 )
@@ -207,7 +207,7 @@ async def update_project(
     "/projects/{project_id}",
     response_model=ProjectResponse,
     dependencies=[
-        Depends(require_permission(P.PROJECT_READ)),
+        Depends(require_casbin(P.PROJECT_READ)),
         Depends(ensure_project_member),
     ],
 )
@@ -223,7 +223,7 @@ async def get_project(
 # ─────────────────── Project Members CRUD(phase 2)───────────────────
 # 一個 project 內誰是成員 + 該成員在這 project 的角色(可 override OrgMembership 的角色)。
 # 權限檢查走 _check_org_or_404 + 呼叫者必須是 superuser 或 ProjectMember,
-# 進一步「能否管理成員」交給 require_permission(USER_MANAGE) 守。
+# 進一步「能否管理成員」交給 require_casbin(USER_MANAGE) 守。
 
 def _can_manage_project_members(user: User, proj: Project) -> bool:
     """superuser 或同 org 的 admin(P.USER_MANAGE)能管理。前端會用 me/orgs 判斷。"""
@@ -338,9 +338,14 @@ async def list_project_members(
             "username": u.username,
             "display_name": u.display_name,
             "email": u.email,
+            # ``role_id`` / ``role_name`` 是 ProjectMember.role_id(本專案 override);
+            # NULL = 沿用全域 role。``global_role_id`` 是 ``users.role_id``(全域),
+            # 給「編輯使用者」modal 預填用,避免 modal 改全域 role 後重整顯示
+            # 「無角色」的錯位(此 modal PUT /auth/users/{u} 改的就是全域)。
             "role_id": role.id if role else None,
             "role_name": role.name if role else None,
             "role_scope": role.scope if role else None,
+            "global_role_id": u.role_id,
             "status": pm.status,
             "joined_at": pm.joined_at.isoformat() if pm.joined_at else None,
             # 給「編輯使用者」modal 預填用(superuser 才看得到該按鈕在後端 PUT/DELETE 上的效力)
@@ -404,6 +409,8 @@ async def add_project_member(
     )
     db.add(pm)
     await db.flush()
+    from app.auth.casbin_sync import schedule_user_resync
+    schedule_user_resync(target_username)
     return {"id": pm.id, "project_id": project_id, "username": target_username}
 
 
@@ -447,6 +454,7 @@ async def bulk_update_project_members(
 
     updated = 0
     skipped: list[dict] = []
+    touched: list[str] = []
     for u in usernames:
         u = (u or "").strip()
         if not u:
@@ -464,7 +472,11 @@ async def bulk_update_project_members(
         if has_status:
             pm.status = new_status
         updated += 1
+        touched.append(u)
     await db.flush()
+    from app.auth.casbin_sync import schedule_user_resync
+    for u in touched:
+        schedule_user_resync(u)
     return {"updated": updated, "skipped": skipped}
 
 
@@ -535,6 +547,7 @@ async def add_project_members_from_group(
 
     added = 0
     skipped: list[dict] = []
+    new_usernames: list[str] = []
     for u in sorted(usernames):
         if u in existing_pm:
             skipped.append({"username": u, "reason": "已是專案成員"}); continue
@@ -548,7 +561,11 @@ async def add_project_members_from_group(
             invited_by=user.username,
         ))
         added += 1
+        new_usernames.append(u)
     await db.flush()
+    from app.auth.casbin_sync import schedule_user_resync
+    for u in new_usernames:
+        schedule_user_resync(u)
     return {
         "added": added,
         "skipped": skipped,
@@ -591,6 +608,8 @@ async def update_project_member(
             raise HTTPException(400, "status 必須是 active / invited / disabled")
         pm.status = new_status
     await db.flush()
+    from app.auth.casbin_sync import schedule_user_resync
+    schedule_user_resync(username)
     return {"ok": True, "id": pm.id, "role_id": pm.role_id, "status": pm.status}
 
 
@@ -619,3 +638,5 @@ async def remove_project_member(
         raise HTTPException(400, "不可移除自己;請其他 admin 操作")
     await db.delete(pm)
     await db.flush()
+    from app.auth.casbin_sync import schedule_user_resync
+    schedule_user_resync(username)

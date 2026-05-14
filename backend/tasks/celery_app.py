@@ -26,3 +26,8 @@ celery_app.conf.update(
     # Windows 開發環境請加 --pool=solo 啟動 worker
     worker_prefetch_multiplier=1,
 )
+
+# v1.1.5:Casdoor 5-min reconcile beat 已隨 sidecar 下架移除。OIDC 改 in-process
+# 後 source-of-truth 就是本地 users 表,user/role 變動透過 mutation hook
+# (``schedule_user_resync``)即時觸發 Casbin grant 重建,不再需要 beat 兜底。
+celery_app.conf.beat_schedule = {}

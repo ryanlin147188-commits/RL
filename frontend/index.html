@@ -107,11 +107,19 @@
             // 視同 auth-required:踢回登入頁。改密碼 modal 由 /api/auth/login 的
             // 回應(must_change_password=true)觸發 — 不要從背景 fetch 直接 pop,
             // 那會讓使用者跳過「輸入帳密」這一步,流程錯亂。
+            //
+            // 例外:強制改密 modal 已經開著時,使用者正在「正確的流程」裡 —
+            // 此時若某個背景請求(notif badge poll 等)拿著合法新 token 撞上 403,
+            // 把 token 清掉只會讓 modal 的 submit 變空 Bearer 而 401。直接吞掉。
             if (resp.status === 403) {
                 try {
                     const data = await resp.clone().json();
                     if (data && data.detail && data.detail.code === "must_change_password") {
-                        window.dispatchEvent(new CustomEvent("autotest:auth-required"));
+                        const modal = document.getElementById("forcePwdModal");
+                        const modalOpen = modal && !modal.classList.contains("hidden");
+                        if (!modalOpen) {
+                            window.dispatchEvent(new CustomEvent("autotest:auth-required"));
+                        }
                     }
                 } catch (_) { /* body 不是 JSON 就忽略 */ }
             }
@@ -580,6 +588,14 @@
                     document.documentElement.setAttribute('data-auth', 'out');
                     return;
                 }
+                // 從 OIDC(Zoho)callback 回來:URL hash 帶 ``oidc_login=1``,
+                // httpOnly cookie 已設,但 localStorage 沒 token。先樂觀標 'in'
+                // 讓 overlay 不閃,真正 hydrate 失敗時 onload 流程會再 force re-auth。
+                var hash = (window.location.hash || '').replace(/^#/, '');
+                if (/(^|&)oidc_login=1(&|$)/.test(hash)) {
+                    document.documentElement.setAttribute('data-auth', 'in');
+                    return;
+                }
                 var t = localStorage.getItem('autotest.auth.access_token');
                 var exp = localStorage.getItem('autotest.auth.access_expires_at');
                 var valid = !!t && (!exp || Date.now() < Number(exp));
@@ -684,6 +700,23 @@
 
             </form>
 
+            <!-- v1.1.5 in-process OIDC(authlib + Zoho)。``hidden`` 預設,
+                 ``_maybeShowZohoButton()`` 看 ``/api/auth/zoho/enabled`` 回
+                 ``{enabled:true}`` 才顯示。不會把上方密碼表單收起來,兩條
+                 路徑(密碼 + Zoho SSO)同時都能登入。 -->
+            <div id="oidcBlock" class="hidden px-8 py-4">
+                <div class="flex items-center gap-3 my-3">
+                    <span class="flex-1 h-px bg-stone-200"></span>
+                    <span class="text-[10px] text-stone-400 uppercase tracking-wider">SSO</span>
+                    <span class="flex-1 h-px bg-stone-200"></span>
+                </div>
+                <button type="button" onclick="oidcStartLogin('zoho')"
+                    class="w-full py-2.5 border border-stone-300 hover:border-orange-400 hover:bg-orange-50/40 text-stone-700 rounded-lg font-semibold text-sm transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-circle-user text-orange-500"></i>
+                    <span>使用 Zoho 登入</span>
+                </button>
+            </div>
+
             <!-- 註冊表單已下架:本系統禁止自助註冊,所有帳號由管理員建立。 -->
 
             <!-- 忘記密碼表單(寄重置連結到 email) -->
@@ -761,30 +794,36 @@
         <div class="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-amber-200/60 overflow-hidden">
             <div class="bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-4 text-white">
                 <h3 class="font-bold text-base flex items-center gap-2">
-                    <i class="fa-solid fa-shield-halved"></i> 首次登入請設定新密碼
+                    <i class="fa-solid fa-id-card"></i> 首次登入請完成個人資料
                 </h3>
-                <p class="text-xs opacity-90 mt-1">為了帳號安全,請立即更換預設密碼後再開始使用系統。</p>
+                <p class="text-xs opacity-90 mt-1">設定顯示名稱、Email 與新密碼後即可開始使用。</p>
             </div>
             <form id="forcePwdForm" onsubmit="return forcePwdHandleSubmit(event)" class="px-6 py-5 space-y-3">
                 <div>
-                    <label for="forcePwdOld" class="block text-xs font-semibold text-stone-600 mb-1">目前密碼</label>
-                    <input type="password" id="forcePwdOld" required autocomplete="current-password"
+                    <label for="forceDisplayName" class="block text-xs font-semibold text-stone-600 mb-1">顯示名稱 <span class="text-rose-500">*</span></label>
+                    <input type="text" id="forceDisplayName" required maxlength="120" autocomplete="name"
                         class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
                 </div>
                 <div>
-                    <label for="forcePwdNew" class="block text-xs font-semibold text-stone-600 mb-1">新密碼</label>
+                    <label for="forceEmail" class="block text-xs font-semibold text-stone-600 mb-1">Email <span class="text-rose-500">*</span></label>
+                    <input type="email" id="forceEmail" required maxlength="255" autocomplete="email"
+                        class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+                    <p class="text-[10px] text-stone-500 mt-1">給忘記密碼 / 通知功能使用</p>
+                </div>
+                <div>
+                    <label for="forcePwdNew" class="block text-xs font-semibold text-stone-600 mb-1">新密碼 <span class="text-rose-500">*</span></label>
                     <input type="password" id="forcePwdNew" required minlength="6" autocomplete="new-password"
                         class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
-                    <p class="text-[10px] text-stone-500 mt-1">至少 6 字元,且不可與目前密碼相同</p>
+                    <p class="text-[10px] text-stone-500 mt-1">至少 6 字元</p>
                 </div>
                 <div>
-                    <label for="forcePwdNew2" class="block text-xs font-semibold text-stone-600 mb-1">再次輸入新密碼</label>
+                    <label for="forcePwdNew2" class="block text-xs font-semibold text-stone-600 mb-1">再次輸入新密碼 <span class="text-rose-500">*</span></label>
                     <input type="password" id="forcePwdNew2" required minlength="6" autocomplete="new-password"
                         class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
                 </div>
                 <button type="submit"
                     class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-lg font-semibold text-sm shadow-md transition flex items-center justify-center gap-2">
-                    <i class="fa-solid fa-floppy-disk"></i> 變更密碼並繼續
+                    <i class="fa-solid fa-floppy-disk"></i> 完成設定並繼續
                 </button>
                 <p class="text-[10px] text-stone-400 text-center">未變更密碼前無法使用其他功能。</p>
             </form>
@@ -853,7 +892,7 @@
                         <path d="M 6 28 L 20 42 L 58 4" stroke="#000" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
                 </div>
-                <h1 class="font-bold text-base md:text-lg text-slate-800 tracking-tight whitespace-nowrap">RL<span class="hidden sm:inline text-[10px] text-amber-700 bg-amber-50 font-semibold ml-1.5 px-1.5 py-0.5 rounded border border-amber-200 align-middle">v1.1.1</span></h1>
+                <h1 class="font-bold text-base md:text-lg text-slate-800 tracking-tight whitespace-nowrap">RL<span class="hidden sm:inline text-[10px] text-amber-700 bg-amber-50 font-semibold ml-1.5 px-1.5 py-0.5 rounded border border-amber-200 align-middle">v1.1.7</span></h1>
             </button>
 
             <!-- 置中空白 (推右側動作群到最右邊) -->
@@ -2291,6 +2330,24 @@ driver.swipe(100, 800, 100, 200, 500)"
                         <h3 class="font-bold text-slate-700 flex items-center gap-2"><i class="fa-solid fa-gear text-amber-500"></i> 前置動作 (Pre-Setup)</h3>
                     </div>
                     <textarea id="setupTextarea" onchange="updateSetup(this.value)" aria-label="前置動作" placeholder="例：建立測試資料庫 seed、預先取得 API token、啟動 mock server..." class="w-full text-sm p-3 border border-slate-200 rounded-md focus:ring-2 focus:ring-amber-100 focus:border-amber-400 outline-none resize-none text-slate-600 leading-relaxed" rows="3"></textarea>
+                    <!-- 前置案例:跑此案例前先跑哪些 testcase(對應 testcase_precondition_links)-->
+                    <div class="mt-4 pt-4 border-t border-slate-200">
+                        <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
+                            <label class="text-xs font-semibold text-slate-600 flex items-center gap-1">
+                                <i class="fa-solid fa-link text-amber-500"></i>
+                                前置案例(執行前先跑)
+                            </label>
+                            <div class="flex gap-2 items-center">
+                                <select id="preconditionPicker" class="text-xs px-2 py-1 border border-slate-300 rounded bg-white max-w-[260px]" aria-label="選擇前置案例">
+                                    <option value="">-- 選擇要加入的案例 --</option>
+                                </select>
+                                <button type="button" onclick="addPreconditionFromPicker()" class="text-xs px-2 py-1 bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 rounded transition">
+                                    <i class="fa-solid fa-plus"></i> 加入
+                                </button>
+                            </div>
+                        </div>
+                        <div id="preconditionList" class="space-y-1 text-sm"></div>
+                    </div>
                 </section>
 
                 <section class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
@@ -2303,6 +2360,10 @@ driver.swipe(100, 800, 100, 200, 500)"
                                 <button onclick="setStepMode('BDD')" id="btnModeBDD" class="px-3 py-1 text-xs font-medium rounded text-slate-500 hover:text-slate-700 transition">BDD 模式</button>
                                 <button onclick="setStepMode('KDT')" id="btnModeKDT" class="px-3 py-1 text-xs font-medium rounded text-slate-500 hover:text-slate-700 transition">KDT 模式</button>
                             </div>
+                            <button id="stepBulkDeleteBtn" onclick="stepBulkDeleteSelected()" disabled
+                                class="text-sm px-3 py-1.5 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 disabled:bg-stone-100 disabled:text-stone-400 disabled:cursor-not-allowed rounded flex items-center gap-1 transition shadow-sm" title="刪除已勾選的步驟">
+                                <i class="fa-solid fa-trash"></i> 刪除已勾選 <span id="stepBulkDeleteCount">(0)</span>
+                            </button>
                             <button onclick="addEmptyStep()" class="text-sm px-3 py-1.5 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded flex items-center gap-1 transition shadow-sm">
                                 <i class="fa-solid fa-plus"></i> 新增步驟
                             </button>
@@ -2312,6 +2373,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                         <table class="w-full text-left border-collapse min-w-[900px] table-mode-all transition-all duration-300" id="stepsTable">
                             <thead>
                                 <tr class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-y border-slate-200">
+                                    <th class="p-2 font-medium w-[28px] text-center"><input type="checkbox" id="stepSelectAll" onchange="stepToggleSelectAll(this.checked)" aria-label="全選步驟" title="全選 / 取消全選" class="accent-red-500 cursor-pointer"></th>
                                     <th class="p-2 font-medium w-[28px] text-center" aria-label="拖曳排序"></th>
                                     <th class="p-3 font-medium w-[100px]">測試編號</th>
                                     <th class="p-3 font-medium w-[100px] col-bdd">BDD 關鍵字</th>
@@ -2668,7 +2730,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                                     <text x="0"  y="44" font-family="Arial Black,sans-serif" font-size="52" font-weight="900" fill="#ef4444">R</text>
                                     <path d="M 6 28 L 20 42 L 58 4" stroke="#000" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
                                 </svg>
-                                RL v1.1.1
+                                RL v1.1.7
                             </div>
                             <h2 class="text-3xl font-bold" data-i18n="home.hero.platform">自動化測試平台</h2>
                         </div>
@@ -2879,13 +2941,17 @@ driver.swipe(100, 800, 100, 200, 500)"
                                 <i class="fa-solid fa-list-check"></i> 建立追蹤待辦 <span id="tcBulkTodoCount">(0)</span>
                             </button>
                             <button id="tcBulkDeleteBtn" onclick="tcBulkDeleteSelected()" disabled
-                                class="px-3 py-2 bg-rose-500 hover:bg-rose-600 disabled:bg-stone-300 disabled:cursor-not-allowed text-white rounded-md text-sm font-semibold shadow-sm transition flex items-center gap-1.5" title="刪除已勾選的測試案例">
+                                class="px-3 py-2 bg-rose-500 hover:bg-rose-600 disabled:bg-stone-300 disabled:cursor-not-allowed text-white rounded-md text-sm font-semibold shadow-sm transition flex items-center gap-1.5" title="刪除已勾選的測試案例(可跨頁)">
                                 <i class="fa-solid fa-trash"></i> 刪除 <span id="tcBulkDeleteCount">(0)</span>
                             </button>
                             <button onclick="openTcCreateModal()" class="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold shadow-sm transition flex items-center gap-1.5" title="新增測試案例">
                                 <i class="fa-solid fa-plus"></i> 新增案例
                             </button>
-                            <div class="text-xs text-stone-500 ml-auto">
+                            <div class="text-xs text-stone-500 ml-auto flex items-center gap-3">
+                                <span id="tcBulkSelectionBadge" class="hidden px-2 py-0.5 bg-amber-100 text-amber-800 border border-amber-300 rounded font-medium">
+                                    已勾選 <span id="tcBulkSelectionCount">0</span> 筆(跨頁保留)
+                                    <button onclick="tcClearSelection()" class="ml-1 text-amber-700 hover:text-amber-900 underline" title="清除全部勾選">清除</button>
+                                </span>
                                 共 <span id="tcListCount" class="font-bold text-stone-700">0</span> 筆
                             </div>
                         </div>
@@ -3075,6 +3141,13 @@ driver.swipe(100, 800, 100, 200, 500)"
                                 class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm font-mono">
                             <p class="text-[10px] text-stone-500 mt-1">至少 6 字元;使用者第一次登入後會被強制修改。</p>
                         </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-stone-600 mb-1">系統角色</label>
+                            <select id="pmCuRoleId" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm">
+                                <option value="">— 預設(Project-Viewer)—</option>
+                            </select>
+                            <p class="text-[10px] text-stone-500 mt-1">沒選會預設 Project-Viewer(可讀但不能改);後續可在「編輯使用者」改</p>
+                        </div>
                         <label class="flex items-center gap-2 text-xs text-stone-600 cursor-pointer">
                             <input type="checkbox" id="pmCuAddToProject" checked class="rounded border-stone-300 text-emerald-500 focus:ring-emerald-400">
                             <span>建立後同時加入<b id="pmCuProjectName">當前專案</b>為成員</span>
@@ -3082,6 +3155,65 @@ driver.swipe(100, 800, 100, 200, 500)"
                         <div class="flex justify-end gap-2 pt-2">
                             <button type="button" onclick="pmCloseCreateUserModal()" class="px-3 py-1.5 text-sm border border-stone-300 rounded hover:bg-stone-50">取消</button>
                             <button type="submit" class="px-4 py-1.5 text-sm bg-emerald-500 hover:bg-emerald-600 text-white rounded font-semibold">建立</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- 加入現有使用者 Modal(Casdoor cutover 後標準入口) -->
+            <!-- v1.1.6:Per-project role permission override modal -->
+            <div id="prpEditModal" class="hidden fixed inset-0 z-[175] bg-black/40 flex items-center justify-center p-4">
+                <div class="bg-white rounded-lg shadow-xl border border-stone-200 w-full max-w-2xl">
+                    <div class="px-5 py-3 border-b flex justify-between items-center">
+                        <div class="font-bold text-stone-800"><i class="fa-solid fa-shield-halved text-amber-600"></i> 編輯本專案內 <span id="prpEditRoleName" class="text-amber-700">—</span> 的權限</div>
+                        <button onclick="prpCloseEditModal()" class="text-stone-400 hover:text-rose-600"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <form onsubmit="return prpSubmitEdit(event)" class="p-4 space-y-3">
+                        <p class="text-[11px] text-stone-500 bg-amber-50 border border-amber-200 rounded p-2 leading-relaxed">
+                            <i class="fa-solid fa-circle-info text-amber-500"></i>
+                            這份覆蓋只影響本專案。儲存後立即對所有持有此角色的本專案成員生效;不會動到該角色在其他專案 / 全域的權限設定。
+                        </p>
+                        <div id="prpPermsBox" class="space-y-3 max-h-[55vh] overflow-y-auto"></div>
+                        <div class="flex justify-between gap-2 pt-2 border-t border-stone-100">
+                            <button type="button" onclick="prpResetToDefault()" class="px-3 py-1.5 text-sm border border-rose-300 text-rose-700 rounded hover:bg-rose-50" title="移除本專案 override,回到該 role 的全域預設權限"><i class="fa-solid fa-rotate-left"></i> 重設為預設</button>
+                            <div class="flex gap-2">
+                                <button type="button" onclick="prpCloseEditModal()" class="px-3 py-1.5 text-sm border border-stone-300 rounded hover:bg-stone-50">取消</button>
+                                <button type="submit" class="px-4 py-1.5 text-sm bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold">儲存覆蓋</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div id="pmAddExistingModal" class="hidden fixed inset-0 z-[170] bg-black/40 flex items-center justify-center p-4">
+                <div class="bg-white rounded-lg shadow-xl border border-stone-200 w-full max-w-md">
+                    <div class="px-5 py-3 border-b flex justify-between items-center">
+                        <div class="font-bold text-stone-800"><i class="fa-solid fa-user-plus text-amber-600"></i> 加入現有使用者到專案</div>
+                        <button onclick="pmCloseAddExistingModal()" class="text-stone-400 hover:text-rose-600"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <form onsubmit="return pmSubmitAddExisting(event)" class="p-4 space-y-3">
+                        <p class="text-[11px] text-stone-500 bg-amber-50 border border-amber-200 rounded p-2 leading-relaxed">
+                            <i class="fa-solid fa-circle-info text-amber-500"></i>
+                            清單顯示「**已存在於本地 + 屬於本專案組織**」的使用者。<br>
+                            找不到要的人?用「建立新使用者」按鈕(superuser 限定)在本地建,或請管理員操作。
+                        </p>
+                        <div>
+                            <label class="block text-xs font-semibold text-stone-600 mb-1">使用者 <span class="text-rose-500">*</span></label>
+                            <input list="pmAeUsernameList" id="pmAeUsername" required autocomplete="off"
+                                placeholder="輸入或選擇 username…"
+                                class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm">
+                            <datalist id="pmAeUsernameList"></datalist>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-stone-600 mb-1">在本專案的角色</label>
+                            <select id="pmAeRoleId" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm">
+                                <option value="">— 沿用該使用者的組織角色 —</option>
+                            </select>
+                            <p class="text-[10px] text-stone-500 mt-1">選擇後會 override 該使用者在這個專案的權限。空著就照他在組織內的預設角色。</p>
+                        </div>
+                        <div class="flex justify-end gap-2 pt-2">
+                            <button type="button" onclick="pmCloseAddExistingModal()" class="px-3 py-1.5 text-sm border border-stone-300 rounded hover:bg-stone-50">取消</button>
+                            <button type="submit" class="px-4 py-1.5 text-sm bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold">加入</button>
                         </div>
                     </form>
                 </div>
@@ -3398,6 +3530,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                                 </div>
                                 <div class="flex items-center gap-2">
                                     <button onclick="pmReload()" class="text-xs px-2.5 py-1.5 border border-stone-300 rounded hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
+                                    <button onclick="pmOpenAddExistingModal()" class="text-xs px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold" title="把已存在的本地帳號加入此專案"><i class="fa-solid fa-user-plus"></i> 加入現有使用者</button>
                                     <button onclick="pmOpenCreateUserModal()" class="text-xs px-2.5 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded font-semibold" title="建立全新帳號並加入此專案"><i class="fa-solid fa-user-plus"></i> 建立新使用者</button>
                                 </div>
                             </div>
@@ -3431,12 +3564,56 @@ driver.swipe(100, 800, 100, 200, 500)"
                             </div>
                             <div class="mt-2 text-[11px] text-stone-500" id="pmFilterHint"></div>
                         </section>
+
+                        <!-- v1.1.6:本專案角色權限(per-project role override)──────── -->
+                        <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-4">
+                            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                                <div class="flex-1 min-w-0">
+                                    <h3 class="font-bold text-stone-700 text-base flex items-center gap-2"><i class="fa-solid fa-shield-halved text-amber-500"></i> 本專案角色權限</h3>
+                                    <p class="text-xs text-stone-500 mt-1">在這個專案內覆蓋 4 個 project-scope 角色的權限。覆蓋只影響本專案,不會動到其他專案。</p>
+                                </div>
+                                <button onclick="prpReload()" class="text-xs px-2.5 py-1.5 border border-stone-300 rounded hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
+                            </div>
+                            <div id="prpEmptyHint" class="hidden bg-amber-50 border border-amber-200 rounded-lg p-3 text-center text-amber-800 text-sm">
+                                <i class="fa-solid fa-circle-info"></i> 請先在左側選一個專案。
+                            </div>
+                            <div id="prpTableWrap" class="overflow-hidden border border-stone-100 rounded-md">
+                                <table class="w-full text-sm">
+                                    <thead class="bg-amber-50/60 text-stone-600 text-xs uppercase">
+                                        <tr>
+                                            <th class="p-3 text-left">角色</th>
+                                            <th class="p-3 text-left">目前有效權限數</th>
+                                            <th class="p-3 text-left w-28">狀態</th>
+                                            <th class="p-3 text-center w-40">操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="prpTableBody" class="divide-y divide-stone-100">
+                                        <tr><td colspan="4" class="p-4 text-center text-stone-400">載入中…</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </section>
                     </div>
 
                     <!-- ─── Pane 8: 邀請 + Email Domain 自動歸屬 ─── -->
 
                     <!-- ─── Pane 6: AI Token ─── -->
                     <div id="setPaneAi" class="hidden space-y-4">
+                        <!-- Phase 1: Agent Runtime picker (token-capability gated) -->
+                        <section class="bg-white rounded-xl border border-indigo-100 shadow-sm p-4">
+                            <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
+                                <h3 class="font-bold text-stone-700 text-base flex items-center gap-2"><i class="fa-solid fa-shuffle text-indigo-500"></i> 預設 AI Agent</h3>
+                                <span id="agentEffectiveBadge" class="text-[10px] px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-normal hidden">目前生效:<span id="agentEffectiveKey">-</span></span>
+                            </div>
+                            <p class="text-xs text-stone-500 mb-3">選你慣用的 agent runtime;下拉選項會依「現有 token 能力」自動 enable/disable。選「自動」由系統依 token 挑第一個能跑的。</p>
+                            <div class="flex items-center gap-3 flex-wrap">
+                                <select id="preferredAgentSelect" onchange="savePreferredAgent()" class="px-3 py-2 border border-stone-300 rounded-md text-sm bg-white min-w-[220px]">
+                                    <option value="">自動(系統依 token 挑)</option>
+                                </select>
+                                <span id="agentReasonText" class="text-xs text-stone-500"></span>
+                            </div>
+                        </section>
+
                         <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-4">
                             <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
                                 <h3 class="font-bold text-stone-700 text-base flex items-center gap-2"><i class="fa-solid fa-robot text-amber-500"></i> AI Token 管理</h3>
@@ -3541,7 +3718,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                                     <option value="OpenAI">GPT (OpenAI)</option>
                                     <option value="Anthropic">Claude (Anthropic)</option>
                                     <option value="Google">Gemini (Google)</option>
-                                    <option value="Ollama">本地 (Ollama / LM Studio)</option>
                                 </select>
                             </div>
                         </div>
@@ -4822,8 +4998,12 @@ driver.swipe(100, 800, 100, 200, 500)"
 
             <!-- AI 生成結果 modal 已移除(2026-04 改為 AI 對話框,見右下角 FAB)-->
 
-            <!-- 執行終端機面板 -->
-            <div id="terminalPanel" class="absolute bottom-0 left-0 right-0 h-64 bg-slate-900 border-t-4 border-green-500 transform translate-y-full transition-transform duration-300 ease-in-out flex flex-col z-20 shadow-2xl">
+            <!-- 執行終端機面板:
+                 改成 flex 流內元素(原本是 `absolute bottom-0` 會蓋住內容)。
+                 - 預設 `h-0 border-t-0`:不佔空間、不顯示綠線
+                 - 開啟時切到 `h-64 border-t-4`,內容區自然被擠上去
+                 - 動畫走 `transition-[height]` -->
+            <div id="terminalPanel" class="h-0 border-t-0 overflow-hidden shrink-0 transition-[height] duration-300 ease-in-out bg-slate-900 border-green-500 flex flex-col shadow-2xl">
                 <div class="flex items-center justify-between px-4 py-2 bg-slate-800 border-b border-slate-700 shrink-0">
                     <span class="text-xs font-mono text-slate-300"><i class="fa-solid fa-terminal mr-2"></i>Test Execution Console</span>
                     <div class="flex gap-3 items-center">
@@ -4832,7 +5012,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                             <i class="fa-solid fa-stop"></i> 停止
                         </button>
                         <button type="button" onclick="clearTerminal()" class="text-slate-400 hover:text-white text-xs"><i class="fa-solid fa-eraser"></i> 清除</button>
-                        <button type="button" onclick="closeTerminal()" aria-label="關閉終端機面板" class="text-slate-400 hover:text-red-400"><i class="fa-solid fa-xmark"></i></button>
+                        <button type="button" onclick="closeTerminal()" aria-label="關閉終端機面板 (Esc)" title="關閉 (Esc)" class="text-xs px-2 py-1 rounded bg-slate-700 hover:bg-red-600 text-slate-200 hover:text-white flex items-center gap-1"><i class="fa-solid fa-xmark"></i> 關閉</button>
                     </div>
                 </div>
                 <div id="terminalOutput" class="p-4 font-mono text-sm text-slate-300 overflow-y-auto flex-1 space-y-1 bg-[#0f172a]">
@@ -4845,7 +5025,7 @@ driver.swipe(100, 800, 100, 200, 500)"
 
     <!-- ==================== 彈出視窗 (Modals) ==================== -->
 
-    <!-- 完整錄影 Modal（案例完整錄影 .webm）-->
+    <!-- 完整錄影 Modal(案例完整錄影 .webm)— 保留;Trace Viewer 嵌入式 modal 已移除,改走外部分頁 -->
     <div id="fullVideoModal" class="fixed inset-0 bg-slate-900/70 hidden z-[160] flex items-center justify-center opacity-0 transition-opacity">
         <div class="bg-white rounded-lg shadow-xl w-[960px] max-w-[95vw] transform scale-95 transition-transform">
             <div class="flex items-center justify-between p-3 border-b border-slate-200">
@@ -4857,20 +5037,6 @@ driver.swipe(100, 800, 100, 200, 500)"
             <div class="p-3 bg-black">
                 <video id="fullVideoPlayer" controls class="w-full max-h-[70vh] rounded"></video>
             </div>
-        </div>
-    </div>
-
-    <!-- Trace Viewer 嵌入式 Modal（iframe 載入 trace.playwright.dev）-->
-    <div id="traceViewerModal" class="fixed inset-0 bg-slate-900/70 hidden z-[160] flex items-center justify-center opacity-0 transition-opacity">
-        <div class="bg-white rounded-lg shadow-xl w-[95vw] h-[90vh] flex flex-col transform scale-95 transition-transform">
-            <div class="flex items-center justify-between p-3 border-b border-slate-200 shrink-0">
-                <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
-                    <i class="fa-solid fa-route text-purple-500"></i> Trace Viewer
-                    <span class="text-xs font-normal text-slate-400">由 trace.playwright.dev 提供；需 trace.zip 對外可達</span>
-                </h3>
-                <button onclick="closeTraceViewer()" aria-label="關閉" class="text-slate-400 hover:text-red-500"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-            <iframe id="traceViewerIframe" title="Playwright Trace Viewer" class="flex-1 w-full border-0 rounded-b-lg"></iframe>
         </div>
     </div>
 
@@ -5327,7 +5493,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 'Versions',
                 'bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium',
                 '測試版號',
-                { titleKey: 'view.testVersions.title', filenameKey: 'view.testVersions.title' })) return;
+                { titleKey: 'view.testVersions.title', filenameKey: 'view.testVersions.title' })) return false;
             tvReloadList();
         }
 
@@ -5522,7 +5688,9 @@ driver.swipe(100, 800, 100, 200, 500)"
         // ==================== 1. 終端機功能 ====================
         async function runTest() {
             const panel = document.getElementById('terminalPanel');
-            panel.classList.remove('translate-y-full');
+            // 展開 panel:加 h-64 + border-t-4(關閉時是 h-0 / border-t-0)
+            panel.classList.remove('h-0', 'border-t-0');
+            panel.classList.add('h-64', 'border-t-4');
             const output = document.getElementById('terminalOutput');
             output.innerHTML = '';
 
@@ -5838,8 +6006,29 @@ driver.swipe(100, 800, 100, 200, 500)"
         }
 
         function closeTerminal() {
-            document.getElementById('terminalPanel').classList.add('translate-y-full');
+            const panel = document.getElementById('terminalPanel');
+            if (!panel) return;
+            // 收回 panel:回到 h-0 + border-t-0,把空間還給上方內容
+            panel.classList.remove('h-64', 'border-t-4');
+            panel.classList.add('h-0', 'border-t-0');
+            // 關閉時也順手停掉串流(若還在跑),避免日誌持續灌到 hidden DOM,
+            // 也讓使用者直覺上「關掉=結束這次觀察」。
+            try {
+                if (typeof _execLogStream !== 'undefined' && _execLogStream) {
+                    _execLogStream.close();
+                    _execLogStream = null;
+                }
+            } catch (_) {}
         }
+
+        // ESC 一鍵收掉執行 console — 避免 X 按鈕被視覺忽略時還是能關。
+        document.addEventListener('keydown', (e) => {
+            if (e.key !== 'Escape') return;
+            const panel = document.getElementById('terminalPanel');
+            if (panel && !panel.classList.contains('h-0')) {
+                closeTerminal();
+            }
+        });
 
         function clearTerminal() {
             document.getElementById('terminalOutput').innerHTML = '';
@@ -5914,7 +6103,135 @@ driver.swipe(100, 800, 100, 200, 500)"
 
             renderSteps();
             renderDDT();
+            // 前置案例:獨立 API,不在 testcase content 內,單獨拉
+            loadPreconditionsUI(currentTestCase).catch(() => {});
             updateSaveIndicator();
+        }
+
+        // ── 前置案例 (Preconditions) UI ──────────────────────────────────
+        // 對應 testcase_precondition_links。執行時 backend 會把這裡列的 testcase
+        // 排到 setup 階段先跑;sort_order 決定順序、enabled 可暫時關掉、on_failure=stop
+        // 表示前置失敗就讓主案例 SKIP。
+        function _collectTestcaseNodes(nodes, out) {
+            if (!Array.isArray(nodes)) return;
+            for (const n of nodes) {
+                if (n.level_type === 'TESTCASE') out.push({ id: n.id, label: n.name });
+                if (n.children && n.children.length) _collectTestcaseNodes(n.children, out);
+            }
+        }
+        async function loadPreconditionsUI(testcaseId) {
+            const list = document.getElementById('preconditionList');
+            const picker = document.getElementById('preconditionPicker');
+            if (!list || !picker) return;
+            if (!testcaseId) { list.innerHTML = ''; return; }
+            const candidates = [];
+            _collectTestcaseNodes(activeTreeData || [], candidates);
+            picker.innerHTML = '<option value="">-- 選擇要加入的案例 --</option>'
+                + candidates
+                    .filter(c => c.id !== testcaseId)
+                    .map(c => `<option value="${c.id}">${c.label.replace(/"/g, '&quot;')}</option>`)
+                    .join('');
+            try {
+                const r = await fetch(`/api/testcases/${testcaseId}/preconditions`);
+                if (!r.ok) { list.innerHTML = `<div class="text-xs text-rose-500">載入失敗 HTTP ${r.status}</div>`; return; }
+                _renderPreconditionList(await r.json(), candidates);
+            } catch (e) {
+                list.innerHTML = `<div class="text-xs text-rose-500">載入失敗:${e.message}</div>`;
+            }
+        }
+        function _renderPreconditionList(items, candidates) {
+            const list = document.getElementById('preconditionList');
+            if (!list) return;
+            if (!items || items.length === 0) {
+                list.innerHTML = '<div class="text-xs text-slate-400 italic">(無)</div>';
+                return;
+            }
+            const byId = Object.fromEntries((candidates || []).map(c => [c.id, c.label]));
+            list.innerHTML = items.map(item => {
+                const name = byId[item.precondition_testcase_id] || (item.precondition_testcase_id.slice(0, 8) + '…');
+                return `
+                    <div class="flex items-center gap-2 px-2 py-1.5 bg-slate-50 border border-slate-200 rounded">
+                        <i class="fa-solid fa-link text-amber-400 text-xs"></i>
+                        <span class="flex-1 text-sm text-slate-700">${name}</span>
+                        <label class="text-xs text-slate-500 flex items-center gap-1 cursor-pointer">
+                            <input type="checkbox" ${item.enabled ? 'checked' : ''} onchange="togglePreconditionEnabled('${item.id}', this.checked)">
+                            啟用
+                        </label>
+                        <button type="button" onclick="removePrecondition('${item.id}')" class="text-xs text-rose-500 hover:text-rose-700" aria-label="移除">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </div>`;
+            }).join('');
+        }
+        async function _fetchPreconditions(testcaseId) {
+            const r = await fetch(`/api/testcases/${testcaseId}/preconditions`);
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            return r.json();
+        }
+        async function _putPreconditions(testcaseId, items) {
+            const r = await fetch(`/api/testcases/${testcaseId}/preconditions`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ items }),
+            });
+            if (!r.ok) {
+                const j = await r.json().catch(() => ({}));
+                const msg = (j.detail && (j.detail.message || j.detail)) || `HTTP ${r.status}`;
+                throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
+            }
+            return r.json();
+        }
+        function _toInputItems(arr) {
+            return arr.map(c => ({
+                precondition_testcase_id: c.precondition_testcase_id,
+                sort_order: c.sort_order,
+                enabled: c.enabled,
+                on_failure: c.on_failure,
+            }));
+        }
+        async function addPreconditionFromPicker() {
+            if (!currentTestCase) { showToast('先選一個測試案例', 'error'); return; }
+            const picker = document.getElementById('preconditionPicker');
+            const preId = picker.value;
+            if (!preId) { showToast('請先選一個前置案例', 'error'); return; }
+            try {
+                const current = await _fetchPreconditions(currentTestCase);
+                if (current.some(x => x.precondition_testcase_id === preId)) {
+                    showToast('該案例已是前置', 'error'); return;
+                }
+                const items = _toInputItems(current);
+                items.push({ precondition_testcase_id: preId, sort_order: items.length, enabled: true, on_failure: 'stop' });
+                await _putPreconditions(currentTestCase, items);
+                await loadPreconditionsUI(currentTestCase);
+                picker.value = '';
+                showToast('已加入前置案例', 'success');
+            } catch (e) {
+                showToast(`加入失敗:${e.message}`, 'error');
+            }
+        }
+        async function togglePreconditionEnabled(linkId, enabled) {
+            if (!currentTestCase) return;
+            try {
+                const current = await _fetchPreconditions(currentTestCase);
+                const items = _toInputItems(current.map(c => c.id === linkId ? { ...c, enabled } : c));
+                await _putPreconditions(currentTestCase, items);
+                await loadPreconditionsUI(currentTestCase);
+            } catch (e) {
+                showToast(`更新失敗:${e.message}`, 'error');
+            }
+        }
+        async function removePrecondition(linkId) {
+            if (!currentTestCase) return;
+            if (!confirm('確定要移除這個前置案例?')) return;
+            try {
+                const current = await _fetchPreconditions(currentTestCase);
+                const items = _toInputItems(current.filter(c => c.id !== linkId));
+                await _putPreconditions(currentTestCase, items);
+                await loadPreconditionsUI(currentTestCase);
+                showToast('已移除', 'success');
+            } catch (e) {
+                showToast(`移除失敗:${e.message}`, 'error');
+            }
         }
 
         // 測試步驟模式切換邏輯
@@ -5942,8 +6259,8 @@ driver.swipe(100, 800, 100, 200, 500)"
         // 若此處要新增動作，需同步擴充 runner 的對應邏輯，否則執行階段會 Fail
         const ACTION_OPTIONS_BY_PLATFORM = {
             WEB: [
-                // 導航
-                'Navigate', 'Reload', 'GoBack', 'GoForward',
+                // 導航 — Goto / Navigate 等價(backend _translate_step 把兩者都對到 Browser Library 的 Go To)
+                'Goto', 'Navigate', 'Reload', 'GoBack', 'GoForward',
                 // 點擊/輸入
                 'Click', 'DoubleClick', 'RightClick', 'ClickAt', 'CanvasClick',
                 'Hover', 'Focus',
@@ -5981,7 +6298,7 @@ driver.swipe(100, 800, 100, 200, 500)"
             // E2E：跨領域端到端測試，包含 WEB + API + APP（Mobile）所有動作
             E2E: [
                 // ── Browser（同 WEB 全部）──
-                'Navigate', 'Reload', 'GoBack', 'GoForward',
+                'Goto', 'Navigate', 'Reload', 'GoBack', 'GoForward',
                 'Click', 'DoubleClick', 'RightClick', 'ClickAt', 'CanvasClick',
                 'Hover', 'Focus',
                 'Fill', 'Type', 'Clear', 'Press', 'Select', 'Check', 'Uncheck',
@@ -6016,7 +6333,7 @@ driver.swipe(100, 800, 100, 200, 500)"
             ],
             // UI：純瀏覽器互動 + Playwright screenshot diff
             UI: [
-                'Navigate', 'Reload', 'GoBack', 'GoForward',
+                'Goto', 'Navigate', 'Reload', 'GoBack', 'GoForward',
                 'Click', 'DoubleClick', 'RightClick', 'ClickAt', 'CanvasClick',
                 'Hover', 'Focus',
                 'Fill', 'Type', 'Clear', 'Press', 'Select', 'Check', 'Uncheck',
@@ -6113,10 +6430,65 @@ driver.swipe(100, 800, 100, 200, 500)"
             el.style.height = (el.scrollHeight + 2) + 'px';
         }
 
+        // 測試步驟批次選取:以 step idx 為 key,切換 testcase 時自動清空
+        // (idx 對不同 testcase 沒意義);renderSteps 結束會 sync UI。
+        const stepSelectedIdx = new Set();
+        let _stepSelectionTcId = null;
+        function stepToggleRow(idx, checked) {
+            if (checked) stepSelectedIdx.add(idx);
+            else stepSelectedIdx.delete(idx);
+            stepUpdateBulkDeleteUI();
+        }
+        function stepToggleSelectAll(checked) {
+            document.querySelectorAll('.step-row-check').forEach(cb => {
+                cb.checked = checked;
+                const i = parseInt(cb.dataset.stepIdx, 10);
+                if (!Number.isNaN(i)) {
+                    if (checked) stepSelectedIdx.add(i);
+                    else stepSelectedIdx.delete(i);
+                }
+            });
+            stepUpdateBulkDeleteUI();
+        }
+        function stepUpdateBulkDeleteUI() {
+            const n = stepSelectedIdx.size;
+            const btn = document.getElementById('stepBulkDeleteBtn');
+            const lbl = document.getElementById('stepBulkDeleteCount');
+            if (btn) btn.disabled = n === 0;
+            if (lbl) lbl.textContent = `(${n})`;
+            const selAll = document.getElementById('stepSelectAll');
+            if (selAll) {
+                const rows = document.querySelectorAll('.step-row-check');
+                const total = rows.length;
+                selAll.checked = total > 0 && n === total;
+                selAll.indeterminate = n > 0 && n < total;
+            }
+        }
+        function stepBulkDeleteSelected() {
+            if (!currentTestCase || !testCases[currentTestCase]) return;
+            const n = stepSelectedIdx.size;
+            if (!n) return;
+            if (!confirm(`確定要刪除已勾選的 ${n} 個步驟?`)) return;
+            // 從大 idx 往小 idx splice,避免 index 跑位
+            const idxs = Array.from(stepSelectedIdx).sort((a, b) => b - a);
+            const steps = testCases[currentTestCase].steps;
+            idxs.forEach(i => {
+                if (i >= 0 && i < steps.length) steps.splice(i, 1);
+            });
+            stepSelectedIdx.clear();
+            markDirty();
+            renderSteps();
+        }
+
         function renderSteps() {
             const tc = testCases[currentTestCase];
             const tbody = document.getElementById('stepsBody');
             tbody.innerHTML = '';
+            // 切換 testcase 時清掉舊 selection(step idx 沒跨 case 意義)
+            if (currentTestCase !== _stepSelectionTcId) {
+                stepSelectedIdx.clear();
+                _stepSelectionTcId = currentTestCase;
+            }
 
             const bddOptions = ['Given', 'When', 'And', 'Then', 'But'];
             const platform = getTestCasePlatform(currentTestCase);
@@ -6172,11 +6544,24 @@ driver.swipe(100, 800, 100, 200, 500)"
                 tr.className = `${_bgClass} transition align-top step-row`;
                 tr.dataset.stepIdx = String(idx);
                 if (_depth > 0) tr.style.borderLeft = `${_depth * 4}px solid rgb(167 243 208)`;
-                // 啟用整列拖曳;實際 drag handle 在第一欄,使用者要從那邊拖,但整列 draggable 也可
-                tr.draggable = true;
+                // 改用上下箭頭按鈕排序(取代拖曳)— 在 trackpad 不好抓 / 小螢幕場景比較穩
+                const _isFirst = idx === 0;
+                const _isLast = idx === tc.steps.length - 1;
                 tr.innerHTML = `
-                    <td class="p-2 text-center text-slate-400 hover:text-slate-700 cursor-grab select-none drag-handle" title="拖曳以重排" aria-label="拖曳以重排">
-                        <i class="fa-solid fa-grip-vertical"></i>
+                    <td class="p-2 text-center">
+                        <input type="checkbox" class="step-row-check accent-red-500 cursor-pointer" data-step-idx="${idx}" ${stepSelectedIdx.has(idx) ? 'checked' : ''} onchange="stepToggleRow(${idx}, this.checked)">
+                    </td>
+                    <td class="p-1 text-center align-middle">
+                        <div class="inline-flex flex-col items-center gap-0.5">
+                            <button type="button" onclick="moveStep(${idx}, -1)" ${_isFirst ? 'disabled' : ''} title="往上移" aria-label="往上移"
+                                class="w-5 h-4 leading-none text-slate-400 hover:text-blue-600 disabled:text-slate-200 disabled:cursor-not-allowed transition">
+                                <i class="fa-solid fa-caret-up"></i>
+                            </button>
+                            <button type="button" onclick="moveStep(${idx}, 1)" ${_isLast ? 'disabled' : ''} title="往下移" aria-label="往下移"
+                                class="w-5 h-4 leading-none text-slate-400 hover:text-blue-600 disabled:text-slate-200 disabled:cursor-not-allowed transition">
+                                <i class="fa-solid fa-caret-down"></i>
+                            </button>
+                        </div>
                     </td>
                     <td class="p-2 text-center font-mono text-xs text-slate-600 select-none">TC-${String(idx + 1).padStart(2, '0')}</td>
                     <td class="p-2 col-bdd">
@@ -6227,8 +6612,25 @@ driver.swipe(100, 800, 100, 200, 500)"
             });
             // 依內容初始化每個多行欄位（描述 / Locator / Input / 預期）的高度
             tbody.querySelectorAll('textarea.step-ta').forEach(autosizeTextarea);
-            // 啟用列級拖曳重排
-            attachStepDragHandlers(tbody);
+            // 拖曳重排已改用上下箭頭按鈕(moveStep);不再 attach drag handler
+            // 同步批次刪除按鈕 + 全選 checkbox 狀態
+            stepUpdateBulkDeleteUI();
+        }
+
+        // 上下移動單一 step(取代拖曳)。direction = -1 往上 / +1 往下。
+        // 邊界與 button disabled 互相對應,理論上 caller 不會傳出界,defensive 仍擋。
+        function moveStep(idx, direction) {
+            if (!currentTestCase || !testCases[currentTestCase]) return;
+            const steps = testCases[currentTestCase].steps;
+            const targetIdx = idx + direction;
+            if (idx < 0 || idx >= steps.length) return;
+            if (targetIdx < 0 || targetIdx >= steps.length) return;
+            // 交換兩列
+            [steps[idx], steps[targetIdx]] = [steps[targetIdx], steps[idx]];
+            // idx-based 選取在重排後對不上,清掉避免之後 bulk-delete 錯位
+            stepSelectedIdx.clear();
+            markDirty();
+            renderSteps();
         }
 
         // ── 測試步驟列拖曳重排（HTML5 DnD）────────────────────────
@@ -6298,6 +6700,8 @@ driver.swipe(100, 800, 100, 200, 500)"
         function deleteStep(idx) {
             if (!confirm(`確定要刪除第 ${idx + 1} 個步驟？`)) return;
             testCases[currentTestCase].steps.splice(idx, 1);
+            // 結構改了,idx-based selection 失效,清掉避免後續 splice 錯位
+            stepSelectedIdx.clear();
             markDirty();
             renderSteps();
         }
@@ -6618,7 +7022,7 @@ driver.swipe(100, 800, 100, 200, 500)"
         }
 
         function showReportView() {
-            if (!confirmDiscardIfDirty()) return;
+            if (!confirmDiscardIfDirty()) return false;
             _hideAllWorkspaces();
             _setViewMeta('view.reports.title', 'view.reports.title', '<i class="fa-solid fa-chart-line text-blue-500"></i>', 'Report', 'bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium');
             document.getElementById('reportWorkspace').classList.remove('hidden');
@@ -6995,7 +7399,7 @@ driver.swipe(100, 800, 100, 200, 500)"
             const timelineContainer = document.getElementById('detailStepsTimeline');
             timelineContainer.innerHTML = '';
 
-            report.cases.forEach(c => {
+            report.cases.forEach((c, caseIdx) => {
                 const caseHeader = document.createElement('div');
                 caseHeader.className = 'font-bold text-slate-800 text-sm mb-3 flex items-center gap-2 bg-slate-100 p-2 rounded';
                 caseHeader.innerHTML = `<i class="fa-regular fa-file-lines text-blue-500"></i> ${c.name}`;
@@ -7008,7 +7412,9 @@ driver.swipe(100, 800, 100, 200, 500)"
                     const item = document.createElement('div');
                     item.className = 'step-item relative pl-8 py-2 cursor-pointer group';
                     item.id = `timeline_step_${step.id}`;
-                    item.onclick = () => selectReportStep(reportId, 0, index);
+                    // 點 step → 用該 step 真正所屬的 case index(原本寫死 0,setup+main
+                    // 多 case 時所有 step 都指向 cases[0] → 右邊永遠顯示 setup 的內容)
+                    item.onclick = () => selectReportStep(reportId, caseIdx, index);
                     item.innerHTML = `
                         <div class="step-timeline"></div>
                         <div class="absolute left-1 top-3.5 text-[14px]">${statusIcon}</div>
@@ -7024,8 +7430,20 @@ driver.swipe(100, 800, 100, 200, 500)"
                 });
             });
 
-            const failIndex = report.cases[0].steps.findIndex(s => s.status === 'Failed');
-            selectReportStep(reportId, 0, failIndex > -1 ? failIndex : 0);
+            // 預設選「第一個失敗 step」— 跨所有 case 找,找不到才退回 cases[0].steps[0]
+            let defaultCaseIdx = 0;
+            let defaultStepIdx = 0;
+            outer: for (let i = 0; i < report.cases.length; i++) {
+                const steps = report.cases[i].steps || [];
+                for (let j = 0; j < steps.length; j++) {
+                    if (steps[j].status === 'Failed') {
+                        defaultCaseIdx = i;
+                        defaultStepIdx = j;
+                        break outer;
+                    }
+                }
+            }
+            selectReportStep(reportId, defaultCaseIdx, defaultStepIdx);
         }
 
         function selectReportStep(reportId, caseIdx, stepIdx) {
@@ -7258,7 +7676,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 try { stepPlayer.load(); } catch (_) {}
             }
 
-            // 動態組裝按鈕
+            // 動態組裝按鈕(只保留「完整錄影」inline modal;Trace 的「嵌入檢視」已移除,改走外部 Trace Viewer)
             actions.innerHTML = '';
             const btnCls = 'px-3 py-1.5 text-xs font-medium rounded border transition flex items-center gap-1.5';
             if (step.videoUrl) {
@@ -7285,29 +7703,53 @@ driver.swipe(100, 800, 100, 200, 500)"
                 dlTraceBtn.innerHTML = '<i class="fa-solid fa-download"></i> 下載 Trace';
                 actions.appendChild(dlTraceBtn);
 
-                // trace.playwright.dev 是跨網域 viewer，必須給絕對 URL；否則它用自己的 origin 當 base 會 404。
-                // 後端 artifact proxy 會驗證短效 token，並提供 trace viewer 需要的 CORS header。
-                const absTraceUrl = /^https?:/i.test(step.traceUrl) ? step.traceUrl : (window.location.origin + step.traceUrl);
-                const viewerUrl = `https://trace.playwright.dev/?trace=${encodeURIComponent(absTraceUrl)}`;
-                const openExtBtn = document.createElement('a');
+                // Trace Viewer:直接走「下載 .zip + 開官方 trace.playwright.dev」
+                // 拖放工作流。為什麼不自托管:
+                //   * 自托管 viewer 需要 Service Worker 攔截 trace 內 snapshot 資源,
+                //     SW 對 cert 有硬性要求(self-signed 接受警告也不夠),用 LAN 自簽
+                //     cert 一定卡住 "Failed to register a ServiceWorker / SSL cert error"。
+                //   * 官方 trace.playwright.dev 是合法 HTTPS、SW + SAB 都正常,但它無法
+                //     從外部 fetch 我們 LAN 的 zip(mixed content)。
+                //   * 解法:點下去 → 自動下載 trace.zip + 開 trace.playwright.dev,
+                //     使用者把剛下載的檔案拖進去就行,完全不用裝 cert / 不用 chrome flag。
+                const openExtBtn = document.createElement('button');
+                openExtBtn.type = 'button';
                 openExtBtn.className = `${btnCls} bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100`;
-                openExtBtn.href = viewerUrl;
-                openExtBtn.target = '_blank';
-                openExtBtn.rel = 'noreferrer';
                 openExtBtn.innerHTML = '<i class="fa-solid fa-arrow-up-right-from-square"></i> Trace Viewer';
+                openExtBtn.title = '下載 trace.zip 並開啟 trace.playwright.dev,拖檔入新分頁即可檢視';
+                openExtBtn.onclick = async () => {
+                    try {
+                        const resp = await fetch(step.traceUrl, { credentials: 'omit' });
+                        if (!resp.ok) throw new Error(`下載失敗 HTTP ${resp.status}`);
+                        const blob = await resp.blob();
+                        // 觸發下載
+                        const a = document.createElement('a');
+                        const blobUrl = URL.createObjectURL(blob);
+                        a.href = blobUrl;
+                        const m = /([^/?]+\.zip)/.exec(step.traceUrl);
+                        a.download = (m ? m[1] : 'trace.zip');
+                        document.body.appendChild(a);
+                        a.click();
+                        a.remove();
+                        setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+                        // 開 trace.playwright.dev
+                        window.open('https://trace.playwright.dev/', '_blank', 'noopener');
+                        if (typeof showToast === 'function') {
+                            showToast('trace.zip 已下載 → 拖到剛開的 trace.playwright.dev 分頁', 'success');
+                        }
+                    } catch (e) {
+                        if (typeof showToast === 'function') {
+                            showToast(`Trace 下載失敗:${e.message}`, 'error');
+                        }
+                    }
+                };
                 actions.appendChild(openExtBtn);
-
-                const embedBtn = document.createElement('button');
-                embedBtn.className = `${btnCls} bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100`;
-                embedBtn.innerHTML = '<i class="fa-solid fa-window-maximize"></i> 嵌入檢視';
-                embedBtn.onclick = () => openTraceViewer(viewerUrl);
-                actions.appendChild(embedBtn);
             }
 
             empty.classList.toggle('hidden', !!(step.stepVideoUrl || step.videoUrl || step.traceUrl));
         }
 
-        // ── 完整錄影 / Trace Viewer Modal ──
+        // ── 完整錄影 inline modal(保留)──
         function openFullVideo(url) {
             const m = document.getElementById('fullVideoModal');
             const p = document.getElementById('fullVideoPlayer');
@@ -7324,21 +7766,10 @@ driver.swipe(100, 800, 100, 200, 500)"
             m.classList.add('hidden', 'opacity-0');
             if (p) { try { p.pause(); } catch (_) {} p.removeAttribute('src'); try { p.load(); } catch (_) {} }
         }
-        function openTraceViewer(url) {
-            const m = document.getElementById('traceViewerModal');
-            const f = document.getElementById('traceViewerIframe');
-            if (!m || !f || !url) return;
-            f.src = url;
-            m.classList.remove('hidden');
-            requestAnimationFrame(() => m.classList.remove('opacity-0'));
-        }
-        function closeTraceViewer() {
-            const m = document.getElementById('traceViewerModal');
-            const f = document.getElementById('traceViewerIframe');
-            if (!m) return;
-            m.classList.add('hidden', 'opacity-0');
-            if (f) f.src = 'about:blank';
-        }
+        // ── Trace Viewer 嵌入式 modal 已移除 ── 改走外部 trace.playwright.dev 開新分頁。
+        // 留 no-op 殼避免舊呼叫端噴 ReferenceError。
+        function openTraceViewer() { /* removed: use external trace.playwright.dev */ }
+        function closeTraceViewer() { /* removed */ }
 
         // ── Screenshot Baseline Modal ───────────────────
         // 開啟編輯某個 step 的 baseline；step 必須有穩定的 UUID id
@@ -10344,17 +10775,27 @@ driver.swipe(100, 800, 100, 200, 500)"
             try { if (handleOidcCallbackFromHash()) return; } catch (_) {}
             // 第一步：檢查登入狀態。未登入 → 顯示認證覆蓋層並停止初始化。
             authBootstrap();
-            if (!authIsLoggedIn()) {
+            // v1.1.5:從 OIDC(Zoho)callback 回來時 URL 帶 ``#oidc_login=1``,
+            // 沒有 localStorage token 但有 httpOnly cookie。hydrate 成功就視同
+            // 已登入;失敗則 fall through 到原本的 authIsLoggedIn 檢查。
+            const oidcOk = await _maybeHydrateOidcSession();
+            if (!oidcOk && !authIsLoggedIn()) {
                 // 帶 #testkanban 之類的受保護 hash 過來但沒登入 → 清掉 hash 再跳 overlay
                 authForceReauth();
+                // 偵測一次 Zoho 是否啟用,有的話亮按鈕。
+                _maybeShowZohoButton().catch(() => {});
                 return;
             }
+            // 已登入但是走 cookie path(localStorage 內仍可能沒 token)— 後續流程
+            // 不會因為 ``authGetAccessToken()`` 回 null 就 401:fetch wrapper 還是
+            // 會把 same-origin cookies 帶上去。
             // 已登入。Phase B(proactive refresh):若 access token 在 90 秒內過期,
             // 在發任何 API 之前先打一次 /api/auth/refresh,讓後續 fetch 都帶新 token,
             // 不再產生「先 401 → silent refresh → 重試」的 console 雜訊。
             // _doRefresh 自帶 in-flight 去重,即使 _maybeProactiveRefresh 與 authFetch
             // 的 reactive refresh 同時觸發也只發一次。
             await _maybeProactiveRefresh();
+            // v1.1.5:OIDC 改 in-process,Casdoor admin-base prefetch 已不需要
             // Perf B3: 同時 kick 出 /api/projects(initProjects 需要的)— 兩個請求
             // 平行飛,而不是 me ok 後再追問 projects。me 失敗時把 projReq 的 unhandled
             // rejection 吃掉以免汙染 console。
@@ -10441,6 +10882,64 @@ driver.swipe(100, 800, 100, 200, 500)"
             } catch (_) {}
         }
 
+        // ── v1.1.5 in-process OIDC(authlib + Zoho)──────────────────────
+        //
+        // 流程:
+        //   1. 使用者按 [使用 Zoho 登入]
+        //   2. ``oidcStartLogin('zoho')`` 把 ``window.location`` 跳到 backend
+        //      ``/api/auth/zoho/login``,後者 302 到 accounts.zoho.com
+        //   3. Zoho 認證完 302 回 ``/api/auth/zoho/callback``,backend 換 token
+        //      / JIT provision / 設 httpOnly cookies / 再 302 到 ``/#oidc_login=1``
+        //   4. ``_maybeHydrateOidcSession()`` 偵測 hash → 跑 ``/api/auth/me``
+        //      拿使用者資訊,寫 session(僅顯示用),把 overlay 收起來
+        //
+        // 不存任何 token 在 localStorage — cookie 才是 source of truth。但仍
+        // 寫 session display state,讓 ``updateUserMenuUI`` 等舊邏輯能繼續用。
+        function oidcStartLogin(provider) {
+            const back = encodeURIComponent(location.pathname + location.search);
+            location.href = `/api/auth/${provider}/login?redirect_to=${back}`;
+        }
+        async function _maybeHydrateOidcSession() {
+            if (!/(^|&)oidc_login=1(&|$)/.test((location.hash || '').replace(/^#/, ''))) {
+                return false;
+            }
+            history.replaceState(null, '', location.pathname + location.search);
+            try {
+                const r = await window.fetch('/api/auth/me');
+                if (!r.ok) return false;
+                const me = await r.json();
+                const now = new Date().toISOString();
+                const prev = _authReadSession();
+                const prevCount = (prev && prev.username === me.username) ? (prev.loginCount || 0) : 0;
+                _authWriteSession({
+                    username: me.username,
+                    displayName: me.display_name || me.username,
+                    email: me.email || '',
+                    loginAt: now,
+                    loginCount: prevCount + 1,
+                });
+                showToast(`歡迎回來,${me.display_name || me.username}`, 'success');
+                authHideOverlay();
+                renderExecutionModeButton();
+                updateUserMenuUI();
+                initProjects().then(() => { try { showHomeView(); } catch (_) {} }).catch(() => {});
+                return true;
+            } catch (e) {
+                showToast('OIDC hydrate 失敗:' + e.message, 'error');
+                return false;
+            }
+        }
+        async function _maybeShowZohoButton() {
+            try {
+                const r = await _origFetch('/api/auth/zoho/enabled');
+                if (!r.ok) return;
+                const data = await r.json().catch(() => null);
+                if (!data || !data.enabled) return;
+                const block = document.getElementById('oidcBlock');
+                if (block) block.classList.remove('hidden');
+            } catch (_) { /* probe 失敗 → 按鈕保持 hidden,不擋密碼登入 */ }
+        }
+
         // 包裹原生 fetch：自動加 Authorization；遇到 401 嘗試一次 silent refresh
         const _origFetch = window.fetch.bind(window);
         let _refreshing = null;  // pending refresh promise（避免並發呼叫多打 refresh）
@@ -10482,6 +10981,13 @@ driver.swipe(100, 800, 100, 200, 500)"
         window.fetch = async function authFetch(input, init) {
             init = init || {};
             const headers = new Headers(init.headers || (typeof input === 'object' && input.headers) || {});
+            // Casdoor cutover(Phase 4.3):httpOnly cookies(access_token /
+            // refresh_token / active_org_id)由 backend 在 callback 時設,瀏覽器
+            // 預設 fetch 不會帶上,必須顯式打開 ``credentials``。``same-origin``
+            // 涵蓋我們唯一的呼叫場景(SPA host == API host);避開 ``include`` 的
+            // CORS preflight 額外限制。Authorization header 仍然並存,讓既有
+            // localStorage-based session 在 cutover 期間不會被打掉。
+            if (!init.credentials) init.credentials = 'same-origin';
             const tok = authGetAccessToken();
             if (tok && !headers.has('Authorization')) {
                 headers.set('Authorization', 'Bearer ' + tok);
@@ -10575,9 +11081,14 @@ driver.swipe(100, 800, 100, 200, 500)"
                 if (window[name].__routePatched) return;
                 const orig = window[name];
                 const wrapped = function (...args) {
-                    // Only update the URL when actually navigating to a
-                    // different view; replaceState avoids polluting history
-                    // and avoids re-entering hashchange.
+                    // 先呼 orig:若內部 confirmDiscardIfDirty() 不通過就早 return false,
+                    // 不應該動 URL。orig 若 return false 視為「沒切換成功」,URL 保持
+                    // 不動;其他 return value(undefined / true / promise)視為成功,
+                    // 才把 URL sync 到 targetHash。
+                    // 之前是「先改 URL 再 call orig」,造成 dirty editor 取消切首頁時
+                    // URL 已經跑到 #home 但畫面留在 editor — user 看到 URL 跟 view 不一致。
+                    const ret = orig.apply(this, args);
+                    if (ret === false) return ret;
                     if (window.location.hash !== targetHash) {
                         _suppressHashChange = true;
                         try {
@@ -10587,7 +11098,8 @@ driver.swipe(100, 800, 100, 200, 500)"
                         }
                         _suppressHashChange = false;
                     }
-                    return orig.apply(this, args);
+                    _lastDispatchedHash = targetHash;
+                    return ret;
                 };
                 wrapped.__routePatched = true;
                 window[name] = wrapped;
@@ -10596,6 +11108,10 @@ driver.swipe(100, 800, 100, 200, 500)"
             function _patchAll() {
                 KNOWN_VIEWS.forEach(_patchOne);
             }
+
+            // 記住最後一次「成功進入」的 hash,讓 back/forward 若被 dirty
+            // editor 擋下時可以還原 URL,不會留下 URL 跟畫面不一致。
+            let _lastDispatchedHash = '';
 
             function _dispatchFromHash() {
                 if (_suppressHashChange) return;
@@ -10613,10 +11129,21 @@ driver.swipe(100, 800, 100, 200, 500)"
 
                 const hash = (window.location.hash || '').toLowerCase();
                 const fnName = _hashToFn[hash];
+                let ret;
                 if (fnName && typeof window[fnName] === 'function') {
-                    try { window[fnName](); } catch (_) {}
+                    try { ret = window[fnName](); } catch (_) {}
                 } else if (typeof window.showHomeView === 'function') {
-                    try { window.showHomeView(); } catch (_) {}
+                    try { ret = window.showHomeView(); } catch (_) {}
+                }
+                // 若 show*View 因 dirty editor 取消(ret === false),把 URL
+                // 還原到上一次成功的 hash,避免 URL 改了但畫面沒變。
+                if (ret === false && _lastDispatchedHash && _lastDispatchedHash !== hash) {
+                    _suppressHashChange = true;
+                    try { history.replaceState(null, '', _lastDispatchedHash); }
+                    catch (_) { window.location.hash = _lastDispatchedHash; }
+                    _suppressHashChange = false;
+                } else {
+                    _lastDispatchedHash = hash || _lastDispatchedHash;
                 }
             }
 
@@ -10797,19 +11324,31 @@ driver.swipe(100, 800, 100, 200, 500)"
             return false;
         }
 
-        // ── 強制改密碼 modal ──────────────────────────────────────
-        // 進入點 1:登入回傳 must_change_password=true。
-        // 進入點 2:任何 API 回 403 + detail.code=must_change_password(_responseHandledForceMC)。
+        // ── 首登 profile-setup modal(v1.1.6 三欄位)─────────────────
+        // 進入點:`/auth/login` 回傳 must_change_password=true → forcePwdShow(uname)
+        // 一次補齊:顯示名稱 / Email / 新密碼。Submit 打 ``/auth/profile-setup``,
+        // 不需要 old_password(SSO JIT 進來的 user 沒密碼可比對),也允許新密碼
+        // 跟初始密碼一樣(那密碼可能是 admin 傳給他的,他要設新的就好)。
         let _forcePwdActiveUser = '';
         function forcePwdShow(username) {
             _forcePwdActiveUser = username || '';
-            ['forcePwdOld','forcePwdNew','forcePwdNew2'].forEach(id => {
+            ['forceDisplayName','forceEmail','forcePwdNew','forcePwdNew2'].forEach(id => {
                 const el = document.getElementById(id); if (el) el.value = '';
             });
+            // 預填現有 display_name / email(若 admin 建帳號時填過)
+            try {
+                window.fetch('/api/auth/me').then(r => r.ok ? r.json() : null).then(me => {
+                    if (!me) return;
+                    const dn = document.getElementById('forceDisplayName');
+                    const em = document.getElementById('forceEmail');
+                    if (dn && me.display_name && me.display_name !== me.username) dn.value = me.display_name;
+                    if (em && me.email) em.value = me.email;
+                });
+            } catch (_) {}
             const m = document.getElementById('forcePwdModal');
             if (m) m.classList.remove('hidden');
             setTimeout(() => {
-                const inp = document.getElementById('forcePwdOld');
+                const inp = document.getElementById('forceDisplayName');
                 if (inp) inp.focus();
             }, 50);
         }
@@ -10817,42 +11356,37 @@ driver.swipe(100, 800, 100, 200, 500)"
             const m = document.getElementById('forcePwdModal');
             if (m) m.classList.add('hidden');
         }
-        // 註:改密碼 modal 只在「使用者剛輸入帳密、login response 帶 must_change_password=true」
-        // 時 pop(見 handleLogin)。背景 /api/* 收到 403 must_change_password 時改派
-        // autotest:auth-required(由 fetch wrapper 處理),走 authForceReauth → 清 token、
-        // 清 URL hash、回到登入頁。使用者重新輸入帳密後,login 流程才會帶 must_change_password
-        // 進入點 1 把 modal 叫出來 — 順序與既有登入流程一致。
         async function forcePwdHandleSubmit(ev) {
             ev.preventDefault();
-            const oldPwd = document.getElementById('forcePwdOld').value;
+            const displayName = document.getElementById('forceDisplayName').value.trim();
+            const email = document.getElementById('forceEmail').value.trim();
             const newPwd = document.getElementById('forcePwdNew').value;
             const newPwd2 = document.getElementById('forcePwdNew2').value;
-            if (newPwd.length < 6) {
-                showToast('新密碼至少 6 字元', 'error'); return false;
-            }
-            if (newPwd === oldPwd) {
-                showToast('新密碼不可與目前密碼相同', 'error'); return false;
-            }
-            if (newPwd !== newPwd2) {
-                showToast('兩次新密碼不一致', 'error'); return false;
-            }
+            if (!displayName) { showToast('請填顯示名稱', 'error'); return false; }
+            if (!email || !email.includes('@')) { showToast('請填有效 Email', 'error'); return false; }
+            if (newPwd.length < 6) { showToast('新密碼至少 6 字元', 'error'); return false; }
+            if (newPwd !== newPwd2) { showToast('兩次新密碼不一致', 'error'); return false; }
             try {
-                const r = await window.fetch('/api/auth/change-password', {
+                const r = await window.fetch('/api/auth/profile-setup', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': 'Bearer ' + (localStorage.getItem('autotest.auth.access_token') || ''),
                     },
-                    body: JSON.stringify({ old_password: oldPwd, new_password: newPwd }),
+                    body: JSON.stringify({
+                        display_name: displayName,
+                        email: email,
+                        new_password: newPwd,
+                    }),
                 });
                 if (!r.ok) {
-                    const detail = (await r.json().catch(() => ({}))).detail || '密碼變更失敗';
+                    const detail = (await r.json().catch(() => ({}))).detail || '設定失敗';
                     showToast(typeof detail === 'string' ? detail : (detail.message || JSON.stringify(detail)), 'error');
                     return false;
                 }
-                showToast('密碼已變更,系統將以新密碼重新登入', 'success');
+                showToast('已完成首登設定,請以新密碼重新登入', 'success');
                 forcePwdHide();
-                // 簡化:清掉 token 讓使用者重新登入(避免本機殘留錯密碼狀態)
+                // 清掉 token,讓 user 用新密碼重新登入
                 try {
                     localStorage.removeItem('autotest.auth.access_token');
                     localStorage.removeItem('autotest.auth.access_expires_at');
@@ -10866,7 +11400,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 const p = document.getElementById('loginPassword'); if (p) p.value = '';
                 if (p) p.focus();
             } catch (e) {
-                showToast('密碼變更失敗:' + (e.message || e), 'error');
+                showToast('設定失敗:' + (e.message || e), 'error');
             }
             return false;
         }
@@ -11190,7 +11724,7 @@ driver.swipe(100, 800, 100, 200, 500)"
 
         // ==================== 設定頁 ====================
         function showUserSettingsView() {
-            if (typeof confirmDiscardIfDirty === 'function' && !confirmDiscardIfDirty()) return;
+            if (typeof confirmDiscardIfDirty === 'function' && !confirmDiscardIfDirty()) return false;
             _hideAllWorkspaces();
             document.getElementById('userSettingsWorkspace').classList.remove('hidden');
             document.getElementById('mainHeader').classList.remove('hidden');
@@ -11403,7 +11937,7 @@ driver.swipe(100, 800, 100, 200, 500)"
         let recTraceFile = null;
 
         function showRecorderView() {
-            if (!confirmDiscardIfDirty()) return;
+            if (!confirmDiscardIfDirty()) return false;
             _hideAllWorkspaces();
             _setViewMeta('view.recorder.title', 'view.recorder.title', '<i class="fa-solid fa-video text-rose-500"></i>', 'Recorder', 'bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-medium');
             document.getElementById('recorderWorkspace').classList.remove('hidden');
@@ -11512,7 +12046,7 @@ driver.swipe(100, 800, 100, 200, 500)"
         }
 
         function showReviewView() {
-            if (typeof confirmDiscardIfDirty === 'function' && !confirmDiscardIfDirty()) return;
+            if (typeof confirmDiscardIfDirty === 'function' && !confirmDiscardIfDirty()) return false;
             _hideAllWorkspaces();
             _setViewMeta('review.title', 'review.title', '<i class="fa-solid fa-stamp text-violet-500"></i>', 'Review', 'bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded font-medium');
             document.getElementById('reviewWorkspace').classList.remove('hidden');
@@ -11966,7 +12500,7 @@ driver.swipe(100, 800, 100, 200, 500)"
         // ==================== 首頁 (Home) ====================
         // 點擊左上角 AutoTest Logo 或呼叫 showHomeView() 進入首頁
         function showHomeView() {
-            if (!confirmDiscardIfDirty()) return;
+            if (!confirmDiscardIfDirty()) return false;
             _hideAllWorkspaces();
             document.getElementById('homeWorkspace').classList.remove('hidden');
             document.getElementById('mainHeader').classList.remove('hidden');
@@ -12145,7 +12679,7 @@ driver.swipe(100, 800, 100, 200, 500)"
 
         // ==================== 測試案例清單（與側邊欄同步） ====================
         function showTestCasesView() {
-            if (!confirmDiscardIfDirty()) return;
+            if (!confirmDiscardIfDirty()) return false;
             _hideAllWorkspaces();
             _setViewMeta('view.testCases.title', 'view.testCases.title', '<i class="fa-solid fa-list-check text-blue-500"></i>', 'Cases', 'bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium');
             document.getElementById('testcasesWorkspace').classList.remove('hidden');
@@ -12246,6 +12780,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                     // 按鈕樣式與「排程」「測試回合」頁面一致：淺底+邊框+圖示+文字
                     '<td class="p-3 text-center whitespace-nowrap space-x-1">' +
                     '  <button onclick="loadTestCase(\'' + idEsc + '\')" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded transition"><i class="fa-solid fa-pen"></i> 編輯</button>' +
+                    '  <button onclick="tcCopyFromList(\'' + idEsc + '\',\'' + titleEsc + '\')" class="text-xs px-2 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 rounded transition"><i class="fa-solid fa-copy"></i> 複製</button>' +
                     '  <button onclick="tcRenameFromList(\'' + idEsc + '\',\'' + titleEsc + '\')" class="text-xs px-2 py-1 bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 rounded transition"><i class="fa-solid fa-i-cursor"></i> 重新命名</button>' +
                     '  <button onclick="tcDeleteFromList(\'' + idEsc + '\',\'' + titleEsc + '\')" class="text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded transition"><i class="fa-solid fa-trash"></i> 刪除</button>' +
                     '</td>' +
@@ -12320,6 +12855,17 @@ driver.swipe(100, 800, 100, 200, 500)"
             const todoLbl = document.getElementById('tcBulkTodoCount');
             if (todoBtn) todoBtn.disabled = n === 0;
             if (todoLbl) todoLbl.textContent = `(${n})`;
+            // 「已勾選 N 筆」跨頁顯示徽章
+            const badge = document.getElementById('tcBulkSelectionBadge');
+            const badgeCnt = document.getElementById('tcBulkSelectionCount');
+            if (badge && badgeCnt) {
+                if (n > 0) {
+                    badge.classList.remove('hidden');
+                    badgeCnt.textContent = String(n);
+                } else {
+                    badge.classList.add('hidden');
+                }
+            }
             // 同步全選 checkbox 的 indeterminate / checked
             const selAll = document.getElementById('tcSelectAll');
             if (selAll) {
@@ -12329,6 +12875,16 @@ driver.swipe(100, 800, 100, 200, 500)"
                 selAll.checked = visible > 0 && checkedVisible === visible;
                 selAll.indeterminate = checkedVisible > 0 && checkedVisible < visible;
             }
+        }
+
+        // 清除全部跨頁勾選(包含目前畫面外的)
+        function tcClearSelection() {
+            tcListState.selected.clear();
+            // 把可見的 checkbox 也視覺上 uncheck
+            document.querySelectorAll('.tc-row-check').forEach(cb => { cb.checked = false; });
+            const selAll = document.getElementById('tcSelectAll');
+            if (selAll) { selAll.checked = false; selAll.indeterminate = false; }
+            tcUpdateBulkDeleteUI();
         }
         // Tier G-4 共用:從 N 個 target entity 一次建立 N 筆追蹤 todo + 自動連結
         async function _bulkCreateTodosForTargets(targetType, ids, onDone) {
@@ -12557,10 +13113,65 @@ driver.swipe(100, 800, 100, 200, 500)"
             }
         }
 
+        // 複製測試案例到同一個父節點下,自動避開重名(append「副本」/「副本 (2)」/...);
+        // 完整搬 ac_text / setup_text / steps_json / ddt_json,不複製 precondition links
+        // (前置案例由使用者決定要不要也跟著掛)、不複製 execution history(那是 report 的事)。
+        async function tcCopyFromList(id, currentTitle) {
+            const info = findNodeInfo(activeTreeData, id);
+            if (!info) { showToast('找不到此測試案例', 'error'); return; }
+            const parentId = info.parent ? info.parent.id : null;
+            // 構造副本名稱
+            const baseTitle = String(currentTitle || '案例').replace(/\.md$/i, '');
+            let copyName = `${baseTitle} 副本.md`;
+            let n = 2;
+            while (_siblingNameExists(parentId, copyName, null)) {
+                copyName = `${baseTitle} 副本 (${n}).md`;
+                n++;
+                if (n > 100) {
+                    showToast('連 100 個副本都已存在,放棄', 'error');
+                    return;
+                }
+            }
+            try {
+                // 1) 讀原案例內容
+                const src = await apiFetch(`/api/testcases/${encodeURIComponent(id)}`);
+                // 2) 建新節點
+                const created = await apiFetch('/api/nodes', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        project_id: currentProjectId,
+                        parent_id: parentId,
+                        name: copyName,
+                    }),
+                });
+                if (!created || !created.id) {
+                    showToast('複製失敗:新節點 API 沒回 id', 'error');
+                    return;
+                }
+                // 3) 把原案例內容寫到新節點
+                await apiFetch(`/api/testcases/${encodeURIComponent(created.id)}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        ac_text: src.ac_text || '',
+                        setup_text: src.setup_text || '',
+                        steps_json: Array.isArray(src.steps_json) ? src.steps_json : [],
+                        ddt_json: src.ddt_json || { headers: [], rows: [] },
+                    }),
+                });
+                showToast(`已複製為「${copyName.replace(/\.md$/i, '')}」`, 'success');
+                await switchProject(currentProjectId, { goHome: false });
+                showTestCasesView();
+            } catch (e) {
+                showToast(`複製失敗:${e.message}`, 'error');
+            }
+        }
+
         // 首頁 / 測試案例清單使用既有的 escapeHtml()（定義於稍早）
 
         function showTestRoundView() {
-            if (!confirmDiscardIfDirty()) return;
+            if (!confirmDiscardIfDirty()) return false;
             _hideAllWorkspaces();
             _setViewMeta('view.testRound.title', 'view.testRound.title', '<i class="fa-solid fa-layer-group text-purple-500"></i>', 'Rounds', 'bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium');
             document.getElementById('testRoundWorkspace').classList.remove('hidden');
@@ -12573,7 +13184,7 @@ driver.swipe(100, 800, 100, 200, 500)"
         }
 
         function showEnvVarsView() {
-            if (!confirmDiscardIfDirty()) return;
+            if (!confirmDiscardIfDirty()) return false;
             _hideAllWorkspaces();
             _setViewMeta('view.envVars.title', 'view.envVars.title', '<i class="fa-solid fa-key text-emerald-500"></i>', 'Env', 'bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-medium');
             document.getElementById('envVarsWorkspace').classList.remove('hidden');
@@ -12586,7 +13197,7 @@ driver.swipe(100, 800, 100, 200, 500)"
         }
 
         function showDevicesView() {
-            if (!confirmDiscardIfDirty()) return;
+            if (!confirmDiscardIfDirty()) return false;
             _hideAllWorkspaces();
             _setViewMeta('view.devices.title', 'view.devices.title', '<i class="fa-solid fa-mobile-screen text-rose-500"></i>', 'Devices', 'bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-medium');
             document.getElementById('devicesWorkspace').classList.remove('hidden');
@@ -14062,7 +14673,7 @@ driver.swipe(100, 800, 100, 200, 500)"
 
         // ==================== DB / Mock：顯示視圖 ====================
         function showDbConfigView() {
-            if (!confirmDiscardIfDirty()) return;
+            if (!confirmDiscardIfDirty()) return false;
             _hideAllWorkspaces();
             _setViewMeta('view.dbConfig.title', 'view.dbConfig.title', '<i class="fa-solid fa-database text-indigo-500"></i>', 'DB', 'bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-medium');
             document.getElementById('dbConfigWorkspace').classList.remove('hidden');
@@ -14074,7 +14685,7 @@ driver.swipe(100, 800, 100, 200, 500)"
         
         }
         function showMockView() {
-            if (!confirmDiscardIfDirty()) return;
+            if (!confirmDiscardIfDirty()) return false;
             _hideAllWorkspaces();
             _setViewMeta('view.mock.title', 'view.mock.title', '<i class="fa-solid fa-plug text-amber-500"></i>', 'Mock', 'bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium');
             document.getElementById('mockWorkspace').classList.remove('hidden');
@@ -14175,6 +14786,126 @@ driver.swipe(100, 800, 100, 200, 500)"
             }
         }
 
+        // ── v1.1.6:本專案角色權限(per-project role override)─────────
+        let _prpEditingRoleId = null;
+        let _prpRows = [];  // GET /role-permissions 回的 4-row 陣列
+
+        async function prpReload() {
+            const tbody = document.getElementById('prpTableBody');
+            const empty = document.getElementById('prpEmptyHint');
+            const wrap = document.getElementById('prpTableWrap');
+            if (!currentProjectId) {
+                empty?.classList.remove('hidden');
+                wrap?.classList.add('hidden');
+                return;
+            }
+            empty?.classList.add('hidden');
+            wrap?.classList.remove('hidden');
+            tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-stone-400">載入中…</td></tr>`;
+            try {
+                // apiFetch 已經把 body 解成 JSON 並 throw ApiError on non-2xx,
+                // 不要再 .json() — 那只有原生 fetch Response 才有。
+                _prpRows = await apiFetch(`/api/projects/${encodeURIComponent(currentProjectId)}/role-permissions`);
+                if (!Array.isArray(_prpRows) || _prpRows.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-stone-400">沒有 project-scope role</td></tr>`;
+                    return;
+                }
+                tbody.innerHTML = _prpRows.map(row => {
+                    const badge = row.is_override
+                        ? `<span class="text-[10px] px-2 py-0.5 rounded bg-amber-100 text-amber-800">已覆蓋</span>`
+                        : `<span class="text-[10px] px-2 py-0.5 rounded bg-stone-100 text-stone-500">沿用預設</span>`;
+                    return `
+                        <tr>
+                          <td class="p-3 font-medium text-stone-700">${escapeHtml(row.role_name)}<div class="text-[10px] text-stone-400">${escapeHtml(row.description || '')}</div></td>
+                          <td class="p-3 text-stone-600">${row.effective_permissions.length} / ${row.default_permissions.length}<div class="text-[10px] text-stone-400">${row.is_override ? '覆蓋後 / 全域預設' : '本專案有效 / 全域預設'}</div></td>
+                          <td class="p-3">${badge}</td>
+                          <td class="p-3 text-center">
+                            <button onclick="prpOpenEditModal('${escapeHtml(row.role_id)}')" class="text-xs px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 rounded"><i class="fa-solid fa-pen"></i> 編輯</button>
+                            ${row.is_override
+                                ? `<button onclick="prpResetRole('${escapeHtml(row.role_id)}','${escapeHtml(row.role_name)}')" class="ml-1 text-xs px-2.5 py-1 bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 rounded"><i class="fa-solid fa-rotate-left"></i> 重設</button>`
+                                : ''}
+                          </td>
+                        </tr>`;
+                }).join('');
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-rose-500">載入失敗:${escapeHtml(e.message || String(e))}</td></tr>`;
+            }
+        }
+
+        async function prpOpenEditModal(role_id) {
+            _prpEditingRoleId = role_id;
+            const row = _prpRows.find(x => x.role_id === role_id);
+            if (!row) { showToast('找不到角色', 'error'); return; }
+            document.getElementById('prpEditRoleName').textContent = row.role_name;
+            // 拉 permission catalogue 渲染 checkbox(分組)
+            let items = [];
+            try {
+                const catalogue = await apiFetch('/api/settings/permissions/catalogue');
+                items = catalogue?.items || [];
+            } catch (_) { items = []; }
+            const granted = new Set(row.effective_permissions);
+            const groups = {};
+            items.forEach(it => { (groups[it.group] = groups[it.group] || []).push(it); });
+            const box = document.getElementById('prpPermsBox');
+            box.innerHTML = Object.entries(groups).map(([g, list]) => `
+                <div>
+                  <div class="text-xs font-semibold text-stone-600 mb-1 mt-2 border-b border-stone-100 pb-1">${escapeHtml(g)}</div>
+                  <div class="grid grid-cols-2 gap-1.5 text-xs">
+                    ${list.map(it => `
+                      <label class="flex items-center gap-1.5 cursor-pointer hover:bg-amber-50 px-1.5 py-0.5 rounded">
+                        <input type="checkbox" class="prp-perm-cb rounded border-stone-300 text-amber-500 focus:ring-amber-400" value="${escapeHtml(it.key)}" ${granted.has(it.key) ? 'checked' : ''}>
+                        <span>${escapeHtml(it.label)} <span class="text-stone-400">(${escapeHtml(it.key)})</span></span>
+                      </label>`).join('')}
+                  </div>
+                </div>`).join('');
+            document.getElementById('prpEditModal').classList.remove('hidden');
+        }
+
+        function prpCloseEditModal() {
+            document.getElementById('prpEditModal').classList.add('hidden');
+            _prpEditingRoleId = null;
+        }
+
+        async function prpSubmitEdit(ev) {
+            ev.preventDefault();
+            if (!_prpEditingRoleId || !currentProjectId) return false;
+            const perms = Array.from(document.querySelectorAll('.prp-perm-cb:checked')).map(c => c.value);
+            try {
+                await apiFetch(`/api/projects/${encodeURIComponent(currentProjectId)}/role-permissions/${encodeURIComponent(_prpEditingRoleId)}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ permissions_json: perms }),
+                });
+                showToast('本專案角色權限已覆蓋', 'success');
+                prpCloseEditModal();
+                prpReload();
+            } catch (e) {
+                // apiFetch throw ApiError({status, detail});底下取 e.detail / e.message。
+                showToast('儲存失敗:' + (e.detail || e.message || e), 'error');
+            }
+            return false;
+        }
+
+        async function prpResetToDefault() {
+            // 從 modal 內按「重設為預設」
+            if (!_prpEditingRoleId || !currentProjectId) return;
+            if (!confirm('確定要拿掉本專案的角色權限覆蓋?該角色會回到全域預設值。')) return;
+            await prpResetRole(_prpEditingRoleId, '');
+            prpCloseEditModal();
+        }
+
+        async function prpResetRole(role_id, role_name) {
+            try {
+                await apiFetch(`/api/projects/${encodeURIComponent(currentProjectId)}/role-permissions/${encodeURIComponent(role_id)}`, {
+                    method: 'DELETE',
+                });
+                showToast(`${role_name || '角色'} 已回到全域預設`, 'success');
+                prpReload();
+            } catch (e) {
+                showToast('重設失敗:' + (e.detail || e.message || e), 'error');
+            }
+        }
+
         async function pmReload() {
             const nameEl = document.getElementById('pmCurrentProjectName');
             const tbody = document.getElementById('pmTableBody');
@@ -14206,6 +14937,8 @@ driver.swipe(100, 800, 100, 200, 500)"
             } catch (e) {
                 _renderTableError(tbody, 7, '載入失敗:' + (e.message || e), 'pmReload');
             }
+            // v1.1.6:同步把本專案角色權限那一塊也載入
+            prpReload().catch(() => {});
         }
 
         async function pmLoadRoles() {
@@ -14290,6 +15023,61 @@ driver.swipe(100, 800, 100, 200, 500)"
             } catch (_) { return []; }
         }
 
+        // ── 加入現有使用者到專案(v1.1.5 仍保留) ─────────────────────────
+        async function pmOpenAddExistingModal() {
+            if (!currentProjectId) {
+                showToast('請先在左側選一個專案', 'error'); return;
+            }
+            document.getElementById('pmAeUsername').value = '';
+            // 1) 同 org 內 assignable users(只讀,不影響 Casdoor)
+            try {
+                const r = await apiFetch('/api/auth/users/assignable');
+                const users = await r.json().catch(() => []);
+                const dl = document.getElementById('pmAeUsernameList');
+                dl.innerHTML = (Array.isArray(users) ? users : []).map(u =>
+                    `<option value="${escapeHtml(u.username)}">${escapeHtml(u.display_name || u.username)}${u.email ? ' — ' + escapeHtml(u.email) : ''}</option>`
+                ).join('');
+            } catch (_) { /* 沒有也讓 user 自己手填 */ }
+            // 2) 系統角色下拉(項目內角色 override OrgMembership 預設)
+            try {
+                const r = await apiFetch('/api/settings/roles');
+                const roles = await r.json().catch(() => []);
+                const sel = document.getElementById('pmAeRoleId');
+                sel.innerHTML = '<option value="">— 沿用該使用者的組織角色 —</option>' +
+                    (Array.isArray(roles) ? roles : []).map(r =>
+                        `<option value="${escapeHtml(r.id)}">${escapeHtml(r.name)}</option>`
+                    ).join('');
+            } catch (_) { /* role 拉不到就只剩預設選項 */ }
+            document.getElementById('pmAddExistingModal').classList.remove('hidden');
+            setTimeout(() => document.getElementById('pmAeUsername').focus(), 50);
+        }
+        function pmCloseAddExistingModal() {
+            document.getElementById('pmAddExistingModal').classList.add('hidden');
+        }
+        async function pmSubmitAddExisting(ev) {
+            ev.preventDefault();
+            const username = document.getElementById('pmAeUsername').value.trim();
+            const role_id = document.getElementById('pmAeRoleId').value || null;
+            if (!username) { showToast('請選擇使用者', 'error'); return false; }
+            try {
+                const r = await fetch(`/api/projects/${encodeURIComponent(currentProjectId)}/members`, {
+                    method: 'POST', headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({ username, role_id }),
+                });
+                if (!r.ok) {
+                    const detail = (await r.json().catch(() => ({}))).detail || r.statusText;
+                    showToast(`加入失敗:${typeof detail === 'string' ? detail : JSON.stringify(detail)}`, 'error');
+                    return false;
+                }
+                showToast(`已把 ${username} 加入專案`, 'success');
+                pmCloseAddExistingModal();
+                if (typeof pmReload === 'function') pmReload();
+            } catch (e) {
+                showToast('加入失敗:' + e.message, 'error');
+            }
+            return false;
+        }
+
         async function pmOpenCreateUserModal() {
             ['pmCuUsername','pmCuDisplayName','pmCuEmail','pmCuPassword'].forEach(id => {
                 const el = document.getElementById(id); if (el) el.value = '';
@@ -14299,6 +15087,17 @@ driver.swipe(100, 800, 100, 200, 500)"
             if (projName) projName.textContent = proj ? `「${proj.name}」` : '當前專案';
             const addCb = document.getElementById('pmCuAddToProject');
             if (addCb) addCb.checked = !!currentProjectId;
+            // 載入系統角色到下拉,讓 admin 可以選(空 = backend 預設 Project-Viewer)
+            try {
+                const sel = document.getElementById('pmCuRoleId');
+                if (sel) {
+                    const roles = await apiFetch('/api/settings/roles').catch(() => []);
+                    sel.innerHTML = '<option value="">— 預設(Project-Viewer)—</option>' +
+                        (Array.isArray(roles) ? roles : []).map(r =>
+                            `<option value="${escapeHtml(r.id)}">${escapeHtml(r.name)}</option>`
+                        ).join('');
+                }
+            } catch (_) { /* 拉不到 roles 就維持只有預設選項 */ }
             document.getElementById('pmCreateUserModal').classList.remove('hidden');
             setTimeout(() => document.getElementById('pmCuUsername').focus(), 50);
         }
@@ -14319,11 +15118,12 @@ driver.swipe(100, 800, 100, 200, 500)"
             if (password.length < 6) {
                 showToast('密碼至少 6 字元', 'error'); return false;
             }
+            const role_id = document.getElementById('pmCuRoleId')?.value || null;
             try {
                 const r = await fetch('/api/auth/users', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, display_name, email, password }),
+                    body: JSON.stringify({ username, display_name, email, password, role_id }),
                 });
                 if (!r.ok) {
                     const j = await r.json().catch(() => ({}));
@@ -14367,10 +15167,15 @@ driver.swipe(100, 800, 100, 200, 500)"
             const sel = document.getElementById('pmEuRoleId');
             sel.innerHTML = '<option value="">— 無角色 —</option>';
             const roles = await _pmLoadAdminRoles();
+            // 注意:這個 modal 的「系統角色」對應到 ``users.role_id``(全域),
+            // 不是 ``ProjectMember.role_id``(本專案 override)。後端
+            // list_project_members 回傳 ``global_role_id`` 給此 modal 預填用,
+            // 不要用 ``m.role_id``(那是專案內 override)。
+            const selectedRoleId = m.global_role_id || null;
             roles.forEach(r => {
                 const opt = document.createElement('option');
                 opt.value = r.id; opt.textContent = r.name;
-                if (m.role_id === r.id) opt.selected = true;
+                if (selectedRoleId === r.id) opt.selected = true;
                 sel.appendChild(opt);
             });
             document.getElementById('pmEditUserModal').classList.remove('hidden');
@@ -14826,7 +15631,14 @@ driver.swipe(100, 800, 100, 200, 500)"
             const name = document.getElementById('trName').value.trim();
             const desc = document.getElementById('trDesc').value.trim();
             const mode = document.getElementById('trExecMode').value || 'docker';
-            const nodeIds = Array.from(trNodeSelection);
+            // trNodeSelection 是 Set,Array.from 給的是「點擊順序」而非「樹的順序」。
+            // 使用者預期跑順序要跟左側看到的樹一致(tree DFS),所以先把全部
+            // schedulable 節點以樹順展平,再依此排序選中的 id。
+            const _treeOrder = [];
+            try { collectAllSchedulableNodes(activeTreeData || [], '', _treeOrder); } catch (_) {}
+            const _orderIdx = new Map(_treeOrder.map((n, i) => [n.id, i]));
+            const nodeIds = Array.from(trNodeSelection)
+                .sort((a, b) => (_orderIdx.get(a) ?? 1e9) - (_orderIdx.get(b) ?? 1e9));
             if (!name) return showToast('請輸入回合名稱', 'error');
             if (!currentProjectId) return showToast('請先在左側載入專案', 'error');
             if (!nodeIds.length) return showToast('請至少選一個測試案例', 'error');
@@ -14870,7 +15682,12 @@ driver.swipe(100, 800, 100, 200, 500)"
                     throw new Error(err.detail || ('HTTP ' + res.status));
                 }
                 const data = await res.json();
-                showToast(`已觸發：${data.testcase_count} 個測試案例；可到「測試報告」查看進度`, 'success');
+                showToast(`已觸發：${data.testcase_count} 個測試案例,跳轉到「測試報告」查看進度…`, 'success');
+                // 沒有自動跳頁,使用者只看到一個短 toast 就以為沒執行 — 直接帶他去
+                // 測試報告頁,新建立的 report 會在最上面 (sort by created_at desc)。
+                if (typeof showReportView === 'function') {
+                    setTimeout(() => showReportView(), 300);
+                }
             } catch (e) {
                 showToast('執行失敗：' + e.message, 'error');
             }
@@ -14890,7 +15707,7 @@ driver.swipe(100, 800, 100, 200, 500)"
         }
 
         function showScheduleView() {
-            if (!confirmDiscardIfDirty()) return;
+            if (!confirmDiscardIfDirty()) return false;
             _hideAllWorkspaces();
             _setViewMeta('view.schedule.title', 'view.schedule.title', '<i class="fa-solid fa-calendar-days text-emerald-500"></i>', 'Schedule', 'bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-medium');
             document.getElementById('scheduleWorkspace').classList.remove('hidden');
@@ -15153,7 +15970,12 @@ driver.swipe(100, 800, 100, 200, 500)"
 
         async function saveSchedule() {
             const name = document.getElementById('schedName').value.trim();
-            const nodeIds = Array.from(schedNodeSelection);
+            // 同 saveTestRound:依樹順排序,而非點擊順序。
+            const _so = [];
+            try { collectAllSchedulableNodes(activeTreeData || [], '', _so); } catch (_) {}
+            const _soIdx = new Map(_so.map((n, i) => [n.id, i]));
+            const nodeIds = Array.from(schedNodeSelection)
+                .sort((a, b) => (_soIdx.get(a) ?? 1e9) - (_soIdx.get(b) ?? 1e9));
             const repeat = document.querySelector('input[name="schedRepeat"]:checked')?.value || 'ONCE';
             const active = document.getElementById('schedActive').checked;
             const execMode = (document.getElementById('schedExecMode')?.value || 'docker');
@@ -15662,8 +16484,28 @@ driver.swipe(100, 800, 100, 200, 500)"
                         // Sprint 2.2 — 自動建案模式:有勾選且選了 SCENARIO → 直接建為新案例
                         const autoEnabled = document.getElementById('recAutoCreate')?.checked;
                         const scenarioId = document.getElementById('recAutoCreateScenario')?.value;
-                        if (autoEnabled && scenarioId && recLastSteps.length) {
-                            await _recAutoCreateNewCase(scenarioId);
+                        if (autoEnabled) {
+                            // 勾選後,任何「沒能建出案例」的情況都要跳明顯錯誤視窗,
+                            // 不要 silent 跳過讓使用者誤以為錄製成功了。
+                            if (!scenarioId) {
+                                alert(
+                                    '⚠ 自動建案模式失敗\n\n' +
+                                    '沒有選擇 SCENARIO 節點 — 案例會建在哪不知道,跳過建立。\n\n' +
+                                    '請在「自動建案模式」勾選旁的下拉選一個 SCENARIO,或手動點「直接建為新案例」。'
+                                );
+                            } else if (!recLastSteps.length) {
+                                alert(
+                                    '⚠ 自動建案模式失敗 — 沒建到任何案例\n\n' +
+                                    '錄製有結束、但沒抓到任何測試步驟,無法產出案例。\n\n' +
+                                    '可能原因:\n' +
+                                    '  • 錄製期間沒有任何頁面互動(沒 click / fill 等動作)\n' +
+                                    '  • Playwright codegen 沒產出 .js 內容(看上面 toast)\n' +
+                                    '  • 解析階段失敗,recLastSteps 是空的\n\n' +
+                                    '建議重錄一次,確保至少有一個操作步驟。'
+                                );
+                            } else {
+                                await _recAutoCreateNewCase(scenarioId);
+                            }
                         }
                     }
                 } catch(_) {}
@@ -15672,7 +16514,10 @@ driver.swipe(100, 800, 100, 200, 500)"
 
         // Sprint 2.2 helper — 容器結束後自動建為新案例(免按按鈕)
         async function _recAutoCreateNewCase(scenarioId) {
-            if (!scenarioId || !recLastSteps.length) return;
+            if (!scenarioId || !recLastSteps.length) {
+                alert('⚠ 自動建案模式失敗\n\nscenarioId 或 recLastSteps 為空 — 不應該走到這(caller 應該已經擋掉)。');
+                return;
+            }
             const sid = (recCurrentSession && recCurrentSession.id) ? recCurrentSession.id.slice(0, 8) : 'session';
             const dateStr = new Date().toISOString().slice(0, 10);
             const name = `錄製_${sid}_${dateStr}.md`;
@@ -15681,31 +16526,41 @@ driver.swipe(100, 800, 100, 200, 500)"
                     method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ project_id: currentProjectId, parent_id: scenarioId, name }),
                 });
-                if (created && created.id) {
-                    const steps = recLastSteps.map((s, i) => recMapStep(s, i));
-                    await apiFetch(`/api/testcases/${encodeURIComponent(created.id)}`, {
-                        method: 'PUT',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({
-                            ac_text: '',
-                            steps_json: steps,
-                            ddt_json: { headers: [], rows: [] },
-                        }),
-                    });
-                    showToast(`已自動建立新案例「${name}」(${steps.length} 個步驟)`, 'success');
-                    await switchProject(currentProjectId, { goHome: false });
-                    if (typeof loadTestCase === 'function') {
-                        await loadTestCase(created.id);
-                        currentTestCase = created.id;
-                        _hideAllWorkspaces();
-                        document.getElementById('editorWorkspace')?.classList.remove('hidden');
-                        document.getElementById('mainActions')?.classList.remove('hidden');
-                        if (typeof renderEditor === 'function') renderEditor();
-                        else if (typeof renderSteps === 'function') renderSteps();
-                    }
+                if (!created || !created.id) {
+                    alert(
+                        '⚠ 自動建案模式失敗 — 沒建到任何案例\n\n' +
+                        'POST /api/nodes 回傳成功但沒拿到新案例的 id。\n' +
+                        '請手動點「直接建為新案例」。'
+                    );
+                    return;
+                }
+                const steps = recLastSteps.map((s, i) => recMapStep(s, i));
+                await apiFetch(`/api/testcases/${encodeURIComponent(created.id)}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        ac_text: '',
+                        steps_json: steps,
+                        ddt_json: { headers: [], rows: [] },
+                    }),
+                });
+                showToast(`已自動建立新案例「${name}」(${steps.length} 個步驟)`, 'success');
+                await switchProject(currentProjectId, { goHome: false });
+                if (typeof loadTestCase === 'function') {
+                    await loadTestCase(created.id);
+                    currentTestCase = created.id;
+                    _hideAllWorkspaces();
+                    document.getElementById('editorWorkspace')?.classList.remove('hidden');
+                    document.getElementById('mainActions')?.classList.remove('hidden');
+                    if (typeof renderEditor === 'function') renderEditor();
+                    else if (typeof renderSteps === 'function') renderSteps();
                 }
             } catch (e) {
-                showToast('自動建案失敗:' + e.message + '(請手動點「直接建為新案例」)', 'error');
+                alert(
+                    '⚠ 自動建案模式失敗 — 沒建到任何案例\n\n' +
+                    `錯誤訊息:${e.message}\n\n` +
+                    '請手動點「直接建為新案例」,或檢查專案是否還存在 / 是否有權限。'
+                );
             }
         }
 
@@ -16745,7 +17600,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 'Defects',
                 'bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-medium',
                 '缺陷管理',
-                { titleKey: 'view.defects.title', filenameKey: 'view.defects.title' })) return;
+                { titleKey: 'view.defects.title', filenameKey: 'view.defects.title' })) return false;
             renderDefectsList();
         }
         // Tier D-6:bulk reassign 選取狀態
@@ -17052,7 +17907,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 'Schedule',
                 'bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded font-medium',
                 '測試時程',
-                { titleKey: 'view.milestones.title', filenameKey: 'view.milestones.title' })) return;
+                { titleKey: 'view.milestones.title', filenameKey: 'view.milestones.title' })) return false;
             renderMilestonesList();
         }
         async function renderMilestonesList() {
@@ -17188,7 +18043,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 'Plans',
                 'bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium',
                 '測試計畫',
-                { titleKey: 'view.testPlan.title', filenameKey: 'view.testPlan.title' })) return;
+                { titleKey: 'view.testPlan.title', filenameKey: 'view.testPlan.title' })) return false;
             renderPlansList();
         }
         async function renderPlansList() {
@@ -17585,7 +18440,7 @@ gantt
                 'RTM',
                 'bg-cyan-100 text-cyan-700 px-1.5 py-0.5 rounded font-medium',
                 '需求 / RTM',
-                { titleKey: 'view.requirements.title', filenameKey: 'view.requirements.title' })) return;
+                { titleKey: 'view.requirements.title', filenameKey: 'view.requirements.title' })) return false;
             rtmSwitchTab('requirements');
         }
         function rtmSwitchTab(tab) {
@@ -18043,7 +18898,7 @@ gantt
                 'Kanban',
                 'bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-medium',
                 '測試看版',
-                { titleKey: 'view.kanban.title', filenameKey: 'view.kanban.title' })) return;
+                { titleKey: 'view.kanban.title', filenameKey: 'view.kanban.title' })) return false;
             renderTestKanban();
         }
         // ─── Tier F:多 entity 看板 ────────────────────────────────────
@@ -18853,7 +19708,7 @@ gantt
                 'Projects',
                 'bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium',
                 '測試專案',
-                { titleKey: 'view.testProjects.title', filenameKey: 'view.testProjects.title' })) return;
+                { titleKey: 'view.testProjects.title', filenameKey: 'view.testProjects.title' })) return false;
             renderTestProjectsList();
         }
         async function renderTestProjectsList() {
@@ -18965,7 +19820,7 @@ gantt
                 'DataSets',
                 'bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded font-medium',
                 '測試資料集',
-                { titleKey: 'view.dataSets.title', filenameKey: 'view.dataSets.title' })) return;
+                { titleKey: 'view.dataSets.title', filenameKey: 'view.dataSets.title' })) return false;
             renderDataSetsList();
         }
         async function renderDataSetsList() {
@@ -19171,7 +20026,7 @@ gantt
                 'Documents',
                 'bg-pink-100 text-pink-700 px-1.5 py-0.5 rounded font-medium',
                 '測試文件',
-                { titleKey: 'view.documents.title', filenameKey: 'view.documents.title' })) return;
+                { titleKey: 'view.documents.title', filenameKey: 'view.documents.title' })) return false;
             renderDocumentsList();
         }
 
@@ -19505,7 +20360,7 @@ gantt
                 'WBS',
                 'bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded font-medium',
                 'WBS',
-                { titleKey: 'view.wbs.title', filenameKey: 'view.wbs.title' })) return;
+                { titleKey: 'view.wbs.title', filenameKey: 'view.wbs.title' })) return false;
             loadWbsAndRender();
         }
 
@@ -19886,8 +20741,61 @@ gantt
             // lazy load 各分頁資料
             if (name === 'notif') loadNotificationPrefs();
             else if (name === 'email') loadEmailConfig();
-            else if (name === 'ai') renderAiTokensList();
+            else if (name === 'ai') { renderAiTokensList(); loadPreferredAgent(); }
             else if (name === 'projectMembers') pmReload();
+        }
+
+        // ─── Agent Runtime preference (Phase 1) ─────────────────────────
+        async function loadPreferredAgent() {
+            const sel = document.getElementById('preferredAgentSelect');
+            const badge = document.getElementById('agentEffectiveBadge');
+            const badgeKey = document.getElementById('agentEffectiveKey');
+            const reasonEl = document.getElementById('agentReasonText');
+            if (!sel) return;
+            try {
+                const r = await fetch('/api/users/me/preferred-agent');
+                if (!r.ok) throw new Error('HTTP '+r.status);
+                const d = await r.json();
+                // 重建下拉:固定首項「自動」+ 每個 runtime
+                const opts = ['<option value="">自動(系統依 token 挑)</option>'];
+                (d.available || []).forEach(a => {
+                    const disabled = a.supported ? '' : ' disabled';
+                    const title = a.supported ? a.description : (a.reason || a.description);
+                    opts.push(`<option value="${a.key}"${disabled} title="${title.replace(/"/g,'&quot;')}">${a.label}${a.supported ? '' : ' (token 不足)'}</option>`);
+                });
+                sel.innerHTML = opts.join('');
+                sel.value = d.preferred_agent || '';
+                if (badge && badgeKey) {
+                    badgeKey.textContent = d.effective_agent || '-';
+                    badge.classList.remove('hidden');
+                }
+                if (reasonEl) {
+                    const cur = (d.available || []).find(x => x.key === (d.preferred_agent || d.effective_agent));
+                    reasonEl.textContent = cur ? cur.description : '';
+                }
+            } catch (e) {
+                console.warn('loadPreferredAgent failed', e);
+            }
+        }
+
+        async function savePreferredAgent() {
+            const sel = document.getElementById('preferredAgentSelect');
+            if (!sel) return;
+            const val = sel.value || null;
+            try {
+                const r = await fetch('/api/users/me/preferred-agent', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ preferred_agent: val }),
+                });
+                if (!r.ok) throw new Error('HTTP '+r.status);
+                const d = await r.json();
+                if (typeof showToast === 'function') showToast('預設 Agent 已更新:' + (d.effective_agent || '自動'), 'success');
+                // refresh 顯示 (effective + reason)
+                loadPreferredAgent();
+            } catch (e) {
+                if (typeof showToast === 'function') showToast('更新失敗:' + e.message, 'error');
+            }
         }
 
         // ─── 權限清單（唯讀） ─────────────────────────────────────────

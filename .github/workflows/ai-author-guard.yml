@@ -1,0 +1,113 @@
+# Phase 2 — AI-authored commits guard
+#
+# 對 PR 檢查 commits 的 author / co-authored-by;若 match AI 簽章
+# (Claude / OpenClaw / Codex / Anthropic noreply / openai noreply 等)
+# 且觸碰到「平台原始碼」保護路徑,就在 PR 上 comment 一則警告 + 列出
+# 涉及檔案。**目前是 warn-only(`exit 0`)** — 因為早期 feature 開發都是
+# AI 協作。要轉成硬性 fail,把最後 `exit 0` 改 `exit 1` 即可。
+#
+# 設計取捨:不擋整支 PR 而只警告,是因為現在大多數 commits 都有 AI
+# co-authored-by;直接 fail 會卡死現有 workflow。未來 v2 release 後可
+# 收緊。
+name: AI-Authored Commit Guard
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'hermes/**'
+      - 'mem0/**'
+      - 'apisix/**'
+      - 'deploy/**'
+      - 'fluent-bit/**'
+      - 'docker-compose.yml'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  detect-ai-commits:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Scan PR commits for AI signatures
+        id: scan
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          # AI signature patterns(case-insensitive)— 對 author 和 trailer 都查
+          PATTERNS='claude|openclaw|codex|anthropic\.com|@openai\.com|copilot'
+
+          ai_commits=()
+          ai_files=()
+
+          while IFS= read -r sha; do
+            [ -z "$sha" ] && continue
+            full="$(git log -1 --pretty='%an <%ae>%n%B' "$sha")"
+            if echo "$full" | grep -iE "$PATTERNS" >/dev/null; then
+              ai_commits+=("$sha")
+              # 列出該 commit 動到的 protected 路徑
+              while IFS= read -r f; do
+                [ -z "$f" ] && continue
+                ai_files+=("$f")
+              done < <(git diff-tree --no-commit-id --name-only -r "$sha" \
+                | grep -E '^(backend|frontend|hermes|mem0|apisix|deploy|fluent-bit)/' || true)
+            fi
+          done < <(git rev-list "$BASE_SHA..$HEAD_SHA")
+
+          n_commits=${#ai_commits[@]}
+          # uniq 檔案清單
+          uniq_files=()
+          if [ "${#ai_files[@]}" -gt 0 ]; then
+            while IFS= read -r f; do
+              uniq_files+=("$f")
+            done < <(printf '%s\n' "${ai_files[@]}" | sort -u)
+          fi
+          n_files=${#uniq_files[@]}
+
+          echo "ai_commit_count=$n_commits" >> "$GITHUB_OUTPUT"
+          echo "ai_file_count=$n_files" >> "$GITHUB_OUTPUT"
+          {
+            echo "ai_files<<EOF_FILES"
+            printf '%s\n' "${uniq_files[@]+"${uniq_files[@]}"}"
+            echo "EOF_FILES"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Comment on PR (warn-only)
+        if: steps.scan.outputs.ai_commit_count != '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const commits = '${{ steps.scan.outputs.ai_commit_count }}';
+            const files = `${{ steps.scan.outputs.ai_files }}`.trim().split('\n').filter(Boolean);
+            const list = files.length ? files.map(f => `- \`${f}\``).join('\n') : '_(no protected paths touched)_';
+            const body = [
+              '⚠️ **AI-Authored Commits Detected**',
+              '',
+              `${commits} commit(s) on this PR carry AI signature (Claude / OpenClaw / Codex / Copilot).`,
+              '',
+              `Protected files touched (${files.length}):`,
+              '',
+              list,
+              '',
+              '_Phase 2 guard is currently **warn-only** — please human-review before merge. To upgrade to a hard fail, flip the workflow exit code._',
+            ].join('\n');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
+
+      - name: Always pass (warn-only Phase 2)
+        run: exit 0

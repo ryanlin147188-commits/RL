@@ -221,7 +221,11 @@ class RTListener:
         status = (result.status or "").upper()
         if status == "FAIL":
             buf["status"] = "FAILED"
-            buf["error"] = result.message or kw_name
+            # 第一個 FAIL 的訊息才是真正 root cause;後續 keyword 通常是 cascade
+            # (例如 Get Text 失敗 → ${actual} 沒被設 → 下一條 Should... 報
+            # "Variable not found")。保留第一個錯誤、不覆寫,讓 report 顯示真因。
+            if not buf.get("error"):
+                buf["error"] = result.message or kw_name
         elif status == "PASS":
             # 只有 FAILED 不會被覆蓋；SKIPPED 升級為 PASSED
             if buf["status"] != "FAILED":

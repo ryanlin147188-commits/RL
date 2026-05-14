@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -122,12 +123,52 @@ def main() -> int:
         cmd = cmd_robot
 
     print(f"[robot_container] Launching: {' '.join(cmd)}", flush=True)
+    # robot subprocess 逾時:由 celery 端 ROBOT_SUBPROCESS_TIMEOUT_SEC 注入,
+    # 跟 RUNNER_CONTAINER_TIMEOUT_SEC 對齊(預留 120s 給寫 JSON + 上傳 S3)。
+    # 沒帶 env 就用 1680s(等於 1800s 預設容器 timeout - 120s 緩衝)。
+    robot_timeout = int(os.environ.get("ROBOT_SUBPROCESS_TIMEOUT_SEC", "1680"))
+    # 逾時時的 graceful shutdown 時限:先 SIGTERM,讓 RF Teardown 有時間跑完
+    # (Close Browser → Playwright 寫完 .webm 的 WebM trailer 與 trace.zip 的
+    # ending),確保影片/軌跡不會被截斷。30 秒仍不退才 SIGKILL。
+    graceful_kill_sec = int(os.environ.get("ROBOT_GRACEFUL_KILL_SEC", "30"))
     try:
-        proc = subprocess.run(cmd, cwd="/app", env=env, timeout=600)
-        rc = proc.returncode
-    except subprocess.TimeoutExpired:
-        print("[robot_container] ERROR robot timed out (600s)", flush=True)
-        rc = 124
+        proc = subprocess.Popen(
+            cmd,
+            cwd="/app",
+            env=env,
+            preexec_fn=os.setsid,  # 新 process group,SIGTERM 一次發給整組
+        )
+        try:
+            rc = proc.wait(timeout=robot_timeout)
+        except subprocess.TimeoutExpired:
+            print(
+                f"[robot_container] WARN robot timed out ({robot_timeout}s) — "
+                f"送 SIGTERM,等 {graceful_kill_sec}s 讓 Teardown 寫完 video/trace",
+                flush=True,
+            )
+            try:
+                os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+            except Exception as e:
+                print(f"[robot_container] ERROR SIGTERM 失敗: {e}", flush=True)
+            try:
+                rc = proc.wait(timeout=graceful_kill_sec)
+                print(
+                    f"[robot_container] robot 在 graceful 期內結束 rc={rc} "
+                    f"(video / trace 應該完整)",
+                    flush=True,
+                )
+            except subprocess.TimeoutExpired:
+                print(
+                    f"[robot_container] ERROR robot 拒絕在 {graceful_kill_sec}s 內 "
+                    f"結束 → SIGKILL(video 可能不完整)",
+                    flush=True,
+                )
+                try:
+                    os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                except Exception:
+                    pass
+                proc.wait()
+                rc = 124
     except FileNotFoundError as e:
         print(f"[robot_container] ERROR cannot find robot binary: {e}", flush=True)
         rc = 127

@@ -21,7 +21,11 @@ from app.auth.context import (
     set_request_context,
 )
 from app.auth.revocation import is_revoked
-from app.auth.security import decode_token
+from app.auth.security import (
+    ACTIVE_ORG_COOKIE_NAME,
+    decode_token,
+    verify_active_org_cookie,
+)
 
 # 不需登入的 path（regex match 整段 path）
 _PUBLIC_PATTERNS: list[re.Pattern] = [
@@ -44,6 +48,13 @@ _PUBLIC_PATTERNS: list[re.Pattern] = [
     re.compile(r"^/api/auth/oidc/providers$"),
     re.compile(r"^/api/auth/oidc/login(/|$)"),
     re.compile(r"^/api/auth/oidc/callback$"),
+    # v1.1.5 in-process OIDC(authlib + Zoho):login / callback / enabled probe
+    # 都是匿名訪問,中間沒走 JWT 驗證,直到 callback 完成 backend 自簽 HS256 cookie。
+    re.compile(r"^/api/auth/zoho/login$"),
+    re.compile(r"^/api/auth/zoho/callback$"),
+    re.compile(r"^/api/auth/zoho/enabled$"),
+    # 舊 SPA 登入頁殘留的 probe;v1.1.5 後永遠回 200 [],只是讓 DevTools 不紅。
+    re.compile(r"^/api/auth/oidc/providers$"),
     # Artifact routes perform their own scoped token / access-token validation.
     re.compile(r"^/pics/"),
     re.compile(r"^/results/"),
@@ -76,7 +87,28 @@ def _extract_token(request: Request) -> str | None:
     return None
 
 
-def _payload_to_context(payload: dict | None):
+def _resolve_active_org(payload: dict | None, request: Request) -> str | None:
+    """決定本次 request 套用哪個 organisation。
+
+    優先順序:
+
+    1. ``active_org_id`` 簽章 cookie(Casdoor + 本地 dual-mode 都用這條)。
+       簽章驗證會比對 cookie 的 ``sub`` 與 JWT ``sub`` 相符,避免他人偷 cookie。
+    2. JWT payload 內的 ``org_id`` claim(本地 HS256 token 才會有;
+       Casdoor RS256 token 沒這個 claim)。
+    3. 都沒有 → None;ORM / scope 層當作「全域」處理(目前等於 superuser
+       才能跨 org;一般 user 則會被 ensure_project_in_scope 擋掉)。
+    """
+    sub = (payload or {}).get("sub")
+    cookie_val = request.cookies.get(ACTIVE_ORG_COOKIE_NAME)
+    if cookie_val:
+        org_from_cookie = verify_active_org_cookie(cookie_val, expected_sub=sub)
+        if org_from_cookie:
+            return org_from_cookie
+    return (payload or {}).get("org_id")
+
+
+def _payload_to_context(payload: dict | None, request: Request):
     """Push the JWT payload (if any) into the per-request ContextVars used by
     :mod:`app.auth.tenant` for query scoping and ORM auto-stamping.
 
@@ -86,7 +118,7 @@ def _payload_to_context(payload: dict | None):
     if not payload:
         return set_request_context(org_id=None, username=None, is_superuser=False)
     return set_request_context(
-        org_id=payload.get("org_id"),
+        org_id=_resolve_active_org(payload, request),
         username=payload.get("sub"),
         is_superuser=bool(payload.get("is_superuser", False)),
     )
@@ -111,7 +143,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 except pyjwt.PyJWTError:
                     payload = None
             request.state.user_payload = payload
-            snap = _payload_to_context(payload)
+            snap = _payload_to_context(payload, request)
             try:
                 return await call_next(request)
             finally:
@@ -142,7 +174,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             return JSONResponse({"detail": "Token 已撤銷,請重新登入"}, status_code=401)
 
         request.state.user_payload = payload
-        snap = _payload_to_context(payload)
+        snap = _payload_to_context(payload, request)
         try:
             return await call_next(request)
         finally:

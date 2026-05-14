@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 import jwt as pyjwt
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,10 +27,13 @@ from app.auth.dependencies import get_current_user
 from app.auth.revocation import revoke as revoke_jti
 from app.auth.security import (
     ACCESS_TOKEN_TTL_MINUTES,
+    ACTIVE_ORG_COOKIE_NAME,
+    ACTIVE_ORG_COOKIE_TTL_DAYS,
     create_access_token,
     create_refresh_token,
     decode_token,
     hash_password,
+    sign_active_org_cookie,
     verify_password,
 )
 from app.rate_limit import limiter
@@ -364,13 +367,16 @@ async def my_orgs(
 async def switch_org(
     request: Request,
     payload: dict,
+    response: Response,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """切換 active 組織。要求:
     1. body `{"organization_id": "..."}`
     2. current_user 在該 org 必須有 OrgMembership(active 狀態)
-    通過 → 更新 `users.organization_id` + 重新簽 access_token(payload.org_id 變更)。
+    通過 → 更新 `users.organization_id` + 重新簽 access_token(payload.org_id 變更)
+    + 設 ``active_org_id`` 簽章 cookie(middleware 偏好讀此 cookie 後再 fall back
+    到 JWT.org_id;為了讓 Casbin enforcer 拿到準確的 domain)。
     refresh_token 不簽,沿用原本的(下次過期才重簽)。
     """
     target_org_id = (payload or {}).get("organization_id")
@@ -395,6 +401,14 @@ async def switch_org(
             raise HTTPException(404, "找不到該組織")
     user.organization_id = target_org_id
     await db.flush()
+    response.set_cookie(
+        key=ACTIVE_ORG_COOKIE_NAME,
+        value=sign_active_org_cookie(user.username, target_org_id),
+        max_age=ACTIVE_ORG_COOKIE_TTL_DAYS * 24 * 3600,
+        httponly=True,
+        samesite="lax",
+        secure=request.url.scheme == "https",
+    )
     extra = {"org_id": target_org_id, "is_superuser": user.is_superuser}
     return TokenResponse(
         access_token=create_access_token(user.username, extra=extra),
@@ -497,6 +511,57 @@ async def change_password(
     return {"ok": True}
 
 
+# ── v1.1.6 首登 profile setup(三欄位一次提交) ──────────────────────────
+# 觸發條件:`users.must_change_password=True`(seed admin / admin 建出來的
+# 新 user / admin reset password 三條路徑都會把 flag 設成 True)。
+# 三個欄位一次寫:display_name / email / new_password,完成後 flag 解開,
+# 後續 API 才能正常呼叫(``get_current_user`` 內的閘門邏輯不變)。
+
+@router.post("/auth/profile-setup", response_model=UserResponse, tags=["U · 認證"])
+async def profile_setup(
+    payload: dict,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """首登 modal 用 — 一次補齊 display_name / email / 改密碼。
+
+    body::
+
+        {
+          "display_name": "Alice",       # 必填,1-120 字元
+          "email": "alice@example.com",  # 必填(可改但不能空)
+          "new_password": "newpw123"     # 必填,≥ 6 字元
+        }
+
+    跟 ``/auth/change-password`` 的差異:
+    * 不需要 ``old_password``(SSO JIT 進來的 user 不知道自己的初始隨機 hash)
+    * 一次寫三個欄位,UX 上是「首登流程」單一動作
+    * 沒驗證 ``new_password != old_password``,因為使用者可能本來就沒密碼
+    """
+    display_name = (payload or {}).get("display_name", "")
+    email = (payload or {}).get("email", "")
+    new_password = (payload or {}).get("new_password", "")
+
+    display_name = display_name.strip() if isinstance(display_name, str) else ""
+    email = email.strip().lower() if isinstance(email, str) else ""
+    new_password = new_password if isinstance(new_password, str) else ""
+
+    if not display_name or len(display_name) > 120:
+        raise HTTPException(400, "顯示名稱必填,長度 1-120 字元")
+    if not email or "@" not in email or len(email) > 255:
+        raise HTTPException(400, "email 必填且需有效格式")
+    if not new_password or len(new_password) < 6:
+        raise HTTPException(400, "新密碼至少 6 字元")
+
+    user.display_name = display_name
+    user.email = email
+    user.password_hash = hash_password(new_password)
+    user.must_change_password = False
+    await db.flush()
+    await db.refresh(user)
+    return user
+
+
 # ── 使用者管理（需 superuser） ──────────────────────────────────────
 
 def _require_superuser(user: User) -> None:
@@ -559,6 +624,9 @@ async def create_user(
         # 沒指定 → 跟建立者同 org（普通 admin 不能跨 org 開使用者）
         organization_id=payload.organization_id or user.organization_id,
         is_superuser=payload.is_superuser,
+        # v1.1.6:即使 admin 給了 password,新 user 仍要走首登 profile-setup
+        # modal 一次補齊 display_name / email / 改自己的密碼。
+        must_change_password=True,
     )
     db.add(new_user)
     await db.flush()
@@ -574,6 +642,8 @@ async def create_user(
         ))
         await db.flush()
     await db.refresh(new_user)
+    from app.auth.casbin_sync import schedule_user_resync
+    schedule_user_resync(new_user.username)
     return new_user
 
 
@@ -616,6 +686,8 @@ async def admin_update_user(
         target.is_superuser = bool(payload.is_superuser)
     await db.flush()
     await db.refresh(target)
+    from app.auth.casbin_sync import schedule_user_resync
+    schedule_user_resync(target.username)
     return target
 
 
@@ -661,3 +733,5 @@ async def delete_user(
         raise HTTPException(404, "使用者不存在")
     await db.delete(target)
     await db.flush()
+    from app.auth.casbin_sync import schedule_user_resync
+    schedule_user_resync(username)

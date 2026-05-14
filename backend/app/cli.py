@@ -6,6 +6,8 @@ Usage:
     AUTOTEST_ADMIN_USERNAME=alice AUTOTEST_ADMIN_PASSWORD=... \\
         docker compose exec -T backend python -m app.cli create-admin --non-interactive
 
+    docker compose exec backend python -m app.cli seed-casbin
+
 Subcommands:
     create-admin
         Create a superuser (is_superuser=True, attached to the Admin role and
@@ -14,6 +16,12 @@ Subcommands:
         AUTOTEST_ADMIN_PASSWORD / AUTOTEST_ADMIN_EMAIL), then interactive prompt.
         Refuses to create a user that already exists; refuses passwords shorter
         than 8 characters.
+
+    seed-casbin
+        Idempotent seed of the casbin_rule table from the DB (Role +
+        OrgMembership + ProjectMember). Re-runnable any time(全表
+        truncate-and-rewrite),不會破壞既有 enforcer state。也可在切開
+        CASBIN_SHADOW_ENABLED=True 之前先跑一次,確保 shadow 比對有資料。
 """
 from __future__ import annotations
 
@@ -126,6 +134,33 @@ def cmd_create_admin(args: argparse.Namespace) -> None:
     asyncio.run(_create_admin(username, password, email))
 
 
+async def _seed_casbin() -> dict[str, int]:
+    """從 DB 重新計算 Casbin policy + grouping rules 並寫入 casbin_rule 表。
+
+    強制 init enforcer(即使 ``CASBIN_ENABLED=False``),這樣可以在「正式
+    切開 gate 之前」先把 policy 灌好,operator 再去翻 env。
+    """
+    from app.auth import casbin as _casbin
+    from app.auth.casbin_sync import rebuild_all_policies
+    from app.database import AsyncSessionLocal
+
+    # CLI 進程沒走過 lifespan,enforcer 不會自動初始化;force 是給 CLI 用的。
+    _casbin.init_enforcer(force=True)
+    try:
+        async with AsyncSessionLocal() as session:
+            return await rebuild_all_policies(session)
+    finally:
+        _casbin.shutdown_enforcer()
+
+
+def cmd_seed_casbin(args: argparse.Namespace) -> None:
+    counts = asyncio.run(_seed_casbin())
+    print(
+        f"casbin seed done: wrote {counts.get('p', 0)} policy lines + "
+        f"{counts.get('g', 0)} grouping(g) lines"
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m app.cli",
@@ -143,6 +178,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Fail instead of prompting when values are missing.",
     )
     p_admin.set_defaults(func=cmd_create_admin)
+
+    p_casbin = sub.add_parser(
+        "seed-casbin",
+        help="Idempotent re-seed of the casbin_rule table from DB state.",
+    )
+    p_casbin.set_defaults(func=cmd_seed_casbin)
 
     return parser
 
