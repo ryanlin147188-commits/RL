@@ -33,12 +33,6 @@ from app.models import (  # noqa: F401
 )
 from app.middleware import AuthMiddleware
 from app.audit import AuditMiddleware
-from app.observability import (
-    install_metrics,
-    install_sentry,
-    install_tracing,
-    instrument_app,
-)
 from app.rate_limit import limiter
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -430,10 +424,6 @@ async def lifespan(app: FastAPI):
             logging.getLogger(__name__).exception("casbin shutdown_enforcer failed")
 
 
-# RFC-8: observability bootstrap. Each call no-ops when its env switch is unset
-# (PROM_DISABLED, OTLP_ENDPOINT, SENTRY_DSN) so dev runs stay quiet.
-install_sentry("backend")
-install_tracing()
 
 app = FastAPI(
     title="AutoTest v1.1 API",
@@ -442,8 +432,6 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-install_metrics(app)
-instrument_app(app)
 
 # CORS 白名單:讀環境變數 ALLOWED_ORIGINS(逗號分隔),預設 http://localhost。
 # 公開部署時必須設為實際前端 origin,不可使用 "*";allow_credentials=True 配 "*" 也會被瀏覽器拒絕。

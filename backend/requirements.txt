@@ -20,14 +20,6 @@ python-dotenv==1.0.1
 # Schema migrations
 alembic==1.13.3
 
-# Observability (RFC-8): metrics + error tracking. Tracing (OpenTelemetry)
-# lives in requirements-backend.txt because opentelemetry-proto pins
-# protobuf<5 -- robotframework-browser pins protobuf==5.28.1, so the two
-# CANNOT coexist in the celery image. The split keeps backend able to
-# emit traces while celery keeps Playwright. See observability.py.
-prometheus-fastapi-instrumentator==7.0.0
-sentry-sdk[fastapi,celery,sqlalchemy]==2.16.0
-
 # Auth (v1.1.7): FastAPI Users + Authlib + PyCasbin
 # Phased migration:現階段 fastapi-users primitives 跟舊 passlib + 手刻 JWT
 # 共存,等 schema migration / endpoint cutover 完成才會把 passlib/bcrypt 移除。
@@ -80,8 +72,5 @@ redis==5.1.1
 docker==7.1.0
 
 # Robot Framework + Playwright stack lives in requirements-celery.txt.
-# It is NOT installed in the backend image -- backend never runs tests,
-# and robotframework-browser's protobuf==5.28.1 pin would block OpenTelemetry
-# in the same venv. Celery worker image installs both this and
-# requirements-celery.txt; backend image installs this and
-# requirements-backend.txt.
+# Backend image installs only this file; Celery worker image installs
+# both this file and requirements-celery.txt.

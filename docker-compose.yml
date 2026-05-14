@@ -154,12 +154,6 @@ services:
       # 應用層 secret(必填):JWT 簽章 + Fernet 對稱加密金鑰
       AUTOTEST_JWT_SECRET: ${AUTOTEST_JWT_SECRET:?AUTOTEST_JWT_SECRET is required - run docker compose --profile init run --rm bootstrap}
       AUTOTEST_FERNET_KEY: ${AUTOTEST_FERNET_KEY:?AUTOTEST_FERNET_KEY is required - run docker compose --profile init run --rm bootstrap}
-      # RFC-8 observability:預設指向 obs profile 的 jaeger;沒啟 obs profile
-      # 時 backend 連不到 jaeger,observability.py 會 log warning 後忽略,不擋啟動。
-      # 完全停用 tracing → 在 .env 或 compose override 設成空字串。
-      OTLP_ENDPOINT: ${OTLP_ENDPOINT:-jaeger:4317}
-      SENTRY_DSN: ${SENTRY_DSN:-}
-      AUTOTEST_ENV: ${AUTOTEST_ENV:-dev}
       # ── Docker 模式錄製(Phase 1) ──
       RECORDER_IMAGE: ${RECORDER_IMAGE:-autotest-recorder:1.1.1}
       # API 錄製(mitmweb)與 MCP(Playwright MCP server)的 image tag 直通,
@@ -185,7 +179,7 @@ services:
       # 到 ``app.auth.permissions.shadow``,但不改變實際 allow/deny。前置條件:
       # CASBIN_ENABLED=True 且已跑過 ``python -m app.cli seed-casbin``。
       CASBIN_SHADOW_ENABLED: ${CASBIN_SHADOW_ENABLED:-False}
-    # /healthz 是公開、無需 auth 的就緒探測;讓 apisix(depends_on backend)
+    # /healthz 是公開、無需 auth 的就緒探測;讓 frontend(depends_on backend)
     # 等到 backend 的 lifespan 跑完(含 alembic upgrade head)才往下走。
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/healthz"]
@@ -193,8 +187,8 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
-    # 不對外 publish 8000;所有外部流量必須經 frontend nginx → APISIX → backend。
-    # 同網路內(celery / apisix / recorder)以 backend:8000 解析,不需 host port。
+    # 不對外 publish 8000;所有外部流量必須經 frontend nginx → backend。
+    # 同網路內(celery / frontend / recorder)以 backend:8000 解析,不需 host port。
     # 動態錄製容器會 publish 到 host 的 6080-6200 區段 port,不在 backend 區塊另外 expose。
 
   celery:
@@ -247,7 +241,8 @@ services:
     container_name: autotest-frontend
     restart: unless-stopped
     depends_on:
-      - apisix
+      backend:
+        condition: service_healthy
     ports:
       # 0.0.0.0:80 — 對 LAN 開放(本機部署也能 http://localhost/)。
       # 公開 internet 部署請改回 127.0.0.1:80:80 並前面套 reverse proxy + TLS。
@@ -260,96 +255,6 @@ services:
       - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./frontend/index.html:/usr/share/nginx/html/index.html:ro
       - ./frontend/js:/usr/share/nginx/html/js:ro
-
-  # ── Apache APISIX：API 閘道器（Apache 2.0；standalone YAML 模式，不需 etcd）──
-  apisix:
-    image: apache/apisix:3.11.0-debian
-    container_name: autotest-apisix
-    restart: unless-stopped
-    depends_on:
-      backend:
-        condition: service_healthy
-    volumes:
-      - ./apisix/config.yaml:/usr/local/apisix/conf/config.yaml:ro
-      - ./apisix/apisix.yaml:/usr/local/apisix/conf/apisix.yaml:ro
-    healthcheck:
-      # APISIX image does not include wget/curl; use bash's /dev/tcp.
-      test: ["CMD-SHELL", "bash -ec 'exec 3<>/dev/tcp/127.0.0.1/9080; printf \"GET /healthz HTTP/1.1\\r\\nHost: 127.0.0.1\\r\\nConnection: close\\r\\n\\r\\n\" >&3; grep -q ok <&3'"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 15s
-
-  # ── VictoriaLogs：日誌儲存與面板（Apache 2.0；自帶 vmui） ──
-  victoria-logs:
-    image: victoriametrics/victoria-logs:v1.50.0
-    container_name: autotest-victoria-logs
-    restart: unless-stopped
-    command:
-      - "-storageDataPath=/victoria-logs-data"
-      - "-retentionPeriod=30d"
-      - "-httpListenAddr=:9428"
-    volumes:
-      - victoria_logs_data:/victoria-logs-data
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O-", "http://127.0.0.1:9428/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # ── Fluent Bit：日誌採集端（Apache 2.0；推 Docker 容器 log 給 VictoriaLogs） ──
-  fluent-bit:
-    image: fluent/fluent-bit:3.2
-    container_name: autotest-fluent-bit
-    restart: unless-stopped
-    depends_on:
-      victoria-logs:
-        condition: service_healthy
-    volumes:
-      - ./fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
-      - ./fluent-bit/parsers.conf:/fluent-bit/etc/parsers.conf:ro
-      # Lua filter:讀 docker config.v2.json 補 container_name 欄位
-      - ./fluent-bit/enrich.lua:/fluent-bit/etc/enrich.lua:ro
-      # 讀取 host 上 docker daemon 寫的容器 log（json-file driver）
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
-      # tail 的 position DB:重啟時從斷點繼續,不漏 log 也不重讀
-      - fluent_bit_state:/fluent-bit/state
-
-  # ── RFC-8 觀察性堆疊(預設啟動)─────────────────────────────────────
-  # Prometheus 抓取 /metrics、Jaeger 接 OTLP trace。兩者只開在 Docker 內網,
-  # host 對外仍只暴露 frontend 的 http://localhost/。
-  # 全 Apache-2.0 — 刻意不用 Grafana(AGPL-3.0)/ Tempo(AGPL-3.0)避免商用授權風險;
-  # 換成「Prometheus 內部 UI 看 metrics」+「Jaeger 內部 UI 看 trace」
-  # +「VictoriaLogs 內部 vmui 看 log」。host 對外入口固定只保留 http://localhost/。
-  # 不想跑這兩顆 → `docker compose up -d --scale prometheus=0 --scale jaeger=0`
-  # 或在 override 檔把它們再拉回 profile。
-  prometheus:
-    image: prom/prometheus:v2.55.1
-    container_name: autotest-prometheus
-    restart: unless-stopped
-    command:
-      - "--config.file=/etc/prometheus/prometheus.yml"
-      - "--storage.tsdb.retention.time=15d"
-      - "--web.enable-lifecycle"
-    volumes:
-      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus_data:/prometheus
-
-  jaeger:
-    image: jaegertracing/all-in-one:1.62.0
-    container_name: autotest-jaeger
-    restart: unless-stopped
-    environment:
-      COLLECTOR_OTLP_ENABLED: "true"     # 開 OTLP gRPC + HTTP receivers
-      SPAN_STORAGE_TYPE: memory
-
-  # ── Spawn-time images(profile=spawnable:刻意永不啟動) ─────────────
-  # 這 4 個 image 是 backend 在 runtime 動態 docker run 出來的(per-session
-  # 容器,做測試執行 / 錄製 / MCP 操作),不是常駐 service。但 image 必須
-  # 預先 build 好否則 spawn 時 image not found。把它們列在這裡有兩個好處:
-  #   1. `docker compose --profile spawnable build` 一次 build 完
-  #   2. 集中管理 image tag,跟 backend env 的 RECORDER_IMAGE / MCP_IMAGE 對齊
-  # profile=spawnable 確保它們不會被 `docker compose up` 起來。
   robot-runner:
     build:
       context: ./backend
@@ -434,9 +339,6 @@ services:
 volumes:
   postgres_data:
   seaweedfs_data:
-  victoria_logs_data:
-  prometheus_data:
-  fluent_bit_state:
 
 # SeaweedFS S3 IAM 設定:從 .env 注入,docker compose 會在啟動時做變數替換。
 # 修改後須 docker compose down -v 並 up 才能重新生效(SeaweedFS 啟動時讀一次)。

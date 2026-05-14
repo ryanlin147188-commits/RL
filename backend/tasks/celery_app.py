@@ -1,13 +1,6 @@
 from celery import Celery
 
 from app.config import settings
-from app.observability import install_sentry, install_tracing, instrument_celery
-
-# RFC-8: observability for the worker. Mirrors the FastAPI side; each call
-# no-ops when its env switch is unset so dev runs stay quiet.
-install_sentry("celery")
-install_tracing(service_name="autotest-celery")
-instrument_celery()
 
 celery_app = Celery(
     "autotest_worker",

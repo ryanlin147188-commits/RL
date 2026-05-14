@@ -12,12 +12,11 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Backend installs the shared base + OpenTelemetry tracing extras.
-# Robotframework-* deps live in requirements-celery.txt and are NOT
-# installed here -- backend never runs tests, and that pin would block
-# OTel via protobuf version conflict (see requirements-backend.txt).
-COPY requirements.txt requirements-backend.txt ./
-RUN pip install --no-cache-dir -r requirements.txt -r requirements-backend.txt
+# Backend installs the shared base only. Robotframework-* deps live in
+# requirements-celery.txt and are NOT installed here — backend never runs
+# tests directly (Celery worker does).
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . /app
 
