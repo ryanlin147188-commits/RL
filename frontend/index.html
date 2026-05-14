@@ -5493,7 +5493,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 'Versions',
                 'bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium',
                 '測試版號',
-                { titleKey: 'view.testVersions.title', filenameKey: 'view.testVersions.title' })) return;
+                { titleKey: 'view.testVersions.title', filenameKey: 'view.testVersions.title' })) return false;
             tvReloadList();
         }
 
@@ -7022,7 +7022,7 @@ driver.swipe(100, 800, 100, 200, 500)"
         }
 
         function showReportView() {
-            if (!confirmDiscardIfDirty()) return;
+            if (!confirmDiscardIfDirty()) return false;
             _hideAllWorkspaces();
             _setViewMeta('view.reports.title', 'view.reports.title', '<i class="fa-solid fa-chart-line text-blue-500"></i>', 'Report', 'bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium');
             document.getElementById('reportWorkspace').classList.remove('hidden');
@@ -11081,9 +11081,14 @@ driver.swipe(100, 800, 100, 200, 500)"
                 if (window[name].__routePatched) return;
                 const orig = window[name];
                 const wrapped = function (...args) {
-                    // Only update the URL when actually navigating to a
-                    // different view; replaceState avoids polluting history
-                    // and avoids re-entering hashchange.
+                    // 先呼 orig:若內部 confirmDiscardIfDirty() 不通過就早 return false,
+                    // 不應該動 URL。orig 若 return false 視為「沒切換成功」,URL 保持
+                    // 不動;其他 return value(undefined / true / promise)視為成功,
+                    // 才把 URL sync 到 targetHash。
+                    // 之前是「先改 URL 再 call orig」,造成 dirty editor 取消切首頁時
+                    // URL 已經跑到 #home 但畫面留在 editor — user 看到 URL 跟 view 不一致。
+                    const ret = orig.apply(this, args);
+                    if (ret === false) return ret;
                     if (window.location.hash !== targetHash) {
                         _suppressHashChange = true;
                         try {
@@ -11093,7 +11098,8 @@ driver.swipe(100, 800, 100, 200, 500)"
                         }
                         _suppressHashChange = false;
                     }
-                    return orig.apply(this, args);
+                    _lastDispatchedHash = targetHash;
+                    return ret;
                 };
                 wrapped.__routePatched = true;
                 window[name] = wrapped;
@@ -11102,6 +11108,10 @@ driver.swipe(100, 800, 100, 200, 500)"
             function _patchAll() {
                 KNOWN_VIEWS.forEach(_patchOne);
             }
+
+            // 記住最後一次「成功進入」的 hash,讓 back/forward 若被 dirty
+            // editor 擋下時可以還原 URL,不會留下 URL 跟畫面不一致。
+            let _lastDispatchedHash = '';
 
             function _dispatchFromHash() {
                 if (_suppressHashChange) return;
@@ -11119,10 +11129,21 @@ driver.swipe(100, 800, 100, 200, 500)"
 
                 const hash = (window.location.hash || '').toLowerCase();
                 const fnName = _hashToFn[hash];
+                let ret;
                 if (fnName && typeof window[fnName] === 'function') {
-                    try { window[fnName](); } catch (_) {}
+                    try { ret = window[fnName](); } catch (_) {}
                 } else if (typeof window.showHomeView === 'function') {
-                    try { window.showHomeView(); } catch (_) {}
+                    try { ret = window.showHomeView(); } catch (_) {}
+                }
+                // 若 show*View 因 dirty editor 取消(ret === false),把 URL
+                // 還原到上一次成功的 hash,避免 URL 改了但畫面沒變。
+                if (ret === false && _lastDispatchedHash && _lastDispatchedHash !== hash) {
+                    _suppressHashChange = true;
+                    try { history.replaceState(null, '', _lastDispatchedHash); }
+                    catch (_) { window.location.hash = _lastDispatchedHash; }
+                    _suppressHashChange = false;
+                } else {
+                    _lastDispatchedHash = hash || _lastDispatchedHash;
                 }
             }
 
@@ -11703,7 +11724,7 @@ driver.swipe(100, 800, 100, 200, 500)"
 
         // ==================== 設定頁 ====================
         function showUserSettingsView() {
-            if (typeof confirmDiscardIfDirty === 'function' && !confirmDiscardIfDirty()) return;
+            if (typeof confirmDiscardIfDirty === 'function' && !confirmDiscardIfDirty()) return false;
             _hideAllWorkspaces();
             document.getElementById('userSettingsWorkspace').classList.remove('hidden');
             document.getElementById('mainHeader').classList.remove('hidden');
@@ -11916,7 +11937,7 @@ driver.swipe(100, 800, 100, 200, 500)"
         let recTraceFile = null;
 
         function showRecorderView() {
-            if (!confirmDiscardIfDirty()) return;
+            if (!confirmDiscardIfDirty()) return false;
             _hideAllWorkspaces();
             _setViewMeta('view.recorder.title', 'view.recorder.title', '<i class="fa-solid fa-video text-rose-500"></i>', 'Recorder', 'bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-medium');
             document.getElementById('recorderWorkspace').classList.remove('hidden');
@@ -12025,7 +12046,7 @@ driver.swipe(100, 800, 100, 200, 500)"
         }
 
         function showReviewView() {
-            if (typeof confirmDiscardIfDirty === 'function' && !confirmDiscardIfDirty()) return;
+            if (typeof confirmDiscardIfDirty === 'function' && !confirmDiscardIfDirty()) return false;
             _hideAllWorkspaces();
             _setViewMeta('review.title', 'review.title', '<i class="fa-solid fa-stamp text-violet-500"></i>', 'Review', 'bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded font-medium');
             document.getElementById('reviewWorkspace').classList.remove('hidden');
@@ -12479,7 +12500,7 @@ driver.swipe(100, 800, 100, 200, 500)"
         // ==================== 首頁 (Home) ====================
         // 點擊左上角 AutoTest Logo 或呼叫 showHomeView() 進入首頁
         function showHomeView() {
-            if (!confirmDiscardIfDirty()) return;
+            if (!confirmDiscardIfDirty()) return false;
             _hideAllWorkspaces();
             document.getElementById('homeWorkspace').classList.remove('hidden');
             document.getElementById('mainHeader').classList.remove('hidden');
@@ -12658,7 +12679,7 @@ driver.swipe(100, 800, 100, 200, 500)"
 
         // ==================== 測試案例清單（與側邊欄同步） ====================
         function showTestCasesView() {
-            if (!confirmDiscardIfDirty()) return;
+            if (!confirmDiscardIfDirty()) return false;
             _hideAllWorkspaces();
             _setViewMeta('view.testCases.title', 'view.testCases.title', '<i class="fa-solid fa-list-check text-blue-500"></i>', 'Cases', 'bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium');
             document.getElementById('testcasesWorkspace').classList.remove('hidden');
@@ -13150,7 +13171,7 @@ driver.swipe(100, 800, 100, 200, 500)"
         // 首頁 / 測試案例清單使用既有的 escapeHtml()（定義於稍早）
 
         function showTestRoundView() {
-            if (!confirmDiscardIfDirty()) return;
+            if (!confirmDiscardIfDirty()) return false;
             _hideAllWorkspaces();
             _setViewMeta('view.testRound.title', 'view.testRound.title', '<i class="fa-solid fa-layer-group text-purple-500"></i>', 'Rounds', 'bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium');
             document.getElementById('testRoundWorkspace').classList.remove('hidden');
@@ -13163,7 +13184,7 @@ driver.swipe(100, 800, 100, 200, 500)"
         }
 
         function showEnvVarsView() {
-            if (!confirmDiscardIfDirty()) return;
+            if (!confirmDiscardIfDirty()) return false;
             _hideAllWorkspaces();
             _setViewMeta('view.envVars.title', 'view.envVars.title', '<i class="fa-solid fa-key text-emerald-500"></i>', 'Env', 'bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-medium');
             document.getElementById('envVarsWorkspace').classList.remove('hidden');
@@ -13176,7 +13197,7 @@ driver.swipe(100, 800, 100, 200, 500)"
         }
 
         function showDevicesView() {
-            if (!confirmDiscardIfDirty()) return;
+            if (!confirmDiscardIfDirty()) return false;
             _hideAllWorkspaces();
             _setViewMeta('view.devices.title', 'view.devices.title', '<i class="fa-solid fa-mobile-screen text-rose-500"></i>', 'Devices', 'bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-medium');
             document.getElementById('devicesWorkspace').classList.remove('hidden');
@@ -14652,7 +14673,7 @@ driver.swipe(100, 800, 100, 200, 500)"
 
         // ==================== DB / Mock：顯示視圖 ====================
         function showDbConfigView() {
-            if (!confirmDiscardIfDirty()) return;
+            if (!confirmDiscardIfDirty()) return false;
             _hideAllWorkspaces();
             _setViewMeta('view.dbConfig.title', 'view.dbConfig.title', '<i class="fa-solid fa-database text-indigo-500"></i>', 'DB', 'bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-medium');
             document.getElementById('dbConfigWorkspace').classList.remove('hidden');
@@ -14664,7 +14685,7 @@ driver.swipe(100, 800, 100, 200, 500)"
         
         }
         function showMockView() {
-            if (!confirmDiscardIfDirty()) return;
+            if (!confirmDiscardIfDirty()) return false;
             _hideAllWorkspaces();
             _setViewMeta('view.mock.title', 'view.mock.title', '<i class="fa-solid fa-plug text-amber-500"></i>', 'Mock', 'bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium');
             document.getElementById('mockWorkspace').classList.remove('hidden');
@@ -15682,7 +15703,7 @@ driver.swipe(100, 800, 100, 200, 500)"
         }
 
         function showScheduleView() {
-            if (!confirmDiscardIfDirty()) return;
+            if (!confirmDiscardIfDirty()) return false;
             _hideAllWorkspaces();
             _setViewMeta('view.schedule.title', 'view.schedule.title', '<i class="fa-solid fa-calendar-days text-emerald-500"></i>', 'Schedule', 'bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-medium');
             document.getElementById('scheduleWorkspace').classList.remove('hidden');
@@ -17570,7 +17591,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 'Defects',
                 'bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-medium',
                 '缺陷管理',
-                { titleKey: 'view.defects.title', filenameKey: 'view.defects.title' })) return;
+                { titleKey: 'view.defects.title', filenameKey: 'view.defects.title' })) return false;
             renderDefectsList();
         }
         // Tier D-6:bulk reassign 選取狀態
@@ -17877,7 +17898,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 'Schedule',
                 'bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded font-medium',
                 '測試時程',
-                { titleKey: 'view.milestones.title', filenameKey: 'view.milestones.title' })) return;
+                { titleKey: 'view.milestones.title', filenameKey: 'view.milestones.title' })) return false;
             renderMilestonesList();
         }
         async function renderMilestonesList() {
@@ -18013,7 +18034,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 'Plans',
                 'bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium',
                 '測試計畫',
-                { titleKey: 'view.testPlan.title', filenameKey: 'view.testPlan.title' })) return;
+                { titleKey: 'view.testPlan.title', filenameKey: 'view.testPlan.title' })) return false;
             renderPlansList();
         }
         async function renderPlansList() {
@@ -18410,7 +18431,7 @@ gantt
                 'RTM',
                 'bg-cyan-100 text-cyan-700 px-1.5 py-0.5 rounded font-medium',
                 '需求 / RTM',
-                { titleKey: 'view.requirements.title', filenameKey: 'view.requirements.title' })) return;
+                { titleKey: 'view.requirements.title', filenameKey: 'view.requirements.title' })) return false;
             rtmSwitchTab('requirements');
         }
         function rtmSwitchTab(tab) {
@@ -18868,7 +18889,7 @@ gantt
                 'Kanban',
                 'bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-medium',
                 '測試看版',
-                { titleKey: 'view.kanban.title', filenameKey: 'view.kanban.title' })) return;
+                { titleKey: 'view.kanban.title', filenameKey: 'view.kanban.title' })) return false;
             renderTestKanban();
         }
         // ─── Tier F:多 entity 看板 ────────────────────────────────────
@@ -19678,7 +19699,7 @@ gantt
                 'Projects',
                 'bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium',
                 '測試專案',
-                { titleKey: 'view.testProjects.title', filenameKey: 'view.testProjects.title' })) return;
+                { titleKey: 'view.testProjects.title', filenameKey: 'view.testProjects.title' })) return false;
             renderTestProjectsList();
         }
         async function renderTestProjectsList() {
@@ -19790,7 +19811,7 @@ gantt
                 'DataSets',
                 'bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded font-medium',
                 '測試資料集',
-                { titleKey: 'view.dataSets.title', filenameKey: 'view.dataSets.title' })) return;
+                { titleKey: 'view.dataSets.title', filenameKey: 'view.dataSets.title' })) return false;
             renderDataSetsList();
         }
         async function renderDataSetsList() {
@@ -19996,7 +20017,7 @@ gantt
                 'Documents',
                 'bg-pink-100 text-pink-700 px-1.5 py-0.5 rounded font-medium',
                 '測試文件',
-                { titleKey: 'view.documents.title', filenameKey: 'view.documents.title' })) return;
+                { titleKey: 'view.documents.title', filenameKey: 'view.documents.title' })) return false;
             renderDocumentsList();
         }
 
@@ -20330,7 +20351,7 @@ gantt
                 'WBS',
                 'bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded font-medium',
                 'WBS',
-                { titleKey: 'view.wbs.title', filenameKey: 'view.wbs.title' })) return;
+                { titleKey: 'view.wbs.title', filenameKey: 'view.wbs.title' })) return false;
             loadWbsAndRender();
         }
 
