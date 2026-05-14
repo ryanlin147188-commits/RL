@@ -56,16 +56,8 @@ from app.models.user import User
 #
 # 注意:這只是 Python attribute 層面的相容包裝;DB 上仍是 username 欄位。
 
-if not hasattr(User, "id"):
-    # Phase 1 — username 即 id。Phase 7 加 UUID column 時把這個 property 拔掉。
-    def _user_id_get(self: User) -> str:  # type: ignore[no-redef]
-        return self.username
-
-    def _user_id_set(self: User, value: str) -> None:  # type: ignore[no-redef]
-        self.username = value
-
-    User.id = property(_user_id_get, _user_id_set)  # type: ignore[attr-defined]
-
+# v1.1.7 Phase 2 起,User.id 是 mapped_column(UUID string),不再用 property
+# 包 username。Phase 1 的 shim 已移除。Phase 7 會把 PK 從 username 換成 id。
 
 # fastapi-users 期望 user.hashed_password / user.is_verified。Phase 4 才把
 # DB column 改名 + 加 is_verified 欄位;Phase 1 用 Python-level shim 不動 DB。

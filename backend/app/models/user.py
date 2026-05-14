@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base
@@ -19,6 +19,16 @@ from .base import Base
 class User(Base):
     __tablename__ = "users"
 
+    # v1.1.7 Phase 2: 加 UUID id column。username 仍是 PK,Phase 7 才會把 PK
+    # 換成 id。先讓 fastapi-users 有正式的 id 欄位可用,Phase 1 的 property
+    # shim 已經拔掉。
+    id: Mapped[str] = mapped_column(
+        String(36),
+        nullable=False,
+        server_default=text("gen_random_uuid()::text"),
+        unique=True,
+        index=True,
+    )
     username: Mapped[str] = mapped_column(String(80), primary_key=True)
     display_name: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
     email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
