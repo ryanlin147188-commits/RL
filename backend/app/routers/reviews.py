@@ -260,13 +260,45 @@ async def _resolve_entity_names(
             if label:
                 out[(etype.value, row.id)] = str(label)
 
+    # 測試案例：直接用節點名稱（檔案名稱）
     await _fill(TreeNode, "name", ReviewableEntityType.TESTCASE)
-    # RecordingSession does not have a name column; surface the target URL
-    # so the operator at least sees what was being recorded.
-    await _fill(RecordingSession, "target_url", ReviewableEntityType.SCRIPT)
-    # ExecutionReport: surface the celery task_id (the trigger handle the
-    # operator sees in /api/executions/{task_id}/status).
-    await _fill(ExecutionReport, "task_id", ReviewableEntityType.REPORT)
+
+    # 測試腳本：yyyymmddhhmmss-target_url_host
+    script_ids = by_type.get(ReviewableEntityType.SCRIPT) or []
+    if script_ids:
+        rows = (
+            await db.execute(select(RecordingSession).where(RecordingSession.id.in_(script_ids)))
+        ).scalars().all()
+        for row in rows:
+            try:
+                from urllib.parse import urlparse
+                host = urlparse(row.target_url).netloc or row.target_url[:40]
+            except Exception:
+                host = str(row.target_url)[:40]
+            dt = row.created_at
+            ts = f"{dt.year}{str(dt.month).zfill(2)}{str(dt.day).zfill(2)}{str(dt.hour).zfill(2)}{str(dt.minute).zfill(2)}{str(dt.second).zfill(2)}"
+            out[(ReviewableEntityType.SCRIPT.value, row.id)] = f"{ts}-{host}"
+
+    # 測試報告：yyyymmddhhmmss-案例名稱
+    report_ids = by_type.get(ReviewableEntityType.REPORT) or []
+    if report_ids:
+        reports = (
+            await db.execute(select(ExecutionReport).where(ExecutionReport.id.in_(report_ids)))
+        ).scalars().all()
+        node_ids = [r.source_node_id for r in reports if r.source_node_id]
+        nodes = {}
+        if node_ids:
+            node_rows = (
+                await db.execute(select(TreeNode).where(TreeNode.id.in_(node_ids)))
+            ).scalars().all()
+            nodes = {n.id: n.name for n in node_rows}
+        for r in reports:
+            dt = r.created_at
+            ts = f"{dt.year}{str(dt.month).zfill(2)}{str(dt.day).zfill(2)}{str(dt.hour).zfill(2)}{str(dt.minute).zfill(2)}{str(dt.second).zfill(2)}"
+            case_name = nodes.get(r.source_node_id, "") if r.source_node_id else ""
+            label = f"{ts}-{case_name}" if case_name else f"{ts}-{str(r.id)[:8]}"
+            out[(ReviewableEntityType.REPORT.value, r.id)] = label
+
     return out
 
 
