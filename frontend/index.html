@@ -1054,6 +1054,20 @@
         </div>
     </div>
 
+    <!-- 完整錄影 Modal -->
+    <div id="fullVideoModal" class="fixed inset-0 z-[300] bg-black/80 hidden opacity-0 transition-opacity flex items-center justify-center p-4"
+         onclick="if(event.target===this) closeFullVideo()">
+        <div class="relative w-full max-w-4xl bg-black rounded-lg overflow-hidden shadow-2xl">
+            <div class="flex items-center justify-between px-4 py-2 bg-slate-900">
+                <span class="text-sm text-slate-300 font-medium"><i class="fa-solid fa-film mr-2 text-purple-400"></i>完整錄影</span>
+                <button onclick="closeFullVideo()" class="text-slate-400 hover:text-white px-2 py-1 rounded hover:bg-slate-700 text-sm">
+                    <i class="fa-solid fa-xmark"></i> 關閉
+                </button>
+            </div>
+            <video id="fullVideoPlayer" controls class="w-full max-h-[75vh] bg-black"></video>
+        </div>
+    </div>
+
     <!-- 主要內容區 -->
     <div class="flex-1 flex overflow-hidden relative">
 
@@ -4954,7 +4968,7 @@
             const empty = document.getElementById('traceVideoEmpty');
             if (!area) return;
 
-            const hasAny = !!step.stepVideoUrl;
+            const hasAny = !!(step.stepVideoUrl || step.videoUrl);
             area.classList.toggle('hidden', !hasAny);
             if (!hasAny) return;
 
@@ -4969,8 +4983,23 @@
             }
 
             actions.innerHTML = '';
+            const btnCls = 'px-3 py-1.5 text-xs font-medium rounded border transition flex items-center gap-1.5';
+            if (step.videoUrl) {
+                const playBtn = document.createElement('button');
+                playBtn.className = `${btnCls} bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100`;
+                playBtn.innerHTML = '<i class="fa-solid fa-play"></i> 完整錄影';
+                playBtn.onclick = () => openFullVideo(step.videoUrl);
+                actions.appendChild(playBtn);
 
-            empty.classList.toggle('hidden', !!step.stepVideoUrl);
+                const dlVideoBtn = document.createElement('a');
+                dlVideoBtn.className = `${btnCls} bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100`;
+                dlVideoBtn.href = step.videoUrl;
+                dlVideoBtn.download = '';
+                dlVideoBtn.innerHTML = '<i class="fa-solid fa-download"></i> 下載錄影';
+                actions.appendChild(dlVideoBtn);
+            }
+
+            empty.classList.toggle('hidden', !!(step.stepVideoUrl || step.videoUrl));
         }
 
         // ── 完整錄影 inline modal(保留)──
