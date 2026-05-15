@@ -879,8 +879,8 @@
                 class="flex items-center hover:opacity-80 transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 rounded shrink-0">
                 <h1 class="font-bold text-base text-slate-800 tracking-tight whitespace-nowrap">AutoTest<span class="hidden sm:inline text-[10px] text-amber-700 bg-amber-50 font-semibold ml-1.5 px-1.5 py-0.5 rounded border border-amber-200 align-middle">v1.1.8.1</span></h1>
             </button>
-            <!-- Nav pills — flex-1 可橫捲，隱藏 scrollbar -->
-            <nav class="flex-1 min-w-0 overflow-x-auto flex items-center gap-1 whitespace-nowrap px-2 scrollbar-none" style="-ms-overflow-style:none;scrollbar-width:none;">
+            <!-- Nav pills — 自然寬，窄螢幕可橫捲，不撐滿 -->
+            <nav class="overflow-x-auto flex items-center gap-1 whitespace-nowrap shrink" style="-ms-overflow-style:none;scrollbar-width:none;">
                 <button type="button" onclick="showTestCasesView()"    class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-list-check text-blue-600"></i><span data-i18n="nav.testCases">測試案例</span></button>
                 <button type="button" onclick="showTestDataSetsView()" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-table text-violet-600"></i><span data-i18n="nav.dataSets">測試資料</span></button>
                 <button type="button" onclick="showEnvVarsView()"      class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-key text-emerald-600"></i><span data-i18n="nav.envVars">環境變數</span></button>
@@ -894,6 +894,8 @@
                     <span id="navReviewPendingBadge" class="hidden ml-1 px-1.5 py-0.5 text-[10px] font-mono bg-amber-500 text-white rounded-full"></span>
                 </button>
             </nav>
+            <!-- 彈性空白：把右側動作群推到最右 -->
+            <div class="flex-1 min-w-0"></div>
             <!-- 右:執行環境 + 組織切換 + 使用者 + 登出 -->
             <div class="flex items-center gap-1 sm:gap-1.5 shrink-0">
                 <button type="button" id="envToggleBtn" onclick="toggleExecutionMode()" aria-label="切換執行環境" title="切換執行環境(點擊切換;本機 = 有頭瀏覽器,Docker = 無頭)"
