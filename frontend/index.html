@@ -7588,9 +7588,23 @@ driver.swipe(100, 800, 100, 200, 500)"
             return siblings.some(n => n.id !== excludeId && normalize(n.title || n.name) === target);
         }
 
-        function renderTree(nodes, container) {
+        function renderTree(nodes, container, depth) {
+            depth = depth || 0;
             container.innerHTML = '';
-            nodes.forEach((n, idx) => {
+
+            // 每層的文字色、字重、caret 色
+            const DEPTH = [
+                { text: 'text-amber-800 font-bold',    caret: 'text-amber-400' },  // L0 功能
+                { text: 'text-blue-700 font-semibold', caret: 'text-blue-300'  },  // L1 平台
+                { text: 'text-violet-700',             caret: 'text-violet-300'},  // L2 頁面
+                { text: 'text-slate-700',              caret: 'text-slate-400' },  // L3 情境
+                { text: 'text-slate-500',              caret: 'text-slate-300' },  // L4 案例
+            ];
+            // 子容器左側 border 顏色
+            const CHILD_BORDER = ['border-amber-300','border-blue-200','border-violet-200','border-emerald-200','border-slate-200'];
+            const d = DEPTH[Math.min(depth, DEPTH.length - 1)];
+
+            nodes.forEach((n) => {
                 const div = document.createElement('div');
                 div.className = '';
                 div.draggable = true;
@@ -7618,11 +7632,18 @@ driver.swipe(100, 800, 100, 200, 500)"
                     if (fromId && fromId !== n.id) reorderNode(fromId, n.id);
                 });
 
+                // L3 情境：正向=綠, 負向=紅, 其他=預設
+                let textCls = d.text;
+                if (depth === 3) {
+                    if (n.title.includes('正'))      textCls = 'text-emerald-700 font-medium';
+                    else if (n.title.includes('負')) textCls = 'text-rose-700 font-medium';
+                }
+
                 const bg = n.isFile
-                    ? (currentTestCase === n.id ? 'bg-blue-50 text-blue-700 font-bold border-blue-200' : 'text-slate-600 border-transparent hover:bg-slate-100')
-                    : 'text-slate-700 font-semibold hover:bg-slate-100 border-transparent';
+                    ? (currentTestCase === n.id ? 'bg-blue-50 border-blue-200' : 'border-transparent hover:bg-slate-50')
+                    : 'border-transparent hover:bg-slate-50';
                 const row = document.createElement('div');
-                row.className = `flex items-center gap-1 py-0.5 px-1 rounded cursor-pointer group transition text-xs border ${bg}`;
+                row.className = `flex items-center gap-1 py-0.5 px-1 rounded cursor-pointer group transition text-xs border ${bg} ${textCls}`;
 
                 row.onclick = () => {
                     if (n.isFile) { loadTestCase(n.id); return; }
@@ -7634,10 +7655,9 @@ driver.swipe(100, 800, 100, 200, 500)"
                 };
 
                 let html = !n.isFile
-                    ? `<i class="fa-solid ${n.expanded ? 'fa-caret-down' : 'fa-caret-right'} text-slate-400 text-[10px] shrink-0"></i>`
+                    ? `<i class="fa-solid ${n.expanded ? 'fa-caret-down' : 'fa-caret-right'} ${d.caret} text-[10px] shrink-0"></i>`
                     : '';
                 html += `<i class="${n.icon} shrink-0"></i><span class="flex-1 truncate ml-1">${highlightKeyword(n.title)}</span>`;
-
                 html += `<div class="opacity-0 group-hover:opacity-100 flex items-center gap-1.5 transition-opacity tree-actions pl-2" onclick="event.stopPropagation()">`;
                 if (!n.isFile) html += `<button onclick="openNodeModal(event, '${n.id}', 'add')" class="text-slate-400 hover:text-blue-500 transform hover:scale-110" title="新增子節點"><i class="fa-solid fa-plus text-[11px]"></i></button>`;
                 html += `<button onclick="openNodeModal(event, '${n.id}', 'edit')" class="text-slate-400 hover:text-green-500 transform hover:scale-110" title="修改名稱"><i class="fa-solid fa-pen text-[11px]"></i></button>
@@ -7649,8 +7669,9 @@ driver.swipe(100, 800, 100, 200, 500)"
 
                 if (!n.isFile && n.expanded && n.children) {
                     const childDiv = document.createElement('div');
-                    childDiv.className = '';
-                    renderTree(n.children, childDiv);
+                    const bc = CHILD_BORDER[Math.min(depth, CHILD_BORDER.length - 1)];
+                    childDiv.className = `pl-2 ml-2 border-l-2 ${bc}`;
+                    renderTree(n.children, childDiv, depth + 1);
                     div.appendChild(childDiv);
                 }
                 container.appendChild(div);
