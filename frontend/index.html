@@ -7633,11 +7633,11 @@ driver.swipe(100, 800, 100, 200, 500)"
                     renderAllTree();
                 };
 
-                let html = `<i class="fa-solid fa-grip-vertical text-slate-300 text-[10px] cursor-grab" title="拖曳調整順序"></i>`;
+                let html = `<i class="fa-solid fa-grip-vertical text-slate-300 text-[10px] cursor-grab opacity-0 group-hover:opacity-100 transition-opacity" title="拖曳調整順序"></i>`;
                 html += !n.isFile
-                    ? `<i class="fa-solid ${n.expanded ? 'fa-caret-down' : 'fa-caret-right'} text-slate-400 w-3 text-center"></i>`
-                    : `<div class="w-3"></div>`;
-                html += `<i class="${n.icon}"></i> <span class="flex-1 truncate">${highlightKeyword(n.title)}</span>`;
+                    ? `<i class="fa-solid ${n.expanded ? 'fa-caret-down' : 'fa-caret-right'} text-slate-400 w-3 text-center shrink-0"></i>`
+                    : `<span class="w-3 shrink-0"></span>`;
+                html += `<i class="${n.icon} shrink-0"></i><span class="flex-1 truncate ml-1">${highlightKeyword(n.title)}</span>`;
 
                 html += `<div class="opacity-0 group-hover:opacity-100 flex items-center gap-1.5 transition-opacity tree-actions pl-2" onclick="event.stopPropagation()">`;
                 if (!n.isFile) html += `<button onclick="openNodeModal(event, '${n.id}', 'add')" class="text-slate-400 hover:text-blue-500 transform hover:scale-110" title="新增子節點"><i class="fa-solid fa-plus text-[11px]"></i></button>`;
@@ -7650,7 +7650,7 @@ driver.swipe(100, 800, 100, 200, 500)"
 
                 if (!n.isFile && n.expanded && n.children) {
                     const childDiv = document.createElement('div');
-                    childDiv.className = 'pl-3 border-l border-slate-200 ml-2';
+                    childDiv.className = 'pl-2 border-l border-slate-200 ml-1.5';
                     renderTree(n.children, childDiv);
                     div.appendChild(childDiv);
                 }
