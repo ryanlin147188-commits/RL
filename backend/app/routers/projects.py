@@ -664,10 +664,11 @@ async def clone_project(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """複製一個現有專案的完整樹狀結構（含所有 TestcaseContent）到一個同名新專案。"""
+    """複製一個現有專案的完整樹狀結構（含 TestcaseContent 與前置案例連結）到新專案。"""
     import copy
     import uuid as _uuid
     from app.models.testcase_content import TestcaseContent
+    from app.models.testcase_precondition_link import TestcasePreconditionLink
 
     src = await db.get(Project, project_id)
     _check_org_or_404(src, user)
@@ -733,5 +734,28 @@ async def clone_project(
             ))
 
     await db.flush()
+
+    # 6) 複製前置案例連結（兩端 node_id 都在本專案內才複製）
+    if id_map:
+        pre_result = await db.execute(
+            select(TestcasePreconditionLink).where(
+                TestcasePreconditionLink.testcase_id.in_(id_map.keys())
+            )
+        )
+        for link in pre_result.scalars().all():
+            # 前置案例也必須屬於同一專案；跨專案的前置不複製
+            if link.precondition_testcase_id not in id_map:
+                continue
+            db.add(TestcasePreconditionLink(
+                testcase_id=id_map[link.testcase_id],
+                precondition_testcase_id=id_map[link.precondition_testcase_id],
+                sort_order=link.sort_order,
+                enabled=link.enabled,
+                on_failure=link.on_failure,
+                organization_id=link.organization_id,
+                created_by=user.username,
+            ))
+        await db.flush()
+
     await db.refresh(new_proj)
     return new_proj
