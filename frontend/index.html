@@ -190,7 +190,7 @@
         .kanban-col.drag-over { background-color: rgba(252, 211, 77, 0.18) !important; }
         .kanban-card.dragging { opacity: 0.45; transform: rotate(-1deg); }
 
-        /* 測試資料集網格：每欄固定 160px、欄多時水平捲動 */
+        /* 測試資料網格：每欄固定 160px、欄多時水平捲動 */
         #dsGrid { table-layout: fixed; border-collapse: separate; border-spacing: 0; }
         #dsGrid .ds-col-cell { min-width: 160px; max-width: 220px; width: 160px; }
 
@@ -867,9 +867,9 @@
         <div class="h-[2px] bg-gradient-to-r from-amber-300 via-orange-300 to-rose-300"></div>
 
         <div class="h-14 flex items-center px-3 md:px-5 gap-2 md:gap-3">
-            <!-- 功能選單(全部裝置都顯示) -->
+            <!-- 功能選單 hamburger 已停用(8 個 nav 項目移至下方第二列 topnav);保留按鈕但 hidden 避免破版 -->
             <button type="button" id="navDrawerToggleBtn" onclick="toggleNavDrawer(event)"
-                class="w-9 h-9 flex items-center justify-center rounded-lg text-stone-700 hover:bg-stone-100 hover:text-amber-600 transition shrink-0"
+                class="hidden w-9 h-9 items-center justify-center rounded-lg text-stone-700 hover:bg-stone-100 hover:text-amber-600 transition shrink-0"
                 aria-label="開啟功能選單" title="功能選單">
                 <i class="fa-solid fa-bars text-[17px]"></i>
             </button>
@@ -879,17 +879,9 @@
                 aria-label="開啟專案目錄" title="專案目錄">
                 <i class="fa-solid fa-folder-tree text-[15px]"></i>
             </button>
-            <!-- Logo + Brand -->
+            <!-- Brand (logo SVG 已移除) -->
             <button type="button" id="navHomeBtn" onclick="showHomeView()" title="回首頁" aria-label="回首頁"
                 class="flex items-center gap-2 md:gap-2.5 hover:opacity-80 transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 rounded shrink-0">
-                <div class="flex items-center justify-center">
-                    <svg viewBox="0 0 64 56" xmlns="http://www.w3.org/2000/svg" class="w-9 h-9" aria-label="AutoTest Logo">
-                        <text x="6"  y="50" font-family="Arial Black,sans-serif" font-size="52" font-weight="900" fill="#22c55e">R</text>
-                        <text x="3"  y="47" font-family="Arial Black,sans-serif" font-size="52" font-weight="900" fill="#facc15">R</text>
-                        <text x="0"  y="44" font-family="Arial Black,sans-serif" font-size="52" font-weight="900" fill="#ef4444">R</text>
-                        <path d="M 6 28 L 20 42 L 58 4" stroke="#000" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                </div>
                 <h1 class="font-bold text-base md:text-lg text-slate-800 tracking-tight whitespace-nowrap">AutoTest<span class="hidden sm:inline text-[10px] text-amber-700 bg-amber-50 font-semibold ml-1.5 px-1.5 py-0.5 rounded border border-amber-200 align-middle">v1.1.8.1</span></h1>
             </button>
 
@@ -922,22 +914,6 @@
                         <!-- 動態填充 -->
                     </div>
                 </div>
-                <!-- 通知 -->
-                <button type="button" id="notifToggleBtn" onclick="toggleNotifPanel(event)" title="通知" aria-label="通知"
-                    class="w-9 h-9 flex items-center justify-center rounded-full text-stone-600 hover:bg-stone-100 hover:text-amber-600 transition relative">
-                    <i class="fa-solid fa-bell text-[15px]"></i>
-                    <span id="notifBadge" class="hidden absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 text-[10px] font-bold rounded-full bg-rose-500 text-white border-2 border-white flex items-center justify-center leading-none">0</span>
-                </button>
-                <!-- 暗黑模式 -->
-                <button type="button" id="themeToggleBtn" onclick="toggleDarkMode()" title="切換暗黑模式" aria-label="切換暗黑模式"
-                    class="w-9 h-9 flex items-center justify-center rounded-full text-stone-600 hover:bg-stone-100 hover:text-amber-600 transition">
-                    <i id="themeToggleIcon" class="fa-solid fa-moon text-[15px]"></i>
-                </button>
-                <!-- 語系 -->
-                <button type="button" id="i18nToggleBtn" onclick="i18nToggle()" title="切換語言 / Switch language" aria-label="切換語言"
-                    class="w-9 h-9 flex items-center justify-center rounded-full text-stone-600 hover:bg-stone-100 hover:text-amber-600 transition text-xs font-bold">
-                    <span id="i18nToggleLabel">EN</span>
-                </button>
                 <!-- 分隔線 -->
                 <div class="hidden sm:block h-6 w-px bg-stone-200 mx-1" aria-hidden="true"></div>
                 <!-- 使用者(直接點擊進設定頁) -->
@@ -953,6 +929,22 @@
                 </button>
             </div>
         </div>
+
+        <!-- 第二列：功能 nav (從 #navDrawer 搬上來)。窄螢幕可水平捲動。 -->
+        <nav class="border-t border-stone-100 px-3 md:px-5 py-1.5 flex items-center gap-1 overflow-x-auto whitespace-nowrap">
+            <button type="button" onclick="showTestCasesView()"    class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-list-check text-blue-600"></i><span data-i18n="nav.testCases">測試案例</span></button>
+            <button type="button" onclick="showTestDataSetsView()" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-table text-violet-600"></i><span data-i18n="nav.dataSets">測試資料</span></button>
+            <button type="button" onclick="showEnvVarsView()"      class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-key text-emerald-600"></i><span data-i18n="nav.envVars">環境變數</span></button>
+            <button type="button" onclick="showMockView()"         class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-plug text-amber-600"></i><span data-i18n="nav.mock">Mock 設定</span></button>
+            <button type="button" onclick="showTestRoundView()"    class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-layer-group text-purple-600"></i><span data-i18n="nav.testRound">TestRun</span></button>
+            <button type="button" onclick="showRecorderView()"     class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-video text-rose-600"></i><span data-i18n="nav.recorder">測試錄製</span></button>
+            <button type="button" onclick="showReportView()"       class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-chart-pie text-blue-600"></i><span data-i18n="nav.reports">測試報告</span></button>
+            <button type="button" onclick="showReviewView()"       class="topnav-pill hover:bg-stone-100">
+                <i class="fa-solid fa-clipboard-check text-violet-600"></i>
+                <span data-i18n="nav.review">審核</span>
+                <span id="navReviewPendingBadge" class="hidden ml-1 px-1.5 py-0.5 text-[10px] font-mono bg-amber-500 text-white rounded-full"></span>
+            </button>
+        </nav>
     </header>
 
     <!-- ═══════════════════════════════════════════════════════════════
@@ -973,108 +965,13 @@
             </button>
         </div>
 
-        <!-- Body -->
-        <div class="flex-1 overflow-y-auto p-3 space-y-5">
-            <!-- 1) 專案管理 -->
-            <section>
-                <div class="text-[10px] font-bold text-amber-700 uppercase tracking-wider mb-2 px-2 flex items-center gap-1.5">
-                    <i class="fa-solid fa-folder-open text-[11px]"></i>
-                    <span data-i18n="nav.section.project">專案管理</span>
-                </div>
-                <div class="space-y-0.5">
-                </div>
-            </section>
-
-            <!-- 2) 測試設計 -->
-            <section>
-                <div class="text-[10px] font-bold text-cyan-700 uppercase tracking-wider mb-2 px-2 flex items-center gap-1.5">
-                    <i class="fa-solid fa-pen-ruler text-[11px]"></i>
-                    <span data-i18n="nav.section.design">測試設計</span>
-                </div>
-                <div class="space-y-0.5">
-                    <button type="button" onclick="closeNavDrawer(); showTestCasesView()"    class="nav-drawer-btn"><i class="fa-solid fa-list-check text-blue-600"></i><span data-i18n="nav.testCases">測試案例</span></button>
-                    <button type="button" onclick="closeNavDrawer(); showTestDataSetsView()" class="nav-drawer-btn"><i class="fa-solid fa-table text-violet-600"></i><span data-i18n="nav.dataSets">測試資料集</span></button>
-                </div>
-            </section>
-
-            <!-- 3) 測試環境 -->
-            <section>
-                <div class="text-[10px] font-bold text-emerald-700 uppercase tracking-wider mb-2 px-2 flex items-center gap-1.5">
-                    <i class="fa-solid fa-server text-[11px]"></i>
-                    <span data-i18n="nav.section.env">測試環境</span>
-                </div>
-                <div class="space-y-0.5">
-                    <button type="button" onclick="closeNavDrawer(); showEnvVarsView()"      class="nav-drawer-btn"><i class="fa-solid fa-key text-emerald-600"></i><span data-i18n="nav.envVars">環境變數</span></button>
-                    <button type="button" onclick="closeNavDrawer(); showMockView()"         class="nav-drawer-btn"><i class="fa-solid fa-plug text-amber-600"></i><span data-i18n="nav.mock">Mock 設定</span></button>
-                </div>
-            </section>
-
-            <!-- 4) 執行中心 -->
-            <section>
-                <div class="text-[10px] font-bold text-purple-700 uppercase tracking-wider mb-2 px-2 flex items-center gap-1.5">
-                    <i class="fa-solid fa-play text-[11px]"></i>
-                    <span data-i18n="nav.section.execution">執行中心</span>
-                </div>
-                <div class="space-y-0.5">
-                    <button type="button" onclick="closeNavDrawer(); showTestRoundView()"   class="nav-drawer-btn"><i class="fa-solid fa-layer-group text-purple-600"></i><span data-i18n="nav.testRound">測試回合</span></button>
-                    <button type="button" onclick="closeNavDrawer(); showRecorderView()"    class="nav-drawer-btn"><i class="fa-solid fa-video text-rose-600"></i><span data-i18n="nav.recorder">測試錄製</span></button>
-                </div>
-            </section>
-
-            <!-- 5) 品質追蹤 -->
-            <section>
-                <div class="text-[10px] font-bold text-violet-700 uppercase tracking-wider mb-2 px-2 flex items-center gap-1.5">
-                    <i class="fa-solid fa-shield-halved text-[11px]"></i>
-                    <span data-i18n="nav.section.quality">品質追蹤</span>
-                </div>
-                <div class="space-y-0.5">
-                    <button type="button" onclick="closeNavDrawer(); showReportView()"  class="nav-drawer-btn"><i class="fa-solid fa-chart-pie text-blue-600"></i><span data-i18n="nav.reports">測試報告</span></button>
-                    <button type="button" onclick="closeNavDrawer(); showReviewView()"  class="nav-drawer-btn">
-                        <i class="fa-solid fa-clipboard-check text-violet-600"></i>
-                        <span data-i18n="nav.review">審核中心</span>
-                        <span id="navReviewPendingBadge" class="hidden ml-auto px-1.5 py-0.5 text-[10px] font-mono bg-amber-500 text-white rounded-full"></span>
-                    </button>
-                </div>
-            </section>
-        </div>
+        <!-- Body 已清空:8 個 nav 項目搬到 header 第二列 (.topnav-pill);hamburger 也已 hidden -->
+        <div class="flex-1 overflow-y-auto p-3"></div>
 
     </aside>
 
-    <!-- ─── Notification Panel (fixed at body level → 不會被 header 兩排佈局裁切) ─── -->
-    <div id="notifPanel" class="hidden fixed top-[60px] right-3 md:right-4 w-[92vw] max-w-[380px] bg-white rounded-xl shadow-2xl ring-1 ring-stone-200 z-[200] overflow-hidden flex flex-col">
-        <div class="px-4 py-3 border-b border-stone-100 flex items-center justify-between bg-gradient-to-r from-amber-50 to-orange-50">
-            <span class="text-sm font-bold text-stone-800 flex items-center gap-2">
-                <i class="fa-solid fa-bell text-amber-500"></i> <span data-i18n="notif.title">通知</span>
-                <span id="notifPanelCount" class="hidden ml-1 px-1.5 py-0.5 bg-rose-500 text-white text-[10px] rounded-full font-mono">0</span>
-            </span>
-            <div class="flex items-center gap-3">
-                <button type="button" id="notifMarkAllBtn" onclick="markAllNotifRead()" class="text-xs text-stone-500 hover:text-amber-700 transition disabled:opacity-40 disabled:cursor-not-allowed" disabled>
-                    <i class="fa-solid fa-check-double mr-0.5"></i> <span data-i18n="notif.markAll">全部已讀</span>
-                </button>
-                <button type="button" onclick="loadNotifications()" title="重新整理" aria-label="重新整理"
-                    class="text-xs text-stone-400 hover:text-amber-700 transition">
-                    <i class="fa-solid fa-rotate-right"></i>
-                </button>
-            </div>
-        </div>
-        <div id="notifList" class="notif-list-scroll overflow-y-auto">
-            <div class="px-4 py-12 text-center text-sm text-stone-400">
-                <i class="fa-regular fa-bell-slash text-3xl mb-2 block opacity-60"></i>
-                <div data-i18n="notif.empty">目前沒有新通知</div>
-            </div>
-        </div>
-        <div class="px-4 py-2.5 border-t border-stone-100 bg-stone-50/60 flex items-center justify-between text-xs">
-            <button type="button" onclick="closeNotifPanel(); showUserSettingsView(); setTimeout(()=>settingsSwitchTab('notif'), 60);"
-                class="text-amber-700 hover:text-amber-900 font-medium transition">
-                <i class="fa-solid fa-gear mr-1"></i> <span data-i18n="notif.settings">通知設定</span>
-            </button>
-            <button type="button" onclick="clearAllNotifications()" class="text-stone-400 hover:text-rose-600 transition" data-i18n="notif.clearAll">
-                清空全部
-            </button>
-        </div>
-    </div>
 
-    <!-- ─── 審核中心相關 modal / drawer (body 層級) ─── -->
+    <!-- ─── 審核相關 modal / drawer (body 層級) ─── -->
     <!-- Reject / Revert 原因輸入 modal -->
     <div id="reviewReasonModal" class="hidden fixed inset-0 z-[300] bg-black/40 flex items-center justify-center p-4">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-md border border-violet-200">
@@ -1139,100 +1036,16 @@
         </div>
     </div>
 
-    <!-- ─── 待辦 Modal (body 層級;不再受任何 view 的 hidden 影響) ─── -->
-    <div id="todoModal" class="hidden fixed inset-0 z-[300] bg-black/40 flex items-center justify-center p-4">
-        <div class="bg-white rounded-xl shadow-2xl w-full max-w-xl border border-amber-200 max-h-[90vh] overflow-y-auto">
-            <div class="px-6 py-4 border-b border-stone-200 bg-amber-50/60 flex items-center justify-between">
-                <h3 id="todoModalTitle" class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-list-check text-amber-500"></i> 新增待辦</h3>
-                <div class="flex items-center gap-2">
-                    <button type="button" onclick="if(_editingTodoId)openEntityVersionsModal('todo',_editingTodoId,document.getElementById('todoTitle').value)" id="todoVersionsBtn" class="hidden text-xs px-2.5 py-1 border border-amber-300 text-amber-700 rounded hover:bg-amber-50" title="檢視版本歷史 / 還原"><i class="fa-solid fa-clock-rotate-left"></i> 版本歷史</button>
-                    <button type="button" onclick="closeTodoModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
-                </div>
+
+    <!-- 節點 Modal (新增專案 / 新增功能 / 新增子節點 / 修改名稱 共用) -->
+    <div id="nodeModal" class="fixed inset-0 bg-slate-900/50 hidden z-[160] flex items-center justify-center opacity-0 transition-opacity">
+        <div class="bg-white rounded-lg shadow-xl w-[400px] transform scale-95 transition-transform" id="nodeModalContent">
+            <div class="p-4 border-b border-slate-200"><h3 id="nodeModalTitle" class="text-lg font-bold text-slate-800 flex items-center gap-2">新增節點</h3></div>
+            <div class="p-5">
+                <div id="modalTextGroup" class="hidden"><label id="modalTextLabel" for="nodeNameInput" class="block text-sm font-medium text-slate-700 mb-2">名稱</label><input type="text" id="nodeNameInput" aria-label="節點名稱" placeholder="請輸入名稱" class="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"></div>
+                <div id="modalSelectGroup" class="hidden"><label id="modalSelectLabel" for="nodeSelectInput" class="block text-sm font-medium text-slate-700 mb-2">請選擇選項</label><select id="nodeSelectInput" aria-label="選擇節點選項" class="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"></select></div>
             </div>
-            <form onsubmit="return todoSubmit(event)" class="p-6 space-y-3">
-                <!-- 類型 + 父項(階層約束:Task/Bug/Spike 可選 Feature 父) -->
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label for="todoType" class="block text-xs font-semibold text-stone-600 mb-1">類型</label>
-                        <select id="todoType" aria-label="類型" onchange="onTodoTypeChange()" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
-                            <option value="Feature">🎯 Feature</option>
-                            <option value="Task" selected>⚙ Task</option>
-                            <option value="Bug">🐛 Bug</option>
-                            <option value="Spike">🔬 Spike</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label for="todoParent" class="block text-xs font-semibold text-stone-600 mb-1">父項目</label>
-                        <select id="todoParent" aria-label="父項目" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
-                            <option value="">— 無 (頂層) —</option>
-                        </select>
-                    </div>
-                </div>
-                <div><label for="todoTitle" class="block text-xs font-semibold text-stone-600 mb-1">標題 *</label><input type="text" id="todoTitle" aria-label="標題" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
-                <div class="grid grid-cols-2 gap-3">
-                    <div><label for="todoDue" class="block text-xs font-semibold text-stone-600 mb-1">到期日</label><span class="date-zh"><input type="date" id="todoDue" aria-label="到期日" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></span></div>
-                    <div><label for="todoStatus" class="block text-xs font-semibold text-stone-600 mb-1">狀態</label>
-                        <select id="todoStatus" aria-label="狀態" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
-                            <option value="New" selected>新建立</option>
-                            <option value="Assigned">等待處理</option>
-                            <option value="InProgress">進行中</option>
-                            <option value="InReview">等待審核</option>
-                            <option value="ReworkRequired">退回修改</option>
-                            <option value="Verified">已驗證</option>
-                            <option value="Closed">已關閉</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="grid grid-cols-2 gap-3">
-                    <div><label for="todoPriority" class="block text-xs font-semibold text-stone-600 mb-1">優先</label>
-                        <select id="todoPriority" aria-label="優先" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
-                            <option value="P0">P0 (最高)</option>
-                            <option value="P1">P1 (高)</option>
-                            <option value="P2" selected>P2 (中)</option>
-                            <option value="P3">P3 (低)</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label for="todoAssignee" class="block text-xs font-semibold text-stone-600 mb-1">負責人</label>
-                        <select id="todoAssignee" aria-label="負責人" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
-                            <option value="">— 不指派 —</option>
-                        </select>
-                        <input type="hidden" id="todoAssigneeType" value="user">
-                    </div>
-                </div>
-                <div>
-                    <label for="todoSprint" class="block text-xs font-semibold text-stone-600 mb-1">Sprint(留空 = Backlog)</label>
-                    <input type="text" id="todoSprint" aria-label="Sprint label" placeholder="例:Sprint 23 / 2026-W18" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm">
-                </div>
-                <div><label for="todoDesc" class="block text-xs font-semibold text-stone-600 mb-1">說明</label><textarea id="todoDesc" aria-label="說明" rows="3" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></textarea></div>
-                <!-- ── 連結面板:跨實體連結(需求 / 案例 / 缺陷 / 計畫 / 回合 / 里程碑 / WBS / 文件 / Project)── -->
-                <section id="todoLinksPanel" class="hidden border border-stone-200 rounded-md bg-stone-50/40 p-3">
-                    <div class="flex items-center justify-between mb-2">
-                        <h4 class="text-xs font-semibold text-stone-700"><i class="fa-solid fa-link text-amber-500"></i> <span data-i18n="links.title">連結</span></h4>
-                        <span id="todoLinksCount" class="text-[11px] text-stone-500"></span>
-                    </div>
-                    <div id="todoLinksList" class="space-y-1 mb-2"></div>
-                    <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-stone-200">
-                        <select id="todoLinkTargetType" onchange="onTodoLinkTypeChange()" aria-label="連結目標類型" class="px-2 py-1.5 border border-stone-300 rounded text-xs bg-white">
-                            <option value="testcase">🧪 <span data-i18n="links.target.testcase">案例</span></option>
-                            <option value="test_round">🔁 <span data-i18n="links.target.test_round">測試回合</span></option>
-                            <option value="test_milestone">🏁 <span data-i18n="links.target.test_milestone">里程碑</span></option>
-                            <option value="project">📦 <span data-i18n="links.target.project">專案</span></option>
-                        </select>
-                        <select id="todoLinkTargetId" aria-label="連結目標" class="flex-1 min-w-0 px-2 py-1.5 border border-stone-300 rounded text-xs bg-white">
-                            <option value="">— <span data-i18n="links.pick">選擇目標</span> —</option>
-                        </select>
-                        <select id="todoLinkKind" aria-label="連結類型" class="px-2 py-1.5 border border-stone-300 rounded text-xs bg-white" title="連結語意:relates_to(相關)/ verifies(驗證)/ blocks(阻擋)/ duplicates(重複)">
-                            <option value="relates_to">↔ 相關</option>
-                            <option value="verifies">✓ 驗證</option>
-                            <option value="blocks">⛔ 阻擋</option>
-                            <option value="duplicates">🔁 重複</option>
-                        </select>
-                        <button type="button" onclick="addTodoLink()" class="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded text-xs font-medium"><i class="fa-solid fa-plus"></i> <span data-i18n="links.add">新增連結</span></button>
-                    </div>
-                </section>
-                <div class="flex justify-end gap-2 pt-2"><button type="button" onclick="closeTodoModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button><button type="submit" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button></div>
-            </form>
+            <div class="p-4 border-t border-slate-200 flex justify-end gap-2 bg-slate-50 rounded-b-lg"><button onclick="closeModals()" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 rounded transition">取消</button><button onclick="saveNode()" class="px-4 py-2 text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 rounded shadow-sm transition">確認儲存</button></div>
         </div>
     </div>
 
@@ -1593,17 +1406,17 @@ driver.swipe(100, 800, 100, 200, 500)"
                 </section>
             </div>
 
-            <!-- 視圖 5: 測試回合工作區 (Test Round) -->
+            <!-- 視圖 5: TestRun工作區 (Test Round) -->
             <div id="testRoundWorkspace" class="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/50 hidden">
                 <section class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
                     <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
-                        <h3 class="font-bold text-slate-700 flex items-center gap-2"><i class="fa-solid fa-layer-group text-purple-500"></i> 測試回合</h3>
+                        <h3 class="font-bold text-slate-700 flex items-center gap-2"><i class="fa-solid fa-layer-group text-purple-500"></i> TestRun</h3>
                         <div class="flex gap-2">
                             <button type="button" onclick="openTestRoundModal()" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-medium flex items-center gap-1"><i class="fa-solid fa-plus"></i> 新增回合</button>
                             <button type="button" onclick="refreshTestRoundList()" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-sm font-medium flex items-center gap-1"><i class="fa-solid fa-rotate"></i> 重新整理</button>
                         </div>
                     </div>
-                    <p class="text-xs text-slate-500 mb-4"><i class="fa-solid fa-circle-info text-amber-500"></i> 測試回合 = 一組被命名的測試案例集合。「執行」時會把選中的全部案例彙總起來一次執行，並產生一份報告。</p>
+                    <p class="text-xs text-slate-500 mb-4"><i class="fa-solid fa-circle-info text-amber-500"></i> TestRun = 一組被命名的測試案例集合。「執行」時會把選中的全部案例彙總起來一次執行，並產生一份報告。</p>
                     <div class="overflow-x-auto">
                         <table class="w-full text-sm">
                             <thead class="bg-slate-100 text-slate-600 text-xs uppercase tracking-wider">
@@ -1907,8 +1720,7 @@ driver.swipe(100, 800, 100, 200, 500)"
 
             <!-- 視圖 1: 可滾動的編輯區 -->
             <div id="editorWorkspace" class="flex-1 overflow-y-auto p-6 space-y-8 bg-slate-50/50 hidden">
-                <!-- G-2:相關待辦反向視圖(切換 testcase 時動態填入)-->
-                <section id="tcLinkedTodos" class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm hidden"></section>
+
                 <section class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
                     <div class="flex items-center justify-between mb-3">
                         <h3 class="font-bold text-slate-700 flex items-center gap-2"><i class="fa-solid fa-check-double text-green-500"></i> 驗收準則 (Acceptance Criteria)</h3>
@@ -2314,13 +2126,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                         <div class="absolute -right-8 -top-8 w-48 h-48 bg-white/10 rounded-full"></div>
                         <div class="absolute -right-20 top-20 w-64 h-64 bg-white/5 rounded-full"></div>
                         <div class="relative z-10">
-                            <div class="flex items-center gap-2 text-xs uppercase tracking-widest opacity-80 mb-2">
-                                <svg viewBox="0 0 64 56" xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 inline-block" aria-label="AutoTest Logo">
-                                    <text x="6"  y="50" font-family="Arial Black,sans-serif" font-size="52" font-weight="900" fill="#22c55e">R</text>
-                                    <text x="3"  y="47" font-family="Arial Black,sans-serif" font-size="52" font-weight="900" fill="#facc15">R</text>
-                                    <text x="0"  y="44" font-family="Arial Black,sans-serif" font-size="52" font-weight="900" fill="#ef4444">R</text>
-                                    <path d="M 6 28 L 20 42 L 58 4" stroke="#000" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-                                </svg>
+                            <div class="text-xs uppercase tracking-widest opacity-80 mb-2">
                                 AutoTest v1.1.8.1
                             </div>
                             <h2 class="text-3xl font-bold" data-i18n="home.hero.platform">自動化測試平台</h2>
@@ -2347,7 +2153,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                             <div class="text-2xl font-bold text-purple-600" id="homeStatNodes">0</div>
                         </div>
                         <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
-                            <div class="text-xs text-slate-500 mb-1"><i class="fa-solid fa-layer-group text-emerald-500"></i> <span data-i18n="home.stat.rounds">測試回合</span></div>
+                            <div class="text-xs text-slate-500 mb-1"><i class="fa-solid fa-layer-group text-emerald-500"></i> <span data-i18n="home.stat.rounds">TestRun</span></div>
                             <div class="text-2xl font-bold text-emerald-600" id="homeStatRounds">0</div>
                         </div>
                     </div>
@@ -2403,64 +2209,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                             <div class="text-xs text-stone-700 flex items-center gap-1"><i class="fa-solid fa-arrow-down text-emerald-500 text-[10px]"></i><span id="sysNetRx" class="font-mono font-bold">—</span> KB/s</div>
                             <div class="text-xs text-stone-700 flex items-center gap-1"><i class="fa-solid fa-arrow-up text-indigo-500 text-[10px]"></i><span id="sysNetTx" class="font-mono font-bold">—</span> KB/s</div>
                             <div class="text-[11px] text-stone-500 mt-1"><span data-i18n="home.sys.netTotal">累計：</span><span id="sysNetTotal" class="font-mono">—</span></div>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- 待辦 + 行事曆（並排，行事曆只顯示當月） -->
-                <section class="max-w-6xl mx-auto mb-8">
-                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                        <!-- 待辦 KPI 與分桶清單 -->
-                        <div class="lg:col-span-2 bg-white rounded-xl border border-amber-100 shadow-sm p-4">
-                            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
-                                <h3 class="text-sm font-bold text-stone-500 uppercase tracking-wider flex items-center gap-2"><i class="fa-solid fa-list-check text-amber-500"></i> 待辦事項</h3>
-                                <div class="flex items-center gap-2">
-                                    <button onclick="reloadHomeTodos()" class="text-xs px-2 py-1 border border-stone-300 rounded hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> <span data-i18n="common.refresh">重新整理</span></button>
-                                </div>
-                            </div>
-                            <!-- KPI -->
-                            <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
-                                <button onclick="setHomeTodoBucket('overdue')" id="todoBucketOverdueBtn" class="text-left bg-rose-50 border border-rose-200 hover:border-rose-400 rounded-lg p-3 transition">
-                                    <div class="text-[11px] text-rose-600 flex items-center gap-1"><i class="fa-solid fa-clock-rotate-left"></i> 過期</div>
-                                    <div class="text-2xl font-bold text-rose-700" id="todoKpiOverdue">—</div>
-                                </button>
-                                <button onclick="setHomeTodoBucket('due_soon')" id="todoBucketDueSoonBtn" class="text-left bg-amber-50 border border-amber-200 hover:border-amber-400 rounded-lg p-3 transition">
-                                    <div class="text-[11px] text-amber-700 flex items-center gap-1"><i class="fa-regular fa-bell"></i> 快到期 (≤3天)</div>
-                                    <div class="text-2xl font-bold text-amber-700" id="todoKpiDueSoon">—</div>
-                                </button>
-                                <button onclick="setHomeTodoBucket('upcoming')" id="todoBucketUpcomingBtn" class="text-left bg-blue-50 border border-blue-200 hover:border-blue-400 rounded-lg p-3 transition">
-                                    <div class="text-[11px] text-blue-700 flex items-center gap-1"><i class="fa-regular fa-calendar"></i> 待辦</div>
-                                    <div class="text-2xl font-bold text-blue-700" id="todoKpiUpcoming">—</div>
-                                </button>
-                                <button onclick="setHomeTodoBucket('done')" id="todoBucketDoneBtn" class="text-left bg-emerald-50 border border-emerald-200 hover:border-emerald-400 rounded-lg p-3 transition">
-                                    <div class="text-[11px] text-emerald-700 flex items-center gap-1"><i class="fa-solid fa-check"></i> 已完成</div>
-                                    <div class="text-2xl font-bold text-emerald-700" id="todoKpiDone">—</div>
-                                </button>
-                            </div>
-                            <div id="homeTodoList" class="border border-stone-100 rounded-md max-h-[480px] overflow-y-auto"></div>
-                        </div>
-
-                        <!-- 行事曆 -->
-                        <div class="bg-white rounded-xl border border-amber-100 shadow-sm p-4">
-                            <div class="flex items-center justify-between mb-3">
-                                <h3 class="text-sm font-bold text-stone-500 uppercase tracking-wider flex items-center gap-2"><i class="fa-regular fa-calendar text-amber-500"></i> 行事曆</h3>
-                                <div class="flex items-center gap-1">
-                                    <button onclick="calMove(-1)" aria-label="上個月" class="w-7 h-7 flex items-center justify-center hover:bg-amber-50 rounded text-stone-500"><i class="fa-solid fa-chevron-left text-xs"></i></button>
-                                    <span id="calMonthLabel" class="text-sm font-bold text-stone-700 px-2 min-w-[6em] text-center">2026 / 04</span>
-                                    <button onclick="calMove(1)" aria-label="下個月" class="w-7 h-7 flex items-center justify-center hover:bg-amber-50 rounded text-stone-500"><i class="fa-solid fa-chevron-right text-xs"></i></button>
-                                    <button onclick="calMove(0)" aria-label="回到今天" class="text-xs ml-1 px-2 py-1 border border-stone-300 rounded hover:bg-amber-50">今天</button>
-                                </div>
-                            </div>
-                            <div class="grid grid-cols-7 text-[10px] text-center text-stone-400 mb-1 select-none">
-                                <div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div>
-                            </div>
-                            <div id="calGrid" class="grid grid-cols-7 gap-0.5 text-xs"></div>
-                            <div class="text-[10px] text-stone-500 mt-3 flex flex-wrap gap-2 items-center">
-                                <span><span class="inline-block w-2 h-2 bg-rose-500 rounded-full"></span> 過期</span>
-                                <span><span class="inline-block w-2 h-2 bg-amber-500 rounded-full"></span> 快到期</span>
-                                <span><span class="inline-block w-2 h-2 bg-blue-500 rounded-full"></span> 待辦</span>
-                                <span><span class="inline-block w-2 h-2 bg-emerald-500 rounded-full"></span> 完成</span>
-                            </div>
                         </div>
                     </div>
                 </section>
@@ -2527,10 +2275,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                                 class="px-3 py-2 bg-amber-500 hover:bg-amber-600 disabled:bg-stone-300 disabled:cursor-not-allowed text-white rounded-md text-sm font-semibold shadow-sm transition flex items-center gap-1.5" title="重新指派已勾選的測試案例">
                                 <i class="fa-solid fa-user-tag"></i> 重新指派 <span id="tcBulkReassignCount">(0)</span>
                             </button>
-                            <button id="tcBulkTodoBtn" onclick="tcBulkCreateTodos()" disabled
-                                class="px-3 py-2 bg-cyan-500 hover:bg-cyan-600 disabled:bg-stone-300 disabled:cursor-not-allowed text-white rounded-md text-sm font-semibold shadow-sm transition flex items-center gap-1.5" title="為已勾選的測試案例各建一筆追蹤待辦">
-                                <i class="fa-solid fa-list-check"></i> 建立追蹤待辦 <span id="tcBulkTodoCount">(0)</span>
-                            </button>
+
                             <button id="tcBulkDeleteBtn" onclick="tcBulkDeleteSelected()" disabled
                                 class="px-3 py-2 bg-rose-500 hover:bg-rose-600 disabled:bg-stone-300 disabled:cursor-not-allowed text-white rounded-md text-sm font-semibold shadow-sm transition flex items-center gap-1.5" title="刪除已勾選的測試案例(可跨頁)">
                                 <i class="fa-solid fa-trash"></i> 刪除 <span id="tcBulkDeleteCount">(0)</span>
@@ -2591,6 +2336,69 @@ driver.swipe(100, 800, 100, 200, 500)"
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- 視圖:測試資料 (Test Data Set / DDT) -->
+            <div id="testDataSetsWorkspace" class="flex-1 overflow-y-auto p-6 bg-amber-50/30 hidden">
+                <div class="max-w-7xl mx-auto">
+                    <div class="bg-white rounded-lg border border-violet-200 shadow-sm p-4 mb-4">
+                        <div class="flex flex-wrap items-center gap-3">
+                            <div class="flex-1 min-w-[200px] relative">
+                                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm"></i>
+                                <input id="dsSearch" type="search" oninput="renderDataSetsList()" placeholder="搜尋資料集名稱、代號…"
+                                    class="w-full pl-9 pr-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-violet-400">
+                            </div>
+                            <button onclick="renderDataSetsList()" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
+                            <button onclick="openDataSetModal()" class="px-3 py-2 bg-violet-500 hover:bg-violet-600 text-white rounded-md text-sm font-semibold shadow-sm"><i class="fa-solid fa-plus"></i> 新增資料集</button>
+                            <div class="text-xs text-stone-500 ml-auto">共 <span id="dsListCount" class="font-bold text-stone-700">0</span> 筆</div>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-lg border border-violet-200 shadow-sm overflow-hidden">
+                        <table class="w-full text-sm">
+                            <thead class="bg-violet-50/60 border-b border-violet-200 text-stone-600 text-xs uppercase">
+                                <tr><th class="p-3 text-left w-24">代號</th><th class="p-3 text-left">名稱</th><th class="p-3 w-20">欄位</th><th class="p-3 w-20">資料列</th><th class="p-3 w-32">負責人</th><th class="p-3 w-36 text-center">操作</th></tr>
+                            </thead>
+                            <tbody id="dsListBody" class="divide-y divide-stone-100"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 測試資料 Modal -->
+            <div id="testDataSetModal" class="hidden fixed inset-0 z-[150] bg-black/40 flex items-center justify-center p-4">
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl border border-violet-200 max-h-[90vh] overflow-y-auto">
+                    <div class="px-6 py-4 border-b border-stone-200 bg-violet-50/60 flex items-center justify-between">
+                        <h3 id="testDataSetModalTitle" class="font-bold text-stone-800 text-base flex items-center gap-2"><i class="fa-solid fa-table text-violet-500"></i> 新增測試資料</h3>
+                        <button type="button" onclick="closeDataSetModal()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <form onsubmit="return dataSetSubmit(event)" class="p-6 space-y-3">
+                        <div><label for="dsName" class="block text-xs font-semibold text-stone-600 mb-1">名稱 *</label><input type="text" id="dsName" aria-label="名稱" required class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div><label for="dsOwner" class="block text-xs font-semibold text-stone-600 mb-1">負責人</label><input type="text" id="dsOwner" aria-label="負責人" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                            <div><label for="dsDesc" class="block text-xs font-semibold text-stone-600 mb-1">說明</label><input type="text" id="dsDesc" aria-label="說明" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-stone-600 mb-1">資料表(行 × 欄)</label>
+                            <div class="bg-stone-50 border border-stone-200 rounded p-3 space-y-2">
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <input type="file" id="dsJsonImportInput" accept=".json,application/json" multiple aria-label="匯入 JSON 測試資料(可複選)" class="hidden" onchange="dsImportJson(event)">
+                                    <button type="button" onclick="document.getElementById('dsJsonImportInput').click()" class="text-xs px-2 py-1 border border-stone-300 bg-white rounded hover:bg-violet-50" title="可一次選取多個 JSON 檔;巢狀結構會以點記法展開為 Key 路徑"><i class="fa-solid fa-file-import"></i> 匯入 JSON</button>
+                                    <button type="button" onclick="dsExportJson()" class="text-xs px-2 py-1 border border-stone-300 bg-white rounded hover:bg-violet-50" title="把目前資料表下載成 JSON 檔(rows_json 結構)"><i class="fa-solid fa-file-export"></i> 匯出 JSON</button>
+                                    <button type="button" onclick="dsClearGrid()" class="text-xs px-2 py-1 border border-rose-200 text-rose-600 bg-white rounded hover:bg-rose-50" title="清空所有欄列"><i class="fa-solid fa-eraser"></i> 清空</button>
+                                    <span class="text-[11px] text-stone-500 ml-auto">總計 <span id="dsColCount" class="font-mono font-bold text-stone-700">0</span> 欄 × <span id="dsRowCount" class="font-mono font-bold text-stone-700">0</span> 列</span>
+                                </div>
+                                <div id="dsGridTableWrap" class="overflow-auto max-h-[55vh] border border-violet-100 rounded bg-white">
+                                    <table id="dsGridTable" class="text-xs w-full">
+                                        <thead class="bg-violet-100/40 sticky top-0 z-[1]"><tr id="dsGridHead"></tr></thead>
+                                        <tbody id="dsGridBody"></tbody>
+                                    </table>
+                                </div>
+                                <p class="text-[10px] text-stone-500">資料以 JSON 為單一來源;上方按鈕可匯入 / 匯出 / 清空整份資料表。匯入時會自動展平為 No / Key / Value 三欄。</p>
+                            </div>
+                        </div>
+                        <div class="flex justify-end gap-2 pt-2"><button type="button" onclick="closeDataSetModal()" class="px-4 py-2 border border-stone-300 rounded-md text-sm">取消</button><button type="submit" class="px-4 py-2 bg-violet-500 hover:bg-violet-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-save"></i> 儲存</button></div>
+                    </form>
                 </div>
             </div>
 
@@ -2881,12 +2689,8 @@ driver.swipe(100, 800, 100, 200, 500)"
             <!-- 視圖：使用者設定 -->
             <div id="userSettingsWorkspace" class="flex-1 overflow-y-auto p-6 bg-amber-50/30 hidden">
                 <div class="max-w-5xl mx-auto">
-                    <!-- 6 個分頁切換 -->
                     <div class="bg-white rounded-lg border border-amber-100 shadow-sm p-2 mb-4 flex gap-1 flex-wrap">
                         <button id="setTabUser"     onclick="settingsSwitchTab('user')"     class="px-3 py-1.5 text-sm font-medium rounded text-amber-700 bg-amber-50 border border-amber-300"><i class="fa-solid fa-user-circle"></i> <span data-i18n="settings.tab.user">設定</span></button>
-                        <button id="setTabNotif"    onclick="settingsSwitchTab('notif')"    class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-bell"></i> <span data-i18n="settings.tab.notif">通知設定</span></button>
-                        <button id="setTabEmail"    onclick="settingsSwitchTab('email')"    class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-envelope"></i> <span data-i18n="settings.tab.email">電子郵件</span></button>
-                        <button id="setTabProjectMembers" onclick="settingsSwitchTab('projectMembers')" class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-users-gear"></i> <span data-i18n="settings.tab.projectmembers">專案協作成員</span></button>
                     </div>
 
                     <!-- ─── Pane 1: 使用者設定（保留原本內容） ─── -->
@@ -3065,126 +2869,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                     </div>
 
 
-                    <!-- ─── Pane 4: 通知設定（per-user grid） ─── -->
-                    <div id="setPaneNotif" class="hidden space-y-4">
-                        <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-6">
-                            <h3 class="font-bold text-stone-700 text-base mb-2 flex items-center gap-2"><i class="fa-solid fa-bell text-amber-500"></i> 通知設定 <span class="text-xs font-normal text-stone-500 ml-2">(<span id="notifPrefUsername">—</span>)</span></h3>
-                            <p class="text-xs text-stone-500 mb-4">為每個事件選擇通知通道；變更後請按下方「儲存」。</p>
-                            <div class="overflow-hidden border border-stone-100 rounded-md">
-                                <table class="w-full text-sm">
-                                    <thead class="bg-amber-50/60 text-stone-600 text-xs uppercase">
-                                        <tr><th class="p-3 text-left">事件</th><th class="p-3 w-24 text-center">站內通知</th><th class="p-3 w-24 text-center">Email</th></tr>
-                                    </thead>
-                                    <tbody id="notifEventsBody" class="divide-y divide-stone-100"></tbody>
-                                </table>
-                            </div>
-                            <div class="flex justify-end mt-4">
-                                <button onclick="saveNotificationPrefs()" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-floppy-disk"></i> 儲存通知設定</button>
-                            </div>
-                        </section>
-                    </div>
-
-                    <!-- ─── Pane 5: 電子郵件（SMTP） ─── -->
-                    <div id="setPaneEmail" class="hidden space-y-4">
-                        <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-6">
-                            <h3 class="font-bold text-stone-700 text-base mb-4 flex items-center gap-2"><i class="fa-solid fa-envelope text-amber-500"></i> SMTP 伺服器設定</h3>
-                            <form onsubmit="return saveEmailConfig(event)" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div><label for="emCfgHost" class="block text-xs font-semibold text-stone-600 mb-1">SMTP 主機</label><input type="text" id="emCfgHost" placeholder="smtp.example.com" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
-                                <div><label for="emCfgPort" class="block text-xs font-semibold text-stone-600 mb-1">SMTP 埠號</label><input type="number" id="emCfgPort" value="587" min="1" max="65535" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
-                                <div><label for="emCfgUser" class="block text-xs font-semibold text-stone-600 mb-1">SMTP 使用者</label><input type="text" id="emCfgUser" autocomplete="username" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
-                                <div><label for="emCfgPwd" class="block text-xs font-semibold text-stone-600 mb-1">SMTP 密碼</label><input type="password" id="emCfgPwd" autocomplete="new-password" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
-                                <div><label for="emCfgFrom" class="block text-xs font-semibold text-stone-600 mb-1">寄件人 Email</label><input type="email" id="emCfgFrom" placeholder="autotest@example.com" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
-                                <div><label for="emCfgFromName" class="block text-xs font-semibold text-stone-600 mb-1">寄件人顯示名稱</label><input type="text" id="emCfgFromName" placeholder="AutoTest" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm"></div>
-                                <div class="md:col-span-2 flex items-center gap-6 mt-1">
-                                    <label class="flex items-center gap-2 cursor-pointer text-sm text-stone-700"><input type="checkbox" id="emCfgTls" class="rounded border-stone-300 text-amber-500 focus:ring-amber-400"> 使用 TLS / STARTTLS</label>
-                                    <label class="flex items-center gap-2 cursor-pointer text-sm text-stone-700"><input type="checkbox" id="emCfgEnabled" class="rounded border-stone-300 text-amber-500 focus:ring-amber-400"> 啟用 Email 通知</label>
-                                </div>
-                                <div class="md:col-span-2 flex justify-end gap-2 mt-2">
-                                    <button type="button" onclick="sendEmailTest()" class="px-4 py-2 border border-amber-300 text-amber-700 hover:bg-amber-50 rounded-md text-sm font-semibold"><i class="fa-solid fa-paper-plane"></i> 寄測試信給自己</button>
-                                    <button type="submit" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold"><i class="fa-solid fa-floppy-disk"></i> 儲存設定</button>
-                                </div>
-                            </form>
-                            <p class="text-[10px] text-stone-500 mt-3"><i class="fa-solid fa-circle-info"></i> 密碼以明文儲存於後端 DB（生產環境建議搭配 KMS 加密；目前為簡化實作）。「寄測試信」會以目前儲存設定發信到您帳號的 Email,失敗會顯示 SMTP 錯誤訊息。</p>
-                        </section>
-                    </div>
-
-                    <!-- ─── Pane 9: 組織成員(Phase 7 多租戶)─── -->
-
-                    <!-- ─── Pane 10: 專案協作成員(當前專案 scope) ─── -->
-                    <div id="setPaneProjectMembers" class="hidden space-y-4">
-                        <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-4">
-                            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
-                                <div class="flex-1 min-w-0">
-                                    <h3 class="font-bold text-stone-700 text-base flex items-center gap-2"><i class="fa-solid fa-users-gear text-amber-500"></i> 專案協作成員(<span id="pmCurrentProjectName">—</span>)</h3>
-                                    <p class="text-xs text-stone-500 mt-1" data-i18n="pm.subtitle">當前專案的協作者帳號與基本資料管理</p>
-                                </div>
-                                <div class="flex items-center gap-2">
-                                    <button onclick="pmReload()" class="text-xs px-2.5 py-1.5 border border-stone-300 rounded hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
-                                    <button onclick="pmOpenAddExistingModal()" class="text-xs px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold" title="把已存在的本地帳號加入此專案"><i class="fa-solid fa-user-plus"></i> 加入現有使用者</button>
-                                    <button onclick="pmOpenCreateUserModal()" class="text-xs px-2.5 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded font-semibold" title="建立全新帳號並加入此專案"><i class="fa-solid fa-user-plus"></i> 建立新使用者</button>
-                                </div>
-                            </div>
-
-                            <div id="pmEmptyHint" class="hidden bg-amber-50 border border-amber-200 rounded-lg p-4 text-center text-amber-800 text-sm">
-                                <i class="fa-solid fa-circle-info"></i>
-                                <span data-i18n="pm.empty">請先在左側選一個專案。</span>
-                            </div>
-
-                            <div id="pmSearchWrap" class="mb-2 relative">
-                                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-xs"></i>
-                                <input type="search" id="pmSearch" oninput="pmOnSearchInput(this.value)"
-                                    placeholder="搜尋使用者名稱 / 顯示名稱 / Email…"
-                                    class="w-full pl-8 pr-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400">
-                            </div>
-                            <div id="pmTableWrap" class="overflow-hidden border border-stone-100 rounded-md">
-                                <table class="w-full text-sm">
-                                    <thead class="bg-amber-50/60 text-stone-600 text-xs uppercase">
-                                        <tr>
-                                            <th class="p-3 text-left cursor-pointer select-none hover:bg-amber-100/60" onclick="pmToggleSort('username')">使用者 <span id="pmSortUsername"></span></th>
-                                            <th class="p-3 text-left cursor-pointer select-none hover:bg-amber-100/60" onclick="pmToggleSort('email')">Email <span id="pmSortEmail"></span></th>
-                                            <th class="p-3 text-left w-24">狀態</th>
-                                            <th class="p-3 text-left w-28 cursor-pointer select-none hover:bg-amber-100/60" onclick="pmToggleSort('joined_at')">加入時間 <span id="pmSortJoinedAt"></span></th>
-                                            <th class="p-3 text-center w-32">操作</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="pmTableBody" class="divide-y divide-stone-100">
-                                        <tr><td colspan="5" class="p-4 text-center text-stone-400" data-i18n="common.loading">載入中…</td></tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                            <div class="mt-2 text-[11px] text-stone-500" id="pmFilterHint"></div>
-                        </section>
-
-                        <!-- v1.1.6:本專案角色權限(per-project role override)──────── -->
-                        <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-4">
-                            <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
-                                <div class="flex-1 min-w-0">
-                                    <h3 class="font-bold text-stone-700 text-base flex items-center gap-2"><i class="fa-solid fa-shield-halved text-amber-500"></i> 本專案角色權限</h3>
-                                    <p class="text-xs text-stone-500 mt-1">在這個專案內覆蓋 4 個 project-scope 角色的權限。覆蓋只影響本專案,不會動到其他專案。</p>
-                                </div>
-                                <button onclick="prpReload()" class="text-xs px-2.5 py-1.5 border border-stone-300 rounded hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
-                            </div>
-                            <div id="prpEmptyHint" class="hidden bg-amber-50 border border-amber-200 rounded-lg p-3 text-center text-amber-800 text-sm">
-                                <i class="fa-solid fa-circle-info"></i> 請先在左側選一個專案。
-                            </div>
-                            <div id="prpTableWrap" class="overflow-hidden border border-stone-100 rounded-md">
-                                <table class="w-full text-sm">
-                                    <thead class="bg-amber-50/60 text-stone-600 text-xs uppercase">
-                                        <tr>
-                                            <th class="p-3 text-left">角色</th>
-                                            <th class="p-3 text-left">目前有效權限數</th>
-                                            <th class="p-3 text-left w-28">狀態</th>
-                                            <th class="p-3 text-center w-40">操作</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="prpTableBody" class="divide-y divide-stone-100">
-                                        <tr><td colspan="4" class="p-4 text-center text-stone-400">載入中…</td></tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </section>
-                    </div>
-
                     <!-- ─── Pane 8: 邀請 + Email Domain 自動歸屬 ─── -->
 
                 </div>  <!-- /max-w-5xl mx-auto -->
@@ -3211,7 +2895,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 </div>
             </div>
 
-            <!-- ── 審核中心 (Review Center) -- generic approval workflow for testcases/documents/scripts/reports ── -->
+            <!-- ── 審核 (Review Center) -- generic approval workflow for testcases/documents/scripts/reports ── -->
             <div id="reviewWorkspace" class="flex-1 overflow-y-auto p-6 bg-violet-50/30 hidden">
                 <div class="max-w-7xl mx-auto">
                     <!-- 工具列 -->
@@ -3219,7 +2903,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                         <div class="flex flex-wrap items-center gap-3">
                             <h2 class="font-bold text-stone-800 text-lg flex items-center gap-2">
                                 <i class="fa-solid fa-stamp text-violet-500"></i>
-                                <span data-i18n="review.title">審核中心</span>
+                                <span data-i18n="review.title">審核</span>
                             </h2>
                             <div class="flex gap-1 bg-stone-100 rounded-md p-1 ml-4">
                                 <button type="button" id="reviewTabPending" onclick="reviewSetTab('pending')" class="review-tab-btn is-active px-3 py-1.5 text-xs font-semibold rounded transition" data-i18n="review.tab.pending">待審核</button>
@@ -3273,104 +2957,13 @@ driver.swipe(100, 800, 100, 200, 500)"
                 </div>
             </div>
 
-            <!-- ── 待辦清單 (Backlog) — Feature → Task/Bug/Spike 階層 + Sprint 分群 ── -->
-            <div id="backlogWorkspace" class="flex-1 overflow-y-auto p-6 bg-amber-50/30 hidden">
-                <div class="max-w-7xl mx-auto">
-                    <!-- KPI 4 卡 -->
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                        <button type="button" onclick="setBacklogFilter('overdue')" id="backlogKpiOverdue"
-                            class="text-left bg-white rounded-lg border border-rose-200 hover:border-rose-400 shadow-sm p-3 transition">
-                            <div class="text-xs text-rose-600 flex items-center gap-1.5"><i class="fa-solid fa-clock-rotate-left"></i> <span data-i18n="backlog.kpi.overdue">過期</span></div>
-                            <div class="text-2xl font-bold text-rose-700" id="backlogKpiOverdueCount">—</div>
-                        </button>
-                        <button type="button" onclick="setBacklogFilter('due_soon')" id="backlogKpiDueSoon"
-                            class="text-left bg-white rounded-lg border border-amber-200 hover:border-amber-400 shadow-sm p-3 transition">
-                            <div class="text-xs text-amber-700 flex items-center gap-1.5"><i class="fa-regular fa-bell"></i> <span data-i18n="backlog.kpi.dueSoon">7 天內</span></div>
-                            <div class="text-2xl font-bold text-amber-700" id="backlogKpiDueSoonCount">—</div>
-                        </button>
-                        <button type="button" onclick="setBacklogFilter('all')" id="backlogKpiActive"
-                            class="text-left bg-white rounded-lg border border-blue-200 hover:border-blue-400 shadow-sm p-3 transition">
-                            <div class="text-xs text-blue-700 flex items-center gap-1.5"><i class="fa-solid fa-circle-play"></i> <span data-i18n="backlog.kpi.active">未完成</span></div>
-                            <div class="text-2xl font-bold text-blue-700" id="backlogKpiActiveCount">—</div>
-                        </button>
-                        <button type="button" onclick="setBacklogFilter('done')" id="backlogKpiDone"
-                            class="text-left bg-white rounded-lg border border-emerald-200 hover:border-emerald-400 shadow-sm p-3 transition">
-                            <div class="text-xs text-emerald-700 flex items-center gap-1.5"><i class="fa-regular fa-circle-check"></i> <span data-i18n="backlog.kpi.done">已完成</span></div>
-                            <div class="text-2xl font-bold text-emerald-700" id="backlogKpiDoneCount">—</div>
-                        </button>
-                    </div>
 
-                    <!-- 工具列:filter chips + 搜尋 + assignee/sprint/type 過濾 + 新增 -->
-                    <div class="bg-white rounded-lg border border-amber-100 shadow-sm p-4 mb-4">
-                        <div class="flex flex-wrap items-center gap-3">
-                            <!-- 搜尋 -->
-                            <div class="flex-1 min-w-[220px] relative">
-                                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm"></i>
-                                <input id="backlogSearch" type="search" oninput="_renderBacklogView()" placeholder="搜尋標題…"
-                                    data-i18n-attr="placeholder;backlog.searchPlaceholder"
-                                    class="w-full pl-9 pr-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
-                            </div>
-                            <!-- 指派 -->
-                            <select id="backlogAssigneeFilter" onchange="reloadBacklogView()" class="px-3 py-2 border border-stone-300 rounded-md text-sm bg-white" aria-label="負責人">
-                                <option value="__me__" data-i18n="backlog.assignee.me">指派給我</option>
-                                <option value="" data-i18n="backlog.assignee.all">全部</option>
-                            </select>
-                            <!-- Sprint 過濾 -->
-                            <select id="backlogSprintFilter" onchange="reloadBacklogView()" class="px-3 py-2 border border-stone-300 rounded-md text-sm bg-white" aria-label="Sprint">
-                                <option value="" data-i18n="backlog.sprint.all">全部 Sprint</option>
-                                <option value="__backlog__" data-i18n="backlog.sprint.backlog">未排入 Sprint</option>
-                                <!-- dynamic options from data -->
-                            </select>
-                            <!-- 類型過濾 -->
-                            <select id="backlogTypeFilter" onchange="_renderBacklogView()" class="px-3 py-2 border border-stone-300 rounded-md text-sm bg-white" aria-label="類型">
-                                <option value="" data-i18n="backlog.type.all">全部類型</option>
-                                <option value="Feature">🎯 Feature</option>
-                                <option value="Task">⚙ Task</option>
-                                <option value="Bug">🐛 Bug</option>
-                                <option value="Spike">🔬 Spike</option>
-                            </select>
-                            <!-- 新增按鈕 (下拉選類型) -->
-                            <div class="relative">
-                                <button type="button" onclick="toggleBacklogAddMenu(event)" id="backlogAddBtn"
-                                    class="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold shadow-sm flex items-center gap-1.5">
-                                    <i class="fa-solid fa-plus"></i> <span data-i18n="backlog.add">新增待辦</span>
-                                    <i class="fa-solid fa-chevron-down text-[10px] opacity-70"></i>
-                                </button>
-                                <div id="backlogAddMenu" class="hidden absolute right-0 top-full mt-1 w-44 bg-white rounded-md shadow-lg ring-1 ring-stone-200 overflow-hidden z-10">
-                                    <button type="button" onclick="closeBacklogAddMenu(); openTodoModal(null, null, 'Feature')" class="drawer-backlog-add-item"><i class="fa-solid fa-bullseye text-purple-500"></i><span>Feature</span></button>
-                                    <button type="button" onclick="closeBacklogAddMenu(); openTodoModal(null, null, 'Task')"    class="drawer-backlog-add-item"><i class="fa-solid fa-screwdriver-wrench text-stone-500"></i><span>Task</span></button>
-                                    <button type="button" onclick="closeBacklogAddMenu(); openTodoModal(null, null, 'Bug')"     class="drawer-backlog-add-item"><i class="fa-solid fa-bug text-rose-500"></i><span>Bug</span></button>
-                                    <button type="button" onclick="closeBacklogAddMenu(); openTodoModal(null, null, 'Spike')"   class="drawer-backlog-add-item"><i class="fa-solid fa-flask text-emerald-500"></i><span>Spike</span></button>
-                                </div>
-                            </div>
-                            <!-- 重新整理 -->
-                            <button type="button" onclick="reloadBacklogView()" title="重新整理" data-i18n-attr="title;common.refresh"
-                                class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50 transition">
-                                <i class="fa-solid fa-rotate-right"></i>
-                            </button>
-                        </div>
-                        <!-- 狀態 chips -->
-                        <div class="flex flex-wrap gap-1.5 mt-3 text-xs">
-                            <button type="button" onclick="setBacklogFilter('all')"      data-filter="all"      class="drawer-backlog-chip is-active"><span data-i18n="backlog.filter.all">全部</span></button>
-                            <button type="button" onclick="setBacklogFilter('overdue')"  data-filter="overdue"  class="drawer-backlog-chip"><span data-i18n="backlog.filter.overdue">過期</span></button>
-                            <button type="button" onclick="setBacklogFilter('due_soon')" data-filter="due_soon" class="drawer-backlog-chip"><span data-i18n="backlog.filter.dueSoon">快到期</span></button>
-                            <button type="button" onclick="setBacklogFilter('done')"     data-filter="done"     class="drawer-backlog-chip"><span data-i18n="backlog.filter.done">已完成</span></button>
-                        </div>
-                    </div>
-
-                    <!-- 主內容:依 Sprint 分群,Feature → 子項階層 -->
-                    <div id="backlogList" class="space-y-4">
-                        <div class="bg-white rounded-lg border border-amber-100 shadow-sm p-12 text-center text-stone-400 text-sm" data-i18n="backlog.empty">沒有指派給我的待辦</div>
-                    </div>
-                </div>
-            </div>
-
-    <!-- 測試回合 Modal（新增 / 編輯） -->
+    <!-- TestRun Modal（新增 / 編輯） -->
     <div id="testRoundModal" class="fixed inset-0 bg-slate-900/50 hidden z-[160] flex items-center justify-center opacity-0 transition-opacity">
         <div class="bg-white rounded-lg shadow-xl w-[560px] max-w-[95vw] transform scale-95 transition-transform" id="testRoundModalContent">
             <div class="p-4 border-b border-slate-200 flex items-center gap-2">
                 <i class="fa-solid fa-layer-group text-purple-500"></i>
-                <h3 id="testRoundModalTitle" class="text-lg font-bold text-slate-800">新增測試回合</h3>
+                <h3 id="testRoundModalTitle" class="text-lg font-bold text-slate-800">新增TestRun</h3>
             </div>
             <div class="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
                 <div>
@@ -3480,7 +3073,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                     '#home':            'homeWorkspace',
                     '#testcases':       'testcasesWorkspace',
                     '#review':          'reviewWorkspace',
-                    '#backlog':         'backlogWorkspace',
                     '#testdatasets':    'testDataSetsWorkspace',
                     '#report':          'reportWorkspace',
                     '#recorder':        'recorderWorkspace',
@@ -4729,7 +4321,7 @@ driver.swipe(100, 800, 100, 200, 500)"
             showToast(`已刪除 ${n} 列`, 'success');
         }
 
-        // 測試案例不再連結測試資料集；DDT 完全由獨立的「測試資料集」模組維護。
+        // 測試案例不再連結測試資料；DDT 完全由獨立的「測試資料」模組維護。
         // renderDDT 保留為相容呼叫的 no-op（editTestCase 仍會呼叫它）。
         function renderDDT() { /* no-op：DDT 已移出測試案例編輯器 */ }
 
@@ -6448,10 +6040,10 @@ driver.swipe(100, 800, 100, 200, 500)"
             'nav.section.settings': { 'zh-TW': '設定', 'en': 'CONFIG' },
             'nav.section.execution': { 'zh-TW': '執行 / 監控', 'en': 'RUN / MONITOR' },
             'nav.testCases': { 'zh-TW': '測試案例', 'en': 'Test Cases' },
-            'nav.dataSets': { 'zh-TW': '測試資料集', 'en': 'Data Sets' },
+            'nav.dataSets': { 'zh-TW': '測試資料', 'en': 'Data Sets' },
             'nav.envVars': { 'zh-TW': '環境變數', 'en': 'Env Vars' },
             'nav.mock': { 'zh-TW': 'Mock', 'en': 'Mock' },
-            'nav.testRound': { 'zh-TW': '測試回合', 'en': 'Test Rounds' },
+            'nav.testRound': { 'zh-TW': 'TestRun', 'en': 'Test Rounds' },
             'nav.recorder': { 'zh-TW': '測試錄製', 'en': 'Recorder' },
             'nav.reports': { 'zh-TW': '測試報告', 'en': 'Reports' },
             // 環境切換
@@ -6470,11 +6062,11 @@ driver.swipe(100, 800, 100, 200, 500)"
             'settings.title.short': { 'zh-TW': '設定', 'en': 'Settings' },
             // 各 view 的長/短標題(viewTitle 大標 / viewFilename 麵包屑)
             'view.testCases.title': { 'zh-TW': '測試案例清單', 'en': 'Test Cases' },
-            'view.dataSets.title': { 'zh-TW': '測試資料集', 'en': 'Data Sets' },
+            'view.dataSets.title': { 'zh-TW': '測試資料', 'en': 'Data Sets' },
             'view.envVars.title': { 'zh-TW': '環境變數', 'en': 'Environment Variables' },
             'view.dbConfig.title': { 'zh-TW': 'DB 連線資訊', 'en': 'DB Configurations' },
             'view.mock.title': { 'zh-TW': 'Mock 端點管理', 'en': 'Mock Endpoints' },
-            'view.testRound.title': { 'zh-TW': '測試回合', 'en': 'Test Rounds' },
+            'view.testRound.title': { 'zh-TW': 'TestRun', 'en': 'Test Rounds' },
             'view.recorder.title': { 'zh-TW': '錄製測試操作步驟', 'en': 'Recorder' },
             'view.reports.title': { 'zh-TW': '自動化測試執行報告', 'en': 'Test Reports' },
             'settings.tab.perms': { 'zh-TW': '權限管理', 'en': 'Permissions' },
@@ -6496,7 +6088,7 @@ driver.swipe(100, 800, 100, 200, 500)"
             'home.stat.project': { 'zh-TW': '專案', 'en': 'Project' },
             'home.stat.testcases': { 'zh-TW': '測試案例', 'en': 'Test Cases' },
             'home.stat.nodes': { 'zh-TW': '節點總數', 'en': 'Total Nodes' },
-            'home.stat.rounds': { 'zh-TW': '測試回合', 'en': 'Test Rounds' },
+            'home.stat.rounds': { 'zh-TW': 'TestRun', 'en': 'Test Rounds' },
             'home.sys.cpu': { 'zh-TW': 'CPU 使用率', 'en': 'CPU Usage' },
             'home.sys.mem': { 'zh-TW': '記憶體', 'en': 'Memory' },
             'home.sys.memSub': { 'zh-TW': '(平台/Host)', 'en': '(Platform/Host)' },
@@ -6513,10 +6105,10 @@ driver.swipe(100, 800, 100, 200, 500)"
             'home.section.execution': { 'zh-TW': '執行 · 監控 · Execution', 'en': 'Execution & Monitoring' },
             'footer.poweredBy': { 'zh-TW': '由以下開源專案驅動', 'en': 'Powered by' },
             'footer.iconsBy': { 'zh-TW': '圖示由', 'en': 'Icons by' },
-            // ── 審核中心 (Review Center) — RFC-Review-1
+            // ── 審核 (Review Center) — RFC-Review-1
             'nav.section.review': { 'zh-TW': '審核', 'en': 'Review' },
-            'nav.review': { 'zh-TW': '審核中心', 'en': 'Review Center' },
-            'review.title': { 'zh-TW': '審核中心', 'en': 'Review Center' },
+            'nav.review': { 'zh-TW': '審核', 'en': 'Review Center' },
+            'review.title': { 'zh-TW': '審核', 'en': 'Review Center' },
             'review.tab.pending':  { 'zh-TW': '待審核', 'en': 'Pending' },
             'review.tab.approved': { 'zh-TW': '已審核', 'en': 'Approved' },
             'review.tab.rejected': { 'zh-TW': '已拒絕', 'en': 'Rejected' },
@@ -6609,7 +6201,7 @@ driver.swipe(100, 800, 100, 200, 500)"
             'links.target.testcase':       { 'zh-TW': '案例', 'en': 'Test Case' },
             'links.target.defect':         { 'zh-TW': '缺陷', 'en': 'Defect' },
             'links.target.test_plan':      { 'zh-TW': '測試計畫', 'en': 'Test Plan' },
-            'links.target.test_round':     { 'zh-TW': '測試回合', 'en': 'Test Round' },
+            'links.target.test_round':     { 'zh-TW': 'TestRun', 'en': 'Test Round' },
             'links.target.test_milestone': { 'zh-TW': '里程碑', 'en': 'Milestone' },
             'links.target.project':        { 'zh-TW': '專案', 'en': 'Project' },
         };
@@ -7087,11 +6679,11 @@ driver.swipe(100, 800, 100, 200, 500)"
         '新增時程': 'New milestone',
         '新增案例': 'New case',
         '新增步驟': 'Add step',
-        '新增測試回合': 'New test round',
+        '新增TestRun': 'New test round',
         '新增測試文件': 'New test document',
         '新增測試案例': 'New test case',
         '新增測試計畫': 'New test plan',
-        '新增測試資料集': 'New test data set',
+        '新增測試資料': 'New test data set',
         '新增環境變數': 'Add env var',
         '新增端點': 'New endpoint',
         '新增節點': 'New node',
@@ -7187,7 +6779,7 @@ driver.swipe(100, 800, 100, 200, 500)"
         '清除': 'Clear',
         '清除搜尋': 'Clear search',
         '測試名稱': 'Test name',
-        '測試回合': 'Test Rounds',
+        'TestRun': 'Test Rounds',
         '測試報告': 'Test Reports',
         '測試文件': 'Test Documents',
         '測試案例': 'Test Cases',
@@ -7200,7 +6792,7 @@ driver.swipe(100, 800, 100, 200, 500)"
         '測試結果分佈': 'Result distribution',
         '測試編號': 'Test No.',
         '測試計畫': 'Test Plan',
-        '測試資料集': 'Test Data Sets',
+        '測試資料': 'Test Data Sets',
         '測試連線': 'Test connection',
         '測試錄製': 'Test Recorder',
         '測試項目': 'Test item',
@@ -8352,6 +7944,7 @@ driver.swipe(100, 800, 100, 200, 500)"
         function closeModals() {
             ['nodeModal', 'deleteModal', 'testRoundModal', 'localAgentModal'].forEach(id => {
                 const modal = document.getElementById(id);
+                if (!modal) return;
                 modal.classList.add('opacity-0');
                 const content = modal.querySelector('[id$="Content"], [id$="ModalContent"]');
                 if (content) content.classList.add('scale-95');
@@ -8381,7 +7974,7 @@ driver.swipe(100, 800, 100, 200, 500)"
             } catch (err) {
                 console.error(err);
                 // 423 Locked = 此案例已通過審核,主表寫入被 review_service.ensure_not_approved 擋
-                // (RFC-Review-1 鎖定機制)。給使用者一個清楚的解釋 + 一鍵跳到審核中心退回。
+                // (RFC-Review-1 鎖定機制)。給使用者一個清楚的解釋 + 一鍵跳到審核退回。
                 if (err && err.status === 423) {
                     showReviewLockedModalForTestcase(currentTestCase);
                 } else {
@@ -8411,7 +8004,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                     </div>
                     <div class="p-5 space-y-3 text-sm">
                         <p class="text-stone-700">此案例已通過審核(<span class="font-mono text-[12px] text-stone-500">HTTP 423 Locked</span>),目前無法直接編輯。</p>
-                        <p class="text-stone-600">需要先在 <b>審核中心</b> 把這筆審核 <b>退回(revert)</b>,讓案例回到「待審核」,才能修改步驟 / AC / DDT。</p>
+                        <p class="text-stone-600">需要先在 <b>審核</b> 把這筆審核 <b>退回(revert)</b>,讓案例回到「待審核」,才能修改步驟 / AC / DDT。</p>
                         <div class="bg-amber-50 border-l-4 border-amber-300 px-3 py-2 rounded text-xs text-amber-900">
                             提醒:退回會把案例的 <code class="bg-stone-100 px-1 rounded">content_status</code> 設回 <code class="bg-stone-100 px-1 rounded">pending_review</code>;審核者要重新通過一次才會再被鎖。
                         </div>
@@ -8419,7 +8012,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                     <div class="px-5 py-3 border-t border-stone-200 bg-stone-50 flex justify-end gap-2">
                         <button type="button" onclick="document.getElementById('_reviewLockedModal').remove()" class="px-3 py-1.5 text-sm border border-stone-300 rounded-md hover:bg-stone-50">取消</button>
                         <button type="button" id="_goToReviewBtn" class="px-3 py-1.5 text-sm bg-violet-500 hover:bg-violet-600 text-white rounded-md font-semibold flex items-center gap-1.5">
-                            <i class="fa-solid fa-stamp"></i> 前往審核中心
+                            <i class="fa-solid fa-stamp"></i> 前往審核
                         </button>
                     </div>
                 </div>
@@ -8437,7 +8030,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                         }
                     } else {
                         // 找不到 showReviewView 就跳通知,避免黑屏
-                        showToast('無法開啟審核中心,請手動切換', 'warning');
+                        showToast('無法開啟審核,請手動切換', 'warning');
                     }
                 };
             }
@@ -9867,7 +9460,7 @@ driver.swipe(100, 800, 100, 200, 500)"
         let scheduleList = [];           // 後端回傳的排程清單
         let scheduleEditingId = null;    // 編輯中的 id；null 代表新增模式
 
-        // ==================== 測試回合 (Test Round) ====================
+        // ==================== TestRun (Test Round) ====================
         let testRoundList = [];
         let testRoundEditingId = null;
         const trNodeSelection = new Set();
@@ -9891,7 +9484,7 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('reviewWorkspace')?.classList.add('hidden');
         }
 
-        // ================== 審核中心 (Review Center) =====================
+        // ================== 審核 (Review Center) =====================
         // RFC-Review-1 的前端入口。後端 endpoints 都掛在 /api/reviews 之下
         // (詳 backend/app/routers/reviews.py)。本區所有狀態都從 server 拿,
         // 不在前端 cache 細節 -- 切 tab 時直接重 fetch,簡單直接。
@@ -10400,8 +9993,6 @@ driver.swipe(100, 800, 100, 200, 500)"
             currentTestCase = null;
             updateHomeStats();
             startSystemStatusPolling();
-            // 載入待辦 + 行事曆
-            try { reloadHomeTodos(); setHomeTodoBucket('overdue'); } catch (_) {}
             // 套用 i18n(包含本次新塞進來的 data-i18n)
             try { i18nApply(document.getElementById('homeWorkspace')); } catch (_) {}
             try { i18nApply(document.getElementById('mainHeader')); } catch (_) {}
@@ -10662,7 +10253,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                     '<td class="p-3"><span class="text-xs px-2 py-0.5 rounded font-medium ' + badge + '">' + escapeHtml(r.platform || '—') + '</span></td>' +
                     '<td class="p-3 text-sm text-stone-600 break-all">' + escapeHtml(r.page || '—') + '</td>' +
                     '<td class="p-3 text-xs text-stone-500 whitespace-normal break-all leading-relaxed">' + escapeHtml(r.path || '—') + '</td>' +
-                    // 按鈕樣式與「排程」「測試回合」頁面一致：淺底+邊框+圖示+文字
+                    // 按鈕樣式與「排程」「TestRun」頁面一致：淺底+邊框+圖示+文字
                     '<td class="p-3 text-center whitespace-nowrap space-x-1">' +
                     '  <button onclick="loadTestCase(\'' + idEsc + '\')" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded transition"><i class="fa-solid fa-pen"></i> 編輯</button>' +
                     '  <button onclick="tcCopyFromList(\'' + idEsc + '\',\'' + titleEsc + '\')" class="text-xs px-2 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 rounded transition"><i class="fa-solid fa-copy"></i> 複製</button>' +
@@ -11942,6 +11533,188 @@ driver.swipe(100, 800, 100, 200, 500)"
 
         }
 
+        // ==================== 測試資料 (DDT) ====================
+        let _dataSetsCache = [];
+        let _editingDataSetId = null;
+        let _dsCols = [];        // 編輯中的欄位名稱列表
+        let _dsRows = [];        // 編輯中的資料列(list of {colName: value})
+        function showTestDataSetsView() {
+            if (!_setView('testDataSetsWorkspace',
+                '<i class="fa-solid fa-table text-violet-500"></i> 測試資料 (DDT)',
+                'DataSets',
+                'bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded font-medium',
+                '測試資料',
+                { titleKey: 'view.dataSets.title', filenameKey: 'view.dataSets.title' })) return false;
+            renderDataSetsList();
+        }
+        async function renderDataSetsList() {
+            const tbody = document.getElementById('dsListBody');
+            const cnt = document.getElementById('dsListCount');
+            if (!tbody) return;
+            const pid = currentProjectId;
+            if (!pid) { tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-stone-400">請先選擇專案</td></tr>'; cnt.textContent='0'; return; }
+            tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-stone-400">載入中…</td></tr>';
+            try {
+                const params = new URLSearchParams({project_id: pid});
+                const res = await fetch('/api/data-sets?'+params);
+                if (!res.ok) throw new Error('HTTP '+res.status);
+                _dataSetsCache = await res.json();
+                const kw = (document.getElementById('dsSearch')?.value || '').toLowerCase().trim();
+                let rows = _dataSetsCache;
+                if (kw) rows = rows.filter(r => (r.name||'').toLowerCase().includes(kw) || (r.code||'').toLowerCase().includes(kw));
+                cnt.textContent = rows.length;
+                if (!rows.length) { tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-stone-400">尚無資料集</td></tr>'; return; }
+                tbody.innerHTML = rows.map(r => `<tr class="hover:bg-amber-50/30">
+                    <td class="p-3 font-mono text-xs text-stone-500">${_esc(r.code)}</td>
+                    <td class="p-3"><div class="font-semibold text-stone-800">${_esc(r.name)}</div>${r.description ? `<div class="text-[11px] text-stone-500 line-clamp-1">${_esc(r.description)}</div>` : ''}</td>
+                    <td class="p-3 text-xs font-mono text-center">${(r.columns_json||[]).length}</td>
+                    <td class="p-3 text-xs font-mono text-center">${(r.rows_json||[]).length}</td>
+                    <td class="p-3 text-xs text-stone-600">${_esc(r.owner||'—')}</td>
+                    <td class="p-3 text-center whitespace-nowrap space-x-1">
+                        <button onclick="openDataSetModal('${_esc(r.id)}')" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded"><i class="fa-solid fa-pen"></i></button>
+                        <button onclick="deleteDataSet('${_esc(r.id)}','${_esc(r.code)}')" class="text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                </tr>`).join('');
+            } catch(e) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-red-500">載入失敗：${_esc(e.message)}</td></tr>`;
+            }
+        }
+        function openDataSetModal(id) {
+            if (!currentProjectId) { showToast('請先選擇專案', 'error'); return; }
+            _editingDataSetId = id || null;
+            const r = id ? _dataSetsCache.find(x => x.id === id) : null;
+            document.getElementById('testDataSetModalTitle').innerHTML = r ? `<i class="fa-solid fa-table text-violet-500"></i> 編輯資料集 ${_esc(r.code)}` : '<i class="fa-solid fa-table text-violet-500"></i> 新增測試資料';
+            document.getElementById('dsName').value = r?.name || '';
+            document.getElementById('dsOwner').value = r?.owner || (typeof authCurrentUsername === 'function' ? (authCurrentUsername()||'') : '');
+            document.getElementById('dsDesc').value = r?.description || '';
+            const fileInput = document.getElementById('dsJsonImportInput');
+            if (fileInput) fileInput.value = '';
+            _dsCols = Array.isArray(r?.columns_json) && r.columns_json.length ? [...r.columns_json] : ['No', 'Key', 'Value'];
+            const existing = Array.isArray(r?.rows_json) ? r.rows_json.map(x => ({...x})) : [];
+            if (existing.length) {
+                _dsRows = existing;
+            } else {
+                const blank = {};
+                _dsCols.forEach(c => blank[c] = '');
+                _dsRows = [blank];
+            }
+            renderDataSetGrid();
+            document.getElementById('testDataSetModal').classList.remove('hidden');
+        }
+        function closeDataSetModal() { document.getElementById('testDataSetModal').classList.add('hidden'); }
+        function renderDataSetGrid() {
+            const head = document.getElementById('dsGridHead');
+            const body = document.getElementById('dsGridBody');
+            if (!head || !body) return;
+            head.innerHTML = _dsCols.map((c, ci) => `<th class="p-2 border-b ${ci > 0 ? 'border-l ' : ''}border-violet-200 text-violet-700 font-semibold text-left bg-violet-50/80 ds-col-cell">${_esc(c)}</th>`).join('');
+            if (!_dsRows.length) {
+                body.innerHTML = `<tr><td colspan="${_dsCols.length}" class="p-6 text-center text-stone-400 text-xs">尚無資料列;請點上方「匯入 JSON」載入資料</td></tr>`;
+            } else {
+                body.innerHTML = _dsRows.map((row, ri) => `<tr class="hover:bg-violet-50/30">
+                    ${_dsCols.map((c, ci) => `<td class="p-0 border-b ${ci > 0 ? 'border-l ' : ''}border-violet-100 ds-col-cell"><input type="text" value="${_esc(row[c] != null ? row[c] : '')}" oninput="dsSetCell(${ri},'${_esc(c)}', this.value)" aria-label="第${ri+1}列 ${_esc(c)}" class="w-full px-2 py-1.5 text-xs bg-transparent focus:bg-white focus:outline-none focus:ring-1 focus:ring-violet-300"></td>`).join('')}
+                </tr>`).join('');
+            }
+            const colCnt = document.getElementById('dsColCount');
+            const rowCnt = document.getElementById('dsRowCount');
+            if (colCnt) colCnt.textContent = _dsCols.length;
+            if (rowCnt) rowCnt.textContent = _dsRows.length;
+        }
+        function dsSetCell(ri, col, val) {
+            if (_dsRows[ri]) _dsRows[ri][col] = val;
+        }
+        async function dsImportJson(event) {
+            const files = Array.from(event.target.files || []);
+            if (!files.length) return;
+            const readFile = (file) => new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try { resolve({ ok: true, name: file.name, json: JSON.parse(e.target.result) }); }
+                    catch (err) { resolve({ ok: false, name: file.name, error: err.message }); }
+                };
+                reader.onerror = () => resolve({ ok: false, name: file.name, error: 'read failed' });
+                reader.readAsText(file);
+            });
+            const results = await Promise.all(files.map(readFile));
+            const errors = results.filter(r => !r.ok);
+            const oks = results.filter(r => r.ok);
+            if (!oks.length) {
+                showToast(`匯入失敗：${errors.map(e => e.name + '(' + e.error + ')').join(', ')}`, 'error');
+                event.target.value = '';
+                return;
+            }
+            _dsCols = ['No', 'Key', 'Value'];
+            _dsRows = [];
+            let n = 1;
+            const multi = oks.length > 1;
+            for (const { name, json } of oks) {
+                const pairs = flattenJsonToPairs(json, '');
+                for (const [k, v] of pairs) {
+                    const key = multi ? `${name}::${k}` : k;
+                    _dsRows.push({ No: String(n++), Key: key, Value: (v == null ? '' : (typeof v === 'string' ? v : String(v))) });
+                }
+            }
+            renderDataSetGrid();
+            const errMsg = errors.length ? `(${errors.length} 個檔案解析失敗)` : '';
+            showToast(`已匯入 ${oks.length} 個 JSON 檔,共 ${_dsRows.length} 列${errMsg}`, errors.length ? 'error' : 'success');
+            event.target.value = '';
+        }
+        function dsExportJson() {
+            const data = _dsRows.map(r => {
+                const obj = {};
+                _dsCols.forEach(c => { obj[c] = r[c] ?? ''; });
+                return obj;
+            });
+            const name = (document.getElementById('dsName').value || 'dataset').trim().replace(/[^\w一-鿿-]+/g, '_');
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = `${name || 'dataset'}.json`;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }
+        function dsClearGrid() {
+            if (!confirm('確定清空所有欄位與資料列?此動作不會立即儲存。')) return;
+            _dsCols = [];
+            _dsRows = [];
+            renderDataSetGrid();
+        }
+        async function dataSetSubmit(ev) {
+            ev.preventDefault();
+            const cleanRows = (_dsRows || []).filter(row => {
+                return _dsCols.some(c => {
+                    const v = row[c];
+                    return v != null && String(v).trim() !== '';
+                });
+            });
+            const payload = {
+                project_id: currentProjectId,
+                name: document.getElementById('dsName').value.trim(),
+                description: document.getElementById('dsDesc').value || null,
+                owner: document.getElementById('dsOwner').value.trim() || null,
+                columns_json: _dsCols,
+                rows_json: cleanRows,
+            };
+            try {
+                const url = _editingDataSetId ? '/api/data-sets/'+_editingDataSetId : '/api/data-sets';
+                const method = _editingDataSetId ? 'PUT' : 'POST';
+                const res = await fetch(url, {method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+                if (!res.ok) throw new Error('HTTP '+res.status);
+                showToast(_editingDataSetId ? '已更新' : '已建立', 'success');
+                closeDataSetModal();
+                renderDataSetsList();
+            } catch(e) { showToast('儲存失敗:'+e.message, 'error'); }
+            return false;
+        }
+        async function deleteDataSet(id, code) {
+            if (!confirm(`確定刪除資料集 ${code}?`)) return;
+            try {
+                const res = await fetch('/api/data-sets/'+id, {method:'DELETE'});
+                if (!res.ok && res.status !== 204) throw new Error('HTTP '+res.status);
+                showToast('已刪除', 'success');
+                renderDataSetsList();
+            } catch(e) { showToast('刪除失敗:'+e.message, 'error'); }
+        }
+
         // ── Phase 5 多租戶:專案成員管理(現已移到「設定 → 專案成員」分頁)─
         // 保留 function 名供舊呼叫點(例如 home view 快速導覽 / 鍵盤 shortcut)
         // 一鍵跳到正確分頁 — 跟使用者體感一致。
@@ -12790,7 +12563,7 @@ driver.swipe(100, 800, 100, 200, 500)"
         function openTestRoundModal(id) {
             testRoundEditingId = id || null;
             const target = id ? testRoundList.find(r => r.id === id) : null;
-            document.getElementById('testRoundModalTitle').textContent = target ? '編輯測試回合' : '新增測試回合';
+            document.getElementById('testRoundModalTitle').textContent = target ? '編輯TestRun' : '新增TestRun';
             document.getElementById('trName').value = target ? target.name : '';
             document.getElementById('trDesc').value = target?.description || '';
             document.getElementById('trExecMode').value = target?.execution_mode || getExecutionMode();
@@ -12838,7 +12611,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 if (!res.ok) throw new Error('HTTP ' + res.status);
                 testRoundList = await res.json();
                 if (!testRoundList.length) {
-                    tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-slate-400">尚無測試回合；點右上「新增回合」</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-slate-400">尚無TestRun；點右上「新增回合」</td></tr>';
                     return;
                 }
                 tbody.innerHTML = '';
@@ -12940,7 +12713,7 @@ driver.swipe(100, 800, 100, 200, 500)"
 
         async function deleteTestRound(id) {
             const r = testRoundList.find(x => x.id === id);
-            if (!confirm(`確定刪除測試回合「${r?.name || id}」？`)) return;
+            if (!confirm(`確定刪除TestRun「${r?.name || id}」？`)) return;
             try {
                 const res = await fetch(`/api/rounds/${id}`, { method: 'DELETE' });
                 if (!res.ok && res.status !== 204) throw new Error('HTTP ' + res.status);
@@ -14297,7 +14070,7 @@ driver.swipe(100, 800, 100, 200, 500)"
         // Email Domain 自動歸屬 一起下架;'perms' / 'roles' 也已下架(權限與
         // 角色由系統內建,不需在設定頁管理)。後端對應 endpoint 仍保留以利
         // 程式內部呼叫(例如登入時 hydrate 角色名稱)。
-        const _SETTINGS_TABS = ['user','notif','email','ai','projectMembers'];
+        const _SETTINGS_TABS = ['user','ai'];
         const _SETTINGS_TAB_BTN_ON  = 'px-3 py-1.5 text-sm font-medium rounded text-amber-700 bg-amber-50 border border-amber-300';
         const _SETTINGS_TAB_BTN_OFF = 'px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50';
         function settingsSwitchTab(name) {
@@ -14313,10 +14086,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                     pane.classList.add('hidden');
                 }
             });
-            // lazy load 各分頁資料
-            if (name === 'notif') loadNotificationPrefs();
-            else if (name === 'email') loadEmailConfig();
-            else if (name === 'projectMembers') pmReload();
         }
 
         let _permsCatalogue = [];
