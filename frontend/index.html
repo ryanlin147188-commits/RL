@@ -2494,6 +2494,8 @@
                 <div class="max-w-5xl mx-auto">
                     <div class="bg-white rounded-lg border border-amber-100 shadow-sm p-2 mb-4 flex gap-1 flex-wrap">
                         <button id="setTabUser"     onclick="settingsSwitchTab('user')"     class="px-3 py-1.5 text-sm font-medium rounded text-amber-700 bg-amber-50 border border-amber-300"><i class="fa-solid fa-user-circle"></i> <span data-i18n="settings.tab.user">設定</span></button>
+                        <button id="setTabNotif"   onclick="settingsSwitchTab('notif')"   class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-bell text-amber-500"></i> 通知設定</button>
+                        <button id="setTabEmail"   onclick="settingsSwitchTab('email')"   class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-envelope text-blue-500"></i> Email 通知</button>
                     </div>
 
                     <!-- ─── Pane 1: 使用者設定（保留原本內容） ─── -->
@@ -2671,8 +2673,179 @@
                     </section>
                     </div>
 
+                    <!-- ─── Pane: 通知設定 ─── -->
+                    <div id="setPaneNotif" class="hidden space-y-4">
+                        <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-6">
+                            <h3 class="font-bold text-stone-700 text-base mb-1 flex items-center gap-2">
+                                <i class="fa-solid fa-bell text-amber-500"></i> 通知設定
+                            </h3>
+                            <p class="text-[11px] text-stone-500 mb-4">
+                                設定每種事件要以「站內通知」或「Email 寄信」方式通知你（帳號：<b id="notifPrefUsername" class="text-stone-700">—</b>）。
+                                Email 寄信需先在「Email 通知」頁完成 SMTP 設定並啟用。
+                            </p>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-sm">
+                                    <thead class="bg-stone-50 border-b border-stone-200 text-stone-500 text-[11px] uppercase tracking-wider">
+                                        <tr>
+                                            <th class="px-3 py-2 text-left">事件</th>
+                                            <th class="px-3 py-2 text-center w-24"><i class="fa-solid fa-bell"></i> 站內</th>
+                                            <th class="px-3 py-2 text-center w-24"><i class="fa-solid fa-envelope"></i> Email</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="notifEventsBody" class="divide-y divide-stone-100">
+                                        <tr><td colspan="3" class="p-4 text-center text-stone-400">切換至此 Tab 時自動載入…</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="flex justify-end mt-4">
+                                <button type="button" onclick="saveNotificationPrefs()"
+                                    class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold shadow-sm transition flex items-center gap-2">
+                                    <i class="fa-solid fa-floppy-disk"></i> 儲存通知設定
+                                </button>
+                            </div>
+                        </section>
+                    </div>
 
-                    <!-- ─── Pane 8: 邀請 + Email Domain 自動歸屬 ─── -->
+                    <!-- ─── Pane: Email 通知 & Zoho 設定 ─── -->
+                    <div id="setPaneEmail" class="hidden space-y-4">
+
+                        <!-- SMTP 設定卡 -->
+                        <section class="bg-white rounded-xl border border-blue-100 shadow-sm p-6">
+                            <h3 class="font-bold text-stone-700 text-base mb-1 flex items-center gap-2">
+                                <i class="fa-solid fa-envelope text-blue-500"></i> SMTP 寄信設定
+                                <span class="text-[11px] font-normal text-stone-500 ml-1">（設定後通知可寄至 Zoho 信箱）</span>
+                            </h3>
+                            <p class="text-[11px] text-stone-500 mb-5">
+                                使用 Zoho Mail SMTP 寄信：Host <code class="bg-stone-100 px-1 rounded">smtp.zoho.com</code>，Port <code class="bg-stone-100 px-1 rounded">587</code>（STARTTLS）。
+                                設定完成後點「測試寄信」確認成功，再到「通知設定」Tab 開啟各事件的 Email 通知。
+                            </p>
+                            <form onsubmit="return saveEmailConfig(event)" class="space-y-4">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label for="emCfgHost" class="block text-xs font-semibold text-stone-600 mb-1">SMTP Host <span class="text-rose-500">*</span></label>
+                                        <input type="text" id="emCfgHost" placeholder="smtp.zoho.com" autocomplete="off"
+                                            class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                                    </div>
+                                    <div>
+                                        <label for="emCfgPort" class="block text-xs font-semibold text-stone-600 mb-1">SMTP Port</label>
+                                        <input type="number" id="emCfgPort" value="587" min="1" max="65535" autocomplete="off"
+                                            class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                                    </div>
+                                    <div>
+                                        <label for="emCfgUser" class="block text-xs font-semibold text-stone-600 mb-1">帳號 (Zoho Email) <span class="text-rose-500">*</span></label>
+                                        <input type="email" id="emCfgUser" placeholder="yourname@zoho.com" autocomplete="off"
+                                            class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                                    </div>
+                                    <div>
+                                        <label for="emCfgPwd" class="block text-xs font-semibold text-stone-600 mb-1">密碼 / App Password <span class="text-rose-500">*</span></label>
+                                        <input type="password" id="emCfgPwd" placeholder="App-specific password 建議" autocomplete="new-password"
+                                            class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                                        <p class="text-[10px] text-stone-400 mt-0.5">建議使用 App-specific Password，詳見下方說明</p>
+                                    </div>
+                                    <div>
+                                        <label for="emCfgFrom" class="block text-xs font-semibold text-stone-600 mb-1">寄件者地址 (From) <span class="text-rose-500">*</span></label>
+                                        <input type="email" id="emCfgFrom" placeholder="noreply@yourcompany.com" autocomplete="off"
+                                            class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                                    </div>
+                                    <div>
+                                        <label for="emCfgFromName" class="block text-xs font-semibold text-stone-600 mb-1">寄件者名稱</label>
+                                        <input type="text" id="emCfgFromName" value="AutoTest" autocomplete="off"
+                                            class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-6 pt-1">
+                                    <label class="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" id="emCfgTls" checked class="rounded border-stone-300 text-blue-500 focus:ring-blue-400">
+                                        <span class="text-sm text-stone-700">使用 STARTTLS (Port 587)</span>
+                                    </label>
+                                    <label class="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" id="emCfgEnabled" class="rounded border-stone-300 text-blue-500 focus:ring-blue-400">
+                                        <span class="text-sm text-stone-700"><b>啟用 Email 通知</b></span>
+                                    </label>
+                                </div>
+                                <div class="flex items-center gap-2 pt-1 flex-wrap">
+                                    <button type="submit"
+                                        class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-semibold shadow-sm transition flex items-center gap-2">
+                                        <i class="fa-solid fa-floppy-disk"></i> 儲存設定
+                                    </button>
+                                    <button type="button" onclick="sendEmailTest()"
+                                        class="px-4 py-2 bg-stone-100 hover:bg-stone-200 border border-stone-300 text-stone-700 rounded-md text-sm font-semibold transition flex items-center gap-2">
+                                        <i class="fa-solid fa-paper-plane"></i> 測試寄信
+                                    </button>
+                                    <span class="text-[11px] text-stone-400">（測試信會寄到你的帳號 Email）</span>
+                                </div>
+                            </form>
+                        </section>
+
+                        <!-- Zoho App Password 申請步驟 -->
+                        <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-6">
+                            <h3 class="font-bold text-stone-700 text-base mb-3 flex items-center gap-2">
+                                <i class="fa-solid fa-key text-amber-500"></i> 如何取得 Zoho App Password（SMTP 用）
+                            </h3>
+                            <ol class="space-y-2 text-sm text-stone-600 list-none">
+                                <li class="flex gap-3">
+                                    <span class="shrink-0 w-6 h-6 rounded-full bg-amber-500 text-white text-xs font-bold flex items-center justify-center">1</span>
+                                    <span>登入 <a href="https://accounts.zoho.com/home#security" target="_blank" class="text-blue-600 underline hover:text-blue-800">accounts.zoho.com → Security</a></span>
+                                </li>
+                                <li class="flex gap-3">
+                                    <span class="shrink-0 w-6 h-6 rounded-full bg-amber-500 text-white text-xs font-bold flex items-center justify-center">2</span>
+                                    <span>找到「App Passwords」，點「Generate New Password」</span>
+                                </li>
+                                <li class="flex gap-3">
+                                    <span class="shrink-0 w-6 h-6 rounded-full bg-amber-500 text-white text-xs font-bold flex items-center justify-center">3</span>
+                                    <span>輸入應用程式名稱（如 <code class="bg-stone-100 px-1 rounded">AutoTest</code>），複製產生的密碼（只顯示一次）</span>
+                                </li>
+                                <li class="flex gap-3">
+                                    <span class="shrink-0 w-6 h-6 rounded-full bg-amber-500 text-white text-xs font-bold flex items-center justify-center">4</span>
+                                    <span>將此 App Password 填入上方「密碼」欄位（不要用你的主帳號密碼）</span>
+                                </li>
+                            </ol>
+                            <div class="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-100 text-xs text-blue-800">
+                                <b>Zoho SMTP 快速填入：</b>
+                                Host: <code>smtp.zoho.com</code> &nbsp;|&nbsp;
+                                Port: <code>587</code> &nbsp;|&nbsp;
+                                TLS: <code>STARTTLS</code> &nbsp;|&nbsp;
+                                帳號/From: 你的 Zoho 信箱地址
+                            </div>
+                        </section>
+
+                        <!-- Zoho SSO 申請步驟 -->
+                        <section class="bg-white rounded-xl border border-violet-100 shadow-sm p-6">
+                            <h3 class="font-bold text-stone-700 text-base mb-3 flex items-center gap-2">
+                                <i class="fa-brands fa-zoho text-violet-500"></i><i class="fa-solid fa-right-to-bracket text-violet-500 -ml-1"></i> 如何啟用 Zoho SSO 登入
+                            </h3>
+                            <p class="text-xs text-stone-500 mb-3">設定完成後，登入頁會出現橘色「使用 Zoho 帳號登入」按鈕，使用者可直接用 Zoho 帳號一鍵登入，無需另設密碼。</p>
+                            <ol class="space-y-2 text-sm text-stone-600 list-none">
+                                <li class="flex gap-3">
+                                    <span class="shrink-0 w-6 h-6 rounded-full bg-violet-500 text-white text-xs font-bold flex items-center justify-center">1</span>
+                                    <span>前往 <a href="https://api-console.zoho.com" target="_blank" class="text-blue-600 underline hover:text-blue-800">api-console.zoho.com</a> → 點「Add Client」→ 選「<b>Server-based Applications</b>」</span>
+                                </li>
+                                <li class="flex gap-3">
+                                    <span class="shrink-0 w-6 h-6 rounded-full bg-violet-500 text-white text-xs font-bold flex items-center justify-center">2</span>
+                                    <span>填入名稱，「Authorized Redirect URIs」填：<br>
+                                        <code id="zohoRedirectUriDisplay" class="bg-stone-100 px-2 py-0.5 rounded text-xs break-all">http://192.168.4.89/api/auth/zoho/callback</code>
+                                    </span>
+                                </li>
+                                <li class="flex gap-3">
+                                    <span class="shrink-0 w-6 h-6 rounded-full bg-violet-500 text-white text-xs font-bold flex items-center justify-center">3</span>
+                                    <span>建立完成後，複製「Client ID」和「Client Secret」</span>
+                                </li>
+                                <li class="flex gap-3">
+                                    <span class="shrink-0 w-6 h-6 rounded-full bg-violet-500 text-white text-xs font-bold flex items-center justify-center">4</span>
+                                    <span>在伺服器 <code class="bg-stone-100 px-1 rounded">~/RL_TMP/.env</code> 加入以下三行，然後重啟 backend：
+                                        <pre class="mt-1 bg-stone-900 text-green-300 text-[11px] p-3 rounded-md overflow-x-auto">ZOHO_CLIENT_ID=你的_Client_ID
+ZOHO_CLIENT_SECRET=你的_Client_Secret
+ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
+                                    </span>
+                                </li>
+                                <li class="flex gap-3">
+                                    <span class="shrink-0 w-6 h-6 rounded-full bg-violet-500 text-white text-xs font-bold flex items-center justify-center">5</span>
+                                    <span>重啟 backend：<code class="bg-stone-100 px-1 rounded text-xs">docker compose restart backend</code>，重整登入頁即可看到 Zoho 按鈕。</span>
+                                </li>
+                            </ol>
+                        </section>
+
+                    </div>  <!-- /setPaneEmail -->
 
                 </div>  <!-- /max-w-5xl mx-auto -->
             </div>  <!-- /userSettingsWorkspace -->
@@ -14554,8 +14727,8 @@
         };
         function _zh(group, val) { return (_ZH[group] && _ZH[group][val]) || val || ''; }
 
-        // ─── 設定（Settings）── 目前只有 user tab（AI tab 保留備用）
-        const _SETTINGS_TABS = ['user','ai'];
+        // ─── 設定（Settings）── user / notif / email tabs
+        const _SETTINGS_TABS = ['user','notif','email'];
         const _SETTINGS_TAB_BTN_ON  = 'px-3 py-1.5 text-sm font-medium rounded text-amber-700 bg-amber-50 border border-amber-300';
         const _SETTINGS_TAB_BTN_OFF = 'px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50';
         function settingsSwitchTab(name) {
@@ -14571,6 +14744,8 @@
                     pane.classList.add('hidden');
                 }
             });
+            if (name === 'notif') loadNotificationPrefs();
+            if (name === 'email') loadEmailConfig();
         }
 
         let _permsCatalogue = [];
