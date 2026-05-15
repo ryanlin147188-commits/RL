@@ -7621,13 +7621,17 @@ driver.swipe(100, 800, 100, 200, 500)"
                     e.preventDefault();
                     e.stopPropagation();
                     e.dataTransfer.dropEffect = 'move';
-                    div.classList.add('ring-2', 'ring-blue-300');
+                    row.classList.add('outline', 'outline-2', 'outline-blue-400', 'outline-offset-[-1px]');
                 });
-                div.addEventListener('dragleave', () => div.classList.remove('ring-2', 'ring-blue-300'));
+                div.addEventListener('dragleave', (e) => {
+                    if (!div.contains(e.relatedTarget)) {
+                        row.classList.remove('outline', 'outline-2', 'outline-blue-400', 'outline-offset-[-1px]');
+                    }
+                });
                 div.addEventListener('drop', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    div.classList.remove('ring-2', 'ring-blue-300');
+                    row.classList.remove('outline', 'outline-2', 'outline-blue-400', 'outline-offset-[-1px]');
                     const fromId = e.dataTransfer.getData('text/plain');
                     if (fromId && fromId !== n.id) reorderNode(fromId, n.id);
                 });
@@ -7686,26 +7690,48 @@ driver.swipe(100, 800, 100, 200, 500)"
             return text.slice(0, idx) + '<mark class="bg-yellow-200 text-slate-900 rounded px-0.5">' + text.slice(idx, end) + '</mark>' + text.slice(end);
         }
 
-        // ---- 拖曳排序：在「同一父節點」內重新排序 ----
+        // ---- 拖曳排序：同層級（相同深度）內可跨父節點調整順序 ----
         async function reorderNode(fromId, targetId) {
             const from = findNodeInfo(activeTreeData, fromId);
             const to = findNodeInfo(activeTreeData, targetId);
             if (!from || !to) return showToast('找不到節點', 'error');
-            // 仅允許同父節點間拖曳（防止跨層崩潰）
-            if (from.siblings !== to.siblings) {
-                return showToast('僅可在同一層級中調整順序', 'error');
+            // 只允許相同深度層級之間移動（不允許跨深度）
+            if (from.level !== to.level) {
+                return showToast('只能在相同層級之間調整順序', 'error');
             }
-            const arr = from.siblings;
-            const [moved] = arr.splice(from.index, 1);
-            const newIdx = arr.indexOf(to.node);
-            arr.splice(newIdx, 0, moved);
+            const sameParent = (from.parent === to.parent);
+            const oldSiblings = from.siblings;
+            const newSiblings = to.siblings;
+            const movedNode = from.node;
+            const targetNode = to.node;
+            // 從原位置移除
+            oldSiblings.splice(from.index, 1);
+            // 插入到目標節點前（splice 後 indexOf 仍正確）
+            const insertIdx = newSiblings.indexOf(targetNode);
+            newSiblings.splice(insertIdx, 0, movedNode);
             renderAllTree();
-            // 寫回後端 sort_order（以 10 為間距便利未來插入）
+            // 寫回後端
             try {
-                await Promise.all(arr.map((n, i) => apiFetch(`/api/nodes/${encodeURIComponent(n.id)}`, {
+                const updates = [];
+                if (!sameParent) {
+                    // 更新 parent_id
+                    const newParentId = to.parent ? to.parent.id : null;
+                    updates.push(apiFetch(`/api/nodes/${encodeURIComponent(fromId)}`, {
+                        method: 'PATCH', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ parent_id: newParentId })
+                    }));
+                    // 更新舊父節點的子項 sort_order
+                    oldSiblings.forEach((n, i) => updates.push(apiFetch(`/api/nodes/${encodeURIComponent(n.id)}`, {
+                        method: 'PATCH', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ sort_order: (i + 1) * 10 })
+                    })));
+                }
+                // 更新新父節點的子項 sort_order（含被移入的節點）
+                newSiblings.forEach((n, i) => updates.push(apiFetch(`/api/nodes/${encodeURIComponent(n.id)}`, {
                     method: 'PATCH', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ sort_order: (i + 1) * 10 })
                 })));
+                await Promise.all(updates);
                 showToast('順序已更新', 'success');
             } catch (e) {
                 showToast(`寫回順序失敗：${e.message}`, 'error');
