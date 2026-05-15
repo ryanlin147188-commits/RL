@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# AutoTest v1.0 -- backup script (RFC-11).
+# AutoTest — backup script.
 #
 # Snapshots the live docker compose stack into a single timestamped directory
 # containing:
@@ -13,11 +13,12 @@
 #   SHA256SUMS         integrity manifest, verified by restore.sh
 #
 # Usage:
-#   ./scripts/backup.sh                 # write to ./backups/<timestamp>/
-#   BACKUP_DEST=/srv/snaps ./scripts/backup.sh
-#   S3_BUCKET=mybucket ./scripts/backup.sh   # also sync to s3://...
+#   ./scripts/backup.sh                         # write to ./backups/<timestamp>/
+#   BACKUP_DEST=/srv/snaps ./scripts/backup.sh  # override destination
+#   BACKUP_KEEP_DAYS=14 ./scripts/backup.sh     # keep 14 days (default: 7)
+#   S3_BUCKET=mybucket ./scripts/backup.sh      # also sync to s3://...
 #
-# Designed to be re-runnable from cron / systemd timer / docker volume backup.
+# Designed to be re-runnable from cron / systemd timer.
 
 set -euo pipefail
 
@@ -99,3 +100,13 @@ if [ -n "${S3_BUCKET:-}" ]; then
 fi
 
 echo "[backup] done -> $DEST"
+
+# ── 6) Retention cleanup ──────────────────────────────────────────────────
+BACKUP_KEEP_DAYS="${BACKUP_KEEP_DAYS:-7}"
+if [ -d "$DEST_BASE" ]; then
+    echo "[backup] pruning snapshots older than ${BACKUP_KEEP_DAYS} days in $DEST_BASE ..."
+    find "$DEST_BASE" -maxdepth 1 -mindepth 1 -type d \
+        -name '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9]' \
+        -mtime +"$BACKUP_KEEP_DAYS" \
+        -exec rm -rf {} +
+fi
