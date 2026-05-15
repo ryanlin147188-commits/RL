@@ -12424,7 +12424,7 @@
                                 : '<span class="inline-block bg-indigo-50 text-indigo-700 border border-indigo-200 rounded px-1.5 py-0.5 text-[10px] font-mono"><i class="fa-brands fa-docker mr-0.5"></i>Docker</span>'}
                         </td>
                         <td class="p-2 text-slate-600 text-xs max-w-xs truncate" title="${escapeAttrBasic(r.description || '')}">${escapeAttrBasic(r.description || '')}</td>
-                        <td class="p-2 font-mono text-xs text-slate-500">${formatScheduleDate(r.created_at)}</td>
+                        <td class="p-2 font-mono text-xs text-slate-500">${formatBackendTime(r.created_at)}</td>
                         <td class="p-2 space-x-1 whitespace-nowrap">
                             <button type="button" onclick="executeTestRound('${r.id}')" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded" title="立即執行全部案例"><i class="fa-solid fa-play"></i> 執行</button>
                             <button type="button" onclick="openTestRoundModal('${r.id}')" class="text-xs px-2 py-1 bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 rounded"><i class="fa-solid fa-pen"></i> 編輯</button>
