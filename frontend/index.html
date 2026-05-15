@@ -1148,6 +1148,10 @@
             <div id="mainHeader" class="p-5 border-b border-amber-100 flex justify-between items-end shrink-0 bg-white z-10">
                 <div>
                     <div class="text-xs text-slate-400 mb-1 flex items-center gap-2">
+                        <button id="navBackBtn" onclick="goBack()" class="hidden items-center gap-1 px-2 py-0.5 rounded border border-stone-200 bg-stone-50 hover:bg-stone-100 text-stone-500 hover:text-stone-700 transition mr-1" title="返回上一頁">
+                            <i class="fa-solid fa-arrow-left text-[10px]"></i>
+                            <span id="navBackLabel" class="text-[11px] font-medium">返回</span>
+                        </button>
                         <span id="viewTag" class="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-medium">系統</span>
                         <i class="fa-solid fa-chevron-right text-[10px]"></i> <span id="viewFilename">請選擇專案與檔案</span>
                     </div>
@@ -2874,6 +2878,88 @@
         let currentModalAction = null;
         let targetNodeId = null;
 
+        // ==================== 導覽歷史 (back navigation) ====================
+        let _navHistory = [];         // [{ workspaceId, label }]
+        let _suppressNavPush = false; // goBack 期間暫停記錄，避免循環
+
+        const _WS_LABEL = {
+            reviewWorkspace:       '審核',
+            reportWorkspace:       '測試報告',
+            detailReportWorkspace: '報告詳情',
+            recorderWorkspace:     '測試錄製',
+            testcasesWorkspace:    '測試案例',
+            homeWorkspace:         '首頁',
+            testDataSetsWorkspace: '測試資料',
+            testRoundWorkspace:    'TestRun',
+            envVarsWorkspace:      '環境變數',
+            editorWorkspace:       '案例編輯',
+        };
+
+        const _ALL_WS_IDS = [
+            'editorWorkspace','emptyWorkspace','detailReportWorkspace',
+            'recorderWorkspace','reportWorkspace','testRoundWorkspace',
+            'envVarsWorkspace','homeWorkspace','testcasesWorkspace',
+            'userSettingsWorkspace','testDataSetsWorkspace',
+            'backlogWorkspace','reviewWorkspace',
+        ];
+
+        function _navCurrentWsId() {
+            return _ALL_WS_IDS.find(id => {
+                const el = document.getElementById(id);
+                return el && !el.classList.contains('hidden');
+            }) || null;
+        }
+
+        function _navPush() {
+            if (_suppressNavPush) return;
+            const cur = _navCurrentWsId();
+            if (!cur) return;
+            const last = _navHistory[_navHistory.length - 1];
+            if (last && last.workspaceId === cur) return; // 重複不推
+            _navHistory.push({ workspaceId: cur, label: _WS_LABEL[cur] || cur });
+            if (_navHistory.length > 20) _navHistory.shift();
+            _navUpdateBackBtn();
+        }
+
+        function _navUpdateBackBtn() {
+            const btn = document.getElementById('navBackBtn');
+            if (!btn) return;
+            if (_navHistory.length > 0) {
+                btn.classList.remove('hidden');
+                btn.classList.add('inline-flex');
+                const lbl = document.getElementById('navBackLabel');
+                if (lbl) lbl.textContent = '返回' + (_navHistory[_navHistory.length - 1].label || '');
+            } else {
+                btn.classList.add('hidden');
+                btn.classList.remove('inline-flex');
+            }
+        }
+
+        function goBack() {
+            if (!_navHistory.length) return;
+            const prev = _navHistory.pop();
+            _navUpdateBackBtn();
+            _suppressNavPush = true;
+            try {
+                switch (prev.workspaceId) {
+                    case 'reviewWorkspace':       if (typeof showReviewView === 'function') showReviewView(); break;
+                    case 'reportWorkspace':       if (typeof showReportView === 'function') showReportView(); break;
+                    case 'recorderWorkspace':     if (typeof showRecorderView === 'function') showRecorderView(); break;
+                    case 'testcasesWorkspace':    if (typeof showTestCasesView === 'function') showTestCasesView(); break;
+                    case 'homeWorkspace':         if (typeof showHomeView === 'function') showHomeView(); break;
+                    case 'testDataSetsWorkspace': if (typeof showTestDataSetsView === 'function') showTestDataSetsView(); break;
+                    case 'testRoundWorkspace':    if (typeof showTestRoundView === 'function') showTestRoundView(); break;
+                    case 'envVarsWorkspace':      if (typeof showEnvVarsView === 'function') showEnvVarsView(); break;
+                    default:
+                        _hideAllWorkspaces();
+                        document.getElementById(prev.workspaceId)?.classList.remove('hidden');
+                        document.getElementById('mainHeader')?.classList.remove('hidden');
+                }
+            } finally {
+                _suppressNavPush = false;
+            }
+        }
+
         // ==================== 0.5. Lazy-load helpers(Perf B1/B2) ====================
         // Chart.js / mermaid / marked / html2pdf 不在 boot 路徑載入,改由首次用到的
         // view 呼叫對應 ensure* 函式才動態 inject <script>。同一函式重入時靠 cached
@@ -4339,6 +4425,7 @@
 
         function showReportView() {
             if (!confirmDiscardIfDirty()) return false;
+            _navPush();
             _hideAllWorkspaces();
             _setViewMeta('view.reports.title', 'view.reports.title', '<i class="fa-solid fa-chart-line text-blue-500"></i>', 'Report', 'bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium');
             document.getElementById('reportWorkspace').classList.remove('hidden');
@@ -4694,6 +4781,7 @@
             const report = mockReportData[reportId];
             if (!report) { showToast('尚未串接後端 /api/reports/{reportId}/details', 'error'); return; }
 
+            _navPush();
             currentReportId = reportId;
             currentReportContext.projectId = report.projectId;
             currentReportContext.testCaseId = report.testCaseId;
@@ -5210,6 +5298,7 @@
         }
 
         function backToDashboard() {
+            if (_navHistory.length > 0) { goBack(); return; }
             document.getElementById('detailReportWorkspace').classList.add('hidden');
             document.getElementById('reportWorkspace').classList.remove('hidden');
             document.getElementById('mainHeader').classList.remove('hidden');
@@ -9198,6 +9287,7 @@
 
         function showRecorderView() {
             if (!confirmDiscardIfDirty()) return false;
+            _navPush();
             _hideAllWorkspaces();
             _setViewMeta('view.recorder.title', 'view.recorder.title', '<i class="fa-solid fa-video text-rose-500"></i>', 'Recorder', 'bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-medium');
             document.getElementById('recorderWorkspace').classList.remove('hidden');
@@ -9293,6 +9383,7 @@
 
         function showReviewView() {
             if (typeof confirmDiscardIfDirty === 'function' && !confirmDiscardIfDirty()) return false;
+            _navPush();
             _hideAllWorkspaces();
             _setViewMeta('review.title', 'review.title', '<i class="fa-solid fa-stamp text-violet-500"></i>', 'Review', 'bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded font-medium');
             document.getElementById('reviewWorkspace').classList.remove('hidden');
@@ -9858,6 +9949,7 @@
         // 點擊左上角 AutoTest Logo 或呼叫 showHomeView() 進入首頁
         function showHomeView() {
             if (!confirmDiscardIfDirty()) return false;
+            _navPush();
             _hideAllWorkspaces();
             document.getElementById('homeWorkspace').classList.remove('hidden');
             document.getElementById('mainHeader').classList.remove('hidden');
@@ -10035,6 +10127,7 @@
         // ==================== 測試案例清單（與側邊欄同步） ====================
         function showTestCasesView() {
             if (!confirmDiscardIfDirty()) return false;
+            _navPush();
             _hideAllWorkspaces();
             _setViewMeta('view.testCases.title', 'view.testCases.title', '<i class="fa-solid fa-list-check text-blue-500"></i>', 'Cases', 'bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium');
             document.getElementById('testcasesWorkspace').classList.remove('hidden');
@@ -10527,6 +10620,7 @@
 
         function showTestRoundView() {
             if (!confirmDiscardIfDirty()) return false;
+            _navPush();
             _hideAllWorkspaces();
             _setViewMeta('view.testRound.title', 'view.testRound.title', '<i class="fa-solid fa-layer-group text-purple-500"></i>', 'Rounds', 'bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium');
             document.getElementById('testRoundWorkspace').classList.remove('hidden');
@@ -10540,6 +10634,7 @@
 
         function showEnvVarsView() {
             if (!confirmDiscardIfDirty()) return false;
+            _navPush();
             _hideAllWorkspaces();
             _setViewMeta('view.envVars.title', 'view.envVars.title', '<i class="fa-solid fa-key text-emerald-500"></i>', 'Env', 'bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-medium');
             document.getElementById('envVarsWorkspace').classList.remove('hidden');
@@ -13887,6 +13982,7 @@
         // 讓切換語系時自動重譯。icon 仍由 titleHtml 內的 <i> 提供。
         function _setView(workspaceId, title, tag, tagClass, filename, opts) {
             if (!confirmDiscardIfDirty()) return false;
+            _navPush();
             _hideAllWorkspaces();
             document.getElementById(workspaceId).classList.remove('hidden');
             document.getElementById('mainHeader').classList.remove('hidden');
