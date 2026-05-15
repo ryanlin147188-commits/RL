@@ -14,11 +14,11 @@
 
 AutoTest 是一套精簡、完全自架的 QA 工作台，讓測試團隊能夠：
 
-1. **撰寫** — 以六層樹狀結構（Project → Feature → Platform → Page → Scenario → TestCase）管理測試案例，支援 Markdown 與 BDD 步驟格式，內建 Capture 變數、If/ElseIf/Else 條件分支、動態運算式（Mini DSL）及資料驅動（DDT）。
-2. **錄製** — 三種模式：Web（Playwright codegen）、API（貼 cURL 解析或 mitmproxy Docker）、App（Appium 腳本轉換）。
-3. **執行** — 每次跑都在獨立的短命 Docker 容器內以 Robot Framework 7.x + Playwright 執行，提供 WebSocket 即時日誌、逐步截圖、MP4 影片錄製、Playwright trace。
-4. **報告** — Allure 風格執行報告，歷史趨勢圖（Chart.js）、per-step trace viewer、可匯出 PDF。
-5. **排程** — ONCE / DAILY / WEEKLY / MONTHLY 自動觸發，無需人工介入。
+1. **撰寫** — 以五層樹狀結構（Project → Feature → Page → Scenario → TestCase）管理測試案例，支援 BDD / KDT 步驟格式，內建 Capture 變數、If/ElseIf/Else 條件分支、動態運算式（Mini DSL）及資料驅動（DDT）。
+2. **錄製** — Web 錄製（Playwright codegen，Docker noVNC 模式）、API 錄製（mitmproxy Docker 模式）、App 錄製（Appium 腳本轉換）。
+3. **執行** — 每次跑都在獨立的短命 Docker 容器內以 Robot Framework 7.x + Playwright 執行，或透過本機 Agent 直接在桌面瀏覽器上跑；提供 WebSocket 即時日誌、逐步截圖、MP4 影片錄製、Playwright trace。
+4. **報告** — 執行後自動產生報告，歷史趨勢圖（Chart.js）、per-step 截圖 / 影片 / trace viewer、可匯出 PDF。
+5. **排程** — ONCE / DAILY / WEEKLY / MONTHLY 自動觸發，每 30 秒掃描，無需人工介入。
 6. **審核** — TestCase / Script / Report 三種實體的 Pending → Approved / Rejected 工作流，完整 audit trail。
 
 ---
@@ -64,34 +64,34 @@ docker compose up -d --build
 
 | 功能模組 | 說明 |
 |---|---|
+| **儀表板** | 專案測試統計（總數 / 通過 / 失敗 / 通過率 / 平均時長）、趨勢折線圖、系統健康監控（CPU / 記憶體 / 磁碟 / Docker）|
 | **專案管理** | 建立專案、複製整個專案（含完整樹狀結構、TestcaseContent、前置案例連結）|
-| **六層測試樹** | Project / Feature / Platform / Page / Scenario / TestCase，右鍵 CRUD，Drag-and-drop 排序 |
-| **BDD 編輯器** | 視覺化步驟表格；Given / When / Then / And；行內斷言（Condition + Expected）|
+| **五層測試樹** | Project / Feature / Page / Scenario / TestCase，右鍵 CRUD，Drag-and-drop 排序 |
+| **BDD / KDT 編輯器** | 視覺化步驟表格；Given / When / Then / And；行內斷言（Condition + Expected）|
 | **Capture 步驟** | 從畫面元素或 API 回傳值取值，存入變數供後續步驟引用 |
 | **條件分支** | If / ElseIf / Else / EndIf，由 Robot Framework 7 真實執行，非僅模擬 |
 | **動態運算式** | `{{= expr }}` 支援變數、env、算術、字串、uuid()、now()、fakerXxx() 等內建函式 |
 | **資料驅動（DDT）** | 每個 TestCase 帶資料表，或引用獨立測試資料集；`{{= row.col }}` 在執行時解析 |
 | **前置案例（Setup）** | TestCase 可掛 N 個前置 TestCase，並排 sort_order、可停用、失敗即中止 |
-| **Web 錄製器** | Playwright codegen 本機模式；或 Docker 模式（noVNC 遠端瀏覽器，無需本機安裝）|
-| **API 錄製器** | 貼 cURL 一鍵解析；或 mitmproxy Docker 模式完整擷取 SPA 流量 |
+| **Web 錄製器** | Playwright codegen Docker 模式（noVNC 遠端瀏覽器，無需本機安裝）|
+| **API 錄製器** | mitmproxy Docker 模式，完整擷取 SPA / REST API 流量，一鍵轉 BDD 步驟 |
 | **App 錄製器** | Appium Inspector Python 腳本轉換為 AppiumLibrary keyword 步驟 |
-| **執行引擎** | Robot Framework 7.x + Playwright headless，每次執行獨立容器，即時 WebSocket log，截圖 / MP4 影片 / Playwright trace，retry-on-flaky |
-| **測試報告** | Allure 風格報告，歷史走勢圖，per-step trace viewer，PDF 匯出 |
-| **測試回合** | 將多次執行群組成一個 Round（例：Sprint 23 Smoke），共用 dashboard 與 KPI |
+| **執行引擎** | Robot Framework 7.x + Playwright headless，每次執行獨立容器，即時 WebSocket log，截圖 / MP4 影片 / Playwright trace，支援 Docker 與本機 Agent 兩種模式 |
+| **測試報告** | 執行報告列表、Dashboard 趨勢圖、per-step trace viewer、PDF 匯出 |
+| **TestRun（測試回合）** | 將多個 TestCase 群組成一次批次執行，共用 dashboard 與 KPI |
 | **測試排程** | ONCE / DAILY / WEEKLY / MONTHLY，每 30 秒掃描，自動觸發；支援多節點選取與立即執行 |
 | **審核中心** | TestCase / Script / Report 審核工作流；Pending / Approved / Rejected 分頁；完整 audit trail |
-| **待辦清單** | Feature → Task / Bug / Spike 兩層階層，Sprint 標籤，過期 badge，CRUD |
-| **測試資料集** | 獨立 DDT 資料集（可跨多個 TestCase 共用），欄位 + 資料列管理 |
-| **環境變數** | 每個專案有獨立環境變數表，執行時以 `{{= env.KEY }}` 注入 Robot 變數 |
+| **待辦清單（Backlog）** | Feature → Task / Bug / Spike 兩層階層，Sprint 標籤，逾期 badge，CRUD |
+| **測試資料集** | 獨立 DDT 資料集（可跨多個 TestCase 共用），欄位 + 資料列管理，JSON 匯入匯出 |
+| **環境變數** | 每個專案有獨立環境變數表，Faker 隨機資料生成，`.env` 格式批次匯入 |
 | **Mock 端點** | Per-org mock API 定義（method + path + canned response），供前端測試尚未完成的 API |
 | **本機 Agent** | 有頭模式，讓測試在你的桌面瀏覽器上跑（便於 debug），無需 headless Docker |
 | **Markdown 匯入/匯出** | 整個子樹可與 `.md` 檔雙向轉換，方便版控與跨環境搬遷 |
 | **版本歷史** | 每次儲存 TestCase 皆建立 entity_version 快照，可回溯或比對 diff |
 | **RBAC 三層** | Global / Org / Project 三層權限，角色 CRUD（含 clone），per-project 權限 override，群組（可巢狀）|
-| **Auth / SSO** | fastapi-users + argon2、Zoho OIDC、JWT httpOnly cookie、refresh token、首次登入強制設定密碼 |
-| **邀請管理** | 發送 / 重發 / 延期 / 撤回 / 批次邀請，可設 email 白名單 |
-| **Audit Log** | 所有 mutation 動作記錄（SOC 2 baseline），保留 90 天 |
-| **通知中心** | in-app 通知 + email 通知，per-user 頻道偏好設定，審核事件自動推送 |
+| **Auth / SSO** | 本地帳號 + 可選 Zoho OIDC SSO；JWT httpOnly cookie；refresh token；首次登入強制設定密碼 |
+| **通知中心** | in-app 通知，審核事件自動推送，可標記全部已讀 |
+| **Audit Log** | 所有 mutation 動作記錄，完整 actor / action / entity / timestamp / diff |
 | **REST API** | 完整 OpenAPI / Swagger；`/api/executions` 對 CI/CD 開放（Jenkins / GitHub Actions / GitLab CI）|
 
 完整操作教學見 [操作說明.md](操作說明.md)。
@@ -114,13 +114,13 @@ docker compose up -d --build
 ┌─────────────────────────────▼────────────────────────────────────┐
 │  FastAPI（Python 3.11）                                           │
 │  OIDC · slowapi 限速 · Fernet 加密 · Casbin RBAC                  │
-│  70+ 個 REST 端點 + WebSocket 執行 log 串流                        │
+│  100+ 個 REST 端點 + WebSocket 執行 log 串流                       │
 └──────────┬───────────────┬──────────────────┬────────────────────┘
            │               │                  │
 ┌──────────▼───┐ ┌─────────▼──────┐ ┌─────────▼──────────────────┐
 │ PostgreSQL 16 │ │   Valkey 8     │ │ Celery worker               │
 │（主要資料庫） │ │（快取 + 佇列） │ │  → robot-runner（每次執行）  │
-│  39 個模型    │ │ Redis 協議相容 │ │  → recorder（Web 錄製）      │
+│  36 個模型    │ │ Redis 協議相容 │ │  → recorder（Web 錄製）      │
 └──────────────┘ └────────────────┘ │  → recorder-api（API 錄製）  │
                                     │  （短命容器，跑完自動刪除）   │
 ┌──────────────┐ ┌──────────────┐   └────────────────────────────┘
@@ -188,7 +188,7 @@ docker compose up -d --force-recreate backend
 按人頭計費、資料存在外部雲端、export 格式受限。AutoTest 全部跑在自己的伺服器上，資料格式完全開放（PostgreSQL + Markdown）。
 
 **Q：為什麼不直接用 Robot Framework + CI server？**
-錄製器、BDD 視覺化編輯、逐步截圖與影片、趨勢報表、RBAC、多租戶、六層樹、排程、審核流程——這些都不是 vanilla Robot Framework 提供的。AutoTest 把它們組成一個完整產品。
+錄製器、BDD 視覺化編輯、逐步截圖與影片、趨勢報表、RBAC、多租戶、五層樹、排程、審核流程——這些都不是 vanilla Robot Framework 提供的。AutoTest 把它們組成一個完整產品。
 
 **Q：可以對外直接 expose backend port 8000 嗎？**
 **不可以。** 所有外部流量必須經 nginx（port 80/443），`backend:8000` 不對 host expose。
@@ -198,6 +198,9 @@ docker compose up -d --force-recreate backend
 
 **Q：支援 HTTPS 嗎？**
 nginx 設定已預留 443 port，掛上你的 TLS 憑證即可。建議搭配 Let's Encrypt（Certbot）或反向代理（Traefik / Caddy）。
+
+**Q：可以串接 CI/CD 嗎？**
+可以。`POST /api/executions` 接受 Bearer token 呼叫，GitHub Actions / Jenkins / GitLab CI 均可直接觸發，見 [操作說明.md](操作說明.md) 第九章。
 
 ---
 
