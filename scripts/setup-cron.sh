@@ -32,10 +32,12 @@ echo "[setup-cron] log file     : $LOG_FILE"
 mkdir -p "$BACKUP_DEST"
 
 # Idempotent: remove any previous autotest-backup line, then re-add
-(crontab -l 2>/dev/null | grep -v '# autotest-backup'; echo "$CRON_LINE") | crontab -
+# `|| true` prevents set -e from aborting if crontab is currently empty
+(crontab -l 2>/dev/null || true) | grep -v '# autotest-backup' | \
+    { cat; echo "$CRON_LINE"; } | crontab -
 
 echo "[setup-cron] cron job installed:"
-crontab -l | grep 'autotest-backup'
+crontab -l | grep 'autotest-backup' || true
 echo "[setup-cron] done."
 echo ""
 echo "To run a backup immediately:"
