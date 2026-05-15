@@ -4991,34 +4991,6 @@
                 playBtn.onclick = () => openFullVideo(step.videoUrl);
                 actions.appendChild(playBtn);
 
-                const dlVideoBtn = document.createElement('button');
-                dlVideoBtn.type = 'button';
-                dlVideoBtn.className = `${btnCls} bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100`;
-                dlVideoBtn.innerHTML = '<i class="fa-solid fa-download"></i> 下載錄影';
-                dlVideoBtn.onclick = async () => {
-                    try {
-                        dlVideoBtn.disabled = true;
-                        dlVideoBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 下載中…';
-                        const resp = await fetch(step.videoUrl);
-                        if (!resp.ok) throw new Error('HTTP ' + resp.status);
-                        const blob = await resp.blob();
-                        const a = document.createElement('a');
-                        const blobUrl = URL.createObjectURL(blob);
-                        a.href = blobUrl;
-                        const base = step.videoUrl.split('/').pop().replace(/\.[^.]+$/, '');
-                        a.download = (base || 'video') + '.mp4';
-                        document.body.appendChild(a);
-                        a.click();
-                        a.remove();
-                        setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
-                    } catch (e) {
-                        showToast('下載失敗：' + e.message, 'error');
-                    } finally {
-                        dlVideoBtn.disabled = false;
-                        dlVideoBtn.innerHTML = '<i class="fa-solid fa-download"></i> 下載錄影';
-                    }
-                };
-                actions.appendChild(dlVideoBtn);
             }
 
             empty.classList.toggle('hidden', !!(step.stepVideoUrl || step.videoUrl));
