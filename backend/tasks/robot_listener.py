@@ -442,8 +442,32 @@ class RTListener:
 
     def _upload_video(self, abs_path: str, test_name: str) -> str | None:
         try:
+            import subprocess, tempfile, os
             from app.services.storage_service import save_bytes  # type: ignore
 
+            # 嘗試用 ffmpeg 轉 mp4（celery 容器內有 ffmpeg）
+            mp4_path = abs_path.replace(".webm", ".mp4")
+            converted = False
+            try:
+                subprocess.run(
+                    ["ffmpeg", "-y", "-i", abs_path, "-c:v", "copy", "-c:a", "copy", mp4_path],
+                    capture_output=True, timeout=120, check=True
+                )
+                converted = True
+            except Exception:
+                pass
+
+            if converted and os.path.exists(mp4_path):
+                with open(mp4_path, "rb") as fh:
+                    data = fh.read()
+                key = f"videos/{self._report_id}/{test_name}.mp4"
+                try:
+                    os.remove(mp4_path)
+                except Exception:
+                    pass
+                return save_bytes(data, key, bucket="results", content_type="video/mp4")
+
+            # fallback：直接上傳 webm
             with open(abs_path, "rb") as fh:
                 data = fh.read()
             key = f"videos/{self._report_id}/{test_name}.webm"
