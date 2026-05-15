@@ -1026,11 +1026,25 @@
 
     <!-- 節點 Modal (新增專案 / 新增功能 / 新增子節點 / 修改名稱 共用) -->
     <div id="nodeModal" class="fixed inset-0 bg-slate-900/50 hidden z-[160] flex items-center justify-center opacity-0 transition-opacity">
-        <div class="bg-white rounded-lg shadow-xl w-[400px] transform scale-95 transition-transform" id="nodeModalContent">
+        <div class="bg-white rounded-lg shadow-xl w-[420px] transform scale-95 transition-transform" id="nodeModalContent">
             <div class="p-4 border-b border-slate-200"><h3 id="nodeModalTitle" class="text-lg font-bold text-slate-800 flex items-center gap-2">新增節點</h3></div>
-            <div class="p-5">
+            <div class="p-5 flex flex-col gap-3">
                 <div id="modalTextGroup" class="hidden"><label id="modalTextLabel" for="nodeNameInput" class="block text-sm font-medium text-slate-700 mb-2">名稱</label><input type="text" id="nodeNameInput" aria-label="節點名稱" placeholder="請輸入名稱" class="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"></div>
                 <div id="modalSelectGroup" class="hidden"><label id="modalSelectLabel" for="nodeSelectInput" class="block text-sm font-medium text-slate-700 mb-2">請選擇選項</label><select id="nodeSelectInput" aria-label="選擇節點選項" class="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"></select></div>
+                <!-- 複製專案區塊（僅新增專案時顯示） -->
+                <div id="modalCloneGroup" class="hidden border border-slate-200 rounded-lg bg-slate-50 p-3 flex flex-col gap-2">
+                    <label class="flex items-center gap-2 cursor-pointer select-none">
+                        <input type="checkbox" id="cloneProjectCheck" onchange="toggleCloneProjectSelect()" class="w-4 h-4 accent-blue-600 cursor-pointer">
+                        <span class="text-sm font-medium text-slate-700">複製自現有專案</span>
+                        <span class="text-xs text-slate-400 ml-1">（複製所有測試案例結構）</span>
+                    </label>
+                    <div id="cloneProjectSelectWrap" class="hidden flex flex-col gap-1">
+                        <label class="text-xs text-slate-500">選擇來源專案</label>
+                        <select id="cloneProjectSelect" class="w-full border border-slate-300 rounded-md p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                            <option value="">— 請選擇 —</option>
+                        </select>
+                    </div>
+                </div>
             </div>
             <div class="p-4 border-t border-slate-200 flex justify-end gap-2 bg-slate-50 rounded-b-lg"><button onclick="closeModals()" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 rounded transition">取消</button><button onclick="saveNode()" class="px-4 py-2 text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 rounded shadow-sm transition">確認儲存</button></div>
         </div>
@@ -5821,6 +5835,7 @@
             sel.innerHTML = '';
             try {
                 const list = await (prefetchedProjectsPromise || apiFetch('/api/projects'));
+                window._projectList = list;
                 Object.keys(projectsData).forEach(k => delete projectsData[k]);
                 if (!list.length) {
                     sel.innerHTML = '<option value="">（尚無專案，請先建立）</option>';
@@ -7716,6 +7731,13 @@
         }
 
         // ==================== 6. CRUD Modal 邏輯 ====================
+        function toggleCloneProjectSelect() {
+            const checked = document.getElementById('cloneProjectCheck').checked;
+            const wrap = document.getElementById('cloneProjectSelectWrap');
+            wrap.classList.toggle('hidden', !checked);
+            if (checked) document.getElementById('cloneProjectSelect').focus();
+        }
+
         function openNodeModal(event, id, action) {
             event.stopPropagation();
             currentModalAction = action;
@@ -7731,12 +7753,28 @@
             textGroup.style.display = 'none';
             selectGroup.style.display = 'none';
 
+            // 複製專案區塊預設隱藏
+            const cloneGroup = document.getElementById('modalCloneGroup');
+            cloneGroup.classList.add('hidden');
+            document.getElementById('cloneProjectCheck').checked = false;
+            document.getElementById('cloneProjectSelectWrap').classList.add('hidden');
+
             if (action === 'add') {
                 if (id === 'root_project') {
                     titleEl.innerHTML = '<i class="fa-solid fa-folder-plus text-blue-500"></i> 新增專案';
                     textGroup.style.display = 'block';
                     document.getElementById('modalTextLabel').innerText = '專案名稱';
                     nameInput.value = '';
+                    // 顯示複製區塊並填入現有專案清單
+                    cloneGroup.classList.remove('hidden');
+                    const sel = document.getElementById('cloneProjectSelect');
+                    sel.innerHTML = '<option value="">— 請選擇 —</option>';
+                    (window._projectList || []).forEach(p => {
+                        const opt = document.createElement('option');
+                        opt.value = p.id;
+                        opt.textContent = p.name;
+                        sel.appendChild(opt);
+                    });
                 } else if (id === 'root_feature') {
                     titleEl.innerHTML = '<i class="fa-solid fa-layer-group text-indigo-500"></i> 新增功能';
                     textGroup.style.display = 'block';
@@ -7799,11 +7837,29 @@
                 try {
                     if (targetNodeId === 'root_project') {
                         if (!nameInput) return showToast('請輸入專案名稱', 'error');
-                        const proj = await apiFetch('/api/projects', {
-                            method: 'POST', headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({ name: nameInput })
-                        });
-                        showToast('專案新增成功', 'success');
+                        const doClone = document.getElementById('cloneProjectCheck').checked;
+                        const srcId = document.getElementById('cloneProjectSelect').value;
+                        let proj;
+                        if (doClone) {
+                            if (!srcId) return showToast('請選擇來源專案', 'error');
+                            const btn = document.querySelector('#nodeModal button[onclick="saveNode()"]');
+                            if (btn) { btn.disabled = true; btn.textContent = '複製中…'; }
+                            try {
+                                proj = await apiFetch(`/api/projects/${srcId}/clone`, {
+                                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                                    body: JSON.stringify({ name: nameInput })
+                                });
+                            } finally {
+                                if (btn) { btn.disabled = false; btn.textContent = '確認儲存'; }
+                            }
+                            showToast('專案複製成功', 'success');
+                        } else {
+                            proj = await apiFetch('/api/projects', {
+                                method: 'POST', headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify({ name: nameInput })
+                            });
+                            showToast('專案新增成功', 'success');
+                        }
                         currentProjectId = proj.id;
                         closeModals();
                         await initProjects();

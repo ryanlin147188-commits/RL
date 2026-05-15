@@ -1,6 +1,7 @@
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response
+from pydantic import BaseModel
 from sqlalchemy import asc, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -640,3 +641,97 @@ async def remove_project_member(
     await db.flush()
     from app.auth.casbin_sync import schedule_user_resync
     schedule_user_resync(username)
+
+
+# ─────────────────── Clone Project ───────────────────────────────────
+
+class _CloneProjectPayload(BaseModel):
+    name: str
+
+
+@router.post(
+    "/projects/{project_id}/clone",
+    response_model=ProjectResponse,
+    status_code=201,
+    dependencies=[
+        Depends(require_casbin(P.PROJECT_WRITE)),
+        Depends(ensure_project_member),
+    ],
+)
+async def clone_project(
+    project_id: str,
+    payload: _CloneProjectPayload,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """複製一個現有專案的完整樹狀結構（含所有 TestcaseContent）到一個同名新專案。"""
+    import copy
+    import uuid as _uuid
+    from app.models.testcase_content import TestcaseContent
+
+    src = await db.get(Project, project_id)
+    _check_org_or_404(src, user)
+
+    # 1) 建立新專案
+    new_proj = Project(
+        name=payload.name.strip(),
+        organization_id=user.organization_id,
+        status="InProgress",
+    )
+    db.add(new_proj)
+    await db.flush()
+
+    # 建立者自動成為成員
+    db.add(ProjectMember(project_id=new_proj.id, username=user.username, role_id=None, status="active"))
+    await db.flush()
+
+    # 2) 取出原專案所有節點（含 testcase_content），按 sort_order 排序確保父節點先處理
+    result = await db.execute(
+        select(TreeNode)
+        .where(TreeNode.project_id == project_id)
+        .order_by(TreeNode.sort_order)
+    )
+    src_nodes = result.scalars().all()
+
+    # 3) 取出所有 TestcaseContent（以 node_id 為 key）
+    if src_nodes:
+        tc_ids = [n.id for n in src_nodes if n.level_type.value == "TESTCASE"]
+        tc_map: dict[str, TestcaseContent] = {}
+        if tc_ids:
+            tc_result = await db.execute(
+                select(TestcaseContent).where(TestcaseContent.node_id.in_(tc_ids))
+            )
+            for tc in tc_result.scalars().all():
+                tc_map[tc.node_id] = tc
+
+    # 4) old_id → new_id 對照表
+    id_map: dict[str, str] = {}
+    for n in src_nodes:
+        id_map[n.id] = str(_uuid.uuid4())
+
+    # 5) 依序建立新節點 + content
+    for n in src_nodes:
+        new_node = TreeNode(
+            id=id_map[n.id],
+            project_id=new_proj.id,
+            parent_id=id_map.get(n.parent_id) if n.parent_id else None,
+            level_type=n.level_type,
+            name=n.name,
+            sort_order=n.sort_order,
+        )
+        db.add(new_node)
+
+        if n.level_type.value == "TESTCASE" and n.id in tc_map:
+            orig = tc_map[n.id]
+            db.add(TestcaseContent(
+                node_id=id_map[n.id],
+                organization_id=orig.organization_id,
+                ac_text=orig.ac_text,
+                setup_text=orig.setup_text,
+                steps_json=copy.deepcopy(orig.steps_json),
+                ddt_json=copy.deepcopy(orig.ddt_json),
+            ))
+
+    await db.flush()
+    await db.refresh(new_proj)
+    return new_proj
