@@ -2698,6 +2698,29 @@
                 </div>
             </div>
 
+            <!-- 執行 Console 底部抽屜 -->
+            <div id="terminalPanel"
+                 class="shrink-0 bg-slate-900 border-t-0 border-slate-700 overflow-hidden transition-all duration-300 h-0 flex flex-col">
+                <div class="flex items-center justify-between px-4 py-1.5 bg-slate-800 border-b border-slate-700 shrink-0">
+                    <span class="text-xs font-mono text-slate-300 flex items-center gap-2">
+                        <i class="fa-solid fa-terminal text-slate-400"></i> 執行 Console
+                    </span>
+                    <div class="flex items-center gap-2">
+                        <button id="terminalStopBtn" onclick="cancelRunningTest()" disabled
+                            class="text-xs px-2 py-0.5 bg-red-700 hover:bg-red-600 disabled:opacity-30 disabled:cursor-not-allowed text-white rounded flex items-center gap-1">
+                            <i class="fa-solid fa-stop text-[10px]"></i> 停止
+                        </button>
+                        <button onclick="clearTerminal()" class="text-xs text-slate-400 hover:text-white px-2 py-0.5 rounded hover:bg-slate-700">
+                            <i class="fa-solid fa-eraser"></i>
+                        </button>
+                        <button onclick="closeTerminal()" class="text-xs text-slate-400 hover:text-white px-2 py-0.5 rounded hover:bg-slate-700">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                </div>
+                <div id="terminalOutput" class="flex-1 overflow-y-auto p-3 space-y-0.5"></div>
+            </div>
+
 
     <!-- TestRun Modal（新增 / 編輯） -->
     <div id="testRoundModal" class="fixed inset-0 bg-slate-900/50 hidden z-[160] flex items-center justify-center opacity-0 transition-opacity">
