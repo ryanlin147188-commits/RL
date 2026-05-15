@@ -7592,7 +7592,7 @@ driver.swipe(100, 800, 100, 200, 500)"
             container.innerHTML = '';
             nodes.forEach((n, idx) => {
                 const div = document.createElement('div');
-                div.className = 'mb-1';
+                div.className = '';
                 div.draggable = true;
                 div.dataset.nodeId = n.id;
                 // 拖曳排序事件
@@ -7622,7 +7622,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                     ? (currentTestCase === n.id ? 'bg-blue-50 text-blue-700 font-bold border-blue-200' : 'text-slate-600 border-transparent hover:bg-slate-100')
                     : 'text-slate-700 font-semibold hover:bg-slate-100 border-transparent';
                 const row = document.createElement('div');
-                row.className = `flex items-center gap-2 p-1.5 rounded cursor-pointer group transition text-xs border ${bg}`;
+                row.className = `flex items-center gap-1.5 py-0.5 px-1 rounded cursor-pointer group transition text-xs border ${bg}`;
 
                 row.onclick = () => {
                     if (n.isFile) { loadTestCase(n.id); return; }
@@ -7650,7 +7650,7 @@ driver.swipe(100, 800, 100, 200, 500)"
 
                 if (!n.isFile && n.expanded && n.children) {
                     const childDiv = document.createElement('div');
-                    childDiv.className = 'pl-4 border-l border-slate-200 ml-3 mt-1 space-y-1';
+                    childDiv.className = 'pl-3 border-l border-slate-200 ml-2';
                     renderTree(n.children, childDiv);
                     div.appendChild(childDiv);
                 }
