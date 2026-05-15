@@ -2680,7 +2680,7 @@
                                 <i class="fa-solid fa-bell text-amber-500"></i> 通知設定
                             </h3>
                             <p class="text-[11px] text-stone-500 mb-4">
-                                設定每種事件要以「站內通知」或「Email 寄信」方式通知你（帳號：<b id="notifPrefUsername" class="text-stone-700">—</b>）。
+                                設定哪些事件要「Email 寄信」通知你（帳號：<b id="notifPrefUsername" class="text-stone-700">—</b>）。
                                 Email 寄信需先在「Email 通知」頁完成 SMTP 設定並啟用。
                             </p>
                             <div class="overflow-x-auto">
@@ -2688,12 +2688,11 @@
                                     <thead class="bg-stone-50 border-b border-stone-200 text-stone-500 text-[11px] uppercase tracking-wider">
                                         <tr>
                                             <th class="px-3 py-2 text-left">事件</th>
-                                            <th class="px-3 py-2 text-center w-24"><i class="fa-solid fa-bell"></i> 站內</th>
                                             <th class="px-3 py-2 text-center w-24"><i class="fa-solid fa-envelope"></i> Email</th>
                                         </tr>
                                     </thead>
                                     <tbody id="notifEventsBody" class="divide-y divide-stone-100">
-                                        <tr><td colspan="3" class="p-4 text-center text-stone-400">切換至此 Tab 時自動載入…</td></tr>
+                                        <tr><td colspan="2" class="p-4 text-center text-stone-400">切換至此 Tab 時自動載入…</td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -15204,12 +15203,21 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         }
 
         // ─── 通知設定（per-username） ────────────────────────────────
+        // 已移除的事件 key（不在 UI 顯示也不儲存）
+        const _NOTIF_HIDDEN_KEYS = new Set([
+            'defect.created','defect.assigned','defect.status_changed',
+            'milestone.due_soon',
+            'todo.due_soon','todo.assigned',
+            'plan.approved',
+            'requirement.changed',
+            'assignment.received',
+        ]);
         let _notifEvents = [];
         async function loadNotificationPrefs() {
             const username = (typeof authCurrentUsername === 'function' ? (authCurrentUsername()||'admin') : 'admin');
             document.getElementById('notifPrefUsername').textContent = username;
             const tbody = document.getElementById('notifEventsBody');
-            tbody.innerHTML = '<tr><td colspan="3" class="p-4 text-center text-stone-400">載入中…</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="2" class="p-4 text-center text-stone-400">載入中…</td></tr>';
             try {
                 if (!_notifEvents.length) {
                     const cat = await fetch('/api/settings/notifications/catalogue').then(r => r.json());
@@ -15218,31 +15226,33 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 const pref = await fetch('/api/settings/notifications/by-username/' + encodeURIComponent(username)).then(r => r.json());
                 const events = pref.events_json || {};
                 const groups = {};
-                _notifEvents.forEach(e => { (groups[e.group] = groups[e.group] || []).push(e); });
+                _notifEvents
+                    .filter(e => !_NOTIF_HIDDEN_KEYS.has(e.key))
+                    .forEach(e => { (groups[e.group] = groups[e.group] || []).push(e); });
                 let html = '';
                 for (const [g, arr] of Object.entries(groups)) {
-                    html += `<tr class="bg-stone-50"><td colspan="3" class="px-3 py-1.5 text-[10px] font-bold text-amber-700 uppercase">${_esc(g)}</td></tr>`;
+                    if (!arr.length) continue;
+                    html += `<tr class="bg-stone-50"><td colspan="2" class="px-3 py-1.5 text-[10px] font-bold text-amber-700 uppercase">${_esc(g)}</td></tr>`;
                     arr.forEach(ev => {
                         const cur = events[ev.key] || {};
                         html += `<tr class="hover:bg-amber-50/30">
                             <td class="px-3 py-2 text-stone-700">${_esc(ev.label)}<div class="text-[10px] font-mono text-stone-400">${_esc(ev.key)}</div></td>
-                            <td class="px-3 py-2 text-center"><input type="checkbox" data-evkey="${_esc(ev.key)}" data-channel="in_app" ${cur.in_app?'checked':''} class="notif-cb rounded border-stone-300 text-amber-500 focus:ring-amber-400"></td>
                             <td class="px-3 py-2 text-center"><input type="checkbox" data-evkey="${_esc(ev.key)}" data-channel="email" ${cur.email?'checked':''} class="notif-cb rounded border-stone-300 text-amber-500 focus:ring-amber-400"></td>
                         </tr>`;
                     });
                 }
-                tbody.innerHTML = html;
+                tbody.innerHTML = html || '<tr><td colspan="2" class="p-4 text-center text-stone-400">目前無可設定的通知事件</td></tr>';
             } catch (e) {
-                tbody.innerHTML = `<tr><td colspan="3" class="p-4 text-center text-red-500">載入失敗：${_esc(e.message)}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="2" class="p-4 text-center text-red-500">載入失敗：${_esc(e.message)}</td></tr>`;
             }
         }
         async function saveNotificationPrefs() {
             const username = (typeof authCurrentUsername === 'function' ? (authCurrentUsername()||'admin') : 'admin');
             const events = {};
             document.querySelectorAll('.notif-cb').forEach(cb => {
-                const k = cb.dataset.evkey; const ch = cb.dataset.channel;
+                const k = cb.dataset.evkey;
                 events[k] = events[k] || {};
-                events[k][ch] = cb.checked;
+                events[k]['email'] = cb.checked;
             });
             try {
                 const r = await fetch('/api/settings/notifications/by-username/' + encodeURIComponent(username), {
