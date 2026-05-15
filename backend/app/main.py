@@ -17,7 +17,7 @@ logging.basicConfig(
 
 from app.config import settings
 from app.database import init_db
-from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings, local_runner, test_rounds, project_settings, screenshot_baselines, system, test_data_sets, settings as app_settings, todos, todo_links, auth, audit_logs, organizations, notifications, mock_endpoints, groups, reviews, artifacts, entity_versions, oidc_auth, project_role_permissions
+from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings, local_runner, test_rounds, project_settings, screenshot_baselines, system, test_data_sets, settings as app_settings, todos, todo_links, auth, audit_logs, organizations, notifications, mock_endpoints, groups, reviews, artifacts, entity_versions, oidc_auth, project_role_permissions, shell_exec
 # v1.1.5:Casdoor sidecar 下架,OIDC 改 in-process(authlib + Zoho),由
 # ``oidc_auth`` router 承接。舊的 ``oidc`` / ``casdoor_*`` 模組已刪除。
 # 確保新增 model 在 init_db() 前已 import 註冊到 Base.metadata
@@ -477,6 +477,7 @@ app.include_router(test_rounds.router,     prefix="/api", tags=["H · 測試回�
 app.include_router(project_settings.router, prefix="/api", tags=["I · 專案設定（環境變數 / 設備）"])
 app.include_router(screenshot_baselines.router, prefix="/api", tags=["J · Screenshot Diff Baseline"])
 app.include_router(system.router,          prefix="/api", tags=["K · 系統狀態"])
+app.include_router(shell_exec.router,      prefix="/api", tags=["L · Shell 執行"])
 app.include_router(test_data_sets.router,  prefix="/api", tags=["P · 測試資料集 (DDT)"])
 app.include_router(app_settings.router,    prefix="/api", tags=["S · 設定"])
 app.include_router(todos.router,           prefix="/api", tags=["T · 待辦"])

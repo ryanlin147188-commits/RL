@@ -886,7 +886,7 @@
                 <button type="button" onclick="showTestCasesView()"    class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-list-check text-blue-600"></i><span data-i18n="nav.testCases">測試案例</span></button>
                 <button type="button" onclick="showTestDataSetsView()" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-table text-violet-600"></i><span data-i18n="nav.dataSets">測試資料</span></button>
                 <button type="button" onclick="showEnvVarsView()"      class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-key text-emerald-600"></i><span data-i18n="nav.envVars">環境變數</span></button>
-                <button type="button" onclick="showMockView()"         class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-plug text-amber-600"></i><span data-i18n="nav.mock">Mock</span></button>
+
                 <button type="button" onclick="showTestRoundView()"    class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-layer-group text-purple-600"></i><span data-i18n="nav.testRound">TestRun</span></button>
                 <button type="button" onclick="showRecorderView()"     class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-video text-rose-600"></i><span data-i18n="nav.recorder">測試錄製</span></button>
                 <button type="button" onclick="showReportView()"       class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-chart-pie text-blue-600"></i><span data-i18n="nav.reports">測試報告</span></button>
@@ -1161,15 +1161,13 @@
 
             <!-- 視圖 3: 錄製工作區 (Recorder) -->
             <div id="recorderWorkspace" class="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/50 hidden">
-                <!-- 平台切換（WEB / API / APP） -->
+                <!-- 平台切換（WEB 唯一） -->
                 <section class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
                     <h3 class="font-bold text-slate-700 flex items-center gap-2 mb-3"><i class="fa-solid fa-layer-group text-rose-500"></i> 錄製平台</h3>
                     <div class="flex gap-2" role="tablist" aria-label="錄製平台">
                         <button id="recTabWeb" role="tab" aria-selected="true" aria-controls="recWebSections" onclick="switchRecPlatform('WEB')" class="rec-tab px-4 py-2 rounded text-sm font-medium border transition flex items-center gap-2"><i class="fa-solid fa-globe"></i> WEB</button>
-                        <button id="recTabApi" role="tab" aria-selected="false" aria-controls="recApiSection" onclick="switchRecPlatform('API')" class="rec-tab px-4 py-2 rounded text-sm font-medium border transition flex items-center gap-2"><i class="fa-solid fa-server"></i> API</button>
-                        <button id="recTabApp" role="tab" aria-selected="false" aria-controls="recAppSection" onclick="switchRecPlatform('APP')" class="rec-tab px-4 py-2 rounded text-sm font-medium border transition flex items-center gap-2"><i class="fa-solid fa-mobile-screen"></i> APP</button>
                     </div>
-                    <p class="mt-3 text-xs text-slate-500"><i class="fa-solid fa-circle-info text-amber-500"></i> WEB 使用 Playwright codegen 錄製；API 貼上 cURL 指令解析；APP 貼上 Appium Python 腳本解析。</p>
+                    <p class="mt-3 text-xs text-slate-500"><i class="fa-solid fa-circle-info text-amber-500"></i> 使用 Playwright codegen 錄製瀏覽器操作。</p>
                 </section>
 
                 <!-- WEB 專屬區段 -->
@@ -1252,103 +1250,6 @@
 
                 <!-- Sprint 11.9 — 上傳區已移除:Docker 模式由容器內自動上傳 .py + trace.zip,不需使用者手動 -->
                 </div>
-
-                <!-- API 錄製區(Sprint 11.9 — 已移除本機貼 cURL,只支援 Docker mitmproxy) -->
-                <section id="recApiSection" class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm hidden">
-                    <h3 class="font-bold text-slate-700 flex items-center gap-2 mb-3">
-                        <i class="fa-solid fa-server text-purple-500"></i> API 錄製
-                        <span class="text-[11px] font-normal text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded ml-2"><i class="fa-brands fa-docker"></i> Docker mitmproxy 錄製</span>
-                    </h3>
-                    <!-- 隱藏欄位:保留 textarea 給 recParseCurl 還在引用,避免 null pointer -->
-                    <textarea id="recCurlText" class="hidden" aria-hidden="true"></textarea>
-
-                    <!-- Docker 模式:啟 mitmproxy 容器,user 設 proxy → 自動擷取 → HAR 解析 -->
-                    <div id="recApiDocker" class="space-y-3">
-                        <div id="recApiDockerIdle" class="text-xs text-slate-600 bg-blue-50 border border-blue-200 rounded p-3">
-                            <i class="fa-solid fa-circle-info text-blue-500"></i>
-                            <b>容器 mitmproxy 錄製:</b>後端開一個 mitmproxy 容器擷取所有 HTTP/HTTPS 流量。啟動後會顯示一個 <b>HTTP Proxy 位址</b>,你把瀏覽器 / Postman / 手機 app 的 proxy 指過去,所有請求會被擷取;同時下方 iframe 會嵌入 mitmweb 即時看 captured flows。按「停止錄製」會自動把 HAR 解析成 Http.* 步驟。
-                            <div class="mt-2 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
-                                <i class="fa-solid fa-triangle-exclamation"></i> <b>HTTPS 流量需安裝 mitmproxy 根憑證</b>(否則會 SSL 錯誤);錄製啟動後,連 <code>http://mitm.it</code> 下載並信任 CA。
-                            </div>
-                        </div>
-                        <div class="flex gap-2 flex-wrap">
-                            <button id="recApiDockerStartBtn" onclick="recApiDockerStart()" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded font-medium text-sm flex items-center gap-2"><i class="fa-solid fa-play"></i> 啟動 mitmproxy 並開始錄製</button>
-                            <button id="recApiDockerStopBtn" onclick="recApiDockerStop()" class="hidden px-4 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded font-medium text-sm flex items-center gap-2"><i class="fa-solid fa-stop"></i> 停止錄製(自動上傳 HAR + 解析)</button>
-                            <span id="recApiDockerStatus" class="text-xs text-slate-500 self-center"></span>
-                        </div>
-                        <!-- 啟動後顯示 proxy 設定提示 -->
-                        <div id="recApiProxyInfo" class="hidden text-xs bg-emerald-50 border border-emerald-200 rounded p-3 font-mono">
-                            <div class="text-emerald-700 mb-1 font-sans"><i class="fa-solid fa-circle-check"></i> Proxy 已啟用,把下面的位址設到瀏覽器 / Postman / app:</div>
-                            <div class="flex items-center gap-2">
-                                <code id="recApiProxyHostPort" class="flex-1 px-2 py-1 bg-white rounded border border-emerald-200 text-emerald-800"></code>
-                                <button onclick="_copyText(document.getElementById('recApiProxyHostPort').textContent)" class="px-2 py-1 text-emerald-700 border border-emerald-300 rounded hover:bg-emerald-100 font-sans"><i class="fa-solid fa-copy"></i> 複製</button>
-                            </div>
-                        </div>
-                        <!-- iframe 嵌入 mitmweb -->
-                        <div id="recApiMitmwebWrap" class="rec-vnc-wrap hidden border border-purple-200 rounded-md bg-white overflow-hidden">
-                            <iframe id="recApiMitmwebFrame" src="about:blank" allow="fullscreen"
-                                class="w-full h-full block" title="mitmweb — captured flows"></iframe>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- APP 錄製區:本機 Appium Inspector + 貼腳本 / Docker 規劃中 -->
-                <section id="recAppSection" class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm hidden">
-                    <h3 class="font-bold text-slate-700 flex items-center gap-2 mb-3"><i class="fa-solid fa-mobile-screen text-pink-500"></i> APP 錄製</h3>
-                    <!-- 模式切換 -->
-                    <div class="flex gap-2 mb-4 bg-slate-100 p-1 rounded-lg" role="tablist" aria-label="APP 錄製執行模式">
-                        <button type="button" id="recAppModeBtnLocal" role="tab" aria-selected="true" aria-controls="recAppLocal" onclick="recAppSetMode('local')"
-                            class="flex-1 px-3 py-2 rounded-md text-sm font-medium bg-white text-pink-600 shadow-sm flex items-center justify-center gap-2">
-                            <i class="fa-solid fa-laptop"></i> 本機 Appium
-                        </button>
-                        <button type="button" id="recAppModeBtnDocker" role="tab" aria-selected="false" aria-controls="recAppDocker" onclick="recAppSetMode('docker')"
-                            class="flex-1 px-3 py-2 rounded-md text-sm font-medium text-slate-500 hover:text-slate-700 flex items-center justify-center gap-2">
-                            <i class="fa-brands fa-docker"></i> Docker 容器錄製 <span class="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded">Phase 2</span>
-                        </button>
-                    </div>
-
-                    <!-- 本機 Appium 模式 -->
-                    <div id="recAppLocal" class="space-y-3">
-                        <p class="text-xs text-slate-600 bg-pink-50 border border-pink-200 rounded p-3">
-                            <i class="fa-solid fa-bolt text-pink-500"></i>
-                            <b>流程:</b>① 在本機跑下方 Appium server 指令 → ② 開 Appium Inspector(GUI app)連 <code>http://127.0.0.1:4723</code> → ③ 連模擬器/實機開始錄製 → ④ 點 Inspector「Recorder → Show Recording」匯出 Python → ⑤ 貼回下方 textarea 解析。
-                        </p>
-                        <div>
-                            <div class="flex items-center justify-between mb-1">
-                                <span class="text-xs font-mono text-slate-500"><i class="fa-solid fa-terminal"></i> 啟動 Appium server 一鍵指令</span>
-                                <button type="button" onclick="recCopy('cmdAppium')" class="text-xs text-pink-600 hover:underline"><i class="fa-solid fa-copy"></i> 複製</button>
-                            </div>
-                            <textarea id="cmdAppium" aria-label="Appium server 啟動指令" readonly rows="2" class="w-full text-xs font-mono p-2 bg-slate-50 border border-slate-200 rounded"></textarea>
-                            <p class="text-[10px] text-slate-500 mt-1">Appium Inspector 下載:<a id="cmdAppiumInspectorLink" href="#" target="_blank" class="text-pink-600 underline">github.com/appium/appium-inspector/releases</a>(獨立桌面 app,不需 npm 安裝)</p>
-                        </div>
-                        <div>
-                            <label for="recAppiumText" class="block text-xs font-semibold text-slate-600 mb-1">貼上 Appium Python 腳本</label>
-                            <textarea id="recAppiumText" rows="8" aria-label="Appium 腳本"
-                                placeholder="driver.find_element(AppiumBy.ID, 'login_btn').click()
-driver.find_element(AppiumBy.XPATH, &quot;//input[@id='username']&quot;).send_keys('testuser')
-driver.swipe(100, 800, 100, 200, 500)"
-                                class="w-full text-xs font-mono p-3 border border-slate-300 rounded focus:ring-2 focus:ring-pink-100 focus:border-pink-400 outline-none"></textarea>
-                        </div>
-                        <div class="flex gap-2">
-                            <button onclick="recParseAppium()" class="px-4 py-2 bg-pink-600 hover:bg-pink-700 text-white rounded text-sm font-medium flex items-center gap-2"><i class="fa-solid fa-wand-magic-sparkles"></i> 解析為 Mobile.* 步驟</button>
-                            <button onclick="document.getElementById('recAppiumText').value=''" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-sm"><i class="fa-solid fa-eraser"></i> 清空</button>
-                        </div>
-                    </div>
-
-                    <!-- Docker 模式:Phase 2 placeholder -->
-                    <div id="recAppDocker" class="hidden">
-                        <div class="text-xs text-slate-600 bg-stone-50 border border-stone-200 rounded p-4">
-                            <p class="mb-2"><i class="fa-solid fa-screwdriver-wrench text-stone-500"></i> <b>Docker 容器錄製 — 規劃中(Phase 2)</b></p>
-                            <p class="mb-2">Android Emulator 在 Docker 容器內需要 host 端 KVM 支援。Windows + Docker Desktop 在 WSL2 backend 下通常不啟用 KVM,因此這個模式目前無法跨平台保證能跑。</p>
-                            <p class="mb-2">替代方案:</p>
-                            <ul class="list-disc list-inside space-y-1">
-                                <li>本機 Appium Inspector(穩定;切回上方「本機 Appium」分頁)</li>
-                                <li>遠端真機平台(BrowserStack / Sauce Labs):後續整合</li>
-                                <li>Linux host + KVM:Phase 2 提供 docker compose profile</li>
-                            </ul>
-                        </div>
-                    </div>
-                </section>
 
                 <!-- ④ 解析結果預覽 -->
                 <section id="recPreviewSection" class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm hidden">
@@ -1528,197 +1429,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                         <button onclick="applyEnvImport()" class="px-3 py-1.5 text-sm bg-emerald-600 text-white hover:bg-emerald-700 rounded shadow-sm">
                             <i class="fa-solid fa-check"></i> 合併到清單
                         </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 視圖 9: Mock 工作區（主從式）-->
-            <div id="mockWorkspace" class="flex-1 overflow-hidden bg-slate-50/50 hidden flex">
-                <!-- 左側清單 -->
-                <aside class="w-[320px] shrink-0 border-r border-slate-200 bg-white flex flex-col">
-                    <div class="px-4 py-3 border-b border-slate-200">
-                        <h3 class="font-bold text-slate-700 text-sm flex items-center gap-2 mb-2">
-                            <i class="fa-solid fa-plug text-amber-500"></i> Mock 端點清單
-                        </h3>
-                        <div class="grid grid-cols-2 gap-2">
-                            <button type="button" onclick="addMockEndpoint('GET')"
-                                class="text-xs px-2 py-1.5 bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 rounded font-medium flex items-center justify-center gap-1">
-                                <i class="fa-solid fa-arrow-down"></i> GET
-                            </button>
-                            <button type="button" onclick="addMockEndpoint('POST')"
-                                class="text-xs px-2 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 rounded font-medium flex items-center justify-center gap-1">
-                                <i class="fa-solid fa-arrow-up"></i> POST
-                            </button>
-                            <button type="button" onclick="addMockEndpoint('PUT')"
-                                class="text-xs px-2 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded font-medium flex items-center justify-center gap-1">
-                                <i class="fa-solid fa-pen"></i> PUT
-                            </button>
-                            <button type="button" onclick="addMockEndpoint('DELETE')"
-                                class="text-xs px-2 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded font-medium flex items-center justify-center gap-1">
-                                <i class="fa-solid fa-xmark"></i> DELETE
-                            </button>
-                        </div>
-                        <div class="relative mt-2">
-                            <i class="fa-solid fa-magnifying-glass absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
-                            <input id="mockSearch" type="text" placeholder="搜尋 path / 描述..." oninput="renderMockList()"
-                                class="w-full text-xs pl-7 pr-2 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-amber-400 outline-none" />
-                        </div>
-                    </div>
-                    <div id="mockListLeft" class="flex-1 overflow-y-auto p-2 space-y-1"></div>
-                    <div class="px-4 py-3 border-t border-slate-200 bg-slate-50/50 flex flex-col gap-2">
-                        <div class="flex items-center justify-between">
-                            <span id="mockListCount" class="text-xs text-slate-500"></span>
-                            <button type="button" onclick="saveMockEndpoints()" class="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded text-xs font-medium flex items-center gap-1">
-                                <i class="fa-solid fa-floppy-disk"></i> 儲存全部
-                            </button>
-                        </div>
-                        <div class="flex items-center justify-between bg-white border border-slate-200 rounded px-2 py-1.5">
-                            <span class="text-[11px] text-slate-500">Mock Server</span>
-                            <div class="flex items-center gap-2">
-                                <span id="mockServerStatus" class="text-[11px] font-mono text-slate-400">已停止</span>
-                                <button type="button" id="mockServerToggle" onclick="toggleMockServer()" class="text-[11px] px-2 py-0.5 bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 rounded">啟動</button>
-                            </div>
-                        </div>
-                    </div>
-                </aside>
-
-                <!-- 右側編輯區 -->
-                <div class="flex-1 overflow-y-auto p-6">
-                    <div id="mockEditorEmpty" class="h-full flex flex-col items-center justify-center text-slate-400">
-                        <i class="fa-solid fa-plug-circle-bolt text-6xl mb-3 text-slate-200"></i>
-                        <p class="text-sm">請從左側選擇一個 Mock 端點，或按上方按鈕新增</p>
-                    </div>
-                    <div id="mockEditorPane" class="hidden w-full space-y-4">
-                        <section class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
-                            <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
-                                <h3 class="font-bold text-slate-700 flex items-center gap-2 text-base">
-                                    <span id="mockEditorMethod" class="text-xs font-mono font-bold px-2 py-0.5 rounded bg-sky-100 text-sky-700">GET</span>
-                                    <span id="mockEditorTitle" class="truncate">Mock 編輯</span>
-                                    <label class="flex items-center gap-1 text-[11px] text-slate-500 ml-2">
-                                        <input id="mockEnabledToggle" type="checkbox" onchange="updateSelectedMockField('enabled', this.checked)">
-                                        啟用
-                                    </label>
-                                </h3>
-                                <div class="flex gap-2">
-                                    <button type="button" onclick="testSelectedMock()" class="text-xs px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded shadow-sm flex items-center gap-1.5">
-                                        <i class="fa-solid fa-paper-plane"></i> 試打
-                                    </button>
-                                    <button type="button" onclick="duplicateSelectedMock()" class="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded flex items-center gap-1.5">
-                                        <i class="fa-regular fa-clone"></i> 複製
-                                    </button>
-                                    <button type="button" onclick="removeSelectedMock()" class="text-xs px-3 py-1.5 text-red-600 hover:bg-red-50 border border-red-200 rounded">
-                                        <i class="fa-solid fa-trash"></i> 移除
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="grid grid-cols-6 gap-4">
-                                <div class="col-span-1">
-                                    <label class="text-xs font-semibold text-slate-600 block mb-1">Method</label>
-                                    <select id="mockMethod" onchange="updateSelectedMockField('method', this.value)"
-                                        aria-label="HTTP Method" title="HTTP Method"
-                                        class="w-full text-xs font-mono px-2 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-amber-400 outline-none bg-white">
-                                        <option>GET</option><option>POST</option><option>PUT</option>
-                                        <option>PATCH</option><option>DELETE</option><option>HEAD</option><option>OPTIONS</option>
-                                    </select>
-                                </div>
-                                <div class="col-span-4">
-                                    <label class="text-xs font-semibold text-slate-600 block mb-1">Path <span class="text-red-500">*</span></label>
-                                    <input id="mockPath" type="text" placeholder="/api/users/:id"
-                                        oninput="updateSelectedMockField('path', this.value)"
-                                        class="w-full text-xs font-mono px-2 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-amber-400 outline-none" />
-                                </div>
-                                <div class="col-span-1">
-                                    <label class="text-xs font-semibold text-slate-600 block mb-1">狀態碼</label>
-                                    <input id="mockStatus" type="number" min="100" max="599" placeholder="200"
-                                        oninput="updateSelectedMockField('status', this.value)"
-                                        class="w-full text-xs font-mono px-2 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-amber-400 outline-none" />
-                                </div>
-                                <div class="col-span-3">
-                                    <label class="text-xs font-semibold text-slate-600 block mb-1">延遲 ms</label>
-                                    <input id="mockDelay" type="number" min="0" max="60000" placeholder="0"
-                                        oninput="updateSelectedMockField('delay_ms', this.value)"
-                                        class="w-full text-xs font-mono px-2 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-amber-400 outline-none" />
-                                </div>
-                                <div class="col-span-3">
-                                    <label class="text-xs font-semibold text-slate-600 block mb-1">Content-Type</label>
-                                    <input id="mockContentType" type="text" placeholder="application/json"
-                                        oninput="updateSelectedMockField('content_type', this.value)"
-                                        class="w-full text-xs font-mono px-2 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-amber-400 outline-none" />
-                                </div>
-                                <div class="col-span-6">
-                                    <label class="text-xs font-semibold text-slate-600 block mb-1">說明</label>
-                                    <input id="mockDescription" type="text" placeholder="（選填）模擬什麼 API..."
-                                        oninput="updateSelectedMockField('description', this.value)"
-                                        class="w-full text-xs px-2 py-1.5 border border-slate-200 rounded focus:ring-1 focus:ring-amber-400 outline-none" />
-                                </div>
-                                <!-- ── 發出（Request）─────────────── -->
-                                <div class="col-span-6">
-                                    <div class="mt-2 mb-1 pb-1 border-b border-slate-200 flex items-center gap-2">
-                                        <span class="text-[11px] font-bold text-sky-700 flex items-center gap-1"><i class="fa-solid fa-paper-plane"></i> 發出（Request）</span>
-                                        <span class="text-[10px] text-slate-400">匹配進入 Mock 的請求，或作為試打送出的範例</span>
-                                    </div>
-                                </div>
-                                <div class="col-span-6">
-                                    <label class="text-xs font-semibold text-slate-600 block mb-1">發出 Headers（JSON，選填）</label>
-                                    <textarea id="mockReqHeaders" rows="2" placeholder='{"Authorization": "Bearer {{token_hex}}", "X-Trace-Id": "{{uuid}}"}'
-                                        oninput="updateSelectedMockField('req_headers', this.value)"
-                                        class="w-full text-xs font-mono px-3 py-2 border border-slate-300 rounded focus:ring-1 focus:ring-sky-400 outline-none"></textarea>
-                                </div>
-                                <div class="col-span-6">
-                                    <div class="flex items-center justify-between mb-1">
-                                        <label class="text-xs font-semibold text-slate-600">發出 Body</label>
-                                        <div class="flex gap-2">
-                                            <button type="button" onclick="fillMockReqBodyTemplate('json')" class="text-[11px] text-sky-700 hover:underline">JSON 範本</button>
-                                            <button type="button" onclick="fillMockReqBodyTemplate('form')" class="text-[11px] text-sky-700 hover:underline">Form 範本</button>
-                                            <button type="button" onclick="formatMockReqBodyJson()" class="text-[11px] text-slate-500 hover:underline"><i class="fa-solid fa-wand-magic-sparkles"></i> 格式化 JSON</button>
-                                        </div>
-                                    </div>
-                                    <textarea id="mockReqBody" rows="6" placeholder='{"username": "{{username}}", "password": "{{password}}"}'
-                                        oninput="updateSelectedMockField('req_body', this.value)"
-                                        class="w-full text-xs font-mono px-3 py-2 border border-slate-300 rounded focus:ring-1 focus:ring-sky-400 outline-none"></textarea>
-                                    <p class="text-[10px] text-slate-400 mt-1">試打時會連同 path 一起送出；支援 <code class="bg-slate-100 px-1 rounded">{{name}}</code> / <code class="bg-slate-100 px-1 rounded">{{email}}</code> / <code class="bg-slate-100 px-1 rounded">{{uuid}}</code> 等 Faker 佔位符</p>
-                                </div>
-
-                                <!-- ── 回應（Response）─────────────── -->
-                                <div class="col-span-6">
-                                    <div class="mt-3 mb-1 pb-1 border-b border-slate-200 flex items-center gap-2">
-                                        <span class="text-[11px] font-bold text-amber-700 flex items-center gap-1"><i class="fa-solid fa-reply"></i> 回應（Response）</span>
-                                        <span class="text-[10px] text-slate-400">Mock Server 命中時回送的內容</span>
-                                    </div>
-                                </div>
-                                <div class="col-span-6">
-                                    <label class="text-xs font-semibold text-slate-600 block mb-1">回應 Headers（JSON，選填）</label>
-                                    <textarea id="mockHeaders" rows="2" placeholder='{"X-Demo": "1"}'
-                                        oninput="updateSelectedMockField('headers', this.value)"
-                                        class="w-full text-xs font-mono px-3 py-2 border border-slate-300 rounded focus:ring-1 focus:ring-amber-400 outline-none"></textarea>
-                                </div>
-                                <div class="col-span-6">
-                                    <div class="flex items-center justify-between mb-1">
-                                        <label class="text-xs font-semibold text-slate-600">回應 Body</label>
-                                        <div class="flex gap-2">
-                                            <button type="button" onclick="fillMockBodyTemplate('json')" class="text-[11px] text-amber-700 hover:underline">JSON 範本</button>
-                                            <button type="button" onclick="fillMockBodyTemplate('list')" class="text-[11px] text-amber-700 hover:underline">List 範本</button>
-                                            <button type="button" onclick="fillMockBodyTemplate('error')" class="text-[11px] text-amber-700 hover:underline">Error 範本</button>
-                                            <button type="button" onclick="formatMockBodyJson()" class="text-[11px] text-slate-500 hover:underline"><i class="fa-solid fa-wand-magic-sparkles"></i> 格式化 JSON</button>
-                                        </div>
-                                    </div>
-                                    <textarea id="mockBody" rows="10" placeholder='{"code":0,"data":{"id":1,"name":"demo"}}'
-                                        oninput="updateSelectedMockField('body', this.value)"
-                                        class="w-full text-xs font-mono px-3 py-2 border border-slate-300 rounded focus:ring-1 focus:ring-amber-400 outline-none"></textarea>
-                                    <p class="text-[10px] text-slate-400 mt-1">支援 Faker 佔位符：<code class="bg-slate-100 px-1 rounded">{{name}}</code> / <code class="bg-slate-100 px-1 rounded">{{email}}</code> / <code class="bg-slate-100 px-1 rounded">{{uuid}}</code> / <code class="bg-slate-100 px-1 rounded">{{int:1,100}}</code></p>
-                                </div>
-                            </div>
-                        </section>
-
-                        <!-- Preview（試打結果）-->
-                        <section class="bg-slate-900 text-slate-100 rounded-lg border border-slate-700 shadow-sm overflow-hidden">
-                            <div class="px-4 py-2 bg-slate-800 border-b border-slate-700 flex items-center justify-between">
-                                <h4 class="text-xs font-semibold flex items-center gap-2">
-                                    <i class="fa-solid fa-code text-amber-400"></i> 試打 / 佔位符渲染結果
-                                </h4>
-                            </div>
-                            <pre id="mockRenderPreview" class="p-4 text-[11px] font-mono text-amber-300 overflow-x-auto leading-relaxed whitespace-pre-wrap">尚未試打</pre>
-                        </section>
                     </div>
                 </div>
             </div>
@@ -2366,6 +2076,32 @@ driver.swipe(100, 800, 100, 200, 500)"
                             </thead>
                             <tbody id="dsListBody" class="divide-y divide-stone-100"></tbody>
                         </table>
+                    </div>
+
+                    <!-- 終端機指令執行區 -->
+                    <div class="bg-white rounded-lg border border-stone-200 shadow-sm mt-4">
+                        <div class="px-4 py-3 border-b border-stone-100 flex items-center gap-2">
+                            <i class="fa-solid fa-terminal text-stone-600"></i>
+                            <h3 class="font-semibold text-stone-700 text-sm">終端機指令</h3>
+                            <span class="text-xs text-stone-400 ml-1">在後端環境執行 shell 指令（如資料 seed、DB 初始化）</span>
+                        </div>
+                        <div class="p-4 space-y-3">
+                            <div class="flex gap-2">
+                                <input id="shellCmdInput" type="text" placeholder="例：python seed.py  /  ls -la  /  psql -U postgres -c 'SELECT NOW()'"
+                                    class="flex-1 font-mono text-sm px-3 py-2 border border-stone-300 rounded-md focus:outline-none focus:ring-2 focus:ring-stone-400"
+                                    onkeydown="if(event.key==='Enter') runShellCmd()">
+                                <input id="shellTimeoutInput" type="number" value="60" min="5" max="300" title="逾時秒數"
+                                    class="w-20 text-sm px-2 py-2 border border-stone-300 rounded-md focus:outline-none focus:ring-2 focus:ring-stone-400 text-center">
+                                <span class="self-center text-xs text-stone-400">秒</span>
+                                <button onclick="runShellCmd()" class="px-4 py-2 bg-stone-700 hover:bg-stone-800 text-white rounded-md text-sm font-medium flex items-center gap-2">
+                                    <i class="fa-solid fa-play text-xs"></i> 執行
+                                </button>
+                                <button onclick="document.getElementById('shellOutput').textContent=''" class="px-3 py-2 border border-stone-300 hover:bg-stone-50 text-stone-600 rounded-md text-sm">
+                                    <i class="fa-solid fa-eraser"></i>
+                                </button>
+                            </div>
+                            <pre id="shellOutput" class="min-h-[80px] max-h-[320px] overflow-y-auto font-mono text-xs bg-stone-900 text-stone-100 rounded-md p-3 whitespace-pre-wrap break-words"></pre>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -3083,7 +2819,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                     '#recorder':        'recorderWorkspace',
                     '#testround':       'testRoundWorkspace',
                     '#envvars':         'envVarsWorkspace',
-                    '#mock':            'mockWorkspace',
                     '#usersettings':    'userSettingsWorkspace',
                 };
                 var hash = (window.location.hash || '#home').toLowerCase();
@@ -7841,10 +7576,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                         selectInput.innerHTML =
                             '<option value="WEB">WEB</option>' +
                             '<option value="API">API</option>' +
-                            '<option value="APP">APP</option>' +
-                            '<option value="E2E">E2E</option>' +
-                            '<option value="UI">UI</option>' +
-                            '<option value="DB">DB</option>';
+                            '<option value="E2E">E2E</option>';
                     } else if (info.level === 2) {
                         titleEl.innerHTML = '<i class="fa-regular fa-window-maximize text-slate-400"></i> 新增頁面';
                         textGroup.style.display = 'block';
@@ -8604,7 +8336,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                 'showHomeView', 'showTestCasesView',
                 'showReportView', 'showUserSettingsView', 'showRecorderView',
                 'showReviewView', 'showTestRoundView', 'showEnvVarsView',
-                'showMockView',
+
                 'showTestDataSetsView',
                 'showBacklogView',
             ];
@@ -9525,7 +9257,6 @@ driver.swipe(100, 800, 100, 200, 500)"
             document.getElementById('reportWorkspace').classList.add('hidden');
             document.getElementById('testRoundWorkspace').classList.add('hidden');
             document.getElementById('envVarsWorkspace')?.classList.add('hidden');
-            document.getElementById('mockWorkspace')?.classList.add('hidden');
             document.getElementById('homeWorkspace')?.classList.add('hidden');
             document.getElementById('testcasesWorkspace')?.classList.add('hidden');
             document.getElementById('userSettingsWorkspace')?.classList.add('hidden');
@@ -11570,25 +11301,34 @@ driver.swipe(100, 800, 100, 200, 500)"
             renderMockServerBadge();
         }
 
-        // ==================== DB / Mock：顯示視圖 ====================
-        function showMockView() {
-            if (!confirmDiscardIfDirty()) return false;
-            _hideAllWorkspaces();
-            _setViewMeta('view.mock.title', 'view.mock.title', '<i class="fa-solid fa-plug text-amber-500"></i>', 'Mock', 'bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium');
-            document.getElementById('mockWorkspace').classList.remove('hidden');
-            document.getElementById('mainHeader').classList.remove('hidden');
-            document.getElementById('mainActions').classList.add('hidden');
-            currentTestCase = null;
-            loadMockEndpoints();
-            try { _afterViewChange(); } catch (_) {}
-
-        }
 
         // ==================== 測試資料 (DDT) ====================
         let _dataSetsCache = [];
         let _editingDataSetId = null;
         let _dsCols = [];        // 編輯中的欄位名稱列表
         let _dsRows = [];        // 編輯中的資料列(list of {colName: value})
+        async function runShellCmd() {
+            const cmd = (document.getElementById('shellCmdInput')?.value || '').trim();
+            const timeout = parseInt(document.getElementById('shellTimeoutInput')?.value || '60', 10);
+            const out = document.getElementById('shellOutput');
+            if (!cmd || !out) return;
+            out.textContent = '執行中…';
+            try {
+                const res = await apiFetch('/api/shell/exec', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ command: cmd, timeout })
+                });
+                const lines = [];
+                if (res.return_code !== 0) lines.push(`[exit code ${res.return_code}]`);
+                if (res.stdout) lines.push(res.stdout);
+                if (res.stderr) lines.push('--- stderr ---\n' + res.stderr);
+                out.textContent = lines.join('\n') || '（無輸出）';
+            } catch (e) {
+                out.textContent = '錯誤：' + e.message;
+            }
+        }
+
         function showTestDataSetsView() {
             if (!_setView('testDataSetsWorkspace',
                 '<i class="fa-solid fa-table text-violet-500"></i> 測試資料 (DDT)',
@@ -12567,6 +12307,7 @@ driver.swipe(100, 800, 100, 200, 500)"
         function escapeAttr(s) {
             return String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         }
+        const escapeAttrBasic = escapeAttr;
 
         function setTestRoundSelection(ids) {
             trNodeSelection.clear();
@@ -13591,9 +13332,6 @@ driver.swipe(100, 800, 100, 200, 500)"
                 if (el) el.classList.toggle('hidden', !on);
             };
             show('recWebSections', platform === 'WEB');
-            show('recApiSection', platform === 'API');
-            show('recAppSection', platform === 'APP');
-            // history section 只在 WEB 平台顯示;切到 API/APP 隱藏
             show('recHistorySection', platform === 'WEB');
             // 切換時清空上一次的解析結果，避免混淆
             document.getElementById('recPreviewSection').classList.add('hidden');
