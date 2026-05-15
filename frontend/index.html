@@ -4954,7 +4954,7 @@
             const empty = document.getElementById('traceVideoEmpty');
             if (!area) return;
 
-            const hasAny = !!(step.stepVideoUrl || step.videoUrl || step.traceUrl);
+            const hasAny = !!step.stepVideoUrl;
             area.classList.toggle('hidden', !hasAny);
             if (!hasAny) return;
 
@@ -4968,26 +4968,9 @@
                 try { stepPlayer.load(); } catch (_) {}
             }
 
-            // 動態組裝按鈕(只保留「完整錄影」inline modal;Trace 的「嵌入檢視」已移除,改走外部 Trace Viewer)
             actions.innerHTML = '';
-            const btnCls = 'px-3 py-1.5 text-xs font-medium rounded border transition flex items-center gap-1.5';
-            if (step.videoUrl) {
-                const playBtn = document.createElement('button');
-                playBtn.className = `${btnCls} bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100`;
-                playBtn.innerHTML = '<i class="fa-solid fa-play"></i> 完整錄影';
-                playBtn.onclick = () => openFullVideo(step.videoUrl);
-                actions.appendChild(playBtn);
 
-                const dlVideoBtn = document.createElement('a');
-                dlVideoBtn.className = `${btnCls} bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100`;
-                dlVideoBtn.href = step.videoUrl;
-                dlVideoBtn.target = '_blank';
-                dlVideoBtn.rel = 'noreferrer';
-                dlVideoBtn.innerHTML = '<i class="fa-solid fa-download"></i> 下載錄影';
-                actions.appendChild(dlVideoBtn);
-            }
-
-            empty.classList.toggle('hidden', !!(step.stepVideoUrl || step.videoUrl || step.traceUrl));
+            empty.classList.toggle('hidden', !!step.stepVideoUrl);
         }
 
         // ── 完整錄影 inline modal(保留)──
