@@ -57,11 +57,6 @@ async def _seed_default_roles() -> None:
             "permissions_json": [
                 "project.read", "project.write", "project.delete",
                 "testcase.read", "testcase.write", "testcase.delete", "testcase.execute",
-                "defect.read", "defect.write", "defect.delete",
-                "requirement.read", "requirement.write", "requirement.delete",
-                "plan.read", "plan.write", "plan.approve",
-                "wbs.read", "wbs.write",
-                "document.read", "document.write",
                 "report.read",
                 "settings.read", "settings.write",
                 "user.manage", "role.manage",
@@ -74,11 +69,6 @@ async def _seed_default_roles() -> None:
             "permissions_json": [
                 "project.read",
                 "testcase.read", "testcase.write", "testcase.execute",
-                "defect.read", "defect.write",
-                "requirement.read",
-                "plan.read", "plan.write",
-                "wbs.read",
-                "document.read", "document.write",
                 "report.read",
                 "settings.read",
             ],
@@ -88,9 +78,8 @@ async def _seed_default_roles() -> None:
             "scope": "org",
             "description": "檢視者 — 只讀全部",
             "permissions_json": [
-                "project.read", "testcase.read", "defect.read",
-                "requirement.read", "plan.read", "wbs.read",
-                "document.read", "report.read", "settings.read",
+                "project.read", "testcase.read",
+                "report.read", "settings.read",
             ],
         },
         # ── Phase 3 多租戶:per-project 角色 ───────────────────────────────
@@ -101,11 +90,6 @@ async def _seed_default_roles() -> None:
             "permissions_json": [
                 "project.read", "project.write",
                 "testcase.read", "testcase.write", "testcase.delete", "testcase.execute",
-                "defect.read", "defect.write", "defect.delete",
-                "requirement.read", "requirement.write",
-                "plan.read", "plan.write", "plan.approve",
-                "wbs.read", "wbs.write",
-                "document.read", "document.write",
                 "report.read",
                 "user.manage",
             ],
@@ -117,11 +101,6 @@ async def _seed_default_roles() -> None:
             "permissions_json": [
                 "project.read",
                 "testcase.read", "testcase.write", "testcase.execute",
-                "defect.read", "defect.write",
-                "requirement.read",
-                "plan.read",
-                "wbs.read",
-                "document.read",
                 "report.read",
             ],
         },
@@ -132,11 +111,6 @@ async def _seed_default_roles() -> None:
             "permissions_json": [
                 "project.read",
                 "testcase.read",
-                "defect.read",
-                "requirement.read",
-                "plan.read", "plan.approve",
-                "wbs.read",
-                "document.read",
                 "report.read",
             ],
         },
@@ -145,9 +119,8 @@ async def _seed_default_roles() -> None:
             "scope": "project",
             "description": "專案檢視者 — 只讀",
             "permissions_json": [
-                "project.read", "testcase.read", "defect.read",
-                "requirement.read", "plan.read", "wbs.read",
-                "document.read", "report.read",
+                "project.read", "testcase.read",
+                "report.read",
             ],
         },
     ]
