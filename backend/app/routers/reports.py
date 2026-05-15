@@ -317,7 +317,13 @@ async def get_report(
     await ensure_project_in_scope(
         db, report.project_id if report else None, user, not_found_detail="Report not found"
     )
-    return report
+    # 補上 source_title（清單端點才有，詳情端點也需要讓前端組合 yyyymmdd-案例名 標題）
+    result = ReportDetailResponse.model_validate(report)
+    if report.source_node_id and not result.source_title:
+        node = await db.get(TreeNode, report.source_node_id)
+        if node:
+            result.source_title = node.name
+    return result
 
 
 # 15. GET /api/v1/reports/{id}/steps  (步驟明細、截圖 URL、JSON payload)

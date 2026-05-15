@@ -3299,8 +3299,20 @@
                 || Object.keys(bucket).find(k => k !== 'default')
                 || null;
 
+            // 組合報告標題：yyyymmdd-案例名稱
+            const _rDate = parseBackendTime(summary.created_at);
+            const _dateStr = (_rDate && !isNaN(_rDate))
+                ? `${_rDate.getFullYear()}${String(_rDate.getMonth()+1).padStart(2,'0')}${String(_rDate.getDate()).padStart(2,'0')}`
+                : '';
+            const _nodeInfo = summary.source_node_id ? findNodeInfo(activeTreeData, summary.source_node_id) : null;
+            const _caseName = summary.source_title
+                || (_nodeInfo && (_nodeInfo.node.title || _nodeInfo.node.name))
+                || (cases.length && cases[0].name !== '—' ? cases[0].name : null)
+                || String(summary.id || '').slice(0, 8);
+            const _reportTitle = _dateStr ? `${_dateStr}-${_caseName}` : _caseName;
+
             return {
-                title: `執行報告 ${String(summary.id || '').slice(0, 8)}`,
+                title: _reportTitle,
                 time: formatBackendTime(summary.created_at),
                 duration: summary.duration_ms != null ? `${(summary.duration_ms / 1000).toFixed(2)}s` : '—',
                 status: (summary.status === 'PASSED') ? 'Passed' : 'Failed',
