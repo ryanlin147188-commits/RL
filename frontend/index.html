@@ -471,10 +471,8 @@
         .review-tab-btn { color: rgb(120 113 108); }
         .review-tab-btn.is-active { color: rgb(124 58 237); background-color: white; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); }
         /* Reviewer columns are only meaningful on the "已審核" (approved) tab.
-           On 待審核 / 已拒絕 the reviewer is either unset or implied; hide them
-           so the table doesn't waste horizontal space on dashes. */
-        #reviewTable[data-active-tab="pending"]  .review-col-reviewer,
-        #reviewTable[data-active-tab="rejected"] .review-col-reviewer { display: none; }
+           On 待審核 the reviewer is unset; hide those columns to avoid dashes. */
+        #reviewTable[data-active-tab="pending"] .review-col-reviewer { display: none; }
         html.dark .nav-drawer-btn { color: rgb(214 211 209); }
         html.dark .nav-drawer-btn:hover { background-color: rgb(68 64 60); color: rgb(254 243 199); }
         html.dark .nav-drawer-btn.is-active { background-color: rgb(120 53 15); color: rgb(254 243 199); }
