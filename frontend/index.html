@@ -7622,7 +7622,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                     ? (currentTestCase === n.id ? 'bg-blue-50 text-blue-700 font-bold border-blue-200' : 'text-slate-600 border-transparent hover:bg-slate-100')
                     : 'text-slate-700 font-semibold hover:bg-slate-100 border-transparent';
                 const row = document.createElement('div');
-                row.className = `flex items-center gap-1.5 py-0.5 px-1 rounded cursor-pointer group transition text-xs border ${bg}`;
+                row.className = `flex items-center gap-1 py-0.5 px-1 rounded cursor-pointer group transition text-xs border ${bg}`;
 
                 row.onclick = () => {
                     if (n.isFile) { loadTestCase(n.id); return; }
@@ -7633,10 +7633,9 @@ driver.swipe(100, 800, 100, 200, 500)"
                     renderAllTree();
                 };
 
-                let html = `<i class="fa-solid fa-grip-vertical text-slate-300 text-[10px] cursor-grab opacity-0 group-hover:opacity-100 transition-opacity" title="拖曳調整順序"></i>`;
-                html += !n.isFile
-                    ? `<i class="fa-solid ${n.expanded ? 'fa-caret-down' : 'fa-caret-right'} text-slate-400 w-3 text-center shrink-0"></i>`
-                    : `<span class="w-3 shrink-0"></span>`;
+                let html = !n.isFile
+                    ? `<i class="fa-solid ${n.expanded ? 'fa-caret-down' : 'fa-caret-right'} text-slate-400 text-[10px] shrink-0"></i>`
+                    : '';
                 html += `<i class="${n.icon} shrink-0"></i><span class="flex-1 truncate ml-1">${highlightKeyword(n.title)}</span>`;
 
                 html += `<div class="opacity-0 group-hover:opacity-100 flex items-center gap-1.5 transition-opacity tree-actions pl-2" onclick="event.stopPropagation()">`;
@@ -7650,7 +7649,7 @@ driver.swipe(100, 800, 100, 200, 500)"
 
                 if (!n.isFile && n.expanded && n.children) {
                     const childDiv = document.createElement('div');
-                    childDiv.className = 'pl-2 border-l border-slate-200 ml-1.5';
+                    childDiv.className = 'pl-1.5 border-l border-slate-200 ml-2';
                     renderTree(n.children, childDiv);
                     div.appendChild(childDiv);
                 }
