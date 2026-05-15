@@ -866,31 +866,36 @@
         <!-- 頂部 2px 漸層 — 品牌色錨點 -->
         <div class="h-[2px] bg-gradient-to-r from-amber-300 via-orange-300 to-rose-300"></div>
 
-        <div class="h-14 flex items-center px-3 md:px-5 gap-2 md:gap-3">
-            <!-- 功能選單 hamburger 已停用(8 個 nav 項目移至下方第二列 topnav);保留按鈕但 hidden 避免破版 -->
-            <button type="button" id="navDrawerToggleBtn" onclick="toggleNavDrawer(event)"
-                class="hidden w-9 h-9 items-center justify-center rounded-lg text-stone-700 hover:bg-stone-100 hover:text-amber-600 transition shrink-0"
-                aria-label="開啟功能選單" title="功能選單">
-                <i class="fa-solid fa-bars text-[17px]"></i>
-            </button>
-            <!-- 專案樹(只在行動裝置顯示;桌面版專案樹 sidebar 已常駐左側) -->
+        <!-- 單列：Brand | Nav pills (可橫捲) | 右側動作群 -->
+        <div class="h-14 flex items-center px-3 md:px-5 gap-2 min-w-0">
+            <!-- 專案樹(只在行動裝置顯示) -->
             <button type="button" id="sidebarMobileToggle" onclick="toggleMobileSidebar()"
                 class="md:hidden w-9 h-9 flex items-center justify-center rounded-lg text-stone-600 hover:bg-amber-50 hover:text-amber-600 transition shrink-0"
                 aria-label="開啟專案目錄" title="專案目錄">
                 <i class="fa-solid fa-folder-tree text-[15px]"></i>
             </button>
-            <!-- Brand (logo SVG 已移除) -->
+            <!-- Brand -->
             <button type="button" id="navHomeBtn" onclick="showHomeView()" title="回首頁" aria-label="回首頁"
-                class="flex items-center gap-2 md:gap-2.5 hover:opacity-80 transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 rounded shrink-0">
-                <h1 class="font-bold text-base md:text-lg text-slate-800 tracking-tight whitespace-nowrap">AutoTest<span class="hidden sm:inline text-[10px] text-amber-700 bg-amber-50 font-semibold ml-1.5 px-1.5 py-0.5 rounded border border-amber-200 align-middle">v1.1.8.1</span></h1>
+                class="flex items-center hover:opacity-80 transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 rounded shrink-0">
+                <h1 class="font-bold text-base text-slate-800 tracking-tight whitespace-nowrap">AutoTest<span class="hidden sm:inline text-[10px] text-amber-700 bg-amber-50 font-semibold ml-1.5 px-1.5 py-0.5 rounded border border-amber-200 align-middle">v1.1.8.1</span></h1>
             </button>
-
-            <!-- 置中空白 (推右側動作群到最右邊) -->
-            <div class="flex-1 min-w-0"></div>
-
-            <!-- 右:圖標動作群 + 使用者下拉 -->
+            <!-- Nav pills — flex-1 可橫捲，隱藏 scrollbar -->
+            <nav class="flex-1 min-w-0 overflow-x-auto flex items-center gap-1 whitespace-nowrap px-2 scrollbar-none" style="-ms-overflow-style:none;scrollbar-width:none;">
+                <button type="button" onclick="showTestCasesView()"    class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-list-check text-blue-600"></i><span data-i18n="nav.testCases">測試案例</span></button>
+                <button type="button" onclick="showTestDataSetsView()" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-table text-violet-600"></i><span data-i18n="nav.dataSets">測試資料</span></button>
+                <button type="button" onclick="showEnvVarsView()"      class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-key text-emerald-600"></i><span data-i18n="nav.envVars">環境變數</span></button>
+                <button type="button" onclick="showMockView()"         class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-plug text-amber-600"></i><span data-i18n="nav.mock">Mock</span></button>
+                <button type="button" onclick="showTestRoundView()"    class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-layer-group text-purple-600"></i><span data-i18n="nav.testRound">TestRun</span></button>
+                <button type="button" onclick="showRecorderView()"     class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-video text-rose-600"></i><span data-i18n="nav.recorder">測試錄製</span></button>
+                <button type="button" onclick="showReportView()"       class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-chart-pie text-blue-600"></i><span data-i18n="nav.reports">測試報告</span></button>
+                <button type="button" onclick="showReviewView()"       class="topnav-pill hover:bg-stone-100">
+                    <i class="fa-solid fa-clipboard-check text-violet-600"></i>
+                    <span data-i18n="nav.review">審核</span>
+                    <span id="navReviewPendingBadge" class="hidden ml-1 px-1.5 py-0.5 text-[10px] font-mono bg-amber-500 text-white rounded-full"></span>
+                </button>
+            </nav>
+            <!-- 右:執行環境 + 組織切換 + 使用者 + 登出 -->
             <div class="flex items-center gap-1 sm:gap-1.5 shrink-0">
-                <!-- 執行環境 (放在通知左邊) -->
                 <button type="button" id="envToggleBtn" onclick="toggleExecutionMode()" aria-label="切換執行環境" title="切換執行環境(點擊切換;本機 = 有頭瀏覽器,Docker = 無頭)"
                     class="flex items-center gap-1.5 text-xs font-medium px-2.5 sm:px-3 py-1.5 rounded-full border border-stone-200 bg-white hover:border-amber-300 hover:bg-amber-50 transition whitespace-nowrap">
                     <i class="fa-solid fa-server text-stone-400 text-[12px]"></i>
@@ -901,7 +906,6 @@
                     class="hidden text-xs text-amber-700 hover:text-amber-900 px-1" title="本機模式設定說明">
                     <i class="fa-solid fa-circle-question"></i>
                 </button>
-                <!-- 組織切換器(只在使用者跨多個組織時顯示;單組織時 .hidden) -->
                 <div id="orgSwitcher" class="hidden relative">
                     <button type="button" id="orgSwitcherBtn" onclick="toggleOrgSwitcherMenu(event)"
                         class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-stone-200 hover:bg-stone-50 hover:border-amber-300 transition text-xs"
@@ -914,37 +918,18 @@
                         <!-- 動態填充 -->
                     </div>
                 </div>
-                <!-- 分隔線 -->
                 <div class="hidden sm:block h-6 w-px bg-stone-200 mx-1" aria-hidden="true"></div>
-                <!-- 使用者(直接點擊進設定頁) -->
                 <button type="button" id="userMenuBtn" onclick="showUserSettingsView()" aria-label="設定" data-i18n-attr="title;settings.title.short"
                     title="設定" class="flex items-center gap-2 cursor-pointer hover:bg-stone-100 pl-1 pr-2 py-1 rounded-full transition focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400">
                     <div id="userMenuAvatar" class="w-7 h-7 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-xs font-bold shadow-sm shrink-0">A</div>
                     <span id="userMenuName" class="hidden sm:inline text-sm font-semibold text-stone-700 max-w-[100px] truncate">admin</span>
                 </button>
-                <!-- 登出(獨立按鈕,放在使用者名稱右側) -->
                 <button type="button" id="logoutBtn" onclick="authLogout()" aria-label="登出" data-i18n-attr="title;common.logout,aria-label;common.logout"
                     title="登出" class="w-9 h-9 flex items-center justify-center rounded-full text-stone-500 hover:bg-rose-50 hover:text-rose-600 transition">
                     <i class="fa-solid fa-right-from-bracket text-[15px]"></i>
                 </button>
             </div>
         </div>
-
-        <!-- 第二列：功能 nav (從 #navDrawer 搬上來)。窄螢幕可水平捲動。 -->
-        <nav class="border-t border-stone-100 px-3 md:px-5 py-1.5 flex items-center gap-1 overflow-x-auto whitespace-nowrap">
-            <button type="button" onclick="showTestCasesView()"    class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-list-check text-blue-600"></i><span data-i18n="nav.testCases">測試案例</span></button>
-            <button type="button" onclick="showTestDataSetsView()" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-table text-violet-600"></i><span data-i18n="nav.dataSets">測試資料</span></button>
-            <button type="button" onclick="showEnvVarsView()"      class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-key text-emerald-600"></i><span data-i18n="nav.envVars">環境變數</span></button>
-            <button type="button" onclick="showMockView()"         class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-plug text-amber-600"></i><span data-i18n="nav.mock">Mock 設定</span></button>
-            <button type="button" onclick="showTestRoundView()"    class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-layer-group text-purple-600"></i><span data-i18n="nav.testRound">TestRun</span></button>
-            <button type="button" onclick="showRecorderView()"     class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-video text-rose-600"></i><span data-i18n="nav.recorder">測試錄製</span></button>
-            <button type="button" onclick="showReportView()"       class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-chart-pie text-blue-600"></i><span data-i18n="nav.reports">測試報告</span></button>
-            <button type="button" onclick="showReviewView()"       class="topnav-pill hover:bg-stone-100">
-                <i class="fa-solid fa-clipboard-check text-violet-600"></i>
-                <span data-i18n="nav.review">審核</span>
-                <span id="navReviewPendingBadge" class="hidden ml-1 px-1.5 py-0.5 text-[10px] font-mono bg-amber-500 text-white rounded-full"></span>
-            </button>
-        </nav>
     </header>
 
     <!-- ═══════════════════════════════════════════════════════════════
