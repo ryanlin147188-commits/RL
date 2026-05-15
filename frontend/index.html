@@ -894,6 +894,7 @@
                     <span data-i18n="nav.review">審核</span>
                     <span id="navReviewPendingBadge" class="hidden ml-1 px-1.5 py-0.5 text-[10px] font-mono bg-amber-500 text-white rounded-full"></span>
                 </button>
+                <button type="button" onclick="showFileCompareView()" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-code-compare text-indigo-600"></i><span>檔案比對</span></button>
             </nav>
             <!-- 右:執行環境 + 組織切換 + 使用者 + 登出 -->
             <div class="flex items-center gap-1 sm:gap-1.5 shrink-0">
@@ -2759,6 +2760,127 @@
                 </div>
             </div>
 
+            <!-- ── 檔案比對 (File Compare) ── -->
+            <div id="fileCompareWorkspace" class="flex-1 overflow-y-auto p-6 bg-indigo-50/20 hidden">
+                <div class="max-w-full">
+                    <section class="bg-white rounded-lg border border-slate-200 shadow-sm">
+                        <!-- Header bar -->
+                        <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between flex-wrap gap-3">
+                            <div>
+                                <h3 class="font-bold text-slate-700 flex items-center gap-2">
+                                    <i class="fa-solid fa-code-compare text-indigo-500"></i> 檔案比對
+                                    <span class="text-xs font-normal text-slate-400 ml-1">支援 .xlsx / .xls / .csv</span>
+                                </h3>
+                                <p class="text-[11px] text-slate-500 mt-1">上傳兩份 Excel 或 CSV 檔，即時比對差異、匯出報告。所有處理均在瀏覽器本機完成，不會上傳至伺服器。</p>
+                            </div>
+                            <div class="flex gap-2">
+                                <button type="button" onclick="_fcReset()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-300 rounded text-sm font-medium flex items-center gap-1">
+                                    <i class="fa-solid fa-rotate-left"></i> 重置
+                                </button>
+                                <button type="button" id="fcExportBtn" onclick="_fcExportDiff()" disabled
+                                    class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded text-sm font-medium flex items-center gap-1">
+                                    <i class="fa-solid fa-file-arrow-down"></i> 匯出差異 CSV
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Upload zone: File A + File B side by side -->
+                        <div class="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <!-- File A -->
+                            <div id="fcDropA"
+                                class="border-2 border-dashed border-indigo-200 rounded-lg p-6 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/40 transition group"
+                                ondragover="event.preventDefault()" ondragleave="event.preventDefault()" ondrop="_fcHandleDrop(event,'A')"
+                                onclick="document.getElementById('fcInputA').click()">
+                                <div id="fcDropALabel">
+                                    <i class="fa-solid fa-file-excel text-3xl text-indigo-300 group-hover:text-indigo-400 mb-2 block"></i>
+                                    <div class="font-medium text-slate-600 text-sm">檔案 A（基準）</div>
+                                    <div class="text-xs text-slate-400 mt-1">點擊或拖曳 .xlsx / .xls / .csv</div>
+                                </div>
+                                <input type="file" id="fcInputA" accept=".xlsx,.xls,.csv" class="hidden" onchange="_fcHandleInput(event,'A')">
+                            </div>
+                            <!-- File B -->
+                            <div id="fcDropB"
+                                class="border-2 border-dashed border-amber-200 rounded-lg p-6 text-center cursor-pointer hover:border-amber-400 hover:bg-amber-50/40 transition group"
+                                ondragover="event.preventDefault()" ondragleave="event.preventDefault()" ondrop="_fcHandleDrop(event,'B')"
+                                onclick="document.getElementById('fcInputB').click()">
+                                <div id="fcDropBLabel">
+                                    <i class="fa-solid fa-file-excel text-3xl text-amber-300 group-hover:text-amber-400 mb-2 block"></i>
+                                    <div class="font-medium text-slate-600 text-sm">檔案 B（比對）</div>
+                                    <div class="text-xs text-slate-400 mt-1">點擊或拖曳 .xlsx / .xls / .csv</div>
+                                </div>
+                                <input type="file" id="fcInputB" accept=".xlsx,.xls,.csv" class="hidden" onchange="_fcHandleInput(event,'B')">
+                            </div>
+                        </div>
+
+                        <!-- Settings bar（兩個檔案至少一個上傳後顯示）-->
+                        <div id="fcSettingsBar" class="px-5 pb-4 hidden">
+                            <div class="bg-slate-50 rounded-lg border border-slate-200 p-3 flex flex-wrap items-center gap-4">
+                                <label class="flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none">
+                                    <input type="checkbox" id="fcHasHeader" checked onchange="_fcUpdateKeyColOptions()"
+                                        class="rounded border-slate-300 text-indigo-500 focus:ring-indigo-400">
+                                    第一列為標題列
+                                </label>
+                                <div class="flex items-center gap-2">
+                                    <label for="fcKeyCol" class="text-sm text-slate-700 whitespace-nowrap">比對依據欄</label>
+                                    <select id="fcKeyCol" class="border border-slate-300 rounded px-2 py-1.5 text-sm bg-white focus:ring-1 focus:ring-indigo-400 outline-none min-w-[160px]">
+                                        <option value="">按列序 (Row Index)</option>
+                                    </select>
+                                </div>
+                                <button type="button" onclick="_fcRunCompare()"
+                                    class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-sm font-medium flex items-center gap-1 ml-auto">
+                                    <i class="fa-solid fa-magnifying-glass"></i> 開始比對
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Stats bar -->
+                        <div id="fcStatsBar" class="hidden px-5 pb-4">
+                            <div class="flex flex-wrap gap-2">
+                                <span class="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 text-slate-600 rounded-full text-xs font-medium">
+                                    <i class="fa-solid fa-table-list text-indigo-400"></i> A 共 <strong id="fcStatTotalA">0</strong> 列
+                                </span>
+                                <span class="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 text-slate-600 rounded-full text-xs font-medium">
+                                    <i class="fa-solid fa-table-list text-amber-400"></i> B 共 <strong id="fcStatTotalB">0</strong> 列
+                                </span>
+                                <span class="inline-flex items-center gap-1 px-2.5 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+                                    <i class="fa-solid fa-circle-check"></i> 相同 <strong id="fcStatSame">0</strong>
+                                </span>
+                                <span class="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-medium">
+                                    <i class="fa-solid fa-circle-exclamation"></i> 不同 <strong id="fcStatDiff">0</strong>
+                                </span>
+                                <span class="inline-flex items-center gap-1 px-2.5 py-1 bg-red-100 text-red-700 rounded-full text-xs font-medium">
+                                    <i class="fa-solid fa-minus"></i> 僅在 A <strong id="fcStatOnlyA">0</strong>
+                                </span>
+                                <span class="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                                    <i class="fa-solid fa-plus"></i> 僅在 B <strong id="fcStatOnlyB">0</strong>
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Result area: filter tabs + table -->
+                        <div id="fcResultArea" class="hidden border-t border-slate-100">
+                            <!-- Filter tabs -->
+                            <div class="px-5 py-3 flex items-center gap-2 flex-wrap">
+                                <button type="button" data-fc-filter="all"    onclick="_fcSetFilter('all')"    class="fc-filter-tab px-3 py-1 rounded-full text-xs font-medium border transition">全部</button>
+                                <button type="button" data-fc-filter="diff"   onclick="_fcSetFilter('diff')"   class="fc-filter-tab px-3 py-1 rounded-full text-xs font-medium border transition">僅差異</button>
+                                <button type="button" data-fc-filter="only_a" onclick="_fcSetFilter('only_a')" class="fc-filter-tab px-3 py-1 rounded-full text-xs font-medium border transition">僅在 A</button>
+                                <button type="button" data-fc-filter="only_b" onclick="_fcSetFilter('only_b')" class="fc-filter-tab px-3 py-1 rounded-full text-xs font-medium border transition">僅在 B</button>
+                                <button type="button" data-fc-filter="same"   onclick="_fcSetFilter('same')"   class="fc-filter-tab px-3 py-1 rounded-full text-xs font-medium border transition">完全相同</button>
+                                <span id="fcFilterCount" class="ml-auto text-xs text-slate-400"></span>
+                            </div>
+                            <!-- Table -->
+                            <div class="overflow-x-auto" style="max-height:60vh;overflow-y:auto">
+                                <table class="w-full text-xs" style="border-collapse:collapse">
+                                    <thead id="fcResultHead" class="bg-slate-50 border-b border-slate-200 sticky top-0 z-10 text-slate-500 text-[11px]"></thead>
+                                    <tbody id="fcResultBody" class="divide-y divide-slate-100"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                    </section>
+                </div>
+            </div>
+
             <!-- 執行 Console 底部抽屜 -->
             <div id="terminalPanel"
                  class="shrink-0 bg-slate-900 border-t-0 border-slate-700 overflow-hidden transition-all duration-300 h-0 flex flex-col">
@@ -2971,6 +3093,7 @@
                     '#schedule':        'scheduleWorkspace',
                     '#envvars':         'envVarsWorkspace',
                     '#usersettings':    'userSettingsWorkspace',
+                    '#filecompare':     'fileCompareWorkspace',
                 };
                 var hash = (window.location.hash || '#home').toLowerCase();
                 var wsId = HASH_TO_WORKSPACE[hash] || 'homeWorkspace';
@@ -3008,6 +3131,7 @@
             scheduleWorkspace:     '測試排程',
             envVarsWorkspace:      '環境變數',
             editorWorkspace:       '案例編輯',
+            fileCompareWorkspace:  '檔案比對',
         };
 
         const _ALL_WS_IDS = [
@@ -3015,7 +3139,7 @@
             'recorderWorkspace','reportWorkspace','testRoundWorkspace',
             'scheduleWorkspace','envVarsWorkspace','homeWorkspace',
             'testcasesWorkspace','userSettingsWorkspace','testDataSetsWorkspace',
-            'backlogWorkspace','reviewWorkspace',
+            'backlogWorkspace','reviewWorkspace','fileCompareWorkspace',
         ];
 
         function _navCurrentWsId() {
@@ -3066,6 +3190,7 @@
                     case 'testRoundWorkspace':    if (typeof showTestRoundView === 'function') showTestRoundView(); break;
                     case 'scheduleWorkspace':     if (typeof showScheduleView === 'function') showScheduleView(); break;
                     case 'envVarsWorkspace':      if (typeof showEnvVarsView === 'function') showEnvVarsView(); break;
+                    case 'fileCompareWorkspace':  if (typeof showFileCompareView === 'function') showFileCompareView(); break;
                     default:
                         _hideAllWorkspaces();
                         document.getElementById(prev.workspaceId)?.classList.remove('hidden');
@@ -8562,6 +8687,7 @@
                 'showReportView', 'showUserSettingsView', 'showRecorderView',
                 'showReviewView', 'showTestRoundView', 'showEnvVarsView',
                 'showTestDataSetsView', 'showBacklogView', 'showScheduleView',
+                'showFileCompareView',
             ];
             const _hashToFn = {};   // '#defects' → 'showDefectsView'
             let _suppressHashChange = false;
@@ -9729,6 +9855,7 @@
             document.getElementById('testDataSetsWorkspace')?.classList.add('hidden');
             document.getElementById('backlogWorkspace')?.classList.add('hidden');
             document.getElementById('reviewWorkspace')?.classList.add('hidden');
+            document.getElementById('fileCompareWorkspace')?.classList.add('hidden');
         }
 
         // ================== 審核 (Review Center) =====================
@@ -16222,6 +16349,416 @@ curl -X POST http://localhost:8000/api/defects \\
     </div>
 
     <script>
+    // ================== 檔案比對 (File Compare) =====================
+    // 純前端比對：解析 Excel / CSV → 差異標記 → 匯出 CSV。
+    // 不會上傳任何資料至伺服器。SheetJS 僅在首次進入此頁面時 lazy-load。
+
+    let _fcFileA    = null;   // { name:string, rows:string[][] }
+    let _fcFileB    = null;
+    let _fcResult   = null;   // 比對結果列陣列
+    let _fcFilter   = 'all';
+    let _fcHeaders  = [];     // 表頭欄位名稱
+    let _fcXlsxReady = false;
+
+    async function showFileCompareView() {
+        if (!confirmDiscardIfDirty()) return false;
+        _navPush();
+        _hideAllWorkspaces();
+        _setViewMeta('view.fileCompare.title','view.fileCompare.title',
+            '<i class="fa-solid fa-code-compare text-indigo-500"></i>',
+            'Compare','bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-medium');
+        document.getElementById('fileCompareWorkspace').classList.remove('hidden');
+        document.getElementById('mainHeader').classList.remove('hidden');
+        document.getElementById('mainActions').classList.add('hidden');
+        currentTestCase = null;
+        // lazy-load SheetJS for Excel support
+        if (!_fcXlsxReady) {
+            _fcLoadXlsx().catch(e => console.warn('[FileCompare] SheetJS load failed – Excel disabled:', e));
+        }
+        // 恢復篩選 tab 樣式
+        if (_fcResult) _fcApplyFilterTabs();
+        try { _afterViewChange(); } catch (_) {}
+    }
+
+    function _fcLoadXlsx() {
+        return new Promise((resolve, reject) => {
+            if (window.XLSX) { _fcXlsxReady = true; resolve(); return; }
+            const s = document.createElement('script');
+            s.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+            s.onload  = () => { _fcXlsxReady = true; resolve(); };
+            s.onerror = reject;
+            document.head.appendChild(s);
+        });
+    }
+
+    // ── 拖放 / 點擊上傳 ──────────────────────────────────────────────
+    function _fcHandleDrop(event, side) {
+        event.preventDefault();
+        const f = event.dataTransfer?.files?.[0];
+        if (f) _fcProcessFile(f, side);
+    }
+    function _fcHandleInput(event, side) {
+        const f = event.target.files?.[0];
+        if (f) _fcProcessFile(f, side);
+        event.target.value = '';
+    }
+
+    async function _fcProcessFile(file, side) {
+        const ext = file.name.split('.').pop().toLowerCase();
+        if (!['xlsx','xls','csv'].includes(ext)) {
+            showToast('僅支援 .xlsx / .xls / .csv 格式', 'error'); return;
+        }
+        try {
+            const rows = await _fcParseFile(file);
+            const data = { name: file.name, rows };
+            if (side === 'A') _fcFileA = data; else _fcFileB = data;
+            _fcRenderDropLabel(side, data);
+            _fcShowSettingsBar();
+            // 若兩個檔案都就緒，自動比對
+            if (_fcFileA && _fcFileB) _fcRunCompare();
+        } catch (e) {
+            showToast('檔案解析失敗：' + (e.message || e), 'error');
+        }
+    }
+
+    // ── 解析 ─────────────────────────────────────────────────────────
+    async function _fcParseFile(file) {
+        const ext = file.name.split('.').pop().toLowerCase();
+        if (ext === 'csv') {
+            return _fcParseCSV(await file.text());
+        }
+        if (!_fcXlsxReady) await _fcLoadXlsx();
+        if (!window.XLSX) throw new Error('SheetJS 未載入，請重新整理頁面');
+        const ab  = await file.arrayBuffer();
+        const wb  = XLSX.read(ab, { type: 'array' });
+        const ws  = wb.Sheets[wb.SheetNames[0]];
+        const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+        return raw.map(r => r.map(c => String(c ?? '')));
+    }
+
+    function _fcParseCSV(text) {
+        if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1); // BOM
+        // 偵測分隔符（逗號 vs 分號）
+        const firstLine = text.split('\n')[0] || '';
+        const sep = firstLine.split(';').length > firstLine.split(',').length ? ';' : ',';
+        const rows = [];
+        let row = [], field = '', inQ = false;
+        for (let i = 0; i < text.length; i++) {
+            const ch = text[i];
+            if (inQ) {
+                if (ch === '"') {
+                    if (text[i+1] === '"') { field += '"'; i++; }
+                    else inQ = false;
+                } else field += ch;
+            } else {
+                if      (ch === '"')  inQ = true;
+                else if (ch === sep)  { row.push(field); field = ''; }
+                else if (ch === '\n') {
+                    row.push(field); field = '';
+                    if (row.some(c => c !== '')) rows.push(row);
+                    row = [];
+                } else if (ch !== '\r') field += ch;
+            }
+        }
+        if (field !== '' || row.length) {
+            row.push(field);
+            if (row.some(c => c !== '')) rows.push(row);
+        }
+        return rows;
+    }
+
+    // ── Drop label 渲染 ───────────────────────────────────────────────
+    function _fcRenderDropLabel(side, data) {
+        const el = document.getElementById('fcDrop' + side + 'Label');
+        if (!el) return;
+        const color = side === 'A' ? 'indigo' : 'amber';
+        const rowCount = data.rows.length;
+        el.innerHTML = `
+            <i class="fa-solid fa-file-excel text-3xl text-${color}-400 mb-2 block"></i>
+            <div class="font-semibold text-slate-700 text-sm truncate max-w-[190px] mx-auto" title="${_esc(data.name)}">${_esc(data.name)}</div>
+            <div class="text-xs text-slate-400 mt-0.5">${rowCount} 列</div>
+            <button type="button" onclick="event.stopPropagation();_fcClearSide('${side}')"
+                class="mt-2 text-xs text-rose-400 hover:text-rose-600 flex items-center gap-1 mx-auto">
+                <i class="fa-solid fa-xmark"></i> 清除
+            </button>`;
+    }
+
+    function _fcResetDropLabel(side) {
+        const el = document.getElementById('fcDrop' + side + 'Label');
+        if (!el) return;
+        const color = side === 'A' ? 'indigo' : 'amber';
+        const label = side === 'A' ? '檔案 A（基準）' : '檔案 B（比對）';
+        el.innerHTML = `
+            <i class="fa-solid fa-file-excel text-3xl text-${color}-300 group-hover:text-${color}-400 mb-2 block"></i>
+            <div class="font-medium text-slate-600 text-sm">${label}</div>
+            <div class="text-xs text-slate-400 mt-1">點擊或拖曳 .xlsx / .xls / .csv</div>`;
+    }
+
+    function _fcClearSide(side) {
+        if (side === 'A') _fcFileA = null; else _fcFileB = null;
+        _fcResetDropLabel(side);
+        _fcResult = null;
+        _fcShowSettingsBar();
+        document.getElementById('fcStatsBar').classList.add('hidden');
+        document.getElementById('fcResultArea').classList.add('hidden');
+        document.getElementById('fcExportBtn').disabled = true;
+    }
+
+    // ── Settings bar ─────────────────────────────────────────────────
+    function _fcShowSettingsBar() {
+        if (!_fcFileA && !_fcFileB) return;
+        document.getElementById('fcSettingsBar').classList.remove('hidden');
+        _fcUpdateKeyColOptions();
+    }
+
+    function _fcUpdateKeyColOptions() {
+        const sel       = document.getElementById('fcKeyCol');
+        const hasHeader = document.getElementById('fcHasHeader').checked;
+        const rows      = (_fcFileA?.rows || _fcFileB?.rows || []);
+        const prevVal   = sel.value;
+        sel.innerHTML   = '<option value="">按列序 (Row Index)</option>';
+        if (rows.length === 0) return;
+        if (hasHeader) {
+            rows[0].forEach((h, i) => {
+                const o = document.createElement('option');
+                o.value = String(i);
+                o.textContent = (h && h.trim()) ? h.trim() : `欄 ${i+1}`;
+                sel.appendChild(o);
+            });
+        } else {
+            const maxCols = Math.max(...rows.slice(0,5).map(r => r.length), 0);
+            for (let i = 0; i < maxCols; i++) {
+                const o = document.createElement('option');
+                o.value = String(i);
+                o.textContent = `欄 ${i+1}`;
+                sel.appendChild(o);
+            }
+        }
+        // 恢復上一次選取的欄位
+        if (prevVal) sel.value = prevVal;
+    }
+
+    // ── 執行比對 ─────────────────────────────────────────────────────
+    function _fcRunCompare() {
+        if (!_fcFileA || !_fcFileB) { showToast('請先上傳兩個檔案', 'warning'); return; }
+
+        const hasHeader = document.getElementById('fcHasHeader').checked;
+        const keyColStr = document.getElementById('fcKeyCol').value;
+        const keyCol    = keyColStr === '' ? null : parseInt(keyColStr, 10);
+
+        let rowsA = _fcFileA.rows.map(r => [...r]);
+        let rowsB = _fcFileB.rows.map(r => [...r]);
+        let hdr   = [];
+
+        if (hasHeader) {
+            if (rowsA.length) { hdr   = rowsA.shift(); }
+            if (rowsB.length) { if (!hdr.length) hdr = rowsB[0]; rowsB.shift(); }
+        }
+
+        // 對齊欄數
+        const maxCols = Math.max(hdr.length, ...rowsA.map(r=>r.length), ...rowsB.map(r=>r.length), 0);
+        const pad = r => { const r2=[...r]; while(r2.length<maxCols) r2.push(''); return r2; };
+        rowsA   = rowsA.map(pad);
+        rowsB   = rowsB.map(pad);
+        hdr     = pad(hdr);
+        _fcHeaders = hdr;
+
+        const dataOffset = hasHeader ? 2 : 1; // 行號 offset（顯示用）
+        const results    = [];
+
+        if (keyCol !== null) {
+            // ── 依 Key 欄比對 ──
+            const mapA = new Map(), mapB = new Map();
+            rowsA.forEach((r, i) => { const k=r[keyCol]??''; if(!mapA.has(k)) mapA.set(k,[]); mapA.get(k).push({r,i}); });
+            rowsB.forEach((r, i) => { const k=r[keyCol]??''; if(!mapB.has(k)) mapB.set(k,[]); mapB.get(k).push({r,i}); });
+            const seen = new Set();
+            mapA.forEach((lstA, key) => {
+                seen.add(key);
+                const lstB  = mapB.get(key) || [];
+                const count = Math.max(lstA.length, lstB.length);
+                for (let n = 0; n < count; n++) {
+                    const a = lstA[n], b = lstB[n];
+                    if (a && b) {
+                        const diff = [];
+                        for (let c=0;c<maxCols;c++) if((a.r[c]??'')!==(b.r[c]??'')) diff.push(c);
+                        results.push({ status: diff.length?'diff':'same', rowIdxA:a.i+dataOffset, rowIdxB:b.i+dataOffset, colsA:a.r, colsB:b.r, diffCols:diff });
+                    } else if (a) {
+                        results.push({ status:'only_a', rowIdxA:a.i+dataOffset, rowIdxB:null, colsA:a.r, colsB:[], diffCols:[] });
+                    } else {
+                        results.push({ status:'only_b', rowIdxA:null, rowIdxB:b.i+dataOffset, colsA:[], colsB:b.r, diffCols:[] });
+                    }
+                }
+            });
+            mapB.forEach((lstB, key) => {
+                if (seen.has(key)) return;
+                lstB.forEach(b => results.push({ status:'only_b', rowIdxA:null, rowIdxB:b.i+dataOffset, colsA:[], colsB:b.r, diffCols:[] }));
+            });
+            // 排序：same → diff → only_a → only_b
+            const order = {same:0,diff:1,only_a:2,only_b:3};
+            results.sort((a,b) => order[a.status]-order[b.status]);
+        } else {
+            // ── 依列序比對 ──
+            const count = Math.max(rowsA.length, rowsB.length);
+            for (let i=0;i<count;i++) {
+                const a=rowsA[i], b=rowsB[i];
+                if (a && b) {
+                    const diff=[];
+                    for (let c=0;c<maxCols;c++) if((a[c]??'')!==(b[c]??'')) diff.push(c);
+                    results.push({ status:diff.length?'diff':'same', rowIdxA:i+dataOffset, rowIdxB:i+dataOffset, colsA:a, colsB:b, diffCols:diff });
+                } else if (a) {
+                    results.push({ status:'only_a', rowIdxA:i+dataOffset, rowIdxB:null, colsA:a, colsB:[], diffCols:[] });
+                } else {
+                    results.push({ status:'only_b', rowIdxA:null, rowIdxB:i+dataOffset, colsA:[], colsB:b, diffCols:[] });
+                }
+            }
+        }
+
+        _fcResult = results;
+        _fcFilter = 'all';
+        _fcRenderStats();
+        _fcApplyFilterTabs();
+        _fcRenderTable();
+        document.getElementById('fcStatsBar').classList.remove('hidden');
+        document.getElementById('fcResultArea').classList.remove('hidden');
+        document.getElementById('fcExportBtn').disabled = false;
+    }
+
+    // ── 統計列 ────────────────────────────────────────────────────────
+    function _fcRenderStats() {
+        if (!_fcResult) return;
+        const hasH = document.getElementById('fcHasHeader').checked ? 1 : 0;
+        document.getElementById('fcStatTotalA').textContent = (_fcFileA.rows.length - hasH);
+        document.getElementById('fcStatTotalB').textContent = (_fcFileB.rows.length - hasH);
+        document.getElementById('fcStatSame').textContent   = _fcResult.filter(r=>r.status==='same').length;
+        document.getElementById('fcStatDiff').textContent   = _fcResult.filter(r=>r.status==='diff').length;
+        document.getElementById('fcStatOnlyA').textContent  = _fcResult.filter(r=>r.status==='only_a').length;
+        document.getElementById('fcStatOnlyB').textContent  = _fcResult.filter(r=>r.status==='only_b').length;
+    }
+
+    // ── 篩選 tabs ─────────────────────────────────────────────────────
+    function _fcSetFilter(filter) {
+        _fcFilter = filter;
+        _fcApplyFilterTabs();
+        _fcRenderTable();
+    }
+
+    function _fcApplyFilterTabs() {
+        document.querySelectorAll('.fc-filter-tab').forEach(btn => {
+            const active = btn.dataset.fcFilter === _fcFilter;
+            btn.className = active
+                ? 'fc-filter-tab px-3 py-1 rounded-full text-xs font-medium border transition bg-indigo-600 text-white border-indigo-600'
+                : 'fc-filter-tab px-3 py-1 rounded-full text-xs font-medium border transition bg-white text-slate-600 border-slate-300 hover:border-indigo-400 cursor-pointer';
+        });
+    }
+
+    // ── 結果表格渲染 ─────────────────────────────────────────────────
+    function _fcRenderTable() {
+        if (!_fcResult) return;
+        const thead = document.getElementById('fcResultHead');
+        const tbody = document.getElementById('fcResultBody');
+        const cols  = _fcHeaders.length ||
+            Math.max(..._fcResult.map(r=>Math.max(r.colsA.length,r.colsB.length)),0);
+
+        const filtered = _fcResult.filter(r =>
+            _fcFilter === 'all' ? true : r.status === _fcFilter
+        );
+        document.getElementById('fcFilterCount').textContent =
+            `顯示 ${filtered.length} / ${_fcResult.length} 列`;
+
+        // 表頭（固定置頂）
+        const colHdrs = Array.from({length:cols},(_,i)=>_fcHeaders[i]||`欄${i+1}`);
+        thead.innerHTML = `<tr>
+            <th class="px-2 py-2 text-center text-slate-400 font-normal w-8">#</th>
+            <th class="px-2 py-2 text-center text-slate-500 font-normal w-16">狀態</th>
+            <th class="px-2 py-2 text-center text-indigo-400 font-normal w-8 text-[10px]">列A</th>
+            <th class="px-2 py-2 text-center text-amber-500 font-normal w-8 text-[10px]">列B</th>
+            ${colHdrs.map(h=>`
+            <th class="px-2 py-2 text-center border-l border-slate-200" colspan="2">
+                <div class="text-slate-600 font-medium truncate max-w-[150px] text-[11px]">${_esc(h)}</div>
+                <div class="text-[9px] text-slate-400 font-normal flex justify-center gap-1 mt-0.5">
+                    <span class="text-indigo-400 font-semibold">A</span><span>/</span><span class="text-amber-500 font-semibold">B</span>
+                </div>
+            </th>`).join('')}
+        </tr>`;
+
+        if (!filtered.length) {
+            tbody.innerHTML = `<tr><td colspan="${4+cols*2}" class="p-8 text-center text-slate-400">
+                <i class="fa-solid fa-check-double text-2xl block mb-2 text-green-400 opacity-70"></i>
+                <div class="text-sm">此篩選條件無資料</div>
+            </td></tr>`;
+            return;
+        }
+
+        const STATUS = {
+            same:   { badge:'<span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-700">相同</span>',   row:'' },
+            diff:   { badge:'<span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700">不同</span>',    row:'bg-amber-50/50' },
+            only_a: { badge:'<span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-700">僅A</span>',         row:'bg-red-50/40' },
+            only_b: { badge:'<span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700">僅B</span>',       row:'bg-blue-50/40' },
+        };
+
+        tbody.innerHTML = filtered.map((row, n) => {
+            const {status,rowIdxA,rowIdxB,colsA,colsB,diffCols} = row;
+            const {badge, row:rowBg} = STATUS[status]||STATUS.same;
+            const cells = Array.from({length:cols},(_,c)=>{
+                const vA = colsA[c]??'', vB = colsB[c]??'';
+                const isDiff = diffCols.includes(c)||(status==='only_a')||(status==='only_b');
+                const bgA = isDiff && status!=='same' ? 'background-color:rgba(254,202,202,0.4)' : '';
+                const bgB = isDiff && status!=='same' ? 'background-color:rgba(187,247,208,0.4)' : '';
+                const cellA = status==='only_b'
+                    ? '<span style="color:#cbd5e1">—</span>'
+                    : `<span class="block truncate" title="${_esc(vA)}">${vA?_esc(vA):'<span style="color:#cbd5e1;font-style:italic">空</span>'}</span>`;
+                const cellB = status==='only_a'
+                    ? '<span style="color:#cbd5e1">—</span>'
+                    : `<span class="block truncate" title="${_esc(vB)}">${vB?_esc(vB):'<span style="color:#cbd5e1;font-style:italic">空</span>'}</span>`;
+                return `
+                    <td style="padding:4px 8px;max-width:140px;border-left:1px solid #f1f5f9;${bgA}">${cellA}</td>
+                    <td style="padding:4px 8px;max-width:140px;border-right:1px solid #f1f5f9;${bgB}">${cellB}</td>`;
+            }).join('');
+            return `<tr class="hover:brightness-95 transition ${rowBg}" style="border-bottom:1px solid #f1f5f9">
+                <td class="px-2 py-1.5 text-center text-slate-400">${n+1}</td>
+                <td class="px-2 py-1.5 text-center">${badge}</td>
+                <td class="px-2 py-1.5 text-center font-mono text-[10px] text-indigo-400">${rowIdxA??'—'}</td>
+                <td class="px-2 py-1.5 text-center font-mono text-[10px] text-amber-500">${rowIdxB??'—'}</td>
+                ${cells}
+            </tr>`;
+        }).join('');
+    }
+
+    // ── 匯出差異 CSV ─────────────────────────────────────────────────
+    function _fcExportDiff() {
+        if (!_fcResult) return;
+        const cols    = _fcHeaders.length||Math.max(..._fcResult.map(r=>Math.max(r.colsA.length,r.colsB.length)),0);
+        const colHdrs = Array.from({length:cols},(_,i)=>_fcHeaders[i]||`欄${i+1}`);
+        const STATUS_LABEL = {same:'相同',diff:'不同',only_a:'僅A',only_b:'僅B'};
+        const esc2 = v => { const s=String(v); return (s.includes(',')||s.includes('"')||s.includes('\n'))?`"${s.replace(/"/g,'""')}"`:s; };
+        const header = ['#','狀態','列A','列B',...colHdrs.flatMap(h=>[`${h}(A)`,`${h}(B)`])];
+        const dataRows = _fcResult.map((row,idx)=>{
+            const {status,rowIdxA,rowIdxB,colsA,colsB} = row;
+            const cells = Array.from({length:cols},(_,c)=>[colsA[c]??'',colsB[c]??'']).flat();
+            return [idx+1, STATUS_LABEL[status]||status, rowIdxA??'', rowIdxB??'', ...cells];
+        });
+        const csv = [header,...dataRows].map(r=>r.map(esc2).join(',')).join('\r\n');
+        const blob = new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8;'});
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href     = url;
+        a.download = `file-compare-${new Date().toISOString().slice(0,10)}.csv`;
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(url);
+        showToast('已匯出差異 CSV', 'success');
+    }
+
+    // ── 重置 ──────────────────────────────────────────────────────────
+    function _fcReset() {
+        _fcFileA = _fcFileB = _fcResult = null;
+        _fcFilter = 'all'; _fcHeaders = [];
+        ['A','B'].forEach(s => _fcResetDropLabel(s));
+        document.getElementById('fcSettingsBar').classList.add('hidden');
+        document.getElementById('fcStatsBar').classList.add('hidden');
+        document.getElementById('fcResultArea').classList.add('hidden');
+        document.getElementById('fcExportBtn').disabled = true;
+        document.getElementById('fcKeyCol').innerHTML = '<option value="">按列序 (Row Index)</option>';
+    }
     </script>
 </body>
 </html>
