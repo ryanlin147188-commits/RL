@@ -886,6 +886,7 @@
                 <button type="button" onclick="showEnvVarsView()"      class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-key text-emerald-600"></i><span data-i18n="nav.envVars">環境變數</span></button>
 
                 <button type="button" onclick="showTestRoundView()"    class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-layer-group text-purple-600"></i><span data-i18n="nav.testRound">TestRun</span></button>
+                <button type="button" onclick="showScheduleView()"    class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-calendar-days text-emerald-600"></i><span data-i18n="nav.schedule">測試排程</span></button>
                 <button type="button" onclick="showRecorderView()"     class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-video text-rose-600"></i><span data-i18n="nav.recorder">測試錄製</span></button>
                 <button type="button" onclick="showReportView()"       class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-chart-pie text-blue-600"></i><span data-i18n="nav.reports">測試報告</span></button>
                 <button type="button" onclick="showReviewView()"       class="topnav-pill hover:bg-stone-100">
@@ -1320,6 +1321,38 @@
                             </thead>
                             <tbody id="recListBody" class="divide-y divide-slate-100">
                                 <tr><td colspan="5" class="p-4 text-center text-slate-400">載入中...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+
+            <!-- 視圖 4: 排程工作區 (Schedule) -->
+            <div id="scheduleWorkspace" class="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/50 hidden">
+                <section class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
+                    <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                        <h3 class="font-bold text-slate-700 flex items-center gap-2"><i class="fa-solid fa-calendar-days text-emerald-500"></i> 排程</h3>
+                        <div class="flex gap-2">
+                            <button type="button" onclick="openScheduleModal()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-sm font-medium flex items-center gap-1"><i class="fa-solid fa-plus"></i> 新增排程</button>
+                            <button type="button" onclick="refreshScheduleList()" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-sm font-medium flex items-center gap-1"><i class="fa-solid fa-rotate"></i> 重新整理</button>
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-500 mb-4"><i class="fa-solid fa-circle-info text-amber-500"></i> 排程會在設定時間自動觸發測試執行；後端每 30 秒輪詢一次。選取的節點若是 FEATURE / PAGE / SCENARIO，會展開其下所有測試案例一次執行。</p>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead class="bg-slate-100 text-slate-600 text-xs uppercase tracking-wider">
+                                <tr>
+                                    <th class="p-2 text-left w-12">啟用</th>
+                                    <th class="p-2 text-left">排程名稱</th>
+                                    <th class="p-2 text-left">目標節點</th>
+                                    <th class="p-2 text-left w-24">重複</th>
+                                    <th class="p-2 text-left w-40">下次執行</th>
+                                    <th class="p-2 text-left w-40">上次執行</th>
+                                    <th class="p-2 text-left w-48">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="scheduleListBody" class="divide-y divide-slate-100">
+                                <tr><td colspan="7" class="p-4 text-center text-slate-400">載入中...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -2736,6 +2769,72 @@
             </div>
 
 
+    <!-- 排程 Modal（新增 / 編輯） -->
+    <div id="scheduleModal" class="fixed inset-0 bg-slate-900/50 hidden z-[160] flex items-center justify-center opacity-0 transition-opacity">
+        <div class="bg-white rounded-lg shadow-xl w-[540px] max-w-[95vw] transform scale-95 transition-transform" id="scheduleModalContent">
+            <div class="p-4 border-b border-slate-200 flex items-center justify-between">
+                <h3 id="scheduleModalTitle" class="text-lg font-bold text-slate-800 flex items-center gap-2"><i class="fa-solid fa-calendar-days text-emerald-500"></i> 新增排程</h3>
+                <button onclick="closeScheduleModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">排程名稱 <span class="text-rose-500">*</span></label>
+                    <input type="text" id="schName" placeholder="例：每日首頁回歸" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-400 outline-none">
+                </div>
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="block text-sm font-medium text-slate-700">目標節點（可多選）</label>
+                        <div class="flex items-center gap-2 text-xs">
+                            <input type="text" id="schNodeFilter" placeholder="搜尋..." oninput="renderScheduleNodeList()" class="border border-slate-200 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-emerald-400 outline-none">
+                            <span id="schNodeSelCount" class="text-slate-500">已選 0</span>
+                        </div>
+                    </div>
+                    <div id="schNodeList" class="border border-slate-300 rounded bg-white max-h-44 overflow-y-auto divide-y divide-slate-100 text-xs">
+                        <div class="p-3 text-slate-400 text-center">請先載入專案</div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">重複類型</label>
+                        <select id="schRepeatType" onchange="updateScheduleRepeatUi()" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-400 outline-none bg-white">
+                            <option value="ONCE">單次</option>
+                            <option value="DAILY">每天</option>
+                            <option value="WEEKLY">每週</option>
+                            <option value="MONTHLY">每月</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">執行時間</label>
+                        <input type="datetime-local" id="schNextRunAt" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-400 outline-none">
+                    </div>
+                </div>
+                <div id="schWeekdayRow" class="hidden">
+                    <label class="block text-sm font-medium text-slate-700 mb-2">星期幾執行</label>
+                    <div id="schWeekdays" class="flex flex-wrap gap-2"></div>
+                </div>
+                <div id="schMonthDayRow" class="hidden">
+                    <label class="block text-sm font-medium text-slate-700 mb-1">每月幾號</label>
+                    <input type="number" id="schMonthDay" min="1" max="31" value="1" class="w-24 border border-slate-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-400 outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">執行環境</label>
+                    <select id="schExecutionMode" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-400 outline-none bg-white">
+                        <option value="docker">Docker (Celery)</option>
+                        <option value="local">本機 Agent</option>
+                    </select>
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="checkbox" id="schActive" checked class="rounded border-slate-300 text-emerald-500 focus:ring-emerald-400">
+                    <label for="schActive" class="text-sm text-slate-700">啟用此排程</label>
+                </div>
+            </div>
+            <div class="p-4 border-t border-slate-200 flex justify-end gap-2 bg-slate-50 rounded-b-lg">
+                <button type="button" onclick="closeScheduleModal()" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 rounded transition">取消</button>
+                <button type="button" onclick="saveSchedule()" class="px-4 py-2 text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 rounded shadow-sm transition">儲存</button>
+            </div>
+        </div>
+    </div>
+
     <!-- TestRun Modal（新增 / 編輯） -->
     <div id="testRoundModal" class="fixed inset-0 bg-slate-900/50 hidden z-[160] flex items-center justify-center opacity-0 transition-opacity">
         <div class="bg-white rounded-lg shadow-xl w-[560px] max-w-[95vw] transform scale-95 transition-transform" id="testRoundModalContent">
@@ -2855,6 +2954,7 @@
                     '#report':          'reportWorkspace',
                     '#recorder':        'recorderWorkspace',
                     '#testround':       'testRoundWorkspace',
+                    '#schedule':        'scheduleWorkspace',
                     '#envvars':         'envVarsWorkspace',
                     '#usersettings':    'userSettingsWorkspace',
                 };
@@ -2891,6 +2991,7 @@
             homeWorkspace:         '首頁',
             testDataSetsWorkspace: '測試資料',
             testRoundWorkspace:    'TestRun',
+            scheduleWorkspace:     '測試排程',
             envVarsWorkspace:      '環境變數',
             editorWorkspace:       '案例編輯',
         };
@@ -2898,8 +2999,8 @@
         const _ALL_WS_IDS = [
             'editorWorkspace','emptyWorkspace','detailReportWorkspace',
             'recorderWorkspace','reportWorkspace','testRoundWorkspace',
-            'envVarsWorkspace','homeWorkspace','testcasesWorkspace',
-            'userSettingsWorkspace','testDataSetsWorkspace',
+            'scheduleWorkspace','envVarsWorkspace','homeWorkspace',
+            'testcasesWorkspace','userSettingsWorkspace','testDataSetsWorkspace',
             'backlogWorkspace','reviewWorkspace',
         ];
 
@@ -2949,6 +3050,7 @@
                     case 'homeWorkspace':         if (typeof showHomeView === 'function') showHomeView(); break;
                     case 'testDataSetsWorkspace': if (typeof showTestDataSetsView === 'function') showTestDataSetsView(); break;
                     case 'testRoundWorkspace':    if (typeof showTestRoundView === 'function') showTestRoundView(); break;
+                    case 'scheduleWorkspace':     if (typeof showScheduleView === 'function') showScheduleView(); break;
                     case 'envVarsWorkspace':      if (typeof showEnvVarsView === 'function') showEnvVarsView(); break;
                     default:
                         _hideAllWorkspaces();
@@ -9316,8 +9418,246 @@
         }
 
         // ==================== 排程 (Schedule) ====================
-        let scheduleList = [];           // 後端回傳的排程清單
-        let scheduleEditingId = null;    // 編輯中的 id；null 代表新增模式
+        let scheduleList = [];
+        let scheduleEditingId = null;
+        const schNodeSelection = new Set();
+
+        function showScheduleView() {
+            if (!confirmDiscardIfDirty()) return false;
+            _navPush();
+            _hideAllWorkspaces();
+            _setViewMeta('nav.schedule', 'nav.schedule', '<i class="fa-solid fa-calendar-days text-emerald-500"></i>', 'Schedule', 'bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-medium');
+            document.getElementById('scheduleWorkspace').classList.remove('hidden');
+            document.getElementById('mainHeader').classList.remove('hidden');
+            document.getElementById('mainActions').classList.add('hidden');
+            currentTestCase = null;
+            refreshScheduleList();
+            try { _afterViewChange(); } catch (_) {}
+        }
+
+        function setScheduleSelection(ids) {
+            schNodeSelection.clear();
+            ids.forEach(id => schNodeSelection.add(id));
+        }
+
+        function toggleScheduleNode(id, checked) {
+            if (checked) schNodeSelection.add(id);
+            else schNodeSelection.delete(id);
+            const cnt = document.getElementById('schNodeSelCount');
+            if (cnt) cnt.textContent = '已選 ' + schNodeSelection.size;
+        }
+
+        function renderScheduleNodeList() {
+            const filter = (document.getElementById('schNodeFilter')?.value || '').toLowerCase();
+            const container = document.getElementById('schNodeList');
+            if (!container) return;
+            const flatten = [];
+            function walk(nodes, depth) {
+                (nodes || []).forEach(n => {
+                    flatten.push({ node: n, depth });
+                    if (n.children) walk(n.children, depth + 1);
+                });
+            }
+            walk(activeTreeData, 0);
+            const filtered = flatten.filter(({ node: n }) =>
+                !filter || (n.name || n.title || '').toLowerCase().includes(filter)
+            );
+            if (!filtered.length) {
+                container.innerHTML = '<div class="p-3 text-slate-400 text-center">無符合節點</div>';
+                return;
+            }
+            container.innerHTML = filtered.map(({ node: n, depth }) => {
+                const label = n.name || n.title || n.id;
+                const checked = schNodeSelection.has(n.id) ? 'checked' : '';
+                const pad = depth * 12;
+                return `<label class="flex items-center gap-2 px-3 py-1.5 hover:bg-emerald-50 cursor-pointer" style="padding-left:${12 + pad}px">
+                    <input type="checkbox" value="${n.id}" ${checked} onchange="toggleScheduleNode('${n.id}', this.checked)" class="rounded border-slate-300 text-emerald-500 focus:ring-emerald-400">
+                    <span class="truncate">${_esc(label)}</span>
+                </label>`;
+            }).join('');
+            const cnt = document.getElementById('schNodeSelCount');
+            if (cnt) cnt.textContent = '已選 ' + schNodeSelection.size;
+        }
+
+        function renderScheduleWeekdays(selectedList) {
+            const days = ['日', '一', '二', '三', '四', '五', '六'];
+            const container = document.getElementById('schWeekdays');
+            if (!container) return;
+            container.innerHTML = days.map((d, i) => {
+                const checked = (selectedList || []).includes(String(i)) ? 'checked' : '';
+                return `<label class="flex items-center gap-1 border border-slate-200 rounded px-2 py-1 cursor-pointer hover:bg-emerald-50 text-xs">
+                    <input type="checkbox" value="${i}" ${checked} class="sch-weekday rounded border-slate-300 text-emerald-500">
+                    <span>${d}</span>
+                </label>`;
+            }).join('');
+        }
+
+        function updateScheduleRepeatUi() {
+            const rt = document.getElementById('schRepeatType')?.value || 'ONCE';
+            document.getElementById('schWeekdayRow')?.classList.toggle('hidden', rt !== 'WEEKLY');
+            document.getElementById('schMonthDayRow')?.classList.toggle('hidden', rt !== 'MONTHLY');
+        }
+
+        function openScheduleModal(id) {
+            scheduleEditingId = id || null;
+            const modal = document.getElementById('scheduleModal');
+            const title = document.getElementById('scheduleModalTitle');
+            if (title) title.innerHTML = `<i class="fa-solid fa-calendar-days text-emerald-500"></i> ${id ? '編輯排程' : '新增排程'}`;
+            schNodeSelection.clear();
+            if (id) {
+                const s = scheduleList.find(x => x.id === id);
+                if (s) {
+                    document.getElementById('schName').value = s.name || '';
+                    document.getElementById('schRepeatType').value = s.repeat_type || 'ONCE';
+                    document.getElementById('schExecutionMode').value = s.execution_mode || 'docker';
+                    document.getElementById('schActive').checked = !!s.active;
+                    if (s.next_run_at) {
+                        const d = new Date(s.next_run_at);
+                        const pad = v => String(v).padStart(2, '0');
+                        document.getElementById('schNextRunAt').value =
+                            `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                    }
+                    const nids = s.node_ids && s.node_ids.length ? s.node_ids : (s.node_id ? [s.node_id] : []);
+                    setScheduleSelection(nids);
+                    // weekly config
+                    const wdList = (s.repeat_config || '').split(',').filter(Boolean);
+                    renderScheduleWeekdays(wdList);
+                    if (s.repeat_type === 'MONTHLY' && s.repeat_config) {
+                        document.getElementById('schMonthDay').value = s.repeat_config;
+                    }
+                }
+            } else {
+                document.getElementById('schName').value = '';
+                document.getElementById('schRepeatType').value = 'ONCE';
+                document.getElementById('schExecutionMode').value = 'docker';
+                document.getElementById('schActive').checked = true;
+                const now = new Date();
+                const pad = v => String(v).padStart(2, '0');
+                document.getElementById('schNextRunAt').value =
+                    `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+                renderScheduleWeekdays([]);
+                document.getElementById('schMonthDay').value = 1;
+            }
+            updateScheduleRepeatUi();
+            renderScheduleNodeList();
+            modal.classList.remove('hidden');
+            requestAnimationFrame(() => {
+                modal.classList.remove('opacity-0');
+                document.getElementById('scheduleModalContent')?.classList.remove('scale-95');
+            });
+        }
+
+        function closeScheduleModal() {
+            const modal = document.getElementById('scheduleModal');
+            modal.classList.add('opacity-0');
+            document.getElementById('scheduleModalContent')?.classList.add('scale-95');
+            setTimeout(() => modal.classList.add('hidden'), 200);
+        }
+
+        function formatScheduleDate(iso) {
+            if (!iso) return '—';
+            return formatBackendTime(iso);
+        }
+
+        async function refreshScheduleList() {
+            const tbody = document.getElementById('scheduleListBody');
+            if (!tbody) return;
+            tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-slate-400">載入中…</td></tr>';
+            try {
+                const res = await apiFetch('/api/schedules' + (currentProjectId ? `?project_id=${currentProjectId}` : ''));
+                scheduleList = Array.isArray(res) ? res : [];
+                if (!scheduleList.length) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="p-6 text-center text-slate-400">尚無排程</td></tr>';
+                    return;
+                }
+                const repeatLabel = { ONCE: '單次', DAILY: '每天', WEEKLY: '每週', MONTHLY: '每月' };
+                tbody.innerHTML = scheduleList.map(s => {
+                    const nodeLabel = s.node_titles && s.node_titles.length > 1
+                        ? `${_esc(s.node_titles[0])} +${s.node_titles.length - 1}`
+                        : _esc(s.node_title || s.node_id || '—');
+                    const modeIcon = s.execution_mode === 'local'
+                        ? '<i class="fa-solid fa-laptop text-amber-500 mr-1" title="本機 Agent"></i>'
+                        : '<i class="fa-brands fa-docker text-blue-500 mr-1" title="Docker (Celery)"></i>';
+                    return `<tr class="hover:bg-slate-50">
+                        <td class="p-2 text-center">
+                            <input type="checkbox" ${s.active ? 'checked' : ''} onchange="toggleScheduleActive('${s.id}', this.checked)" class="rounded border-slate-300 text-emerald-500 focus:ring-emerald-400">
+                        </td>
+                        <td class="p-2 font-medium text-slate-800">${_esc(s.name)}</td>
+                        <td class="p-2 text-slate-600 text-xs">${nodeLabel}</td>
+                        <td class="p-2 text-xs"><span class="bg-emerald-50 text-emerald-700 border border-emerald-200 rounded px-1.5 py-0.5 font-medium">${repeatLabel[s.repeat_type] || s.repeat_type}</span></td>
+                        <td class="p-2 text-xs font-mono text-slate-500">${formatScheduleDate(s.next_run_at)}</td>
+                        <td class="p-2 text-xs font-mono text-slate-400">${s.last_run_at ? formatScheduleDate(s.last_run_at) : '—'}</td>
+                        <td class="p-2 whitespace-nowrap">
+                            <div class="flex gap-1 flex-wrap">
+                                ${modeIcon}
+                                <button onclick="triggerScheduleNow('${s.id}')" class="text-xs px-2 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 rounded" title="立即執行"><i class="fa-solid fa-play"></i> 立即</button>
+                                <button onclick="openScheduleModal('${s.id}')" class="text-xs px-2 py-1 bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 rounded"><i class="fa-solid fa-pen"></i> 編輯</button>
+                                <button onclick="deleteSchedule('${s.id}')" class="text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded"><i class="fa-solid fa-trash"></i> 刪除</button>
+                            </div>
+                        </td>
+                    </tr>`;
+                }).join('');
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-rose-500">${e.message || e}</td></tr>`;
+            }
+        }
+
+        async function saveSchedule() {
+            const name = document.getElementById('schName')?.value.trim();
+            if (!name) { showToast('請輸入排程名稱', 'error'); return; }
+            const nodeIds = [...schNodeSelection];
+            if (!nodeIds.length) { showToast('請至少選擇一個節點', 'error'); return; }
+            const repeatType = document.getElementById('schRepeatType')?.value || 'ONCE';
+            let repeatConfig = null;
+            if (repeatType === 'WEEKLY') {
+                const checked = [...document.querySelectorAll('.sch-weekday:checked')].map(el => el.value);
+                repeatConfig = checked.join(',');
+            } else if (repeatType === 'MONTHLY') {
+                repeatConfig = document.getElementById('schMonthDay')?.value || '1';
+            }
+            const nextRunAt = document.getElementById('schNextRunAt')?.value;
+            if (!nextRunAt) { showToast('請設定執行時間', 'error'); return; }
+            const executionMode = document.getElementById('schExecutionMode')?.value || 'docker';
+            const active = document.getElementById('schActive')?.checked ?? true;
+            const payload = { name, node_ids: nodeIds, node_id: nodeIds[0], repeat_type: repeatType, repeat_config: repeatConfig, next_run_at: nextRunAt, execution_mode: executionMode, active };
+            try {
+                const url = scheduleEditingId ? `/api/schedules/${scheduleEditingId}` : '/api/schedules';
+                const method = scheduleEditingId ? 'PUT' : 'POST';
+                await apiFetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                closeScheduleModal();
+                showToast(scheduleEditingId ? '排程已更新' : '排程已建立', 'success');
+                refreshScheduleList();
+            } catch (e) {
+                showToast('儲存失敗：' + (e.message || e), 'error');
+            }
+        }
+
+        async function toggleScheduleActive(id, active) {
+            try {
+                await apiFetch(`/api/schedules/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ active }) });
+                showToast(active ? '已啟用' : '已停用', 'info');
+                refreshScheduleList();
+            } catch (e) { showToast('更新失敗：' + (e.message || e), 'error'); }
+        }
+
+        async function triggerScheduleNow(id) {
+            const s = scheduleList.find(x => x.id === id);
+            const mode = s?.execution_mode || 'docker';
+            try {
+                await apiFetch(`/api/schedules/${id}/trigger-now?execution_mode=${mode}`, { method: 'POST' });
+                showToast('已觸發執行，請至測試報告查看結果', 'success');
+                refreshScheduleList();
+            } catch (e) { showToast('觸發失敗：' + (e.message || e), 'error'); }
+        }
+
+        async function deleteSchedule(id) {
+            if (!confirm('確定要刪除此排程？')) return;
+            try {
+                await apiFetch(`/api/schedules/${id}`, { method: 'DELETE' });
+                showToast('排程已刪除', 'success');
+                refreshScheduleList();
+            } catch (e) { showToast('刪除失敗：' + (e.message || e), 'error'); }
+        }
 
         // ==================== TestRun (Test Round) ====================
         let testRoundList = [];
@@ -9332,6 +9672,7 @@
             document.getElementById('recorderWorkspace')?.classList.add('hidden');
             document.getElementById('reportWorkspace').classList.add('hidden');
             document.getElementById('testRoundWorkspace').classList.add('hidden');
+            document.getElementById('scheduleWorkspace')?.classList.add('hidden');
             document.getElementById('envVarsWorkspace')?.classList.add('hidden');
             document.getElementById('homeWorkspace')?.classList.add('hidden');
             document.getElementById('testcasesWorkspace')?.classList.add('hidden');

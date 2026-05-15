@@ -17,13 +17,13 @@ logging.basicConfig(
 
 from app.config import settings
 from app.database import init_db
-from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings, local_runner, test_rounds, project_settings, screenshot_baselines, system, test_data_sets, settings as app_settings, todos, todo_links, auth, audit_logs, organizations, notifications, mock_endpoints, groups, reviews, artifacts, entity_versions, oidc_auth, project_role_permissions, shell_exec
+from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings, local_runner, test_rounds, project_settings, screenshot_baselines, system, test_data_sets, settings as app_settings, todos, todo_links, auth, audit_logs, organizations, notifications, mock_endpoints, groups, reviews, artifacts, entity_versions, oidc_auth, project_role_permissions, shell_exec, schedules
 # v1.1.5:Casdoor sidecar 下架,OIDC 改 in-process(authlib + Zoho),由
 # ``oidc_auth`` router 承接。舊的 ``oidc`` / ``casdoor_*`` 模組已刪除。
 # 確保新增 model 在 init_db() 前已 import 註冊到 Base.metadata
 from app.models import (  # noqa: F401
-    
-    TestDataSet, 
+
+    TestDataSet,
     Role, NotificationPreference, Notification, EmailConfig, TodoItem, TodoLink, User,
     Organization, AuditLog, OidcProvider,
     MockEndpoint,
@@ -31,6 +31,7 @@ from app.models import (  # noqa: F401
     OrgInvite,
     TestVersion,
 )
+from app.models.schedule import Schedule, RepeatType  # noqa: F401
 from app.middleware import AuthMiddleware
 from app.audit import AuditMiddleware
 from app.rate_limit import limiter
@@ -414,9 +415,22 @@ async def lifespan(app: FastAPI):
         logging.getLogger(__name__).exception(
             "user_id dual-write listener registration failed"
         )
+    # 啟動排程背景任務（每 30 秒掃一次 schedules 表）
+    scheduler_task = None
+    try:
+        from app.services.schedule_service import scheduler_loop
+        scheduler_task = asyncio.create_task(scheduler_loop())
+    except Exception as e:
+        logging.getLogger(__name__).warning("scheduler_loop 啟動失敗: %s", e)
     try:
         yield
     finally:
+        if scheduler_task:
+            scheduler_task.cancel()
+            try:
+                await scheduler_task
+            except asyncio.CancelledError:
+                pass
         try:
             from app.auth import casbin as _casbin
             _casbin.shutdown_enforcer()
@@ -492,6 +506,7 @@ app.include_router(mock_endpoints.router,  prefix="/api", tags=["Z · Mock 端�
 app.include_router(groups.router,          prefix="/api", tags=["S · 設定"])
 app.include_router(reviews.router,         prefix="/api", tags=["AB · 審核"])
 app.include_router(entity_versions.router, prefix="/api", tags=["AC · 版本歷史"])
+app.include_router(schedules.router,       prefix="/api", tags=["F · 排程"])
 
 
 @app.get("/", tags=["Health"])
