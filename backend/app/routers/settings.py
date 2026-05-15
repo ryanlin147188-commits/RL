@@ -612,41 +612,38 @@ async def send_test_email(
     from app.services.email_service import (
         EmailNotConfigured,
         EmailSendFailed,
-        send_email_sync,
+        _send_with_config,
     )
+
+    # Load EmailConfig asynchronously (AsyncSession cannot use sync .execute())
+    org_id = user.organization_id
+    cfg = (await db.execute(
+        select(EmailConfig).where(EmailConfig.organization_id == org_id)
+    )).scalar_one_or_none()
+    if cfg is None:
+        cfg = await db.get(EmailConfig, "default")
+    if cfg is None or not cfg.enabled:
+        raise HTTPException(400, f"EmailConfig 尚未啟用或不完整：org_id={org_id!r}")
+    if not (cfg.smtp_host and cfg.from_address):
+        raise HTTPException(400, "EmailConfig 缺少 smtp_host 或 from_address")
 
     subject = f"AutoTest SMTP 測試信 - {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC"
     body_text = (
         "這是一封來自 AutoTest 的 SMTP 測試信。\n\n"
         f"觸發者:{user.username}\n"
-        f"組織:{user.organization_id or '(none)'}\n"
+        f"組織:{org_id or '(none)'}\n"
         "若您收到此信,代表 EmailConfig 設定正確,通知/邀請信會循同樣管道送達。"
     )
     body_html = (
         "<p>這是一封來自 <b>AutoTest</b> 的 SMTP 測試信。</p>"
         f"<p>觸發者:<code>{user.username}</code><br>"
-        f"組織:<code>{user.organization_id or '(none)'}</code></p>"
+        f"組織:<code>{org_id or '(none)'}</code></p>"
         "<p>若您收到此信,代表 EmailConfig 設定正確,通知/邀請信會循同樣管道送達。</p>"
     )
     try:
-        send_email_sync(
-            db=db,
-            to=target,
-            subject=subject,
-            html_body=body_html,
-            text_body=body_text,
-            organization_id=user.organization_id,
-        )
-    except EmailNotConfigured as exc:
-        raise HTTPException(
-            status_code=400,
-            detail=f"EmailConfig 尚未啟用或不完整:{exc}",
-        )
+        _send_with_config(cfg, to=target, subject=subject, html_body=body_html, text_body=body_text)
     except EmailSendFailed as exc:
-        raise HTTPException(
-            status_code=502,
-            detail=f"SMTP 發送失敗:{exc}",
-        )
+        raise HTTPException(status_code=502, detail=f"SMTP 發送失敗:{exc}")
     return _EmailTestResponse(sent=True, to=target)
 
 

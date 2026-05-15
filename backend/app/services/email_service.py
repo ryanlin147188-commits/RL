@@ -68,6 +68,47 @@ def _resolve_config(db: Session, organization_id: Optional[str]) -> EmailConfig:
     return cfg
 
 
+def _send_with_config(
+    cfg: EmailConfig,
+    *,
+    to: str,
+    subject: str,
+    html_body: str,
+    text_body: str,
+) -> None:
+    """Low-level send using a pre-loaded EmailConfig. Raises EmailSendFailed on SMTP error.
+    Called by both send_email_sync (Celery path) and the async FastAPI test endpoint."""
+    if not to or "@" not in to:
+        raise ValueError(f"invalid recipient: {to!r}")
+
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = formataddr((cfg.from_name or "AutoTest", cfg.from_address))
+    msg["To"] = to
+    msg.set_content(text_body)
+    msg.add_alternative(html_body, subtype="html")
+
+    host = cfg.smtp_host
+    port = int(cfg.smtp_port or 587)
+
+    try:
+        with smtplib.SMTP(host, port, timeout=30) as server:
+            server.ehlo()
+            if cfg.use_tls:
+                server.starttls()
+                server.ehlo()
+            if cfg.smtp_user and cfg.smtp_password:
+                server.login(cfg.smtp_user, cfg.smtp_password)
+            server.send_message(msg)
+        log.info("email sent: to=%s subject=%r", to, subject)
+    except smtplib.SMTPException as exc:
+        log.warning("SMTP send failed: to=%s err=%s", to, exc)
+        raise EmailSendFailed(str(exc)) from exc
+    except OSError as exc:
+        log.warning("SMTP transport error: to=%s err=%s", to, exc)
+        raise EmailSendFailed(str(exc)) from exc
+
+
 def send_email_sync(
     *,
     db: Session,
@@ -82,41 +123,8 @@ def send_email_sync(
     :func:`app.services.notification_dispatch.notify` which enqueues the
     Celery task instead of blocking the request thread.
     """
-    if not to or "@" not in to:
-        raise ValueError(f"invalid recipient: {to!r}")
-
     cfg = _resolve_config(db, organization_id)
-
-    msg = EmailMessage()
-    msg["Subject"] = subject
-    msg["From"] = formataddr((cfg.from_name or "AutoTest", cfg.from_address))
-    msg["To"] = to
-    msg.set_content(text_body)
-    msg.add_alternative(html_body, subtype="html")
-
-    host = cfg.smtp_host
-    port = int(cfg.smtp_port or 587)
-
-    try:
-        # SMTP connection lifecycle: connect -> EHLO -> (STARTTLS) -> AUTH -> DATA
-        # All steps wrapped in a context manager so the socket closes on the
-        # way out even if .login() or .send_message() raises.
-        with smtplib.SMTP(host, port, timeout=30) as server:
-            server.ehlo()
-            if cfg.use_tls:
-                server.starttls()
-                server.ehlo()
-            if cfg.smtp_user and cfg.smtp_password:
-                server.login(cfg.smtp_user, cfg.smtp_password)
-            server.send_message(msg)
-        log.info("email sent: to=%s subject=%r org=%s", to, subject, organization_id)
-    except smtplib.SMTPException as exc:
-        log.warning("SMTP send failed: to=%s err=%s", to, exc)
-        raise EmailSendFailed(str(exc)) from exc
-    except OSError as exc:
-        # connection refused / DNS / timeout -- treat as transient
-        log.warning("SMTP transport error: to=%s err=%s", to, exc)
-        raise EmailSendFailed(str(exc)) from exc
+    _send_with_config(cfg, to=to, subject=subject, html_body=html_body, text_body=text_body)
 
 
 # ── Email body templates ──────────────────────────────────────────────────
