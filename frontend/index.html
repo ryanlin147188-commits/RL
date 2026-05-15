@@ -9871,15 +9871,6 @@
             btns.push(`<button type="button" onclick="reviewOpenDetail('${r.id}')" title="${lc==='en'?'View details':'查看詳情'}" class="px-2 py-1 text-xs border border-stone-300 rounded hover:bg-violet-50 text-violet-600"><i class="fa-solid fa-eye"></i></button>`);
             // 共用:歷史軌跡(改用驚嘆號圖示;點擊跳出 popup modal)
             btns.push(`<button type="button" onclick="reviewOpenHistory('${r.id}')" title="${lc==='en'?'History':'審核軌跡'}" class="px-2 py-1 text-xs border border-stone-300 rounded hover:bg-violet-50 text-violet-600"><i class="fa-solid fa-circle-exclamation"></i></button>`);
-            // 指派:即使審核已通過,assignee 仍可改(metadata,不在 lock 範圍)
-            const assignTitle = r.assigned_to
-                ? `${lc==='en'?'Assigned to':'已指派'}: ${(r.assigned_to_type==='group'?'👥 ':'')}${r.assigned_to}`
-                : (lc==='en' ? 'Assign reviewer' : '指派審核者');
-            const assignCls = r.assigned_to
-                ? 'px-2 py-1 text-xs border border-amber-300 bg-amber-50 text-amber-700 rounded hover:bg-amber-100'
-                : 'px-2 py-1 text-xs border border-stone-300 rounded hover:bg-amber-50 text-amber-600';
-            btns.push(`<button type="button" onclick="reviewOpenAssign('${r.id}')" title="${_esc(assignTitle)}" class="${assignCls}"><i class="fa-solid fa-user-tag"></i></button>`);
-
             // 統一 7 值後 review 進行中狀態 = 'InReview'(舊值 'pending' 經 migration 已轉換,但保留判斷以相容 alias)
             if (r.status === 'InReview' || r.status === 'pending') {
                 btns.push(`<button type="button" onclick="reviewApprove('${r.id}')" class="px-2 py-1 text-xs bg-emerald-500 hover:bg-emerald-600 text-white rounded font-semibold"><i class="fa-solid fa-check"></i> ${lc==='en'?'Approve':'通過'}</button>`);
