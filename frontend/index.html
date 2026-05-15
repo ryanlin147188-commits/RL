@@ -9451,27 +9451,29 @@
             const filter = (document.getElementById('schNodeFilter')?.value || '').toLowerCase();
             const container = document.getElementById('schNodeList');
             if (!container) return;
-            const flatten = [];
-            function walk(nodes, depth) {
+            const testcases = [];
+            function walk(nodes) {
                 (nodes || []).forEach(n => {
-                    flatten.push({ node: n, depth });
-                    if (n.children) walk(n.children, depth + 1);
+                    if (n.level_type === 'TESTCASE' || n.isFile || (n.name || '').endsWith('.md')) {
+                        testcases.push(n);
+                    }
+                    if (n.children) walk(n.children);
                 });
             }
-            walk(activeTreeData, 0);
-            const filtered = flatten.filter(({ node: n }) =>
-                !filter || (n.name || n.title || '').toLowerCase().includes(filter)
-            );
+            walk(activeTreeData);
+            const filtered = filter
+                ? testcases.filter(n => (n.name || n.title || '').toLowerCase().includes(filter))
+                : testcases;
             if (!filtered.length) {
-                container.innerHTML = '<div class="p-3 text-slate-400 text-center">無符合節點</div>';
+                container.innerHTML = '<div class="p-3 text-slate-400 text-center">無測試案例</div>';
                 return;
             }
-            container.innerHTML = filtered.map(({ node: n, depth }) => {
+            container.innerHTML = filtered.map(n => {
                 const label = n.name || n.title || n.id;
                 const checked = schNodeSelection.has(n.id) ? 'checked' : '';
-                const pad = depth * 12;
-                return `<label class="flex items-center gap-2 px-3 py-1.5 hover:bg-emerald-50 cursor-pointer" style="padding-left:${12 + pad}px">
+                return `<label class="flex items-center gap-2 px-3 py-1.5 hover:bg-emerald-50 cursor-pointer">
                     <input type="checkbox" value="${n.id}" ${checked} onchange="toggleScheduleNode('${n.id}', this.checked)" class="rounded border-slate-300 text-emerald-500 focus:ring-emerald-400">
+                    <i class="fa-regular fa-file-lines text-blue-400 text-[11px] flex-shrink-0"></i>
                     <span class="truncate">${_esc(label)}</span>
                 </label>`;
             }).join('');
