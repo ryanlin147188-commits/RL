@@ -3302,7 +3302,7 @@
             // 組合報告標題：yyyymmdd-案例名稱
             const _rDate = parseBackendTime(summary.created_at);
             const _dateStr = (_rDate && !isNaN(_rDate))
-                ? `${_rDate.getFullYear()}${String(_rDate.getMonth()+1).padStart(2,'0')}${String(_rDate.getDate()).padStart(2,'0')}`
+                ? `${_rDate.getFullYear()}${String(_rDate.getMonth()+1).padStart(2,'0')}${String(_rDate.getDate()).padStart(2,'0')}${String(_rDate.getHours()).padStart(2,'0')}${String(_rDate.getMinutes()).padStart(2,'0')}${String(_rDate.getSeconds()).padStart(2,'0')}`
                 : '';
             const _nodeInfo = summary.source_node_id ? findNodeInfo(activeTreeData, summary.source_node_id) : null;
             const _caseName = summary.source_title
