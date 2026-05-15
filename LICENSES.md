@@ -4,12 +4,12 @@
 > 本文件為 AutoTest v1.1 所有第三方相依元件的授權整理，協助評估商業使用合規性。
 > ⚠️ **這份文件是技術層面的整理，不是法律意見。實際商業部署前，建議由貴公司法務或熟悉開源授權的顧問進行最終 review。**
 
-> 🟢 **本版本（PostgreSQL / Valkey / SeaweedFS / Jaeger stack）已將具有 Copyleft 風險的元件全部替換**：
+> 🟢 **本版本已將具有 Copyleft 風險的元件全部替換**：
 > - MySQL（GPLv2）→ **PostgreSQL**（PostgreSQL License，類 MIT）
 > - Redis 7.4+（SSPLv1）→ **Valkey**（BSD-3-Clause，由 Linux Foundation 領導的 Redis fork）
 > - MinIO（AGPLv3）→ **SeaweedFS**（Apache 2.0）
-> - Grafana 9+（AGPLv3）→ **棄用,改用 Prometheus 內建 /graph UI**(Apache 2.0)
-> - Tempo 2.x（AGPLv3）→ **Jaeger all-in-one**(Apache 2.0)
+> - Grafana 9+（AGPLv3）→ **棄用**（v1.1.9 隨可觀測性 stack 整體移除）
+> - Tempo 2.x（AGPLv3）→ **棄用**（v1.1.9 隨可觀測性 stack 整體移除）
 
 ---
 
@@ -63,16 +63,6 @@
 | cryptography | 43.0.1 | Apache 2.0 OR BSD-3(雙) | ✅ |
 | httpx | 0.27.2 | BSD-3-Clause | ✅ |
 | slowapi | 0.1.9 | MIT | ✅ |
-
-#### Backend image 額外 — `backend/requirements-backend.txt`(RFC-8 tracing)
-
-| 套件 | 版本 | 授權 | SaaS 商用 |
-|---|---|---|---|
-| opentelemetry-api | 1.27.0 | Apache 2.0 | ✅ |
-| opentelemetry-sdk | 1.27.0 | Apache 2.0 | ✅ |
-| opentelemetry-instrumentation-fastapi | 0.48b0 | Apache 2.0 | ✅ |
-| opentelemetry-instrumentation-sqlalchemy | 0.48b0 | Apache 2.0 | ✅ |
-| opentelemetry-exporter-otlp-proto-grpc | 1.27.0 | Apache 2.0 | ✅ |
 
 #### Celery image 額外 — `backend/requirements-celery.txt`
 
@@ -137,7 +127,7 @@
 ### 2.4 Infrastructure Docker Images
 來源:[`docker-compose.yml`](docker-compose.yml)
 
-#### 預設啟動(無 profile)
+#### 常駐服務(無 profile)
 
 | Service | Image / 版本 | 授權 | SaaS 商用 |
 |---|---|---|---|
@@ -145,26 +135,19 @@
 | valkey | `valkey/valkey:8-alpine` | **BSD-3-Clause** | ✅ |
 | seaweedfs | `chrislusf/seaweedfs:3.80` | **Apache 2.0** | ✅ |
 | seaweedfs-init | `amazon/aws-cli:2.18.5` | Apache 2.0 | ✅ |
+| docker-proxy | `tecnativa/docker-socket-proxy:0.3.0` | Apache 2.0 | ✅ |
 | frontend | `nginx:1.27-alpine` | BSD-2-Clause(nginx)+ MIT(Alpine 套件群) | ✅ |
-| apisix | `apache/apisix:3.11.0-debian` | **Apache 2.0** | ✅ |
-| victoria-logs | `victoriametrics/victoria-logs:v1.50.0` | **Apache 2.0** | ✅ |
-| fluent-bit | `fluent/fluent-bit:3.2` | **Apache 2.0** | ✅ |
 
-#### Obs profile(opt-in,`docker compose --profile obs up`)
+#### Spawnable profile(按需建置,不常駐)
 
 | Service | Image / 版本 | 授權 | SaaS 商用 |
 |---|---|---|---|
-| **prometheus** | `prom/prometheus:v2.55.1` | **Apache 2.0** | ✅ |
-| **jaeger** | `jaegertracing/all-in-one:1.62.0` | **Apache 2.0** | ✅ |
+| robot-runner | `autotest-robot-runner`(自建) | — | ✅ |
+| recorder | `autotest-recorder`(自建) | — | ✅ |
+| recorder-api | `autotest-recorder-api`(自建) | — | ✅ |
+| mcp | `autotest-mcp`(自建) | — | ✅ |
 
-> v1.1 已將 **Grafana 11(AGPLv3)** 與 **Tempo 2(AGPLv3)** 自 stack 中移除。
-> 改用 Prometheus 內建 `/graph` UI(port 9090)看 metrics、Jaeger UI(port 16686)
-> 看 trace、VictoriaLogs vmui(port 9428)看 log。三個各有 UI 而非統一 dashboard,
-> 但完全 OSS 可商用。
->
-> 若仍想用 Grafana / Tempo:本 stack 不擋,docker compose 自行 add service。
-> 但須注意 AGPLv3 §13:對外提供 SaaS 客戶 Grafana UI 或 fork 修改源碼會觸發
-> 源碼公開義務,須先請法務評估。
+> v1.1.9 已將 **APISIX / Casdoor / VictoriaLogs / Fluent Bit / Prometheus / Jaeger** 自 stack 中移除，改由 FastAPI 直接服務全部 API（slowapi 限速、CORSMiddleware），可觀測性改由外部工具自行接入。
 
 ### 2.5 Backend / Celery Container Base Images
 
@@ -252,10 +235,10 @@
 ### SaaS 上線前的合規 Checklist
 
 - [ ] **不修改** SeaweedFS / Valkey / PostgreSQL / Jaeger 源碼(只用官方 image)
-- [ ] **不對外暴露** SeaweedFS API / Valkey port / Jaeger UI(防火牆只開 80/443)
+- [ ] **不對外暴露** SeaweedFS API / Valkey port(防火牆只開 80/443)
 - [x] Font Awesome **attribution** 加到 footer(v1.1 已實作 — `frontend/index.html` 末段)
 - [ ] Repo 根目錄保留 `LICENSES.md`(本檔)
-- [ ] 在 SaaS 平台的「關於 / 法律聲明」頁列出主要相依(FastAPI / Robot Framework / Playwright / Jaeger / Prometheus / ...)
+- [ ] 在 SaaS 平台的「關於 / 法律聲明」頁列出主要相依(FastAPI / Robot Framework / Playwright / SeaweedFS / Valkey / ...)
 - [ ] 雲端正式環境用 Linux server + Docker Engine(非 Docker Desktop)
 - [ ] 大型企業內部開發若用 Docker Desktop 須訂閱;個人 / 小團隊免費
 - [ ] **不採用 Grafana 11+ 或 Tempo 2.x**(AGPLv3 — 已自 stack 移除,要回頭加須法務簽核)
@@ -271,11 +254,7 @@
 | 快取 / Celery broker | **Valkey 8-alpine** | BSD-3-Clause |
 | 物件儲存(S3 相容) | **SeaweedFS 3.80** | Apache 2.0 |
 | HTTP server / 靜態頁 | **nginx 1.27-alpine** | BSD-2-Clause |
-| API 閘道器 | **Apache APISIX 3.11** | Apache 2.0 |
-| 日誌採集 | **Fluent Bit 3.2** | Apache 2.0 |
-| 日誌儲存 + 面板(vmui) | **VictoriaLogs 1.50** | Apache 2.0 |
-| Metrics 抓取 + UI | **Prometheus 2.55**(opt-in obs profile) | Apache 2.0 |
-| Trace 收集 + UI | **Jaeger all-in-one 1.62**(opt-in obs profile) | Apache 2.0 |
+| Docker socket proxy | **Tecnativa Docker Socket Proxy 0.3.0** | Apache 2.0 |
 
 ---
 
