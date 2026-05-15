@@ -1010,7 +1010,7 @@
     <!-- 審核詳情 popup modal (彙整 review record 全欄位 + 內嵌歷史軌跡) -->
     <div id="reviewDetailModal" class="hidden fixed inset-0 z-[290] bg-black/40 flex items-center justify-center p-4"
          onclick="if(event.target===this) reviewCloseDetail()">
-        <div class="bg-white w-full max-w-2xl max-h-[85vh] rounded-xl shadow-2xl ring-1 ring-violet-200 overflow-hidden flex flex-col"
+        <div class="bg-white w-full max-w-3xl max-h-[90vh] rounded-xl shadow-2xl ring-1 ring-violet-200 overflow-hidden flex flex-col"
              onclick="event.stopPropagation()">
             <div class="px-5 py-3 border-b border-stone-200 bg-violet-50/60 flex items-center justify-between flex-shrink-0">
                 <h3 class="font-bold text-stone-800 text-base flex items-center gap-2">
@@ -9589,8 +9589,8 @@
             const tlbl = _REVIEW_TYPE_LABEL[r.entity_type] || { zh: r.entity_type, en: r.entity_type, cls: 'bg-stone-100 text-stone-600 border-stone-200' };
             const slbl = _REVIEW_STATUS_LABEL[r.status]    || { zh: r.status, en: r.status, cls: 'bg-stone-100 text-stone-600' };
 
-            const _row = (k, v) => `<div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 py-1.5 border-b border-stone-100 last:border-b-0">
-                <div class="text-[11px] uppercase tracking-wide text-stone-500 sm:w-32 flex-shrink-0">${k}</div>
+            const _row = (k, v) => `<div class="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 py-1.5 border-b border-stone-100 last:border-b-0">
+                <div class="text-[11px] uppercase tracking-wide text-stone-500 sm:w-32 flex-shrink-0 pt-0.5">${k}</div>
                 <div class="text-sm text-stone-800 break-all">${v ?? '<span class="text-stone-400 italic">—</span>'}</div>
             </div>`;
 
@@ -9618,14 +9618,29 @@
                         <div>${entityIdRow}</div>
                     </div>
 
+                    <!-- 實體詳情（依類型呈現，lazy load） -->
+                    <div id="reviewDetailEntitySection">
+                        <div class="flex items-center gap-2 text-[11px] uppercase tracking-wide text-stone-500 mb-2">
+                            <i class="fa-solid fa-circle-info text-violet-400"></i>
+                            <span>${lc==='en'?'Entity Details':'實體內容'}</span>
+                        </div>
+                        <div id="reviewDetailEntityBody" class="text-stone-400 text-xs">${lc==='en'?'Loading…':'載入中…'}</div>
+                    </div>
+
                     <!-- 送審 / 審核 / 指派 -->
                     <div>
-                        ${_row(lc==='en'?'Submitted by':'送審者', `${_esc(r.submitted_by||'—')} <span class="text-[11px] text-stone-500 ml-2">${_reviewFmtTs(r.submitted_at)}</span>`)}
-                        ${_row(lc==='en'?'Reviewed by':'審核者', r.reviewed_by ? `${_esc(r.reviewed_by)} <span class="text-[11px] text-stone-500 ml-2">${_reviewFmtTs(r.reviewed_at)}</span>` : null)}
-                        ${_row(lc==='en'?'Assigned to':'指派', assigneeHtml)}
-                        ${reasonHtml ? _row(lc==='en'?'Reason':'原因', reasonHtml) : ''}
-                        ${_row(lc==='en'?'Created':'建立時間', `<span class="text-[11px] font-mono text-stone-500">${_reviewFmtTs(r.created_at)}</span>`)}
-                        ${_row(lc==='en'?'Updated':'最後更新', `<span class="text-[11px] font-mono text-stone-500">${_reviewFmtTs(r.updated_at)}</span>`)}
+                        <div class="text-[11px] uppercase tracking-wide text-stone-500 mb-2 flex items-center gap-2">
+                            <i class="fa-solid fa-user-clock text-violet-400"></i>
+                            <span>${lc==='en'?'Review Info':'審核資訊'}</span>
+                        </div>
+                        <div class="bg-stone-50/60 rounded-lg border border-stone-100 px-3 py-1">
+                            ${_row(lc==='en'?'Submitted by':'送審者', `${_esc(r.submitted_by||'—')} <span class="text-[11px] text-stone-500 ml-2">${_reviewFmtTs(r.submitted_at)}</span>`)}
+                            ${_row(lc==='en'?'Reviewed by':'審核者', r.reviewed_by ? `${_esc(r.reviewed_by)} <span class="text-[11px] text-stone-500 ml-2">${_reviewFmtTs(r.reviewed_at)}</span>` : null)}
+                            ${_row(lc==='en'?'Assigned to':'指派', assigneeHtml)}
+                            ${reasonHtml ? _row(lc==='en'?'Reason':'原因', reasonHtml) : ''}
+                            ${_row(lc==='en'?'Created':'建立時間', `<span class="text-[11px] font-mono text-stone-500">${_reviewFmtTs(r.created_at)}</span>`)}
+                            ${_row(lc==='en'?'Updated':'最後更新', `<span class="text-[11px] font-mono text-stone-500">${_reviewFmtTs(r.updated_at)}</span>`)}
+                        </div>
                     </div>
 
                     <!-- 歷史軌跡(lazy load) -->
@@ -9642,7 +9657,14 @@
             // Footer 動作按鈕(跟列表的快速動作對齊)
             const footer = document.getElementById('reviewDetailFooter');
             const actBtns = [];
-            actBtns.push(`<button type="button" onclick="reviewOpenAssign('${r.id}')" class="px-3 py-1.5 text-xs border border-amber-300 text-amber-700 rounded hover:bg-amber-50 font-semibold"><i class="fa-solid fa-user-tag"></i> ${lc==='en'?'Assign':'指派'}</button>`);
+            // 前往實體按鈕（依類型）
+            if (r.entity_type === 'report') {
+                actBtns.push(`<button type="button" onclick="reviewCloseDetail();viewReport('${_esc(r.entity_id)}')" class="px-3 py-1.5 text-xs border border-violet-300 text-violet-700 rounded hover:bg-violet-50 font-semibold"><i class="fa-solid fa-file-lines"></i> ${lc==='en'?'View Report':'查看報告'}</button>`);
+            } else if (r.entity_type === 'testcase') {
+                actBtns.push(`<button type="button" onclick="reviewCloseDetail();loadTestCase('${_esc(r.entity_id)}')" class="px-3 py-1.5 text-xs border border-violet-300 text-violet-700 rounded hover:bg-violet-50 font-semibold"><i class="fa-solid fa-vial"></i> ${lc==='en'?'Open Test Case':'前往案例'}</button>`);
+            } else if (r.entity_type === 'script') {
+                actBtns.push(`<button type="button" onclick="reviewCloseDetail();showSection('recorderWorkspace')" class="px-3 py-1.5 text-xs border border-violet-300 text-violet-700 rounded hover:bg-violet-50 font-semibold"><i class="fa-solid fa-video"></i> ${lc==='en'?'Open Scripts':'前往腳本'}</button>`);
+            }
             if (r.status === 'InReview' || r.status === 'pending') {
                 actBtns.push(`<button type="button" onclick="reviewCloseDetail();reviewApprove('${r.id}')" class="px-3 py-1.5 text-xs bg-emerald-500 hover:bg-emerald-600 text-white rounded font-semibold"><i class="fa-solid fa-check"></i> ${lc==='en'?'Approve':'通過'}</button>`);
                 actBtns.push(`<button type="button" onclick="reviewCloseDetail();reviewPromptReject('${r.id}')" class="px-3 py-1.5 text-xs bg-rose-500 hover:bg-rose-600 text-white rounded font-semibold"><i class="fa-solid fa-xmark"></i> ${lc==='en'?'Reject':'拒絕'}</button>`);
@@ -9654,39 +9676,128 @@
 
             document.getElementById('reviewDetailModal').classList.remove('hidden');
 
-            // Lazy-load 歷史軌跡(不擋 modal 打開)
-            try {
-                const entries = await apiFetch(`/api/reviews/${recordId}/history`);
-                const histBox = document.getElementById('reviewDetailHistory');
-                if (!histBox) return;  // modal 已被關掉
-                if (!entries.length) {
-                    histBox.innerHTML = `<div class="text-stone-400 italic">${lc==='en'?'No history':'無紀錄'}</div>`;
-                    return;
-                }
-                histBox.classList.remove('text-stone-400', 'text-xs');
-                histBox.innerHTML = entries.map(e => {
-                    const al = _REVIEW_ACTION_LABEL[e.action] || { zh: e.action, en: e.action, icon: 'fa-circle', cls: 'text-stone-500' };
-                    const er = e.reason ? `<div class="text-[12px] text-stone-700 mt-1 bg-stone-50 rounded px-2 py-1 border-l-2 border-violet-300 italic">${_esc(e.reason)}</div>` : '';
-                    const transit = e.previous_status
-                        ? `<span class="text-[10px] text-stone-400 ml-2">${e.previous_status} → ${e.new_status}</span>`
-                        : `<span class="text-[10px] text-stone-400 ml-2">→ ${e.new_status}</span>`;
-                    return `<div class="border-l-2 border-violet-200 pl-3 py-1">
-                        <div class="flex items-center gap-2 text-sm">
-                            <i class="fa-solid ${al.icon} ${al.cls}"></i>
-                            <span class="font-semibold ${al.cls}">${al[lc]}</span>
-                            ${transit}
-                        </div>
-                        <div class="text-[11px] text-stone-500 mt-0.5">
-                            <i class="fa-regular fa-user mr-1"></i>${_esc(e.actor)}
-                            <i class="fa-regular fa-clock ml-3 mr-1"></i>${_reviewFmtTs(e.acted_at)}
-                        </div>
-                        ${er}
-                    </div>`;
-                }).join('');
-            } catch (e) {
-                const histBox = document.getElementById('reviewDetailHistory');
-                if (histBox) histBox.innerHTML = `<div class="text-rose-500 text-xs">${e.message || e}</div>`;
-            }
+            // Lazy-load 實體內容 + 歷史軌跡
+            const [entityErr] = await Promise.all([
+                (async () => {
+                    try {
+                        const eb = document.getElementById('reviewDetailEntityBody');
+                        if (!eb) return;
+                        const _cell = (k, v) => `<div class="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-2 py-1.5 border-b border-stone-100 last:border-b-0">
+                            <div class="text-[11px] uppercase tracking-wide text-stone-400 sm:w-28 flex-shrink-0 pt-0.5">${k}</div>
+                            <div class="text-sm text-stone-800 break-all">${v ?? '<span class="text-stone-400 italic">—</span>'}</div>
+                        </div>`;
+                        if (r.entity_type === 'report') {
+                            const rpt = await apiFetch(`/api/reports/${encodeURIComponent(r.entity_id)}`);
+                            const statusCls = rpt.status === 'PASSED' ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                                : rpt.status === 'FAILED' ? 'bg-rose-100 text-rose-700 border-rose-200'
+                                : rpt.status === 'RUNNING' ? 'bg-blue-100 text-blue-700 border-blue-200'
+                                : 'bg-stone-100 text-stone-600 border-stone-200';
+                            const durSec = rpt.duration_ms ? (rpt.duration_ms / 1000).toFixed(1) + ' 秒' : '—';
+                            const triggerMap = { manual: '手動', schedule: '排程', api: 'API', webhook: 'Webhook' };
+                            const trigLbl = triggerMap[rpt.trigger_type] || rpt.trigger_type || '—';
+                            const execMode = rpt.execution_mode === 'sequential' ? '循序' : rpt.execution_mode === 'parallel' ? '平行' : (rpt.execution_mode || '—');
+                            const passedSteps = typeof rpt.passed_cases === 'number' ? rpt.passed_cases : '—';
+                            const failedSteps = typeof rpt.failed_cases === 'number' ? rpt.failed_cases : '—';
+                            const totalCases = typeof rpt.total_cases === 'number' ? rpt.total_cases : '—';
+                            eb.classList.remove('text-stone-400', 'text-xs');
+                            eb.innerHTML = `<div class="bg-white rounded-lg border border-stone-200 px-3 py-1">
+                                ${_cell(lc==='en'?'Status':'執行狀態', `<span class="inline-block px-2 py-0.5 rounded text-[11px] font-semibold border ${statusCls}">${rpt.status || '—'}</span>`)}
+                                ${_cell(lc==='en'?'Cases':'案例統計', `<span class="text-emerald-600 font-semibold">${passedSteps} 通過</span> <span class="text-stone-400 mx-1">/</span> <span class="text-rose-500 font-semibold">${failedSteps} 失敗</span> <span class="text-stone-400 mx-1">/</span> <span class="text-stone-600">共 ${totalCases} 案例</span>`)}
+                                ${_cell(lc==='en'?'Duration':'執行時長', durSec)}
+                                ${_cell(lc==='en'?'Trigger':'觸發方式', trigLbl)}
+                                ${_cell(lc==='en'?'Exec Mode':'執行模式', execMode)}
+                                ${rpt.env_vars ? _cell(lc==='en'?'Env':'環境變數', `<span class="font-mono text-[12px] text-stone-600 bg-stone-50 px-1 py-0.5 rounded">${_esc(typeof rpt.env_vars === 'string' ? rpt.env_vars : JSON.stringify(rpt.env_vars))}</span>`) : ''}
+                            </div>`;
+                        } else if (r.entity_type === 'testcase') {
+                            const info = findNodeInfo(activeTreeData, r.entity_id);
+                            if (!info) { eb.innerHTML = `<div class="text-stone-400 italic text-xs">${lc==='en'?'Node not found in current project tree':'節點不存在於目前專案樹（可能在不同專案）'}</div>`; return; }
+                            // 建立麵包屑路徑
+                            const chain = [];
+                            let cur = info.parent;
+                            while (cur) {
+                                chain.unshift(cur);
+                                const pi = findNodeInfo(activeTreeData, cur.id);
+                                cur = pi ? pi.parent : null;
+                            }
+                            chain.push(info.node);
+                            const levelIcon = { PLATFORM: 'fa-layer-group', PAGE: 'fa-file', SCENARIO: 'fa-flask', TESTCASE: 'fa-vial', FEATURE: 'fa-folder' };
+                            const levelColor = { PLATFORM: 'text-blue-500', PAGE: 'text-indigo-500', SCENARIO: 'text-violet-500', TESTCASE: 'text-emerald-600', FEATURE: 'text-amber-500' };
+                            const breadcrumb = chain.map((n, i) => {
+                                const lv = n.level_type || n.level || '';
+                                const ic = levelIcon[lv] || 'fa-circle-dot';
+                                const cl = levelColor[lv] || 'text-stone-400';
+                                return `${i>0?'<i class="fa-solid fa-angle-right text-stone-300 text-[10px] mx-1"></i>':''}` +
+                                    `<span class="${cl}"><i class="fa-solid ${ic} text-[11px] mr-1"></i>${_esc(n.name||n.title||n.id)}</span>`;
+                            }).join('');
+                            // 嘗試拿 testcase 步驟數
+                            let stepCount = '—';
+                            try {
+                                const tc = await apiFetch(`/api/testcases/${encodeURIComponent(r.entity_id)}`);
+                                const steps = Array.isArray(tc.steps_json) ? tc.steps_json : [];
+                                stepCount = String(steps.length);
+                            } catch (_) {}
+                            eb.classList.remove('text-stone-400', 'text-xs');
+                            eb.innerHTML = `<div class="bg-white rounded-lg border border-stone-200 px-3 py-1">
+                                ${_cell(lc==='en'?'Path':'節點路徑', `<div class="flex flex-wrap items-center gap-0.5 text-sm">${breadcrumb}</div>`)}
+                                ${_cell(lc==='en'?'Steps':'步驟數', stepCount)}
+                                ${_cell(lc==='en'?'Node ID':'節點 ID', `<span class="font-mono text-[12px] text-stone-500">${_esc(r.entity_id)}</span>`)}
+                            </div>`;
+                        } else if (r.entity_type === 'script') {
+                            const sess = await apiFetch(`/api/recordings/${encodeURIComponent(r.entity_id)}`);
+                            const cmds = await apiFetch(`/api/recordings/${encodeURIComponent(r.entity_id)}/commands`).catch(() => []);
+                            const targetHost = (() => { try { return new URL(sess.target_url).hostname; } catch (_) { return sess.target_url || '—'; } })();
+                            eb.classList.remove('text-stone-400', 'text-xs');
+                            eb.innerHTML = `<div class="bg-white rounded-lg border border-stone-200 px-3 py-1">
+                                ${_cell(lc==='en'?'Target URL':'目標網址', `<a href="${_esc(sess.target_url)}" target="_blank" class="text-blue-600 hover:underline break-all">${_esc(sess.target_url||'—')}</a>`)}
+                                ${_cell(lc==='en'?'Host':'主機', _esc(targetHost))}
+                                ${_cell(lc==='en'?'Commands':'指令數', String(Array.isArray(cmds) ? cmds.length : (sess.commands_count || '—')))}
+                                ${_cell(lc==='en'?'Created':'建立時間', `<span class="text-[11px] font-mono text-stone-500">${_reviewFmtTs(sess.created_at)}</span>`)}
+                                ${sess.script_text ? _cell(lc==='en'?'Script Preview':'腳本預覽',
+                                    `<pre class="text-[11px] font-mono bg-stone-50 border border-stone-200 rounded p-2 max-h-32 overflow-y-auto whitespace-pre-wrap text-stone-700">${_esc(String(sess.script_text).slice(0, 600))}${sess.script_text.length > 600 ? '\n…' : ''}</pre>`) : ''}
+                            </div>`;
+                        } else {
+                            eb.innerHTML = `<div class="text-stone-400 italic text-xs">${lc==='en'?'No additional details available':'無額外詳情'}</div>`;
+                        }
+                    } catch (e) {
+                        const eb = document.getElementById('reviewDetailEntityBody');
+                        if (eb) eb.innerHTML = `<div class="text-rose-500 text-xs"><i class="fa-solid fa-triangle-exclamation mr-1"></i>${_esc(e.message || String(e))}</div>`;
+                    }
+                })(),
+                (async () => {
+                    try {
+                        const entries = await apiFetch(`/api/reviews/${recordId}/history`);
+                        const histBox = document.getElementById('reviewDetailHistory');
+                        if (!histBox) return;
+                        if (!entries.length) {
+                            histBox.innerHTML = `<div class="text-stone-400 italic">${lc==='en'?'No history':'無紀錄'}</div>`;
+                            return;
+                        }
+                        histBox.classList.remove('text-stone-400', 'text-xs');
+                        histBox.innerHTML = entries.map(e => {
+                            const al = _REVIEW_ACTION_LABEL[e.action] || { zh: e.action, en: e.action, icon: 'fa-circle', cls: 'text-stone-500' };
+                            const er = e.reason ? `<div class="text-[12px] text-stone-700 mt-1 bg-stone-50 rounded px-2 py-1 border-l-2 border-violet-300 italic">${_esc(e.reason)}</div>` : '';
+                            const transit = e.previous_status
+                                ? `<span class="text-[10px] text-stone-400 ml-2">${e.previous_status} → ${e.new_status}</span>`
+                                : `<span class="text-[10px] text-stone-400 ml-2">→ ${e.new_status}</span>`;
+                            return `<div class="border-l-2 border-violet-200 pl-3 py-1">
+                                <div class="flex items-center gap-2 text-sm">
+                                    <i class="fa-solid ${al.icon} ${al.cls}"></i>
+                                    <span class="font-semibold ${al.cls}">${al[lc]}</span>
+                                    ${transit}
+                                </div>
+                                <div class="text-[11px] text-stone-500 mt-0.5">
+                                    <i class="fa-regular fa-user mr-1"></i>${_esc(e.actor)}
+                                    <i class="fa-regular fa-clock ml-3 mr-1"></i>${_reviewFmtTs(e.acted_at)}
+                                </div>
+                                ${er}
+                            </div>`;
+                        }).join('');
+                    } catch (e) {
+                        const histBox = document.getElementById('reviewDetailHistory');
+                        if (histBox) histBox.innerHTML = `<div class="text-rose-500 text-xs">${e.message || e}</div>`;
+                    }
+                })(),
+            ]);
         }
 
         function reviewCloseDetail() {
