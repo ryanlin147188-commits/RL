@@ -5,11 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AutoTest — 測試建構平台</title>
     <!-- Perf A1: preconnect to CDN origins so TLS+DNS can run in parallel with HTML parse -->
-    <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin>
     <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
     <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/tailwind.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <!-- Perf B1/B2: Chart.js / chartjs-plugin-datalabels / html2pdf / marked / mermaid
          全部從 critical path 移除,改由 ensureChartJs() / ensureMarkdown() / ensureHtml2Pdf()
@@ -3413,6 +3412,14 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 .catch((e) => { _html2pdfPromise = null; throw e; });
             return _html2pdfPromise;
         }
+        let _html2canvasPromise = null;
+        function ensureHtml2Canvas() {
+            if (window.html2canvas) return Promise.resolve();
+            if (_html2canvasPromise) return _html2canvasPromise;
+            _html2canvasPromise = _loadScript('https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js')
+                .catch((e) => { _html2canvasPromise = null; throw e; });
+            return _html2canvasPromise;
+        }
 
         // ==================== 0. Toast 提示系統 ====================
         function showToast(message, type = 'info') {
@@ -5715,8 +5722,8 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         // 改為依 mockReportData[currentReportId] 自行渲染一份「線性、全展開」的 DOM
         // 放到一個離屏容器，再由 html2pdf 截圖輸出。
         async function exportReportPdf() {
-            // Perf B2: html2pdf 改成首次呼叫時才動態 inject。
-            try { await ensureHtml2Pdf(); }
+            // Perf B2: html2pdf + html2canvas 改成首次呼叫時才動態 inject。
+            try { await Promise.all([ensureHtml2Pdf(), ensureHtml2Canvas()]); }
             catch (e) {
                 showToast('PDF 匯出元件載入失敗:' + (e.message || e), 'error');
                 return;

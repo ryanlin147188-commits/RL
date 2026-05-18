@@ -21,6 +21,7 @@ COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 
 # SPA 主檔 + incremental modules
 COPY frontend/index.html /usr/share/nginx/html/index.html
+COPY frontend/tailwind.css /usr/share/nginx/html/tailwind.css
 COPY frontend/js /usr/share/nginx/html/js
 
 # 內建 Playwright Trace Viewer(走 /trace-viewer/index.html?trace=<url>)

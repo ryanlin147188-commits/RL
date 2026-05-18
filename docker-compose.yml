@@ -317,6 +317,7 @@ services:
     volumes:
       - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./frontend/index.html:/usr/share/nginx/html/index.html:ro
+      - ./frontend/tailwind.css:/usr/share/nginx/html/tailwind.css:ro
       - ./frontend/js:/usr/share/nginx/html/js:ro
   robot-runner:
     build:
