@@ -5885,43 +5885,223 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         function buildPdfReportDom(report) {
             const wrap = document.createElement('div');
             wrap.id = 'pdfReportContainer';
-            // 可見地擺在最頂層渲染（html2canvas 對 left:-99999px 的元素常常截不到 →
-            // 結果會是空白 PDF）。為了不干擾使用者，外層再加一個 backdrop 遮住，
-            // 等匯出完成再一起移除。
             wrap.style.cssText = 'position:absolute; left:0; top:0; margin:0; width:794px; box-sizing:border-box; overflow:visible; word-break:break-word; overflow-wrap:anywhere; background:#ffffff; padding:20px 28px; font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif; color:#1e293b; z-index:99999;';
 
-            const statusColor = report.status === 'Passed' ? '#16a34a' : '#dc2626';
-            const statusBg = report.status === 'Passed' ? '#dcfce7' : '#fee2e2';
+            // ── 統計計算 ──────────────────────────────────────────────────────
+            const cases = report.cases || [];
+            const allSteps = cases.flatMap(c => c.steps || []);
+            const totalSteps = allSteps.length;
+            const passedSteps = allSteps.filter(s => s.status === 'Passed').length;
+            const failedSteps = totalSteps - passedSteps;
+            const passRate = totalSteps > 0 ? Math.round(passedSteps / totalSteps * 100) : 0;
 
-            const header = `
-                <div style="border-bottom:2px solid #e2e8f0; padding-bottom:12px; margin-bottom:20px;">
-                    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                        <div>
-                            <h1 style="font-size:22px; font-weight:700; margin:0 0 6px 0;">${escapeHtml(report.title || '執行報告')}</h1>
-                            <div style="font-size:12px; color:#64748b;">${escapeHtml(report.time || '')} ｜ 觸發者: ${escapeHtml(formatTriggerSource(report.trigger_type))}</div>
-                        </div>
-                        <div style="text-align:right;">
-                            <div style="font-size:11px; color:#94a3b8;">總耗時</div>
-                            <div style="font-size:14px; font-family:monospace; margin-bottom:6px;">${escapeHtml(report.duration || '—')}</div>
-                            <span style="background:${statusBg}; color:${statusColor}; padding:4px 10px; border-radius:4px; font-weight:700; font-size:13px;">${escapeHtml(report.status || '')}</span>
-                        </div>
+            // 逐案例統計（含耗時加總）
+            const caseStats = cases.map(c => {
+                const steps = c.steps || [];
+                const p = steps.filter(s => s.status === 'Passed').length;
+                const f = steps.length - p;
+                const r = steps.length > 0 ? Math.round(p / steps.length * 100) : 0;
+                const cStatus = steps.length === 0 ? 'N/A' : (f === 0 ? 'Passed' : 'Failed');
+                const durMs = steps.reduce((acc, s) => {
+                    if (!s.duration) return acc;
+                    const ms = String(s.duration).endsWith('ms')
+                        ? parseFloat(s.duration) : parseFloat(s.duration) * 1000;
+                    return acc + (isNaN(ms) ? 0 : ms);
+                }, 0);
+                const durStr = durMs >= 1000 ? `${(durMs / 1000).toFixed(2)}s` : durMs > 0 ? `${Math.round(durMs)}ms` : '—';
+                return { name: c.name || '—', total: steps.length, pass: p, fail: f, rate: r, status: cStatus, duration: durStr };
+            });
+            const passedCases = caseStats.filter(c => c.status === 'Passed').length;
+            const failedCases  = caseStats.filter(c => c.status === 'Failed').length;
+
+            // 步驟類型分佈
+            const stepsByKind = {};
+            allSteps.forEach(s => {
+                const k = s.kind || _detectStepKind(s.action);
+                stepsByKind[k] = (stepsByKind[k] || 0) + 1;
+            });
+            const kindTotal = Object.values(stepsByKind).reduce((a, b) => a + b, 0);
+
+            const overallStatus = report.status || (failedSteps === 0 && totalSteps > 0 ? 'Passed' : 'Failed');
+            const statusColor = overallStatus === 'Passed' ? '#16a34a' : '#dc2626';
+            const statusBg    = overallStatus === 'Passed' ? '#dcfce7'  : '#fee2e2';
+
+            // ── SVG 甜甜圈圖（步驟通過率）────────────────────────────────────
+            const R = 52, CX = 68, CY = 68;
+            const circum = +(2 * Math.PI * R).toFixed(2);
+            const passArc = totalSteps > 0 ? +((passedSteps / totalSteps) * circum).toFixed(2) : 0;
+            const donutSvg = `<svg width="136" height="136" viewBox="0 0 136 136" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="${CX}" cy="${CY}" r="${R}" fill="none" stroke="#fee2e2" stroke-width="18"/>
+                ${passArc > 0 ? `<circle cx="${CX}" cy="${CY}" r="${R}" fill="none" stroke="#22c55e" stroke-width="18"
+                    stroke-dasharray="${passArc} ${circum}" stroke-linecap="butt"
+                    transform="rotate(-90 ${CX} ${CY})"/>` : ''}
+                <text x="${CX}" y="${CY - 7}" text-anchor="middle" font-size="22" font-weight="700" fill="#1e293b" font-family="sans-serif">${passRate}%</text>
+                <text x="${CX}" y="${CY + 11}" text-anchor="middle" font-size="11" fill="#64748b" font-family="sans-serif">步驟通過率</text>
+                <text x="${CX}" y="${CY + 25}" text-anchor="middle" font-size="10" fill="#94a3b8" font-family="sans-serif">${passedSteps} / ${totalSteps} 步</text>
+            </svg>`;
+
+            // ── SVG 橫向堆疊長條圖（各案例） ─────────────────────────────────
+            const BAR_H = 18, BAR_GAP = 8, LBL_W = 155, BAR_AREA = 240, CHART_W = 440;
+            const maxCaseSteps = Math.max(...caseStats.map(c => c.total), 1);
+            const barRows = caseStats.map((c, i) => {
+                const y = 20 + i * (BAR_H + BAR_GAP);
+                const pW = Math.round((c.pass / maxCaseSteps) * BAR_AREA);
+                const fW = Math.round((c.fail / maxCaseSteps) * BAR_AREA);
+                const cColor = c.status === 'Passed' ? '#16a34a' : c.status === 'Failed' ? '#dc2626' : '#94a3b8';
+                const shortName = c.name.length > 19 ? c.name.slice(0, 18) + '…' : c.name;
+                return `<text x="${LBL_W - 6}" y="${y + BAR_H - 4}" text-anchor="end" font-size="10" fill="#475569" font-family="sans-serif">${escapeHtml(shortName)}</text>
+                    ${pW > 0 ? `<rect x="${LBL_W}" y="${y}" width="${pW}" height="${BAR_H}" fill="#22c55e" rx="2"/>` : ''}
+                    ${fW > 0 ? `<rect x="${LBL_W + pW}" y="${y}" width="${fW}" height="${BAR_H}" fill="#ef4444" rx="2"/>` : ''}
+                    ${c.total === 0 ? `<rect x="${LBL_W}" y="${y}" width="28" height="${BAR_H}" fill="#e2e8f0" rx="2"/>` : ''}
+                    <text x="${LBL_W + pW + fW + 6}" y="${y + BAR_H - 4}" font-size="10" fill="${cColor}" font-weight="600" font-family="sans-serif">${c.pass}/${c.total} · ${c.rate}%</text>`;
+            }).join('');
+            const chartSvgH = 20 + caseStats.length * (BAR_H + BAR_GAP) + 14;
+            const barChartSvg = caseStats.length > 0 ? `<svg width="${CHART_W}" height="${chartSvgH}" viewBox="0 0 ${CHART_W} ${chartSvgH}" xmlns="http://www.w3.org/2000/svg">
+                <rect x="${LBL_W}" y="3" width="12" height="10" fill="#22c55e" rx="2"/>
+                <text x="${LBL_W + 16}" y="12" font-size="10" fill="#475569" font-family="sans-serif">通過</text>
+                <rect x="${LBL_W + 52}" y="3" width="12" height="10" fill="#ef4444" rx="2"/>
+                <text x="${LBL_W + 68}" y="12" font-size="10" fill="#475569" font-family="sans-serif">失敗</text>
+                ${barRows}
+            </svg>` : `<div style="font-size:12px; color:#94a3b8; padding-top:20px;">無案例資料</div>`;
+
+            // ── 步驟類型分佈 ──────────────────────────────────────────────────
+            const kindColors = { UI: '#3b82f6', API: '#8b5cf6', APP: '#ec4899', DB: '#6366f1' };
+            const kindItems = Object.entries(stepsByKind).map(([k, cnt]) => {
+                const color = kindColors[k] || '#94a3b8';
+                const pct = kindTotal > 0 ? Math.round(cnt / kindTotal * 100) : 0;
+                return `<div style="display:flex; align-items:center; gap:6px;">
+                    <span style="display:inline-block; width:10px; height:10px; border-radius:2px; background:${color}; flex-shrink:0;"></span>
+                    <span style="font-size:11px; color:#475569; width:32px;">${k}</span>
+                    <div style="width:90px; background:#e2e8f0; border-radius:2px; height:7px;">
+                        <div style="width:${pct}%; background:${color}; height:7px; border-radius:2px;"></div>
                     </div>
+                    <span style="font-size:11px; color:#64748b;">${cnt} 步 (${pct}%)</span>
                 </div>`;
-
-            const casesHtml = (report.cases || []).map((c, idx) => {
-                const stepsHtml = (c.steps || []).map((s, i) => buildPdfStepHtml(s, i + 1)).join('');
-                const breakBefore = idx === 0 ? '' : 'page-break-before:always; break-before:page;';
-                const breakCls = idx === 0 ? '' : ' pdf-case-break';
-                return `
-                    <div class="pdf-case${breakCls}" style="margin-bottom:24px; ${breakBefore}">
-                        <div class="pdf-case-header" style="background:#f1f5f9; padding:10px 14px; border-left:4px solid #3b82f6; font-weight:700; font-size:14px; margin-bottom:12px;">
-                            ${escapeHtml(c.name || '—')} <span style="font-weight:400; color:#64748b; font-size:12px;">（共 ${(c.steps || []).length} 步驟）</span>
-                        </div>
-                        ${stepsHtml || '<div style="color:#94a3b8; font-size:12px;">無步驟</div>'}
-                    </div>`;
             }).join('');
 
-            wrap.innerHTML = header + casesHtml;
+            // ── 統計卡片 ──────────────────────────────────────────────────────
+            const mkCard = (lbl, val, sub, bg, fg) =>
+                `<div style="background:${bg}; border-radius:8px; padding:12px 14px; flex:1; min-width:0;">
+                    <div style="font-size:11px; color:#64748b; margin-bottom:3px;">${lbl}</div>
+                    <div style="font-size:22px; font-weight:700; color:${fg}; line-height:1.1;">${val}</div>
+                    <div style="font-size:10px; color:#94a3b8; margin-top:3px;">${sub}</div>
+                </div>`;
+
+            // ── 案例摘要表格 ──────────────────────────────────────────────────
+            const caseTableRows = caseStats.map((c, i) => {
+                const rb = i % 2 === 0 ? '#fff' : '#f8fafc';
+                const cc = c.status === 'Passed' ? '#16a34a' : c.status === 'Failed' ? '#dc2626' : '#94a3b8';
+                const cb = c.status === 'Passed' ? '#dcfce7' : c.status === 'Failed' ? '#fee2e2' : '#f1f5f9';
+                const clbl = c.status === 'Passed' ? '通過' : c.status === 'Failed' ? '失敗' : 'N/A';
+                return `<tr style="background:${rb};">
+                    <td style="padding:6px 8px; font-size:11px; color:#94a3b8; text-align:center; border-bottom:1px solid #f1f5f9;">${i + 1}</td>
+                    <td style="padding:6px 8px; font-size:11px; font-weight:600; border-bottom:1px solid #f1f5f9;">${escapeHtml(c.name)}</td>
+                    <td style="padding:6px 8px; font-size:11px; text-align:center; border-bottom:1px solid #f1f5f9;">${c.total}</td>
+                    <td style="padding:6px 8px; font-size:11px; text-align:center; color:#16a34a; font-weight:700; border-bottom:1px solid #f1f5f9;">${c.pass}</td>
+                    <td style="padding:6px 8px; font-size:11px; text-align:center; color:#dc2626; font-weight:700; border-bottom:1px solid #f1f5f9;">${c.fail}</td>
+                    <td style="padding:6px 8px; text-align:center; border-bottom:1px solid #f1f5f9;">
+                        <div style="background:#e2e8f0; border-radius:3px; height:7px; width:72px; margin:0 auto 2px;">
+                            <div style="width:${c.rate}%; background:${cc}; height:7px; border-radius:3px;"></div>
+                        </div>
+                        <span style="font-size:10px; color:${cc}; font-weight:600;">${c.rate}%</span>
+                    </td>
+                    <td style="padding:6px 8px; font-size:11px; text-align:center; font-family:monospace; color:#64748b; border-bottom:1px solid #f1f5f9;">${escapeHtml(c.duration)}</td>
+                    <td style="padding:6px 8px; text-align:center; border-bottom:1px solid #f1f5f9;">
+                        <span style="background:${cb}; color:${cc}; padding:2px 7px; border-radius:3px; font-size:10px; font-weight:700;">${clbl}</span>
+                    </td>
+                </tr>`;
+            }).join('');
+
+            // ── 組裝 HTML ─────────────────────────────────────────────────────
+            wrap.innerHTML = `
+            <div style="border-bottom:3px solid #3b82f6; padding-bottom:14px; margin-bottom:18px;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                    <div style="flex:1; min-width:0; padding-right:16px;">
+                        <div style="font-size:10px; color:#94a3b8; text-transform:uppercase; letter-spacing:1px; margin-bottom:4px;">測試執行報告</div>
+                        <h1 style="font-size:20px; font-weight:700; margin:0 0 7px 0;">${escapeHtml(report.title || '執行報告')}</h1>
+                        <div style="font-size:11px; color:#64748b; display:flex; gap:14px; flex-wrap:wrap;">
+                            <span>📅 ${escapeHtml(report.time || '—')}</span>
+                            <span>⚡ 觸發：${escapeHtml(formatTriggerSource(report.trigger_type))}</span>
+                            <span>⏱ 耗時：${escapeHtml(report.duration || '—')}</span>
+                        </div>
+                    </div>
+                    <div style="text-align:center; flex-shrink:0;">
+                        <span style="display:block; background:${statusBg}; color:${statusColor}; padding:8px 20px; border-radius:6px; font-weight:800; font-size:16px;">${escapeHtml(overallStatus)}</span>
+                        <div style="font-size:10px; color:#94a3b8; margin-top:4px;">整體結果</div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="display:flex; gap:10px; margin-bottom:18px;">
+                ${mkCard('測試案例', cases.length, `通過 ${passedCases} ／ 失敗 ${failedCases}`, passedCases === cases.length && cases.length > 0 ? '#f0fdf4' : '#fff7ed', passedCases === cases.length && cases.length > 0 ? '#16a34a' : '#ea580c')}
+                ${mkCard('步驟總數', totalSteps, `通過 ${passedSteps} ／ 失敗 ${failedSteps}`, '#f0f9ff', '#0369a1')}
+                ${mkCard('步驟通過率', `${passRate}%`, passedSteps + ' 步通過', passRate >= 80 ? '#f0fdf4' : passRate >= 50 ? '#fefce8' : '#fef2f2', passRate >= 80 ? '#16a34a' : passRate >= 50 ? '#ca8a04' : '#dc2626')}
+                ${mkCard('步驟類型', Object.keys(stepsByKind).join(' / ') || '—', kindTotal + ' 步驟', '#f8fafc', '#475569')}
+            </div>
+
+            <div style="display:flex; gap:20px; margin-bottom:18px; align-items:flex-start;">
+                <div style="flex-shrink:0; text-align:center;">
+                    <div style="font-size:12px; font-weight:600; color:#475569; margin-bottom:8px;">通過率圓餅圖</div>
+                    ${donutSvg}
+                    <div style="display:flex; gap:12px; justify-content:center; margin-top:6px; font-size:10px;">
+                        <span style="color:#22c55e; font-weight:600;">● 通過 ${passedSteps}</span>
+                        <span style="color:#ef4444; font-weight:600;">● 失敗 ${failedSteps}</span>
+                    </div>
+                </div>
+                <div style="flex:1; min-width:0;">
+                    <div style="font-size:12px; font-weight:600; color:#475569; margin-bottom:6px;">各案例步驟結果</div>
+                    ${barChartSvg}
+                </div>
+                ${kindItems ? `<div style="flex-shrink:0; min-width:170px;">
+                    <div style="font-size:12px; font-weight:600; color:#475569; margin-bottom:8px;">步驟類型分佈</div>
+                    <div style="display:flex; flex-direction:column; gap:7px;">${kindItems}</div>
+                </div>` : ''}
+            </div>
+
+            ${cases.length > 0 ? `
+            <div style="margin-bottom:22px;">
+                <div style="font-size:12px; font-weight:600; color:#475569; margin-bottom:8px;">測試案例摘要</div>
+                <table style="width:100%; border-collapse:collapse;">
+                    <thead>
+                        <tr style="background:#f1f5f9;">
+                            <th style="padding:7px 8px; font-size:11px; text-align:center; border-bottom:2px solid #cbd5e1; color:#475569; width:28px;">#</th>
+                            <th style="padding:7px 8px; font-size:11px; text-align:left; border-bottom:2px solid #cbd5e1; color:#475569;">案例名稱</th>
+                            <th style="padding:7px 8px; font-size:11px; text-align:center; border-bottom:2px solid #cbd5e1; color:#475569;">步驟</th>
+                            <th style="padding:7px 8px; font-size:11px; text-align:center; border-bottom:2px solid #cbd5e1; color:#16a34a;">通過</th>
+                            <th style="padding:7px 8px; font-size:11px; text-align:center; border-bottom:2px solid #cbd5e1; color:#dc2626;">失敗</th>
+                            <th style="padding:7px 8px; font-size:11px; text-align:center; border-bottom:2px solid #cbd5e1; color:#475569;">通過率</th>
+                            <th style="padding:7px 8px; font-size:11px; text-align:center; border-bottom:2px solid #cbd5e1; color:#475569;">耗時</th>
+                            <th style="padding:7px 8px; font-size:11px; text-align:center; border-bottom:2px solid #cbd5e1; color:#475569;">結果</th>
+                        </tr>
+                    </thead>
+                    <tbody>${caseTableRows}</tbody>
+                </table>
+            </div>` : ''}
+
+            <div style="border-top:2px solid #e2e8f0; padding-top:14px; margin-bottom:16px; margin-top:8px;">
+                <div style="font-size:14px; font-weight:700; color:#1e293b; margin-bottom:3px;">詳細執行記錄</div>
+                <div style="font-size:11px; color:#94a3b8;">各測試案例逐步執行詳情</div>
+            </div>
+
+            ${cases.map((c, idx) => {
+                const cs = caseStats[idx];
+                const stepsHtml = (c.steps || []).map((s, i) => buildPdfStepHtml(s, i + 1)).join('');
+                const cc = cs.status === 'Passed' ? '#16a34a' : cs.status === 'Failed' ? '#dc2626' : '#94a3b8';
+                const cb = cs.status === 'Passed' ? '#dcfce7' : cs.status === 'Failed' ? '#fee2e2' : '#f1f5f9';
+                const clbl = cs.status === 'Passed' ? '通過' : cs.status === 'Failed' ? '失敗' : 'N/A';
+                return `<div class="pdf-case" style="margin-bottom:22px;">
+                    <div class="pdf-case-header" style="background:#f1f5f9; padding:10px 14px; border-left:4px solid #3b82f6; font-weight:700; font-size:14px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
+                        <div>${escapeHtml(c.name || '—')} <span style="font-weight:400; color:#64748b; font-size:12px;">（${cs.total} 步驟）</span></div>
+                        <div style="display:flex; gap:8px; align-items:center;">
+                            <span style="font-size:11px; font-weight:400; color:#16a34a;">${cs.pass} 通過</span>
+                            ${cs.fail > 0 ? `<span style="font-size:11px; font-weight:400; color:#dc2626;">${cs.fail} 失敗</span>` : ''}
+                            <span style="background:${cb}; color:${cc}; padding:2px 8px; border-radius:3px; font-size:11px; font-weight:700;">${clbl}</span>
+                        </div>
+                    </div>
+                    ${stepsHtml || '<div style="color:#94a3b8; font-size:12px; padding:8px;">無步驟</div>'}
+                </div>`;
+            }).join('')}`;
+
             return wrap;
         }
 
