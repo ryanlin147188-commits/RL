@@ -514,7 +514,7 @@ def _translate_step(step: dict, ctx: dict) -> list[str]:
         # 強化版 overlay 清除 + Escape + blur；best-effort，全部 ignore error
         return out(
             line("Run Keyword And Ignore Error", "Evaluate JavaScript", "${None}", _OVERLAY_CLEANUP_JS_ENHANCED),
-            line("Run Keyword And Ignore Error", "Press Keys", "${None}", "Escape"),
+            line("Run Keyword And Ignore Error", "Keyboard Key", "press", "Escape"),
             line("Run Keyword And Ignore Error", "Evaluate JavaScript", "${None}",
                  "() => { try { document.activeElement?.blur(); } catch(e) {} }"),
         )
@@ -534,7 +534,7 @@ def _translate_step(step: dict, ctx: dict) -> list[str]:
 
     if action == "pressescape":
         # 發送 Escape 鍵，關閉 dialog/dropdown/custom modal
-        return out(line("Press Keys", "${None}", "Escape"))
+        return out(line("Keyboard Key", "press", "Escape"))
 
     if action == "forceclick":
         # 繞過 actionability 檢查的強制點擊（Playwright force=True）
