@@ -2880,7 +2880,6 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                                 class="px-3 py-1.5 border border-stone-300 rounded-md text-xs bg-white">
                                 <option value="" data-i18n="review.type.all">全部類型</option>
                                 <option value="testcase" data-i18n="review.type.testcase">測試案例</option>
-                                <option value="script" data-i18n="review.type.script">測試腳本</option>
                                 <option value="report" data-i18n="review.type.report">測試報告</option>
                             </select>
                             <button type="button" onclick="reviewLoad()" class="px-3 py-1.5 border border-stone-300 rounded-md text-xs hover:bg-violet-50 transition">
@@ -10034,7 +10033,6 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         const _REVIEW_TYPE_LABEL = {
             testcase: { zh: '測試案例', en: 'Test Case', cls: 'bg-blue-100 text-blue-700 border-blue-200' },
             document: { zh: '測試文件', en: 'Document',  cls: 'bg-pink-100 text-pink-700 border-pink-200' },
-            script:   { zh: '測試腳本', en: 'Script',    cls: 'bg-rose-100 text-rose-700 border-rose-200' },
             report:   { zh: '測試報告', en: 'Report',    cls: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
         };
         const _REVIEW_STATUS_LABEL = {
@@ -10186,7 +10184,11 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 ? `<div ${nameClickAttrs} class="text-stone-800 font-medium text-sm cursor-pointer hover:text-violet-600 hover:underline" title="${_esc(r.entity_id)} — ${lc==='en'?'click for details':'點擊查看詳情'}">${_esc(r.entity_name)}</div>`
                 : `<div ${nameClickAttrs} class="text-stone-400 italic text-xs cursor-pointer hover:text-violet-600 hover:underline" title="${_esc(r.entity_id)} — ${lc==='en'?'click for details':'點擊查看詳情'}">${lc==='en' ? 'entity deleted' : '實體已刪除'}</div>`;
             const checked = _reviewSelected.has(r.id) ? 'checked' : '';
-            return `<tr class="hover:bg-violet-50/40 align-top">
+            const isLockedTestcase = r.entity_type === 'testcase' && r.status === 'approved';
+            const trCls = isLockedTestcase
+                ? 'align-top opacity-50 bg-stone-50 select-none'
+                : 'hover:bg-violet-50/40 align-top';
+            return `<tr class="${trCls}">
                 <td class="p-3 text-center hidden sm:table-cell"><input type="checkbox" class="review-row-cb rounded border-stone-300 text-amber-500 focus:ring-amber-400" data-id="${_esc(r.id)}" ${checked} onchange="reviewToggleRow('${_esc(r.id)}', this.checked)"></td>
                 <td class="p-3">
                     <span class="inline-block px-2 py-0.5 rounded text-[11px] font-semibold border ${tlbl.cls}">${tlbl[lc]}</span>
@@ -10204,22 +10206,45 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         function _reviewActionsHtml(r) {
             const lc = _reviewLocale();
             const btns = [];
-            // 查看詳情(eye icon;點擊跳出彙整詳情 modal)— 跟「點名稱開詳情」是同一個入口,
-            // 加在這裡是為了在操作欄能直接點到、無障礙路徑也清楚。
+            // 查看詳情
             btns.push(`<button type="button" onclick="reviewOpenDetail('${r.id}')" title="${lc==='en'?'View details':'查看詳情'}" class="px-2 py-1 text-xs border border-stone-300 rounded hover:bg-violet-50 text-violet-600"><i class="fa-solid fa-eye"></i></button>`);
-            // 共用:歷史軌跡(改用驚嘆號圖示;點擊跳出 popup modal)
+            // 歷史軌跡
             btns.push(`<button type="button" onclick="reviewOpenHistory('${r.id}')" title="${lc==='en'?'History':'審核軌跡'}" class="px-2 py-1 text-xs border border-stone-300 rounded hover:bg-violet-50 text-violet-600"><i class="fa-solid fa-circle-exclamation"></i></button>`);
-            // 統一 7 值後 review 進行中狀態 = 'InReview'(舊值 'pending' 經 migration 已轉換,但保留判斷以相容 alias)
+            // 報告匯出按鈕（不限狀態，只要是 report 類型就顯示）
+            if (r.entity_type === 'report') {
+                btns.push(`<button type="button" onclick="reviewExportReport('${r.entity_id}')" title="${lc==='en'?'Export PDF':'匯出 PDF'}" class="px-2 py-1 text-xs border border-blue-300 rounded hover:bg-blue-50 text-blue-600 font-semibold"><i class="fa-solid fa-file-pdf"></i> ${lc==='en'?'Export':'匯出'}</button>`);
+            }
             if (r.status === 'InReview' || r.status === 'pending') {
                 btns.push(`<button type="button" onclick="reviewApprove('${r.id}')" class="px-2 py-1 text-xs bg-emerald-500 hover:bg-emerald-600 text-white rounded font-semibold"><i class="fa-solid fa-check"></i> ${lc==='en'?'Approve':'通過'}</button>`);
                 btns.push(`<button type="button" onclick="reviewPromptReject('${r.id}')" class="px-2 py-1 text-xs bg-rose-500 hover:bg-rose-600 text-white rounded font-semibold"><i class="fa-solid fa-xmark"></i> ${lc==='en'?'Reject':'拒絕'}</button>`);
-            } else {
-                // approved OR rejected -> revert back to pending (with reason).
-                // approved revert opens the entity for editing again; rejected
-                // revert lets the reviewer re-queue it for a second pass.
+            } else if (!(r.entity_type === 'testcase' && r.status === 'approved')) {
+                // 已審核的測試案例鎖定，不顯示退回；其餘（已拒絕、已審核的報告等）可退回
                 btns.push(`<button type="button" onclick="reviewPromptRevert('${r.id}')" class="px-2 py-1 text-xs bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold"><i class="fa-solid fa-undo"></i> ${lc==='en'?'Revert':'退回'}</button>`);
             }
-            return `<div class="flex items-center gap-1 justify-center">${btns.join('')}</div>`;
+            return `<div class="flex items-center gap-1 justify-center flex-wrap">${btns.join('')}</div>`;
+        }
+
+        async function reviewExportReport(entityId) {
+            const lc = _reviewLocale();
+            showToast(lc==='en'?'Loading report…':'載入報告資料中…', 'info');
+            const prevReportId = currentReportId;
+            try {
+                const [summary, stepsResp] = await Promise.all([
+                    apiFetch(`/api/reports/${entityId}`),
+                    apiFetch(`/api/reports/${entityId}/steps`),
+                ]);
+                const tcIds = [...new Set((stepsResp.steps||[]).map(s=>s.testcase_node_id).filter(Boolean))];
+                const tcPayloads = await Promise.all(tcIds.map(id=>apiFetch(`/api/testcases/${id}`).catch(()=>null)));
+                const tcMap = {};
+                tcIds.forEach((id,i)=>{ if(tcPayloads[i]) tcMap[id]=tcPayloads[i]; });
+                mockReportData[entityId] = adaptReportPayload(summary, stepsResp, tcMap);
+                currentReportId = entityId;
+                await exportReportPdf();
+            } catch(e) {
+                showToast((lc==='en'?'Export failed: ':'匯出失敗：')+(e.message||e), 'error');
+            } finally {
+                currentReportId = prevReportId;
+            }
         }
 
         function reviewOpenAssign(recordId) {
