@@ -865,26 +865,27 @@
             <!-- Brand -->
             <button type="button" id="navHomeBtn" onclick="showHomeView()" title="回首頁" aria-label="回首頁"
                 class="flex items-center hover:opacity-80 transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 rounded shrink-0">
-                <h1 class="font-bold text-base text-slate-800 tracking-tight whitespace-nowrap">AutoTest<span class="hidden sm:inline text-[10px] text-amber-700 bg-amber-50 font-semibold ml-1.5 px-1.5 py-0.5 rounded border border-amber-200 align-middle">v1.1.8.1</span></h1>
+                <div class="flex flex-col items-start leading-none">
+                    <h1 class="font-bold text-base text-slate-800 tracking-tight whitespace-nowrap">AutoTest</h1>
+                    <span class="hidden sm:inline text-[10px] text-amber-700 bg-amber-50 font-semibold mt-0.5 px-1.5 py-0.5 rounded border border-amber-200">v1.1.8.1</span>
+                </div>
             </button>
-            <!-- 彈性空白：把 nav pills + 右側動作群全部推到最右 -->
-            <div class="flex-1"></div>
-            <!-- Nav pills -->
-            <nav class="flex-none overflow-x-auto flex items-center gap-1 whitespace-nowrap" style="-ms-overflow-style:none;scrollbar-width:none;">
-                <button type="button" onclick="showTestCasesView()"    class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-list-check text-blue-600"></i><span data-i18n="nav.testCases">測試案例</span></button>
-                <button type="button" onclick="showTestDataSetsView()" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-table text-violet-600"></i><span data-i18n="nav.dataSets">測試資料</span></button>
-                <button type="button" onclick="showEnvVarsView()"      class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-key text-emerald-600"></i><span data-i18n="nav.envVars">環境變數</span></button>
+            <!-- Nav pills：flex-1 min-w-0 讓 nav 佔用剩餘空間並在內部捲動，右側登出按鈕永遠可見 -->
+            <nav class="flex-1 min-w-0 overflow-x-auto flex items-center gap-1 whitespace-nowrap justify-end" style="-ms-overflow-style:none;scrollbar-width:none;">
+                <button type="button" onclick="showTestCasesView()"    class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-list-check text-blue-600"></i><span class="hidden sm:inline" data-i18n="nav.testCases">測試案例</span></button>
+                <button type="button" onclick="showTestDataSetsView()" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-table text-violet-600"></i><span class="hidden sm:inline" data-i18n="nav.dataSets">測試資料</span></button>
+                <button type="button" onclick="showEnvVarsView()"      class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-key text-emerald-600"></i><span class="hidden sm:inline" data-i18n="nav.envVars">環境變數</span></button>
 
-                <button type="button" onclick="showTestRoundView()"    class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-layer-group text-purple-600"></i><span data-i18n="nav.testRound">TestRun</span></button>
-                <button type="button" onclick="showScheduleView()"    class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-calendar-days text-emerald-600"></i><span data-i18n="nav.schedule">測試排程</span></button>
-                <button type="button" onclick="showRecorderView()"     class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-video text-rose-600"></i><span data-i18n="nav.recorder">測試錄製</span></button>
-                <button type="button" onclick="showReportView()"       class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-chart-pie text-blue-600"></i><span data-i18n="nav.reports">測試報告</span></button>
+                <button type="button" onclick="showTestRoundView()"    class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-layer-group text-purple-600"></i><span class="hidden sm:inline" data-i18n="nav.testRound">TestRun</span></button>
+                <button type="button" onclick="showScheduleView()"    class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-calendar-days text-emerald-600"></i><span class="hidden sm:inline" data-i18n="nav.schedule">測試排程</span></button>
+                <button type="button" onclick="showRecorderView()"     class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-video text-rose-600"></i><span class="hidden sm:inline" data-i18n="nav.recorder">測試錄製</span></button>
+                <button type="button" onclick="showReportView()"       class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-chart-pie text-blue-600"></i><span class="hidden sm:inline" data-i18n="nav.reports">測試報告</span></button>
                 <button type="button" onclick="showReviewView()"       class="topnav-pill hover:bg-stone-100">
                     <i class="fa-solid fa-clipboard-check text-violet-600"></i>
-                    <span data-i18n="nav.review">審核</span>
+                    <span class="hidden sm:inline" data-i18n="nav.review">審核</span>
                     <span id="navReviewPendingBadge" class="hidden ml-1 px-1.5 py-0.5 text-[10px] font-mono bg-amber-500 text-white rounded-full"></span>
                 </button>
-                <button type="button" onclick="showFileCompareView()" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-code-compare text-indigo-600"></i><span>檔案比對</span></button>
+                <button type="button" onclick="showFileCompareView()" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-code-compare text-indigo-600"></i><span class="hidden sm:inline">檔案比對</span></button>
             </nav>
             <!-- 右:執行環境 + 組織切換 + 使用者 + 登出 -->
             <div class="flex items-center gap-1 sm:gap-1.5 shrink-0">
@@ -1151,7 +1152,7 @@
         <main class="flex-1 flex flex-col bg-white overflow-hidden relative z-[101]">
 
             <!-- 工作區標題與操作列 (在測試報告視圖下會隱藏) -->
-            <div id="mainHeader" class="p-5 border-b border-amber-100 flex justify-between items-end shrink-0 bg-white z-10">
+            <div id="mainHeader" class="px-4 py-3 sm:p-5 border-b border-amber-100 flex flex-wrap gap-y-2 justify-between items-end shrink-0 bg-white z-10">
                 <div>
                     <div class="text-xs text-slate-400 mb-1 flex items-center gap-2">
                         <button id="navBackBtn" onclick="goBack()" class="hidden items-center gap-1 px-2 py-0.5 rounded border border-stone-200 bg-stone-50 hover:bg-stone-100 text-stone-500 hover:text-stone-700 transition mr-1" title="返回上一頁">
@@ -2480,7 +2481,7 @@
             </div>
 
             <!-- 視圖：使用者設定 -->
-            <div id="userSettingsWorkspace" class="flex-1 overflow-y-auto p-6 bg-amber-50/30 hidden">
+            <div id="userSettingsWorkspace" class="flex-1 overflow-y-auto p-3 sm:p-6 bg-amber-50/30 hidden">
                 <div class="max-w-5xl mx-auto">
                     <div class="bg-white rounded-lg border border-amber-100 shadow-sm p-2 mb-4 flex gap-1 flex-wrap">
                         <button id="setTabUser"     onclick="settingsSwitchTab('user')"     class="px-3 py-1.5 text-sm font-medium rounded text-amber-700 bg-amber-50 border border-amber-300"><i class="fa-solid fa-user-circle"></i> <span data-i18n="settings.tab.user">設定</span></button>
@@ -2491,11 +2492,11 @@
                     <!-- ─── Pane 1: 使用者設定（保留原本內容） ─── -->
                     <div id="setPaneUser" class="space-y-6">
                     <!-- 帳戶資訊卡 -->
-                    <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-6">
+                    <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-4 sm:p-6">
                         <h3 class="font-bold text-stone-700 text-base mb-4 flex items-center gap-2">
                             <i class="fa-solid fa-user-circle text-amber-500"></i> 帳戶資訊
                         </h3>
-                        <div class="flex items-center gap-5 mb-5">
+                        <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-5 mb-5">
                             <div class="relative shrink-0">
                                 <div id="usAvatarLarge" class="w-20 h-20 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-3xl font-bold shadow-md overflow-hidden">A</div>
                                 <input type="file" id="usAvatarFile" aria-label="上傳大頭貼" accept="image/png,image/jpeg,image/webp,image/gif" class="hidden" onchange="uploadUserAvatar(this)">
@@ -2542,7 +2543,7 @@
                     </section>
 
                     <!-- 變更密碼卡 -->
-                    <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-6">
+                    <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-4 sm:p-6">
                         <h3 class="font-bold text-stone-700 text-base mb-4 flex items-center gap-2">
                             <i class="fa-solid fa-lock text-amber-500"></i> 變更密碼
                         </h3>
@@ -2593,7 +2594,7 @@
                     </section>
 
                     <!-- 個人偏好卡 -->
-                    <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-6">
+                    <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-4 sm:p-6">
                         <h3 class="font-bold text-stone-700 text-base mb-4 flex items-center gap-2">
                             <i class="fa-solid fa-sliders text-amber-500"></i> 個人偏好
                         </h3>
@@ -2637,7 +2638,7 @@
                     </section>
 
                     <!-- 登入資訊卡 -->
-                    <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-6">
+                    <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-4 sm:p-6">
                         <h3 class="font-bold text-stone-700 text-base mb-4 flex items-center gap-2">
                             <i class="fa-solid fa-shield-halved text-amber-500"></i> 登入資訊
                         </h3>
@@ -2651,7 +2652,7 @@
                                 <div id="usLoginCount" class="font-mono text-stone-700">—</div>
                             </div>
                         </div>
-                        <div class="mt-5 pt-5 border-t border-stone-100 flex items-center justify-between">
+                        <div class="mt-5 pt-5 border-t border-stone-100 flex flex-wrap gap-3 items-center justify-between">
                             <div class="text-xs text-stone-500">
                                 <i class="fa-solid fa-circle-info text-amber-500"></i> 登出將會清除目前的 session，但不影響已儲存的測試資料。
                             </div>
@@ -2665,7 +2666,7 @@
 
                     <!-- ─── Pane: 通知設定 ─── -->
                     <div id="setPaneNotif" class="hidden space-y-4">
-                        <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-6">
+                        <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-4 sm:p-6">
                             <h3 class="font-bold text-stone-700 text-base mb-1 flex items-center gap-2">
                                 <i class="fa-solid fa-bell text-amber-500"></i> 通知設定
                             </h3>
@@ -2699,7 +2700,7 @@
                     <div id="setPaneEmail" class="hidden space-y-4">
 
                         <!-- SMTP 設定卡 -->
-                        <section class="bg-white rounded-xl border border-blue-100 shadow-sm p-6">
+                        <section class="bg-white rounded-xl border border-blue-100 shadow-sm p-4 sm:p-6">
                             <h3 class="font-bold text-stone-700 text-base mb-1 flex items-center gap-2">
                                 <i class="fa-solid fa-envelope text-blue-500"></i> SMTP 寄信設定
                                 <span class="text-[11px] font-normal text-stone-500 ml-1">（設定後通知可寄至 Zoho 信箱）</span>
@@ -2767,7 +2768,7 @@
                         </section>
 
                         <!-- Zoho App Password 申請步驟 -->
-                        <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-6">
+                        <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-4 sm:p-6">
                             <h3 class="font-bold text-stone-700 text-base mb-3 flex items-center gap-2">
                                 <i class="fa-solid fa-key text-amber-500"></i> 如何取得 Zoho App Password（SMTP 用）
                             </h3>
@@ -2799,7 +2800,7 @@
                         </section>
 
                         <!-- Zoho SSO 申請步驟 -->
-                        <section class="bg-white rounded-xl border border-violet-100 shadow-sm p-6">
+                        <section class="bg-white rounded-xl border border-violet-100 shadow-sm p-4 sm:p-6">
                             <h3 class="font-bold text-stone-700 text-base mb-3 flex items-center gap-2">
                                 <i class="fa-brands fa-zoho text-violet-500"></i><i class="fa-solid fa-right-to-bracket text-violet-500 -ml-1"></i> 如何啟用 Zoho SSO 登入
                             </h3>
@@ -2861,7 +2862,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             </div>
 
             <!-- ── 審核 (Review Center) -- generic approval workflow for testcases/documents/scripts/reports ── -->
-            <div id="reviewWorkspace" class="flex-1 overflow-y-auto p-6 bg-violet-50/30 hidden">
+            <div id="reviewWorkspace" class="flex-1 overflow-y-auto p-3 sm:p-6 bg-violet-50/30 hidden">
                 <div class="max-w-7xl mx-auto">
                     <!-- 工具列 -->
                     <div class="bg-white rounded-lg border border-violet-100 shadow-sm p-4 mb-4">
@@ -2885,7 +2886,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                             <button type="button" onclick="reviewLoad()" class="px-3 py-1.5 border border-stone-300 rounded-md text-xs hover:bg-violet-50 transition">
                                 <i class="fa-solid fa-rotate"></i> <span data-i18n="common.refresh">重新整理</span>
                             </button>
-                            <div class="text-xs text-stone-500 ml-auto">
+                            <div class="text-xs text-stone-500 sm:ml-auto">
                                 <span data-i18n="common.total">共</span>
                                 <span id="reviewCount" class="font-bold text-stone-700">0</span>
                                 <span data-i18n="common.entries">筆</span>
@@ -2894,7 +2895,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                     </div>
 
                     <!-- Tier E-2:bulk reassign 工具列 -->
-                    <div id="reviewBulkBar" class="hidden mb-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded flex items-center gap-3 text-xs">
+                    <div id="reviewBulkBar" class="hidden mb-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded flex flex-wrap items-center gap-3 text-xs">
                         <span class="font-semibold text-amber-700">已選 <span id="reviewBulkCount">0</span> 筆</span>
                         <button onclick="reviewBulkReassign()" class="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold"><i class="fa-solid fa-user-tag"></i> 重新指派</button>
                         <button onclick="reviewBulkClear()" class="text-stone-500 hover:text-stone-700 ml-auto"><i class="fa-solid fa-xmark"></i> 取消選取</button>
@@ -2902,22 +2903,24 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
 
                     <!-- 列表 -->
                     <div class="bg-white rounded-lg border border-violet-100 shadow-sm overflow-hidden">
-                        <table id="reviewTable" class="w-full text-sm" data-active-tab="pending">
+                        <div class="overflow-x-auto">
+                        <table id="reviewTable" class="w-full min-w-[640px] text-sm" data-active-tab="pending">
                             <thead class="bg-violet-50/60 border-b border-violet-100 text-stone-600 text-xs uppercase">
                                 <tr>
-                                    <th class="p-3 w-8 text-center"><input type="checkbox" id="reviewSelectAll" onchange="reviewToggleSelectAll(this.checked)" class="rounded border-stone-300 text-amber-500 focus:ring-amber-400"></th>
-                                    <th class="p-3 text-left w-32" data-i18n="review.col.type">類型</th>
-                                    <th class="p-3 text-left min-w-[180px]" data-i18n="review.col.entity">名稱</th>
-                                    <th class="p-3 text-left w-28" data-i18n="review.col.status">狀態</th>
-                                    <th class="p-3 text-left w-32" data-i18n="review.col.submittedBy">送審者</th>
-                                    <th class="p-3 text-left w-40" data-i18n="review.col.submittedAt">送審時間</th>
-                                    <th class="p-3 text-left w-32 review-col-reviewer" data-i18n="review.col.reviewedBy">審核者</th>
-                                    <th class="p-3 text-left w-40 review-col-reviewer" data-i18n="review.col.reviewedAt">審核時間</th>
-                                    <th class="p-3 text-center w-60" data-i18n="review.col.actions">操作</th>
+                                    <th class="p-3 w-8 text-center hidden sm:table-cell"><input type="checkbox" id="reviewSelectAll" onchange="reviewToggleSelectAll(this.checked)" class="rounded border-stone-300 text-amber-500 focus:ring-amber-400"></th>
+                                    <th class="p-3 text-left w-28" data-i18n="review.col.type">類型</th>
+                                    <th class="p-3 text-left min-w-[160px]" data-i18n="review.col.entity">名稱</th>
+                                    <th class="p-3 text-left w-24" data-i18n="review.col.status">狀態</th>
+                                    <th class="p-3 text-left w-24 hidden md:table-cell" data-i18n="review.col.submittedBy">送審者</th>
+                                    <th class="p-3 text-left w-36 hidden md:table-cell" data-i18n="review.col.submittedAt">送審時間</th>
+                                    <th class="p-3 text-left w-24 review-col-reviewer hidden md:table-cell" data-i18n="review.col.reviewedBy">審核者</th>
+                                    <th class="p-3 text-left w-36 review-col-reviewer hidden md:table-cell" data-i18n="review.col.reviewedAt">審核時間</th>
+                                    <th class="p-3 text-center w-52" data-i18n="review.col.actions">操作</th>
                                 </tr>
                             </thead>
                             <tbody id="reviewListBody" class="divide-y divide-stone-100"></tbody>
                         </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -10184,16 +10187,16 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 : `<div ${nameClickAttrs} class="text-stone-400 italic text-xs cursor-pointer hover:text-violet-600 hover:underline" title="${_esc(r.entity_id)} — ${lc==='en'?'click for details':'點擊查看詳情'}">${lc==='en' ? 'entity deleted' : '實體已刪除'}</div>`;
             const checked = _reviewSelected.has(r.id) ? 'checked' : '';
             return `<tr class="hover:bg-violet-50/40 align-top">
-                <td class="p-3 text-center"><input type="checkbox" class="review-row-cb rounded border-stone-300 text-amber-500 focus:ring-amber-400" data-id="${_esc(r.id)}" ${checked} onchange="reviewToggleRow('${_esc(r.id)}', this.checked)"></td>
+                <td class="p-3 text-center hidden sm:table-cell"><input type="checkbox" class="review-row-cb rounded border-stone-300 text-amber-500 focus:ring-amber-400" data-id="${_esc(r.id)}" ${checked} onchange="reviewToggleRow('${_esc(r.id)}', this.checked)"></td>
                 <td class="p-3">
                     <span class="inline-block px-2 py-0.5 rounded text-[11px] font-semibold border ${tlbl.cls}">${tlbl[lc]}</span>
                 </td>
                 <td class="p-3 break-words">${nameHtml}${reasonHtml}</td>
                 <td class="p-3"><span class="inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${slbl.cls}">${slbl[lc]}</span></td>
-                <td class="p-3 text-stone-700 text-xs">${_esc(r.submitted_by || '—')}</td>
-                <td class="p-3 text-stone-500 text-xs font-mono">${_reviewFmtTs(r.submitted_at)}</td>
-                <td class="p-3 text-stone-700 text-xs review-col-reviewer">${_esc(r.reviewed_by || '—')}</td>
-                <td class="p-3 text-stone-500 text-xs font-mono review-col-reviewer">${_reviewFmtTs(r.reviewed_at)}</td>
+                <td class="p-3 text-stone-700 text-xs hidden md:table-cell">${_esc(r.submitted_by || '—')}</td>
+                <td class="p-3 text-stone-500 text-xs font-mono hidden md:table-cell">${_reviewFmtTs(r.submitted_at)}</td>
+                <td class="p-3 text-stone-700 text-xs review-col-reviewer hidden md:table-cell">${_esc(r.reviewed_by || '—')}</td>
+                <td class="p-3 text-stone-500 text-xs font-mono review-col-reviewer hidden md:table-cell">${_reviewFmtTs(r.reviewed_at)}</td>
                 <td class="p-3 text-center whitespace-nowrap">${_reviewActionsHtml(r)}</td>
             </tr>`;
         }
