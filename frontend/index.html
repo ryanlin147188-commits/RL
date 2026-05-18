@@ -8796,8 +8796,20 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         function copyLocalAgentCmd() {
             const cmd = document.getElementById('localAgentStartCmd')?.textContent || '';
             if (!cmd) return;
-            try { navigator.clipboard.writeText(cmd); showToast('已複製啟動指令', 'success'); }
-            catch (_) { showToast('複製失敗，請手動選取指令', 'error'); }
+            const ok = () => showToast('已複製啟動指令', 'success');
+            const fb = () => {
+                try {
+                    const ta = document.createElement('textarea');
+                    ta.value = cmd;
+                    ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0';
+                    document.body.appendChild(ta); ta.focus(); ta.select();
+                    document.execCommand('copy'); document.body.removeChild(ta);
+                    ok();
+                } catch (_) { showToast('複製失敗，請手動選取指令', 'error'); }
+            };
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(cmd).then(ok).catch(fb);
+            } else { fb(); }
         }
 
         window.onload = async () => {
@@ -11724,7 +11736,19 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 await navigator.clipboard.writeText(ref);
                 showToast(`已複製 ${ref}`, 'success');
             } catch (_) {
-                showToast(`複製失敗：${ref}`, 'error');
+                // HTTP 環境下 clipboard API 不可用，退回 execCommand
+                try {
+                    const ta = document.createElement('textarea');
+                    ta.value = ref;
+                    ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0';
+                    document.body.appendChild(ta);
+                    ta.focus(); ta.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(ta);
+                    showToast(`已複製 ${ref}`, 'success');
+                } catch (e2) {
+                    showToast(`複製失敗：${ref}`, 'error');
+                }
             }
         }
 
