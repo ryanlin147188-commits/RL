@@ -1,96 +1,104 @@
-# Backup / Restore Drill SOP
+# 備份還原演習 SOP
 
-Quarterly exercise to confirm the backup pipeline still produces a snapshot
-that actually restores. Skipping drills is how teams discover their backups
-were broken six months ago — only when they need them.
+定期驗證備份流程確實能產出可還原的快照。略過演習是讓團隊在六個月後——通常是最需要備份的時候——才發現備份早已損壞的最常見原因。
 
-## Cadence
+---
 
-* **Quarterly** in staging — full down + restore + smoke.
-* **After every major change** to: postgres version, SeaweedFS layout,
-  Alembic migrations that touch data shape, `.env` schema.
-* **Before any production restore** — never restore a snapshot you have
-  not test-restored elsewhere first.
+## 執行頻率
 
-## Scope
+- **每季一次**（在 staging 環境）：完整 down + restore + 冒煙測試。
+- **每次重大異動後**：PostgreSQL 版本升級、SeaweedFS 佈局變更、影響資料結構的 Alembic migration、`.env` schema 異動。
+- **正式還原前**：絕對不要在沒有先在其他地方測試還原過的情況下，直接對生產環境還原快照。
 
-The drill exercises `scripts/backup.sh` and `scripts/restore.sh` end-to-end
-against a staging stack provisioned identically to production. The drill
-**does not** test:
+---
 
-* DR across regions (run separately if S3 mirroring is enabled).
-* Per-table partial restores (use `pg_restore -t` ad-hoc).
-* Disaster recovery RTO targets (track via dedicated capacity tests).
+## 演習範圍
 
-## Steps
+本演習對 staging 環境（與生產環境設定相同）端對端執行 `scripts/backup.sh` 和 `scripts/restore.sh`。
 
-1. **Snapshot production-like data.** On staging, run the standard backup:
+演習**不**涵蓋以下項目：
 
-    ```sh
-    BACKUP_KEY_FILE=~/.config/autotest/backup.key ./scripts/backup.sh
-    ```
+- 跨區域災難復原（如已啟用 S3 鏡像，請另行執行）
+- 個別資料表的局部還原（可臨時使用 `pg_restore -t`）
+- 災難復原的 RTO 目標（透過專屬容量測試追蹤）
 
-   Confirm the snapshot directory contains `postgres.dump.gz`,
-   `seaweedfs.tar.gz`, `env.enc`, `manifest.json`, `SHA256SUMS`.
+---
 
-2. **Tear the stack down completely.**
+## 步驟
 
-    ```sh
-    docker compose down -v
-    ```
+### 步驟一：建立快照
 
-   `-v` is intentional — drop the volumes so the restore actually has to
-   recreate state. A drill that skips this proves nothing.
+在 staging 環境執行標準備份：
 
-3. **Bring the stack back up clean.**
+```bash
+BACKUP_KEY_FILE=~/.config/autotest/backup.key ./scripts/backup.sh
+```
 
-    ```sh
-    docker compose up -d postgres valkey seaweedfs
-    ```
+確認快照目錄包含以下 5 個檔案：
 
-   Wait for healthchecks to go green.
+- `postgres.dump.gz`
+- `seaweedfs.tar.gz`
+- `env.enc`
+- `manifest.json`
+- `SHA256SUMS`
 
-4. **Run the restore against the snapshot.**
+### 步驟二：完全拆除 stack
 
-    ```sh
-    ./scripts/restore.sh ./backups/<timestamp>/
-    ```
+```bash
+docker compose down -v
+```
 
-   Note the `SHA256SUMS` verification line — if it fails the snapshot is
-   the problem, not the restore.
+`-v` 是**刻意的**——刪除 volume 才能讓還原真正重建狀態。跳過此步驟的演習毫無意義。
 
-5. **Smoke the application.** Open a browser, log in with a known account,
-   open one project, run one testcase, view one report. If any of those
-   fail, the drill failed; record what broke before recovering.
+### 步驟三：重新啟動乾淨的 stack
 
-6. **Record the result** in `docs/ops/backup-drill-history.md` (append-only
-   log). Include: date, who ran it, snapshot tag, smoke results, time-to-restore.
+```bash
+docker compose up -d postgres valkey seaweedfs
+```
 
-## Failure modes worth documenting
+等待 healthcheck 全部變綠。
 
-* **`SHA256SUMS` mismatch** → the snapshot is corrupted at rest. Common
-  culprit: backup destination is a flaky network share. Move backups
-  to a local-then-rsync flow.
-* **`pg_restore` complains about ownership** → re-run with `--no-owner
-  --no-privileges` (the script already passes these); if it still fails,
-  the dump was taken from a postgres of a different major version.
-* **SeaweedFS volume comes back empty** → the tarball captured the wrong
-  directory. Check `SEAWEED_DATA_DIR` env var matches the container layout.
-* **`alembic upgrade head` fails** → schema in dump is from a newer code
-  revision than the deployed image. Pin the deploy to match before retrying.
+### 步驟四：對快照執行還原
 
-## Restore time budget
+```bash
+./scripts/restore.sh ./backups/<timestamp>/
+```
 
-On the reference staging stack (4 vCPU / 16 GB RAM / 50 GB postgres /
-20 GB SeaweedFS), a full drill takes ~12 minutes:
+注意 `SHA256SUMS` 驗證行——若驗證失敗，問題出在快照本身，而非還原流程。
 
-| Step | Time |
+### 步驟五：冒煙測試
+
+開啟瀏覽器，用已知帳號登入，打開一個專案，執行一個測試案例，查看一份報告。若任何步驟失敗，演習即告失敗；記錄問題後再進行修復。
+
+### 步驟六：記錄結果
+
+在 [docs/ops/backup-drill-history.md](backup-drill-history.md) 新增一筆記錄（僅追加）。
+包含：日期、執行者、快照 tag、冒煙測試結果、還原時間。
+
+---
+
+## 常見失敗模式
+
+| 症狀 | 可能原因 | 處理方式 |
+|---|---|---|
+| `SHA256SUMS` 不符 | 快照在靜止狀態下損壞；常見原因為不穩定的網路儲存目的地 | 改為本機先備份再 rsync 的流程 |
+| `pg_restore` 回報 ownership 錯誤 | script 已加 `--no-owner --no-privileges`；若仍失敗則 dump 來自不同 PostgreSQL 大版本 | 確認 dump 與 restore 的 PG 主版本一致 |
+| SeaweedFS volume 還原後為空 | tarball 備份了錯誤目錄 | 確認 `SEAWEED_DATA_DIR` 環境變數與容器實際目錄一致 |
+| `alembic upgrade head` 失敗 | dump 的 schema 來自比目前部署更新的程式碼版本 | 在重試前將部署版本與 dump 的版本對齊 |
+
+---
+
+## 還原時間預算（參考值）
+
+以下為參考硬體規格（4 vCPU / 16 GB RAM / PostgreSQL 50 GB / SeaweedFS 20 GB）的完整演習時間：
+
+| 步驟 | 時間 |
 |---|---|
-| Backup | ~3 min |
-| `docker compose down -v` + `up -d` | ~1 min |
-| `pg_restore` | ~5 min |
-| SeaweedFS untar | ~2 min |
-| Smoke | ~1 min |
+| 備份 | 約 3 分鐘 |
+| `docker compose down -v` + `up -d` | 約 1 分鐘 |
+| `pg_restore` | 約 5 分鐘 |
+| SeaweedFS 解壓縮 | 約 2 分鐘 |
+| 冒煙測試 | 約 1 分鐘 |
+| **合計** | **約 12 分鐘** |
 
-Production data orders of magnitude larger should plan for proportionally
-longer restores; revisit this table during quarterly drills.
+資料量遠大於上述規格的生產環境，還原時間應等比例增加；請在每次季度演習時重新評估此表。

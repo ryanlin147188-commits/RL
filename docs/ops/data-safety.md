@@ -1,6 +1,6 @@
-# 資料安全：備份機制 & 安全 Rebuild 指南
+# 資料安全：備份機制與安全 Rebuild 指南
 
-## TL;DR — 哪些指令安全、哪些危險
+## 速查表：哪些操作安全、哪些危險
 
 | 操作 | 指令 | 資料是否保留 |
 |---|---|---|
@@ -10,7 +10,7 @@
 | **清除全部資料** | `docker compose down -v` | ❌ 刪除所有 volume |
 | **刪除 volume** | `docker volume rm rl_tmp_postgres_data` | ❌ 資料消失 |
 
-> **重點**：Named volume（`rl_tmp_postgres_data`、`rl_tmp_seaweedfs_data`）只要沒有 `-v` 旗標，任何 rebuild 或重啟都不會影響資料。
+> **重點**：Named volume（`rl_tmp_postgres_data`、`rl_tmp_seaweedfs_data` 等）只要沒有 `-v` 旗標，任何 rebuild 或重啟都不會影響資料。
 
 ---
 
@@ -19,21 +19,24 @@
 ```
 docker compose up -d --build
         │
-        ├─ rebuilds images   (Dockerfile, source code)  ← 每次都重建
+        ├─ 重建 images   (Dockerfile、原始碼)    ← 每次都重建
         │
-        ├─ keeps volumes     (postgres_data, seaweedfs_data)  ← 永遠保留
+        ├─ 保留 volumes  (postgres_data、seaweedfs_data、
+        │                 postgres_replica_data、backup_data)  ← 永遠保留
         │
-        └─ keeps bind-mounts (frontend/nginx.conf, frontend/index.html)  ← host 檔案
+        └─ 保留 bind-mounts  (frontend/nginx.conf、frontend/index.html)  ← host 檔案
 ```
 
 ### Named Volumes（持久化資料）
 
 | Volume | 掛載點 | 存什麼 |
 |---|---|---|
-| `rl_tmp_postgres_data` | `/var/lib/postgresql/data` | 所有資料庫（TestCase、Report、User、RBAC…） |
+| `rl_tmp_postgres_data` | `/var/lib/postgresql/data`（主庫） | 所有資料庫（TestCase、Report、User、RBAC…） |
 | `rl_tmp_seaweedfs_data` | `/data` | 截圖、MP4 影片、Playwright trace、測試報告 |
+| `rl_tmp_postgres_replica_data` | `/var/lib/postgresql/data`（副本） | 主庫的 streaming replication 熱備副本 |
+| `rl_tmp_backup_data` | `/backups`（backup-cron 容器內） | 每日自動備份快照（保留 7 天） |
 
-### Bind Mounts（程式碼，不是資料）
+### Bind Mounts（程式碼，非資料）
 
 | Host 路徑 | 容器路徑 | 說明 |
 |---|---|---|
@@ -48,15 +51,44 @@ docker compose up -d --build
 
 ```
 backups/
-└── 20260515-030000/          ← YYYYMMDD-HHMMSS
-    ├── postgres.dump.gz       pg_dump --format=custom（可用 pg_restore 還原）
-    ├── seaweedfs.tar.gz       SeaweedFS /data 完整打包
-    ├── env.enc                .env AES-256-CBC 加密（需 BACKUP_KEY_FILE）
-    ├── manifest.json          版本、git hash、時間戳
-    └── SHA256SUMS             完整性校驗
+└── 20260515-030000/              ← YYYYMMDD-HHMMSS
+    ├── postgres.dump.gz           pg_dump --format=custom（可用 pg_restore 還原）
+    ├── seaweedfs.tar.gz           SeaweedFS /data 完整打包
+    ├── env.enc                    .env AES-256-CBC 加密（需 BACKUP_KEY_FILE）
+    ├── manifest.json              版本、git hash、時間戳
+    └── SHA256SUMS                 完整性校驗
 ```
 
-### 執行備份
+### 方式一：Docker 內建自動備份（backup-cron 容器，建議）
+
+`backup-cron` 容器在每日 **03:00（Asia/Taipei）** 自動執行備份。備份從 `postgres-replica` 讀取，不影響主庫效能。備份快照儲存在 `backup_data` Docker volume（預設保留 7 天）。
+
+```bash
+# 確認容器運行中
+docker ps | grep backup-cron
+
+# 手動觸發一次備份
+docker exec autotest-backup-cron sh /backup.sh
+
+# 查看備份清單
+docker exec autotest-backup-cron ls -lh /backups/
+
+# 查看 cron 執行 log
+docker exec autotest-backup-cron cat /backups/cron.log
+
+# 驗證最新快照完整性
+docker exec autotest-backup-cron \
+  sh -c "cd /backups/\$(ls /backups | grep -v cron | tail -1) && sha256sum -c SHA256SUMS"
+```
+
+調整保留天數：在 `.env` 中設定 `BACKUP_KEEP_DAYS=14`，再重啟容器：
+
+```bash
+echo "BACKUP_KEEP_DAYS=14" >> .env
+docker compose up -d backup-cron
+```
+
+### 方式二：Host 端手動備份腳本
 
 ```bash
 # 手動備份（寫入 ./backups/<timestamp>/）
@@ -65,9 +97,12 @@ cd ~/RL_TMP
 
 # 指定目的地 + 保留天數
 BACKUP_DEST=/srv/backups BACKUP_KEEP_DAYS=14 ./scripts/backup.sh
+
+# 同時同步到 S3（需 aws CLI）
+S3_BUCKET=my-autotest-backups ./scripts/backup.sh
 ```
 
-### 設定每日自動備份（Cron）
+### 方式三：Host 端 Cron 自動備份
 
 ```bash
 # 安裝 cron job（每天 03:00，保留 7 天）
@@ -87,17 +122,35 @@ tail -f ~/RL_TMP/backups/cron.log
 crontab -l | grep -v 'autotest-backup' | crontab -
 ```
 
-### 備份保留政策
+---
 
-`backup.sh` 結尾會自動清理超過 `BACKUP_KEEP_DAYS`（預設 7 天）的舊 snapshot 目錄。  
-命名格式為 `YYYYMMDD-HHMMSS`，只清符合此格式的目錄，不會誤刪其他檔案。
+## PostgreSQL Streaming Replication 熱備
+
+`postgres-replica` 容器透過 WAL streaming replication 即時同步主庫資料，用於：
+
+1. **備份來源**：`backup-cron` 從副本讀取，避免 pg_dump 影響主庫效能
+2. **讀取分流**：可接受讀取查詢，減輕主庫負擔
+
+### 驗證副本同步狀態
+
+```bash
+# 確認副本正在 streaming
+docker exec autotest-postgres-replica psql -U admin -d autotest_db \
+  -c "SELECT status, sender_host, written_lsn FROM pg_stat_wal_receiver;"
+# → status = streaming，sender_host = postgres
+
+# 確認副本為 standby 模式（不接受寫入）
+docker exec autotest-postgres-replica psql -U admin -d autotest_db \
+  -c "SELECT pg_is_in_recovery();"
+# → t（true）
+```
 
 ---
 
 ## 安全 Rebuild 流程
 
 ```bash
-# 標準安全 rebuild（會先自動備份，再 rebuild image）
+# 標準安全 rebuild（先自動備份，再 rebuild image）
 cd ~/RL_TMP
 ./scripts/safe-rebuild.sh
 
@@ -106,10 +159,11 @@ cd ~/RL_TMP
 ```
 
 `safe-rebuild.sh` 執行順序：
+
 1. 執行 `backup.sh` 建立快照（備份失敗即中止）
 2. 執行 `docker compose up -d --build`（**沒有** `-v`，volumes 完全保留）
 3. 等待 postgres / valkey / seaweedfs / backend 全部 healthy（最多 120 秒）
-4. curl `/api/healthz` 確認服務正常
+4. `curl /api/healthz` 確認服務正常
 
 ---
 
@@ -125,6 +179,7 @@ cd ~/RL_TMP
 ```
 
 還原後檢查：
+
 ```bash
 docker compose ps
 curl http://localhost/api/healthz
@@ -136,27 +191,31 @@ docker compose logs --tail=50 backend
 ## 季度演習 SOP
 
 詳見 [backup-drill.md](backup-drill.md)。核心步驟：
+
 1. `./scripts/backup.sh` → 確認 5 個檔案都存在
 2. `docker compose down -v` → 完全清空
 3. `docker compose up -d postgres valkey seaweedfs` → 等 healthy
 4. `./scripts/restore.sh ./backups/<ts>` → 還原
-5. 開瀏覽器 → 登入 → 打開一個 TestCase → 執行 → 看報告
+5. 開瀏覽器 → 登入 → 打開一個 TestCase → 執行 → 查看報告
 
 ---
 
 ## 常見問題
 
-**Q：我改了 frontend/index.html，rebuild 後會不見嗎？**  
+**Q：我改了 `frontend/index.html`，rebuild 後會不見嗎？**
 不會。`index.html` 是 bind-mount 自 host `~/RL_TMP/frontend/index.html`，rebuild 不影響 host 檔案。
 
-**Q：不小心跑了 `docker compose down`（沒有 `-v`），資料還在嗎？**  
+**Q：不小心跑了 `docker compose down`（沒有 `-v`），資料還在嗎？**
 還在。`down` 只停容器，named volume 不動。`docker compose up -d` 即可恢復。
 
-**Q：`docker compose down -v` 已經跑了，怎麼辦？**  
-立刻從最新的 backup snapshot 還原：`./scripts/restore.sh ./backups/<最新目錄>`。
+**Q：`docker compose down -v` 已經跑了，怎麼辦？**
+立刻從最新備份快照還原：`./scripts/restore.sh ./backups/<最新目錄>`。若使用 Docker 內建 backup-cron，快照在 `backup_data` volume 中，需先以 `docker volume inspect` 找到實際路徑。
 
-**Q：備份跑多久？**  
-在 4vCPU/16GB 主機上，pg_dump ~1分鐘，seaweedfs tar 視容量而定（20GB ≈ 2分鐘）。
+**Q：備份跑多久？**
+在 4 vCPU / 16 GB 主機上，pg_dump 約 1 分鐘，seaweedfs tar 視容量而定（20 GB ≈ 2 分鐘）。
 
-**Q：備份期間服務會停嗎？**  
-不會。`pg_dump` 和 `seaweedfs tar` 都是 online 備份，使用者不會感覺到服務中斷。
+**Q：備份期間服務會停嗎？**
+不會。`pg_dump`（從 replica）和 SeaweedFS tar 都是 online 備份，使用者不會感覺到服務中斷。
+
+**Q：postgres-replica 掉了，主庫會受影響嗎？**
+不會。streaming replication 為非同步模式，副本容器異常不影響主庫的讀寫服務。備份 cron 會在下次執行時重試。

@@ -132,6 +132,8 @@
 | Service | Image / 版本 | 授權 | SaaS 商用 |
 |---|---|---|---|
 | postgres | `postgres:16-alpine` | **PostgreSQL License**(類 MIT) | ✅ |
+| postgres-replica | `postgres:16-alpine` | **PostgreSQL License**(類 MIT) | ✅ |
+| backup-cron | `postgres:16-alpine`（內建 crond） | **PostgreSQL License**(類 MIT) | ✅ |
 | valkey | `valkey/valkey:8-alpine` | **BSD-3-Clause** | ✅ |
 | seaweedfs | `chrislusf/seaweedfs:3.80` | **Apache 2.0** | ✅ |
 | seaweedfs-init | `amazon/aws-cli:2.18.5` | Apache 2.0 | ✅ |

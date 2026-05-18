@@ -1,16 +1,15 @@
-# AutoTest Helm chart (skeleton)
+# AutoTest Helm Chart（骨架）
 
-This chart deploys AutoTest v1.1 on Kubernetes. **Status: scaffold.**
-The backend Deployment + Service + PDB + Secret + chart helpers are
-production-ready; the celery, frontend, apisix, postgres, valkey,
-seaweedfs, and ingress templates are tracked as future work in the
-chart's `templates/TODO.md`.
+本 Chart 將 AutoTest v1.1 部署至 Kubernetes。**目前狀態：骨架。**
+Backend Deployment + Service + PDB + Secret + chart helpers 已可用於正式環境；其餘服務（celery、frontend、postgres、valkey、seaweedfs、ingress）的 template 為待辦事項，記錄在 `templates/TODO.md`。
 
-## Quick start (kind / minikube)
+---
 
-```sh
-# 1) Build local images and push to your registry, OR
-#    --set global.imageRegistry=ghcr.io/your-org and pin a real tag.
+## 快速開始（kind / minikube）
+
+```bash
+# 1. 在本機建置 image 並推送至你的 registry，或
+#    --set global.imageRegistry=ghcr.io/your-org 並指定真實 tag
 helm install autotest ./deploy/helm/autotest \
   --set postgres.password=$(openssl rand -hex 16) \
   --set secrets.jwtSecret=$(openssl rand -hex 32) \
@@ -18,61 +17,38 @@ helm install autotest ./deploy/helm/autotest \
   --set secrets.minioRootPassword=$(openssl rand -hex 16)
 ```
 
-## Production checklist
+---
 
-* `postgres.external: true` pointing at managed Postgres (RDS / CloudSQL)
-* `valkey.external: true` pointing at managed Redis (ElastiCache)
-* `secrets.existingSecret` referring to a secret in your secret manager
-  (External Secrets Operator, sealed-secrets, …) instead of plain values
-* `observability.prometheus.enabled: true` and a ServiceMonitor wired
-  to your cluster's kube-prometheus-stack
-* `observability.otlp.endpoint` pointing at your tracing backend
-* `observability.sentry.dsn` set
-* `ingress.tls.enabled: true` with cert-manager handling renewals
-* Backups via the postgres / SeaweedFS managed offerings (the in-cluster
-  `scripts/backup.sh` is for docker-compose deploys only)
+## 正式環境 Checklist
 
-> **Note (v1.1.2+):** The docker-compose frontend image bakes a self-signed
-> cert at build time and listens on both `:80` and `:443` — needed by the
-> self-hosted Playwright Trace Viewer's `SharedArrayBuffer` requirement
-> (only available in secure contexts). On Kubernetes, **prefer
-> ingress-level TLS termination via cert-manager** (Let's Encrypt or your
-> private CA) over the bundled self-signed cert; proper certs avoid the
-> manual OS-keychain trust step. The `/install-cert/server.crt` download
-> endpoint baked into the frontend image is meant for LAN docker-compose
-> users only and can be disabled in production via a nginx config override.
+- `postgres.external: true`，指向託管式 PostgreSQL（RDS / CloudSQL）
+- `valkey.external: true`，指向託管式 Redis（ElastiCache）
+- `secrets.existingSecret` 指向 secret manager 中的 Secret（External Secrets Operator、sealed-secrets 等），而非明文 values
+- `observability.prometheus.enabled: true`，並將 ServiceMonitor 連接至叢集的 kube-prometheus-stack
+- `observability.otlp.endpoint` 指向你的 tracing backend
+- `observability.sentry.dsn` 設定完成
+- `ingress.tls.enabled: true`，由 cert-manager 處理憑證更新
+- 備份透過 PostgreSQL / SeaweedFS 的託管服務進行（`scripts/backup.sh` 僅適用於 docker-compose 部署）
 
-> **Note (v1.1.3+):** Casdoor IAM is now an opt-in sidecar (compose profile
-> `casdoor`). For K8s the equivalent is a separate `casdoor` Deployment +
-> Service + Ingress at `/casdoor`; this chart does not template it yet.
-> Required envs on the backend Deployment when enabled: `CASDOOR_ENABLED`,
-> `CASDOOR_ENDPOINT` (e.g., `http://casdoor:8000`), `CASDOOR_ORG`,
-> `CASDOOR_APP`, `CASDOOR_CLIENT_ID`, `CASDOOR_CLIENT_SECRET`,
-> `CASDOOR_REDIRECT_URL`, `CASDOOR_WEBHOOK_TOKEN`, `CASBIN_ENABLED`,
-> `CASDOOR_RECONCILE_ENABLED`. The Casbin enforcer needs a sync SQLAlchemy
-> engine pool — `casbin_rule` table is auto-created in `autotest_db` on
-> backend lifespan; nothing extra to provision. Run `python -m app.cli
-> seed-casbin` as a one-off Job after the migration job.
+> **注意（v1.1.2+）**：docker-compose 的 frontend image 在 build time 產生自簽憑證，同時監聽 `:80` 和 `:443`——這是 Playwright Trace Viewer 的 `SharedArrayBuffer` 要求（只在 secure context 下可用）。在 Kubernetes 上，**建議使用 ingress 層的 TLS termination（cert-manager + Let's Encrypt 或私有 CA）**，而非 image 內建的自簽憑證；正確的憑證不需要手動信任 OS keychain。前端 image 內建的 `/install-cert/server.crt` 下載端點僅供 LAN docker-compose 使用者，可在正式環境透過 nginx 設定覆蓋予以停用。
 
-## Status
+---
 
-| Resource | State |
+## 目前狀態
+
+| 資源 | 狀態 |
 |---|---|
-| Chart.yaml + values.yaml | ✅ |
-| _helpers.tpl              | ✅ |
-| backend Deployment/Service/PDB | ✅ |
-| Opaque Secret (with required keys) | ✅ |
-| celery Deployment + KEDA scaler | ⏳ scaffolded in values, template pending |
-| frontend Deployment/Service | ⏳ |
-| apisix Deployment/Service | ⏳ |
-| postgres StatefulSet (in-cluster) | ⏳ — recommend external |
-| valkey StatefulSet | ⏳ — recommend external |
-| seaweedfs StatefulSet | ⏳ |
-| Ingress | ⏳ |
-| NetworkPolicy | ⏳ |
-| ServiceMonitor (Prometheus) | ⏳ |
+| Chart.yaml + values.yaml | ✅ 完成 |
+| _helpers.tpl | ✅ 完成 |
+| Backend Deployment / Service / PDB | ✅ 完成 |
+| Opaque Secret（含必要金鑰） | ✅ 完成 |
+| Celery Deployment + KEDA scaler | ⏳ 已在 values 中規劃，template 待完成 |
+| Frontend Deployment / Service | ⏳ 待完成 |
+| Postgres StatefulSet（叢集內） | ⏳ 待完成 — 建議使用外部託管 |
+| Valkey StatefulSet | ⏳ 待完成 — 建議使用外部託管 |
+| SeaweedFS StatefulSet | ⏳ 待完成 |
+| Ingress | ⏳ 待完成 |
+| NetworkPolicy | ⏳ 待完成 |
+| ServiceMonitor（Prometheus） | ⏳ 待完成 |
 
-The backend template is the highest-leverage piece (custom secrets, env
-shape, health probes), so it ships first. The remaining services are
-configurable container deploys with established patterns; finish them
-when ramping a real K8s deployment.
+Backend template 是最高效益的部分（自訂 Secret、env 結構、health probe），因此優先實作。其餘服務為有既定模式的容器部署；在實際 K8s 部署需求出現時再完成。

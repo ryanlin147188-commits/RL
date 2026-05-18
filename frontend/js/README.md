@@ -1,76 +1,82 @@
-# Frontend modules (RFC-1)
+# 前端模組化架構（RFC-1）
 
-This directory is the new home for the AutoTest SPA — split from the
-single ~19k-line `index.html`. Phase 1 (the current state) ships only the
-**core utilities** that every view needs; views themselves still live
-inline in `index.html` for now.
+本目錄是 AutoTest SPA 模組化的新家，從原本超過 19,000 行的單一 `index.html` 逐步拆分而來。
 
-## Why
+第一階段（目前狀態）只提供每個 view 都需要的**核心工具**；各 view 本身暫時仍以 inline script 形式保留在 `index.html` 中。
 
-The existing `index.html` has:
+---
 
-* **400+ global functions** — IDE search/diff overhead grows linearly
-* **16+ duplicated CRUD modal blocks** — every change ripples 10x
-* **Globals (`window.currentProjectId`, `_caches`)** — race-condition risk
-* **No type hints, no error boundary, no code splitting**
+## 為什麼要模組化
 
-Modularising in stages keeps each PR reviewable.
+現有 `index.html` 存在以下問題：
 
-## Layout
+- **400+ 個全域函式**：IDE 搜尋與 diff 的負擔隨著規模線性成長
+- **16+ 個重複的 CRUD modal 區塊**：每次修改都要改 10 個地方
+- **全域變數**（`window.currentProjectId`、`_caches`）：競態條件風險
+- **無型別提示、無錯誤邊界、無 code splitting**
+
+分階段模組化讓每個 PR 都保持可 review 的大小。
+
+---
+
+## 目錄結構
 
 ```
 js/
 ├── core/
 │   ├── api.js          # apiFetch + 401 refresh + ApiError
 │   ├── auth.js         # token storage + isLoggedIn / isExpiringSoon
-│   └── store.js        # pub/sub state for view -> view comms
-└── README.md           # you are here
+│   └── store.js        # pub/sub state，用於 view 間通訊
+└── README.md           # 本文件
 ```
 
-Phase 2 will add `components/` (Modal, Form, Table, Toast). Phase 3 moves
-each view (`projects.js`, `testcases.js`, ...) out of `index.html`.
+第二階段將加入 `components/`（Modal、Form、Table、Toast）。第三階段將各 view（`projects.js`、`testcases.js` 等）從 `index.html` 移出。
 
-## Backwards compatibility
+---
 
-Every module exports its functions AND attaches them to `window.AutoTest.*`.
-That lets the inline scripts in `index.html` opt in incrementally:
+## 向後相容性
+
+每個模組在匯出函式的同時，也會將其掛載到 `window.AutoTest.*`，讓 `index.html` 中的 inline script 能逐步採用，不需要大幅改動現有程式碼：
 
 ```js
-// inline script -- before
+// inline script — 改前
 async function loadCases(pid) { /* ad-hoc fetch */ }
 
-// inline script -- after the migration
+// inline script — 改後（採用模組）
 async function loadCases(pid) {
   return AutoTest.api.apiFetch(`/api/projects/${pid}/testcases`);
 }
 ```
 
-…with no `<script type="module">` rewiring required.
+不需要 `<script type="module">` 改寫即可逐步遷移。
 
-## How the modules are mounted
+---
 
-`index.html` now loads the Phase 1 core modules near the top of `<body>`:
+## 模組掛載方式
+
+`index.html` 在 `<body>` 頂部載入第一階段核心模組：
 
 ```html
 <script type="module">
-  // Side effect: defines window.AutoTest.{auth, api, store}
+  // 副作用：定義 window.AutoTest.{auth, api, store}
   import "/js/core/auth.js";
   import "/js/core/api.js";
   import "/js/core/store.js";
 </script>
 ```
 
-After this loads, anywhere in the page can call `AutoTest.api.apiFetch(...)`
-or `AutoTest.store.set("currentProjectId", id)`.
+載入後，頁面任何地方都可以呼叫 `AutoTest.api.apiFetch(...)` 或 `AutoTest.store.set("currentProjectId", id)`。
 
-## Phase plan (from the RFC)
+---
 
-| Phase | Scope | Days |
+## 各階段計劃
+
+| 階段 | 範圍 | 預估工時 |
 |---|---|---|
-| **1** | core/ utilities + window.AutoTest shim **← here** | 2 |
-| 2 | components/ (Modal/Form/Table/Toast) + login view as white-rabbit | 3 |
-| 3 | move 18 views out of index.html, 2-3 per day | 5-7 |
-| 4 | swap globals for store.subscribe | 2-3 |
-| 5 | optional: add ESLint + Prettier (no build step) | 1-2 |
+| **1** | `core/` 工具 + `window.AutoTest` shim **← 目前進度** | 2 天 |
+| 2 | `components/`（Modal / Form / Table / Toast）+ login view 作為試點 | 3 天 |
+| 3 | 將 18 個 view 從 `index.html` 移出，每天 2–3 個 | 5–7 天 |
+| 4 | 將全域變數替換為 `store.subscribe` | 2–3 天 |
+| 5 | 選用：加入 ESLint + Prettier（無需建置步驟） | 1–2 天 |
 
-Each phase ends with index.html still working — never a big-bang rewrite.
+每個階段結束時 `index.html` 仍可正常運作——不做大爆炸式重寫。

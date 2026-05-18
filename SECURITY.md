@@ -1,121 +1,114 @@
-# Security Policy
+# 安全政策
 
-## Supported Versions
+## 支援版本
 
-Security fixes are applied to the latest minor release on the `main` branch. Older versions are not maintained.
+安全修補程式套用於 `main` 分支上的最新次要版本。舊版本不再維護。
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 1.1.x   | :white_check_mark: |
-| 1.0.x   | :white_check_mark: |
-| < 1.0   | :x:                |
+| 版本 | 支援狀態 |
+|---|---|
+| 1.1.x | ✅ 支援 |
+| 1.0.x | ✅ 支援 |
+| < 1.0 | ❌ 不支援 |
 
-## Reporting a Vulnerability
+---
 
-**Please do NOT open a public GitHub issue for security vulnerabilities.**
+## 回報安全漏洞
 
-If you believe you have found a security vulnerability in AutoTest, report it privately through one of the following channels:
+**請勿針對安全漏洞開立公開的 GitHub Issue。**
 
-1. **GitHub Security Advisory** (preferred):
-   Open a private advisory at <https://github.com/ryanlin147188-commits/RL-for-Kapito/security/advisories/new>
-2. **Email**: <ryanlin147188@gmail.com>
-   Please use the subject line `[AutoTest Security] <short title>`.
+如果您發現 AutoTest 的安全漏洞，請透過以下管道私下回報：
 
-When reporting, please include:
+1. **GitHub Security Advisory（建議）**：
+   在此開立私人 Advisory：<https://github.com/ryanlin147188-commits/RL-for-Kapito/security/advisories/new>
+2. **電子郵件**：<ryanlin147188@gmail.com>
+   主旨請使用：`[AutoTest Security] <簡短標題>`
 
-- A description of the vulnerability and its potential impact
-- Steps to reproduce, or a proof-of-concept
-- The affected version / commit hash
-- Your suggested fix, if any
-- Whether you intend to publicly disclose, and on what timeline
+回報時請提供：
 
-## What to Expect
+- 漏洞說明及其潛在影響
+- 重現步驟或概念驗證
+- 受影響的版本或 commit hash
+- 您建議的修復方式（如有）
+- 您是否打算公開披露，以及預計時間表
 
-- We will acknowledge receipt within **72 hours**.
-- We aim to provide an initial assessment within **7 days**.
-- For confirmed vulnerabilities, we will work with you on a coordinated disclosure timeline (typically 30–90 days depending on severity).
-- We will credit you in the release notes unless you request anonymity.
+---
 
-## Out of Scope
+## 我們的回應流程
 
-The following are generally **not** considered security vulnerabilities:
+- 我們將在 **72 小時**內確認收到回報。
+- 我們的目標是在 **7 天**內提供初步評估。
+- 對於確認的漏洞，我們將與您協調披露時間表（視嚴重程度通常為 30–90 天）。
+- 除非您要求匿名，我們將在版本說明中列出您的貢獻。
 
-- Issues requiring physical access to a user's device
-- Vulnerabilities in third-party dependencies that are already publicly disclosed (please report upstream first)
-- Self-XSS that requires the victim to paste attacker-controlled content into the browser console
-- Missing security headers without a demonstrated impact
-- Default credentials or local development configurations (production deployments are expected to override these — see [README](README.md#deployment))
+---
 
-## Hardening Recommendations for Self-Hosted Deployments
+## 不在範圍內的項目
 
-When running AutoTest in production, please ensure:
+以下情況通常**不**視為安全漏洞：
 
-- `AUTOTEST_JWT_SECRET` and `AUTOTEST_FERNET_KEY` are set to long random values (the deploy scripts auto-generate these if absent).
-- `ALLOWED_ORIGINS` is set to your actual front-end origin(s) — never `*`.
-- Database, S3, and admin user credentials are rotated from any defaults.
-- The service is placed behind HTTPS (e.g., a reverse proxy with a valid TLS certificate).
-- Container images are pinned to specific versions / digests rather than `latest`.
-- Backups of the PostgreSQL volume and SeaweedFS volume are scheduled.
+- 需要實體存取使用者裝置的問題
+- 已公開披露的第三方相依漏洞（請優先向上游回報）
+- 需要受害者自行將攻擊者控制的內容貼到瀏覽器 console 的 Self-XSS
+- 無法展示實際影響的缺少安全標頭
+- 預設憑證或本機開發設定（正式部署應覆蓋這些設定，詳見 [README.md](README.md)）
 
-### v1.1.5 — in-process authlib OIDC hardening
+---
 
-- **`ZOHO_CLIENT_SECRET` 只能放 `.env` / secret manager**,絕對不要 commit。
-  Backend 把它直接放在 process env;authlib 不會把它寫進 DB。輪替密鑰時改
-  `.env` 後 `docker compose up -d --force-recreate backend` 一次就生效。
-- **state cookie 用 HS256 + AUTOTEST_JWT_SECRET 簽**,TTL 10 分鐘、Path
-  `/api/auth`、HttpOnly、SameSite=Lax。OAuth state CSRF 防護不依賴外部
-  session store(沒 SessionMiddleware 也不會壞)。
-- **沒設 email 限制時**,任何 Zoho 帳號都能 JIT 進來。新使用者 `role_id=NULL`
-  + 沒任何 `project_members`,Casbin enforce 對所有專案級端點都會 deny,
-  使用者只看得到 `/api/auth/me`,管理員後續再經「設定 → 專案協作成員」分配
-  專案 + 角色。要更嚴格時在 [backend/app/auth/oidc.py](backend/app/auth/oidc.py)
-  的 `normalize_claims()` 或 `_provision_from_claims()` 加 email domain 檢查
-  (一行 if 即可)。
-- **不需要再煩惱**:Casdoor 自己 cert / app provider client_secret /
-  built-in admin 預設密碼這些 v1.1.3 / v1.1.4 的 hardening 條目在 v1.1.5
-  全部變不適用,直接刪掉省心智負擔。
+## 自架部署的安全強化建議
 
-### v1.1.4 — Zoho OIDC provider specific hardening (deprecated, replaced in v1.1.5)
+在正式環境執行 AutoTest 時，請確保：
 
-- **Treat `ZOHO_CLIENT_SECRET` like any other secret** — store only in the
-  Casdoor `provider` table (encrypted at rest if `provider.cert` is set on
-  the provider row), never check into git. Rotate periodically; Zoho doesn't
-  auto-rotate.
-- **Without an email-domain restriction**, any Zoho account can JIT-create a
-  local user row. Document and verify the default-role fallback:
-  - New users land with `users.role_id = NULL` and zero `project_members` rows
-  - They can read `/api/auth/me` but every project-scoped endpoint denies them
-  - Promote an explicit `emailRegex` (e.g., `^.+@kapito\.io$`) on the
-    `zoho-corp` provider row if a tighter gate is needed
-- **The Zoho `provider` row's `client_secret` is sent to Casdoor over HTTP
-  inside the docker network** — keep the compose network private; do not
-  expose Casdoor port 8001 outside trusted LAN without HTTPS in front.
-- **Casdoor `app-built-in` is a shared multi-tenant default** — for prod
-  multi-tenant deploys consider per-org applications so leaking one tenant's
-  Zoho secret doesn't compromise others.
+- `AUTOTEST_JWT_SECRET` 和 `AUTOTEST_FERNET_KEY` 設為足夠長的隨機值（部署腳本在缺少時會自動產生）。
+- `ALLOWED_ORIGINS` 設為你的實際前端 origin，**絕對不要**使用 `*`。
+- 資料庫、S3 和管理員帳號憑證已從預設值輪替。
+- 服務部署在 HTTPS 後方（例如搭配有效 TLS 憑證的 reverse proxy）。
+- 容器 image 釘定為特定版本或 digest，**不使用** `latest`。
+- PostgreSQL volume 和 SeaweedFS volume 有定期備份排程。
+- 正式環境使用 **Docker Engine**（免費，Apache 2.0），而非 Docker Desktop（超過 250 人或年營收 > $10M USD 的企業需付費訂閱）。
 
-### v1.1.3 — Casdoor IAM specific hardening
+**Docker Log 輪替（一次性設定）：**
 
-- **Pin Casdoor image** — `docker-compose.yml` defaults to `casbin/casdoor:latest` for LAN convenience. Pin a tested tag (`casbin/casdoor:v<x>.<y>.<z>`) before promoting to production.
-- **Rotate the Casdoor admin password** immediately after first boot. Default is `admin / admin123` (set during install); change via the Casdoor UI → User → admin → Modify password.
-- **`CASDOOR_WEBHOOK_TOKEN`** is auto-generated by the bootstrap profile but must be configured in the Casdoor Application → Webhook → Custom headers (`X-Casdoor-Webhook-Token: <token>`). Without a matching value the webhook receiver returns 503.
-- **`CASDOOR_CLIENT_SECRET`** is stored plain in `.env`; treat the file like any other secret store (root-owned, `chmod 600`, never check in).
-- The `application` table's `redirect_uris` should list **only your actual host(s)** — keep `localhost` only for local dev.
-- Casdoor's built-in `app-built-in` is shared org-wide; for multi-tenant setups create per-org applications and rotate their credentials independently.
-- `casbin_rule` table is rebuilt on every 5-min beat and every role webhook — make sure your DB backups capture it (it's in `autotest_db`, same DB as the app).
+```bash
+sudo tee /etc/docker/daemon.json >/dev/null <<'EOF'
+{
+  "log-driver": "json-file",
+  "log-opts": { "max-size": "10m", "max-file": "3" }
+}
+EOF
+sudo systemctl restart docker
+```
 
-### Self-Service Invite Flow
+---
 
-The endpoints `POST /api/auth/request-access` and `GET /api/organizations/by-email-domain` are intentionally **anonymous** (no Authorization header required) so that prospective users can request access without prior credentials. This widens the public attack surface; please:
+## v1.1.5 — in-process authlib OIDC 安全強化
 
-- Set each `Organization.email_domains` to **only** domains you actually control (e.g. `acme.com`, not `gmail.com`). Any address whose domain matches will be granted a Viewer-role invite for that org.
-- The same domain MUST NOT be claimed by two organisations. Migration `0004_assignment_invite_email` logs a warning if duplicates exist; clean them up before exposing the endpoint publicly.
-- Built-in rate limits are **5/hour per IP** plus a **60-second per-email cooldown**. If your front-end sits behind a CDN or load balancer, configure `X-Forwarded-For` trust correctly so slowapi sees the real client IP — otherwise all callers share one bucket.
-- The invite token is **never** returned in the HTTP response; it is delivered only by email. Make sure SMTP is actually configured (`Settings → Email`) before announcing the flow, otherwise users receive nothing.
-- Self-service invites are bound to the requesting email and expire in 24 hours. Single-use; cannot be redeemed twice.
+- **`ZOHO_CLIENT_SECRET` 只能放 `.env` / secret manager**，絕對不要 commit 進版本庫。
+  Backend 直接將其放在 process env；authlib 不會將其寫入 DB。
+  輪替密鑰時修改 `.env` 後執行 `docker compose up -d --force-recreate backend` 即生效。
+- **state cookie 使用 HS256 + `AUTOTEST_JWT_SECRET` 簽章**，TTL 10 分鐘、`Path=/api/auth`、`HttpOnly`、`SameSite=Lax`。
+  OAuth state CSRF 防護不依賴外部 session store，即使沒有 `SessionMiddleware` 也能正常運作。
+- **未設 email 限制時**，任何 Zoho 帳號都能透過 JIT 進入系統。
+  新使用者的 `role_id=NULL` 且沒有任何 `project_members`，Casbin enforce 對所有專案級端點都會拒絕，使用者只能讀取 `/api/auth/me`，需由管理員在「設定 → 專案協作成員」分配專案與角色後才能使用。
+  如需更嚴格的管控，可在 [backend/app/auth/oidc.py](backend/app/auth/oidc.py) 的 `normalize_claims()` 或 `_provision_from_claims()` 加入 email domain 檢查（一行 if 即可）。
 
-### Email Notifications
+---
 
-`notify(...)` writes an in-app `Notification` row unconditionally and enqueues an email **only** when the recipient's `NotificationPreference[event_key].email == True`. SMTP credentials are stored encrypted (Fernet) in `EmailConfig`; rotate `AUTOTEST_FERNET_KEY` carefully — losing it makes existing rows unreadable.
+## Self-Service 邀請流程
 
-Thank you for helping keep AutoTest and its users safe.
+端點 `POST /api/auth/request-access` 和 `GET /api/organizations/by-email-domain` 為**匿名**端點（不需要 Authorization header），以便讓潛在使用者在沒有帳號的情況下請求存取。這擴大了公開攻擊面；請注意：
+
+- 將每個 `Organization.email_domains` 設為**你實際控制**的網域（例如 `acme.com`，而非 `gmail.com`）。任何 email domain 符合的地址都會收到該組織的 Viewer 角色邀請。
+- 相同 domain 不能同時被兩個組織認領。如果存在重複，migration `0004_assignment_invite_email` 會記錄警告；在公開此端點之前請先清除重複資料。
+- 內建速率限制為**每 IP 每小時 5 次**，加上**每 email 60 秒冷卻**。如果你的前端位於 CDN 或負載平衡器後方，請正確設定 `X-Forwarded-For` 信任，確保 slowapi 看到真實的 client IP。
+- 邀請 token **不會**在 HTTP 回應中返回；只會透過 email 寄送。請確保已設定 SMTP（設定 → 電子郵件），否則使用者不會收到任何通知。
+- 邀請與請求的 email 綁定，有效期 24 小時，且只能使用一次。
+
+---
+
+## 電子郵件通知
+
+`notify(...)` 無條件寫入一筆 `Notification` 資料列，並**僅在**收件者的 `NotificationPreference[event_key].email == True` 時才將 email 加入佇列。SMTP 憑證以 Fernet 加密儲存在 `EmailConfig` 中；輪替 `AUTOTEST_FERNET_KEY` 時請謹慎——遺失金鑰將導致現有資料列無法讀取。
+
+---
+
+感謝您協助保護 AutoTest 及其使用者的安全。

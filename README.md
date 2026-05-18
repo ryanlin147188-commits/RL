@@ -45,9 +45,11 @@ docker compose up -d --build
 
 服務啟動後，開啟 [http://localhost](http://localhost)，以 `admin` / `admin123` 登入。
 **第一次登入會強制要求設定顯示名稱、Email 及新密碼。**
-自助註冊已停用，新使用者由管理員從「設定 → 組織成員」建立。
+自助註冊已停用，新使用者由管理員從「設定 → 專案協作成員」建立。
 
-### 常用維運指令
+---
+
+## 常用維運指令
 
 | 操作 | 指令 |
 |---|---|
@@ -56,6 +58,8 @@ docker compose up -d --build
 | 停止（保留資料） | `docker compose down` |
 | 完全重置（清除 DB 與儲存） | `docker compose down -v` |
 | 開啟 debug 模式 | `AUTOTEST_DEBUG=True docker compose up -d --force-recreate backend` |
+| 手動觸發備份 | `docker exec autotest-backup-cron sh /backup.sh` |
+| 查看備份清單 | `docker exec autotest-backup-cron ls -lh /backups/` |
 | 孤兒清理（不跑 `-a`，會刪 spawn image） | `docker volume prune -f && docker image prune -f` |
 
 ---
@@ -120,18 +124,34 @@ docker compose up -d --build
 ┌──────────▼───┐ ┌─────────▼──────┐ ┌─────────▼──────────────────┐
 │ PostgreSQL 16 │ │   Valkey 8     │ │ Celery worker               │
 │（主要資料庫） │ │（快取 + 佇列） │ │  → robot-runner（每次執行）  │
-│  36 個模型    │ │ Redis 協議相容 │ │  → recorder（Web 錄製）      │
-└──────────────┘ └────────────────┘ │  → recorder-api（API 錄製）  │
-                                    │  （短命容器，跑完自動刪除）   │
-┌──────────────┐ ┌──────────────┐   └────────────────────────────┘
-│  SeaweedFS   │ │ docker-proxy │
-│（S3 相容）   │ │（安全 Docker  │
-│ 截圖/影片/   │ │  socket 代理）│
-│ trace 儲存   │ └──────────────┘
-└──────────────┘
+│     ↕ WAL    │ │ Redis 協議相容 │ │  → recorder（Web 錄製）      │
+│ postgres-    │ └────────────────┘ │  → recorder-api（API 錄製）  │
+│ replica（熱備）│                  └────────────────────────────┘
+│     ↓        │
+│ backup-cron  │  ┌──────────────┐ ┌──────────────┐
+│（日 03:00）  │  │  SeaweedFS   │ │ docker-proxy │
+└──────────────┘  │（S3 相容）   │ │（安全 Docker  │
+                  │ 截圖/影片/   │ │  socket 代理）│
+                  │ trace 儲存   │ └──────────────┘
+                  └──────────────┘
 ```
 
-**常駐服務（8 個）**：`postgres`、`valkey`、`docker-proxy`、`seaweedfs`、`seaweedfs-init`（一次性）、`backend`、`celery`、`frontend`
+### 服務清單
+
+**常駐服務（10 個）**：
+
+| 服務 | 說明 |
+|---|---|
+| `postgres` | PostgreSQL 16 主庫（WAL 啟用，支援 streaming replication） |
+| `postgres-replica` | PostgreSQL 16 熱備副本（streaming replication，readonly standby） |
+| `backup-cron` | 每日 03:00 自動備份（從副本 pg_dump + SeaweedFS tar，保留 7 天） |
+| `valkey` | Valkey 8（快取 + Celery broker，Redis wire protocol 相容） |
+| `docker-proxy` | 安全 Docker socket 代理（限制 backend 只能呼叫必要 API） |
+| `seaweedfs` | SeaweedFS 3.80（S3 相容物件儲存，存截圖 / 影片 / trace） |
+| `seaweedfs-init` | 一次性 bucket 建立（`pic`、`results`） |
+| `backend` | FastAPI（Python 3.11），port 8000（不對外暴露） |
+| `celery` | Celery worker，執行測試 / 錄製任務 |
+| `frontend` | nginx（port 80 / 443），SPA shell + reverse proxy |
 
 **按需建置（profile=spawnable，4 個）**：`robot-runner`、`recorder`、`recorder-api`、`mcp`
 
@@ -142,10 +162,10 @@ docker compose up -d --build
 ## 部署到正式環境前的安全強化
 
 1. 將 `ALLOWED_ORIGINS` 設為你的前端 origin（**不要**使用 `*`）
-2. 覆寫預設密鑰：`AUTOTEST_JWT_SECRET`、`AUTOTEST_FERNET_KEY`、`DB_PASSWORD`、`S3_ROOT_PASSWORD`（bootstrap 首次執行時自動生成隨機值；之後定期 rotate）
+2. 覆寫預設密鑰：`AUTOTEST_JWT_SECRET`、`AUTOTEST_FERNET_KEY`、`DB_PASSWORD`、`S3_ROOT_PASSWORD`、`REPLICA_PASSWORD`（bootstrap 首次執行時自動生成隨機值；之後定期 rotate）
 3. 部署在 HTTPS reverse proxy 後方（Let's Encrypt 或企業 CA）
 4. 將 `RECORDER_IMAGE` 與 `ROBOT_RUNNER_IMAGE` 釘定為特定 tag 或 sha256（**不要**使用 `latest`）
-5. 定期備份 PostgreSQL volume 與 SeaweedFS volume
+5. 定期備份已由 `backup-cron` 容器自動處理（每日 03:00）；可另外設定 S3 鏡像（`S3_BUCKET` 環境變數）
 
 **Docker log rotation（一次性設定）：**
 
@@ -201,6 +221,9 @@ nginx 設定已預留 443 port，掛上你的 TLS 憑證即可。建議搭配 Le
 
 **Q：可以串接 CI/CD 嗎？**
 可以。`POST /api/executions` 接受 Bearer token 呼叫，GitHub Actions / Jenkins / GitLab CI 均可直接觸發，見 [操作說明.md](操作說明.md) 第九章。
+
+**Q：postgres-replica 啟動失敗怎麼辦？**
+先確認 `.env` 中 `REPLICA_PASSWORD` 已設定，再執行 `./scripts/setup-replica.sh`（既有部署一次性設定 replication user），然後 `docker compose up -d postgres-replica backup-cron`。
 
 ---
 

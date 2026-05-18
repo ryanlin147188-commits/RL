@@ -1,7 +1,11 @@
-# Backup Drill History
+# 備份還原演習紀錄
 
-Append-only log. One entry per drill. Newest at top.
+僅追加紀錄。每次演習一筆，最新的在最上方。
 
-| Date       | Operator | Snapshot tag | Smoke result | Restore time | Notes |
-|------------|----------|--------------|--------------|--------------|-------|
-| _(none yet — first drill due 2026-Q3)_ | | | | | |
+演習 SOP 請見 [backup-drill.md](backup-drill.md)。
+
+---
+
+| 日期 | 執行者 | 快照 tag | 冒煙測試結果 | 還原耗時 | 備註 |
+|---|---|---|---|---|---|
+| _（尚無紀錄 — 首次演習預計 2026-Q3）_ | | | | | |
