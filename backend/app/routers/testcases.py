@@ -48,7 +48,7 @@ async def get_testcase(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _load_testcase_node(node_id, user, db)
+    node = await _load_testcase_node(node_id, user, db)
 
     result = await db.execute(
         select(TestcaseContent).where(TestcaseContent.node_id == node_id)
@@ -62,7 +62,9 @@ async def get_testcase(
         await db.flush()
         await db.refresh(content)
 
-    return content
+    resp = TestcaseContentResponse.model_validate(content)
+    resp.node_name = node.name
+    return resp
 
 
 # 8. PUT /api/v1/testcases/{node_id}

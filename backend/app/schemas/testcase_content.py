@@ -19,6 +19,7 @@ class TestcaseContentResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     node_id: str
+    node_name: Optional[str] = None
     ac_text: Optional[str]
     setup_text: Optional[str]
     steps_json: Any

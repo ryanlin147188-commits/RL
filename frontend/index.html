@@ -3740,7 +3740,11 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                     }
                 }
                 return {
-                    name: testCases[nodeId]?.title || testCases[nodeId]?.filename || nodeId.slice(0, 8),
+                    name: testCases[nodeId]?.title
+                        || testCases[nodeId]?.filename
+                        || tcMap[nodeId]?.node_name
+                        || (() => { const ni = findNodeInfo(activeTreeData, nodeId); return ni && (ni.node.title || ni.node.name); })()
+                        || nodeId.slice(0, 8),
                     steps: rawSteps.map((s, i) => {
                         const globalIdx = s.step_index ?? i;
                         const pos = globalIdx % 1000;
