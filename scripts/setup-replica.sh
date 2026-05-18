@@ -26,6 +26,7 @@ set -a; . ./.env; set +a
 REPLICA_USER="${REPLICA_USER:-replicator}"
 PG_CONTAINER="${PG_CONTAINER:-autotest-postgres}"
 DB_USER="${DB_USER:-admin}"
+DB_NAME="${DB_NAME:-autotest_db}"
 
 if [ -z "${REPLICA_PASSWORD:-}" ]; then
   echo "ERROR: REPLICA_PASSWORD is not set in .env" >&2
@@ -35,7 +36,7 @@ fi
 
 echo "[setup-replica] Creating replication user '$REPLICA_USER' on $PG_CONTAINER ..."
 
-docker exec -i "$PG_CONTAINER" psql -U "$DB_USER" <<-EOSQL
+docker exec -i "$PG_CONTAINER" psql -U "$DB_USER" -d "$DB_NAME" <<-EOSQL
   DO \$\$
   BEGIN
     IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '$REPLICA_USER') THEN
@@ -56,8 +57,8 @@ docker exec "$PG_CONTAINER" sh -c "
     || (echo 'host replication $REPLICA_USER 0.0.0.0/0 scram-sha-256' \
         >> /var/lib/postgresql/data/pg_hba.conf \
         && echo '[setup-replica] pg_hba.conf entry added.')
-  pg_ctl reload -D /var/lib/postgresql/data -s
 "
+docker exec -u postgres "$PG_CONTAINER" pg_ctl reload -D /var/lib/postgresql/data -s
 
 echo "[setup-replica] Done. You can now start postgres-replica and backup-cron:"
 echo "  docker compose up -d postgres-replica backup-cron"
