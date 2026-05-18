@@ -308,6 +308,28 @@ _OVERLAY_CLEANUP_JS = (
     "}"
 )
 
+# 強化版：額外清除 role=menu/listbox/tooltip 並 blur activeElement
+# 僅供 CloseOverlay action 使用，不替換現有 _OVERLAY_CLEANUP_JS（避免影響既有 Click 行為）
+_OVERLAY_CLEANUP_JS_ENHANCED = (
+    "() => {"
+    "['modal-open','sidebar-open','sidebar-mobile-open','no-scroll','overflow-hidden']"
+    ".forEach(c => { document.body.classList.remove(c); document.documentElement.classList.remove(c); });"
+    "document.querySelectorAll('.modal-backdrop,.MuiBackdrop-root,.ant-modal-mask,.ant-modal-wrap,"
+    ".swal2-container,.popover-backdrop,.offcanvas-backdrop,.toast-container,.cdk-overlay-backdrop')"
+    ".forEach(el => { try { el.remove(); } catch(e) {} });"
+    "document.querySelectorAll('.app-sidebar,.sidebar-shadow,.sidebar-overlay,.drawer-backdrop,"
+    ".metismenu-overlay,[data-overlay-dismiss]')"
+    ".forEach(el => { el.style.pointerEvents = 'none'; });"
+    "document.querySelectorAll('[role=\"dialog\"][aria-modal=\"true\"] [aria-label*=\"close\" i],"
+    "[role=\"dialog\"][aria-modal=\"true\"] [aria-label*=\"關閉\"],"
+    ".modal.show [data-bs-dismiss=\"modal\"],.modal.in [data-dismiss=\"modal\"]')"
+    ".forEach(el => { try { el.click(); } catch(e) {} });"
+    "document.querySelectorAll('[role=\"menu\"],[role=\"listbox\"],[role=\"tooltip\"]')"
+    ".forEach(el => { try { el.remove(); } catch(e) {} });"
+    "try { document.activeElement?.blur(); } catch(e) {}"
+    "}"
+)
+
 
 def _overlay_cleanup_line() -> str:
     """產生「點 click 前先收掉常見 overlay」的 Robot 行;Run Keyword And Ignore Error
@@ -485,6 +507,50 @@ def _translate_step(step: dict, ctx: dict) -> list[str]:
         return out(
             line("Wait For Elements State", locator, "visible", "timeout=20s"),
             line("Click With Options", locator, f"position_x={x}", f"position_y={y}"),
+        )
+
+    # ── 遮擋處理：關閉覆蓋層 / 強制點擊 ──────────────────────────────────────
+    if action == "closeoverlay":
+        # 強化版 overlay 清除 + Escape + blur；best-effort，全部 ignore error
+        return out(
+            line("Run Keyword And Ignore Error", "Evaluate JavaScript", "${None}", _OVERLAY_CLEANUP_JS_ENHANCED),
+            line("Run Keyword And Ignore Error", "Press Keys", "${None}", "Escape"),
+            line("Run Keyword And Ignore Error", "Evaluate JavaScript", "${None}",
+                 "() => { try { document.activeElement?.blur(); } catch(e) {} }"),
+        )
+
+    if action == "clickoutside":
+        # 點頁面 (8,8) 觸發 outside-click，收合 dropdown/popover
+        click_outside_js = (
+            "() => { const el = document.elementFromPoint(8,8); "
+            "if (el) { el.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,clientX:8,clientY:8})); } "
+            "else { document.body.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true})); } }"
+        )
+        steps = []
+        if locator:
+            steps.append(line("Run Keyword And Ignore Error", "Wait For Elements State", locator, "visible", "timeout=10s"))
+        steps.append(line("Evaluate JavaScript", "${None}", click_outside_js))
+        return out(*steps)
+
+    if action == "pressescape":
+        # 發送 Escape 鍵，關閉 dialog/dropdown/custom modal
+        return out(line("Press Keys", "${None}", "Escape"))
+
+    if action == "forceclick":
+        # 繞過 actionability 檢查的強制點擊（Playwright force=True）
+        return out(
+            _overlay_cleanup_line(),
+            line("Wait For Elements State", locator, "visible", "timeout=10s"),
+            line("Click With Options", locator, "force=True"),
+        )
+
+    if action == "clickjs":
+        # 用 JS dispatchEvent 繞過 pointer event 攔截
+        click_js = "(el) => el.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,composed:true}))"
+        return out(
+            _overlay_cleanup_line(),
+            line("Wait For Elements State", locator, "visible", "timeout=10s"),
+            line("Evaluate JavaScript", locator, click_js),
         )
 
     # 捲動 / 拖曳
