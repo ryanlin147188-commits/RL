@@ -441,19 +441,19 @@ def _translate_step(step: dict, ctx: dict) -> list[str]:
     if action == "click":
         return out(
             _overlay_cleanup_line(),
-            line("Wait For Elements State", locator, "stable", "timeout=20s"),
+            line("Wait For Elements State", locator, "visible", "timeout=20s"),
             line("Click", locator),
         )
     if action in ("doubleclick", "dblclick"):
         return out(
             _overlay_cleanup_line(),
-            line("Wait For Elements State", locator, "stable", "timeout=20s"),
+            line("Wait For Elements State", locator, "visible", "timeout=20s"),
             line("Click", locator, "clickCount=2"),
         )
     if action == "rightclick":
         return out(
             _overlay_cleanup_line(),
-            line("Wait For Elements State", locator, "stable", "timeout=20s"),
+            line("Wait For Elements State", locator, "visible", "timeout=20s"),
             line("Click", locator, "button=right"),
         )
     if action in ("fill", "input"):
@@ -551,6 +551,22 @@ def _translate_step(step: dict, ctx: dict) -> list[str]:
             _overlay_cleanup_line(),
             line("Wait For Elements State", locator, "visible", "timeout=10s"),
             line("Evaluate JavaScript", locator, click_js),
+        )
+
+    if action == "selectreact":
+        # React Select / headless UI 下拉選單：value = 要選取的選項文字（模糊比對）
+        # 流程：點控件開下拉 → 等 option list 出現 → 點第一個包含 value 的 option
+        option_locator = (
+            f"css=[id^='react-select'][id*='option']"
+            if not value else
+            f"text={value}"
+        )
+        return out(
+            _overlay_cleanup_line(),
+            line("Wait For Elements State", locator, "visible", "timeout=20s"),
+            line("Click", locator),
+            line("Wait For Elements State", option_locator, "visible", "timeout=10s"),
+            line("Click", option_locator),
         )
 
     # 捲動 / 拖曳
