@@ -656,8 +656,15 @@ def _translate_step(step: dict, ctx: dict) -> list[str]:
         )
     if action == "assertattribute":
         # value = 屬性名；expected = 期望值
+        # 屬性名為空時表格欄/一般元素沒有 'value' attribute 會 AttributeError，
+        # 改取元素文字內容（等同 AssertText）
+        if not value:
+            return out_w(
+                line("${attr}=", "Get Text", locator),
+                compare_line("${attr}", compare or "Contains", expected),
+            )
         return out_w(
-            line("${attr}=", "Get Attribute", locator, value or "value"),
+            line("${attr}=", "Get Attribute", locator, value),
             compare_line("${attr}", compare or "Equals", expected),
         )
     if action == "assertimageloaded":
