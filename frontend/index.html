@@ -10036,9 +10036,13 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             report:   { zh: '測試報告', en: 'Report',    cls: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
         };
         const _REVIEW_STATUS_LABEL = {
-            pending:  { zh: '待審核', en: 'Pending',  cls: 'bg-amber-100 text-amber-700' },
-            approved: { zh: '已審核', en: 'Approved', cls: 'bg-emerald-100 text-emerald-700' },
-            rejected: { zh: '已拒絕', en: 'Rejected', cls: 'bg-rose-100 text-rose-700' },
+            pending:   { zh: '待審核', en: 'Pending',  cls: 'bg-amber-100 text-amber-700' },
+            approved:  { zh: '已審核', en: 'Approved', cls: 'bg-emerald-100 text-emerald-700' },
+            rejected:  { zh: '已拒絕', en: 'Rejected', cls: 'bg-rose-100 text-rose-700' },
+            // 後端 v0011 migration 後的實際值
+            InReview:  { zh: '待審核', en: 'Pending',  cls: 'bg-amber-100 text-amber-700' },
+            Verified:  { zh: '已審核', en: 'Approved', cls: 'bg-emerald-100 text-emerald-700' },
+            Closed:    { zh: '已拒絕', en: 'Rejected', cls: 'bg-rose-100 text-rose-700' },
         };
         const _REVIEW_ACTION_LABEL = {
             submit:  { zh: '送審',   en: 'Submit',  icon: 'fa-paper-plane', cls: 'text-blue-600' },
@@ -10185,7 +10189,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 ? `<div ${nameClickAttrs} class="text-stone-800 font-medium text-sm cursor-pointer hover:text-violet-600 hover:underline" title="${_esc(r.entity_id)} — ${lc==='en'?'click for details':'點擊查看詳情'}">${_esc(r.entity_name)}</div>`
                 : `<div ${nameClickAttrs} class="text-stone-400 italic text-xs cursor-pointer hover:text-violet-600 hover:underline" title="${_esc(r.entity_id)} — ${lc==='en'?'click for details':'點擊查看詳情'}">${lc==='en' ? 'entity deleted' : '實體已刪除'}</div>`;
             const checked = _reviewSelected.has(r.id) ? 'checked' : '';
-            const isLockedTestcase = r.entity_type === 'testcase' && r.status === 'approved';
+            const isLockedTestcase = r.entity_type === 'testcase' && (r.status === 'approved' || r.status === 'Verified');
             const trCls = isLockedTestcase
                 ? 'align-top opacity-50 bg-stone-50 select-none'
                 : 'hover:bg-violet-50/40 align-top';
@@ -10212,13 +10216,13 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             // 歷史軌跡
             btns.push(`<button type="button" onclick="reviewOpenHistory('${r.id}')" title="${lc==='en'?'History':'審核軌跡'}" class="px-2 py-1 text-xs border border-stone-300 rounded hover:bg-violet-50 text-violet-600"><i class="fa-solid fa-circle-exclamation"></i></button>`);
             // 報告匯出按鈕（僅已審核狀態才顯示）
-            if (r.entity_type === 'report' && r.status === 'approved') {
+            if (r.entity_type === 'report' && (r.status === 'approved' || r.status === 'Verified')) {
                 btns.push(`<button type="button" onclick="reviewExportReport('${r.entity_id}')" title="${lc==='en'?'Export PDF':'匯出 PDF'}" class="px-2 py-1 text-xs border border-blue-300 rounded hover:bg-blue-50 text-blue-600 font-semibold"><i class="fa-solid fa-file-pdf"></i> ${lc==='en'?'Export':'匯出'}</button>`);
             }
             if (r.status === 'InReview' || r.status === 'pending') {
                 btns.push(`<button type="button" onclick="reviewApprove('${r.id}')" class="px-2 py-1 text-xs bg-emerald-500 hover:bg-emerald-600 text-white rounded font-semibold"><i class="fa-solid fa-check"></i> ${lc==='en'?'Approve':'通過'}</button>`);
                 btns.push(`<button type="button" onclick="reviewPromptReject('${r.id}')" class="px-2 py-1 text-xs bg-rose-500 hover:bg-rose-600 text-white rounded font-semibold"><i class="fa-solid fa-xmark"></i> ${lc==='en'?'Reject':'拒絕'}</button>`);
-            } else if (!(r.entity_type === 'testcase' && r.status === 'approved')) {
+            } else if (!(r.entity_type === 'testcase' && (r.status === 'approved' || r.status === 'Verified'))) {
                 // 已審核的測試案例鎖定，不顯示退回；其餘（已拒絕、已審核的報告等）可退回
                 btns.push(`<button type="button" onclick="reviewPromptRevert('${r.id}')" class="px-2 py-1 text-xs bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold"><i class="fa-solid fa-undo"></i> ${lc==='en'?'Revert':'退回'}</button>`);
             }
