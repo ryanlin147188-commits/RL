@@ -10153,7 +10153,8 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 const params = new URLSearchParams({status: _reviewActiveTab});
                 const t = document.getElementById('reviewTypeFilter')?.value;
                 if (t) params.set('entity_type', t);
-                const rows = await apiFetch('/api/reviews?' + params);
+                const rawRows = await apiFetch('/api/reviews?' + params);
+                const rows = rawRows.filter(r => r.entity_type !== 'script');
                 _reviewRowsCache = rows;
                 cnt.textContent = rows.length;
                 if (!rows.length) {
@@ -10210,8 +10211,8 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             btns.push(`<button type="button" onclick="reviewOpenDetail('${r.id}')" title="${lc==='en'?'View details':'查看詳情'}" class="px-2 py-1 text-xs border border-stone-300 rounded hover:bg-violet-50 text-violet-600"><i class="fa-solid fa-eye"></i></button>`);
             // 歷史軌跡
             btns.push(`<button type="button" onclick="reviewOpenHistory('${r.id}')" title="${lc==='en'?'History':'審核軌跡'}" class="px-2 py-1 text-xs border border-stone-300 rounded hover:bg-violet-50 text-violet-600"><i class="fa-solid fa-circle-exclamation"></i></button>`);
-            // 報告匯出按鈕（不限狀態，只要是 report 類型就顯示）
-            if (r.entity_type === 'report') {
+            // 報告匯出按鈕（僅已審核狀態才顯示）
+            if (r.entity_type === 'report' && r.status === 'approved') {
                 btns.push(`<button type="button" onclick="reviewExportReport('${r.entity_id}')" title="${lc==='en'?'Export PDF':'匯出 PDF'}" class="px-2 py-1 text-xs border border-blue-300 rounded hover:bg-blue-50 text-blue-600 font-semibold"><i class="fa-solid fa-file-pdf"></i> ${lc==='en'?'Export':'匯出'}</button>`);
             }
             if (r.status === 'InReview' || r.status === 'pending') {
