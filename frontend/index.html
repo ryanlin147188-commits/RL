@@ -17046,7 +17046,7 @@ curl -X POST http://localhost:8000/api/defects \\
     // ── 統計列 ────────────────────────────────────────────────────────
     function _fcRenderStats() {
         if (!_fcResult) return;
-        const hasH = document.getElementById('fcHasHeader').checked ? 1 : 0;
+        const hasH = 1; // 固定：第一列為標題列
         document.getElementById('fcStatTotalA').textContent = (_fcFileA.rows.length - hasH);
         document.getElementById('fcStatTotalB').textContent = (_fcFileB.rows.length - hasH);
         document.getElementById('fcStatSame').textContent   = _fcResult.filter(r=>r.status==='same').length;
@@ -17177,7 +17177,7 @@ curl -X POST http://localhost:8000/api/defects \\
         document.getElementById('fcStatsBar').classList.add('hidden');
         document.getElementById('fcResultArea').classList.add('hidden');
         document.getElementById('fcExportBtn').disabled = true;
-        document.getElementById('fcKeyCol').innerHTML = '<option value="">按列序 (Row Index)</option>';
+        // fcKeyCol 已移除
     }
     </script>
 </body>
