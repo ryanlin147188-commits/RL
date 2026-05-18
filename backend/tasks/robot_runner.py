@@ -554,13 +554,16 @@ def _translate_step(step: dict, ctx: dict) -> list[str]:
         )
 
     if action == "selectreact":
-        # React Select / headless UI 下拉選單：value = 要選取的選項文字（模糊比對）
-        # 流程：點控件開下拉 → 等 option list 出現 → 點第一個包含 value 的 option
-        option_locator = (
-            f"css=[id^='react-select'][id*='option']"
-            if not value else
-            f"text={value}"
-        )
+        # React Select / headless UI 下拉選單：value = 要選取的選項文字（精確比對）
+        # 流程：點控件開下拉 → 等 option list 出現 → 點唯一符合的 option
+        # XPath 鎖定 id 含 'react-select' 且含 '-option-' 的 div，避免 strict mode 衝突
+        if value:
+            option_locator = (
+                f"xpath=//div[contains(@id,'react-select') and contains(@id,'-option-')"
+                f" and normalize-space(.)='{value}']"
+            )
+        else:
+            option_locator = "css=[id^='react-select'][id*='-option-']"
         return out(
             _overlay_cleanup_line(),
             line("Wait For Elements State", locator, "visible", "timeout=20s"),
