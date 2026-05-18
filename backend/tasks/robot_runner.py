@@ -632,8 +632,11 @@ def _translate_step(step: dict, ctx: dict) -> list[str]:
             compare_line("${actual}", compare or "Contains", expected),
         )
     if action == "assertvalue":
+        # Get Property 'value' 僅對 input/select/textarea 有效；對 div/label/span 等
+        # 會拋出 AttributeError。改用 JS：有 value 屬性就回傳 value，否則回傳 textContent。
+        get_val_js = "(el) => el.value !== undefined && el.tagName !== 'DIV' && el.tagName !== 'SPAN' && el.tagName !== 'LABEL' && el.tagName !== 'P' ? el.value : (el.textContent || '').trim()"
         return out_w(
-            line("${actual}=", "Get Property", locator, "value"),
+            line("${actual}=", "Evaluate JavaScript", locator, get_val_js),
             compare_line("${actual}", compare or "Equals", expected),
         )
     if action == "asserturl":
