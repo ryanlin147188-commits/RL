@@ -2038,11 +2038,6 @@
                             <button onclick="renderTestCasesList()" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50 transition" title="同步左側目錄樹">
                                 <i class="fa-solid fa-rotate"></i> 重新整理
                             </button>
-                            <button id="tcBulkReassignBtn" onclick="tcBulkReassignSelected()" disabled
-                                class="px-3 py-2 bg-amber-500 hover:bg-amber-600 disabled:bg-stone-300 disabled:cursor-not-allowed text-white rounded-md text-sm font-semibold shadow-sm transition flex items-center gap-1.5" title="重新指派已勾選的測試案例">
-                                <i class="fa-solid fa-user-tag"></i> 重新指派 <span id="tcBulkReassignCount">(0)</span>
-                            </button>
-
                             <button id="tcBulkDeleteBtn" onclick="tcBulkDeleteSelected()" disabled
                                 class="px-3 py-2 bg-rose-500 hover:bg-rose-600 disabled:bg-stone-300 disabled:cursor-not-allowed text-white rounded-md text-sm font-semibold shadow-sm transition flex items-center gap-1.5" title="刪除已勾選的測試案例(可跨頁)">
                                 <i class="fa-solid fa-trash"></i> 刪除 <span id="tcBulkDeleteCount">(0)</span>
@@ -10473,8 +10468,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             if (r.status === 'InReview' || r.status === 'pending') {
                 btns.push(`<button type="button" onclick="reviewApprove('${r.id}')" class="px-2 py-1 text-xs bg-emerald-500 hover:bg-emerald-600 text-white rounded font-semibold"><i class="fa-solid fa-check"></i> ${lc==='en'?'Approve':'通過'}</button>`);
                 btns.push(`<button type="button" onclick="reviewPromptReject('${r.id}')" class="px-2 py-1 text-xs bg-rose-500 hover:bg-rose-600 text-white rounded font-semibold"><i class="fa-solid fa-xmark"></i> ${lc==='en'?'Reject':'拒絕'}</button>`);
-            } else if (!(r.entity_type === 'testcase' && (r.status === 'approved' || r.status === 'Verified'))) {
-                // 已審核的測試案例鎖定，不顯示退回；其餘（已拒絕、已審核的報告等）可退回
+            } else {
                 btns.push(`<button type="button" onclick="reviewPromptRevert('${r.id}')" class="px-2 py-1 text-xs bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold"><i class="fa-solid fa-undo"></i> ${lc==='en'?'Revert':'退回'}</button>`);
             }
             return `<div class="flex items-center gap-1 justify-center flex-wrap">${btns.join('')}</div>`;
