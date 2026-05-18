@@ -5746,25 +5746,72 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
 
             try {
-                await html2pdf()
-                    .from(container)
-                    .set({
-                        margin: [10, 12, 10, 12],
-                        filename,
-                        image: { type: 'jpeg', quality: 0.92 },
-                        html2canvas: {
-                            scale: 2,
-                            useCORS: true,
-                            backgroundColor: '#ffffff',
-                            windowWidth: 794,
-                            // 用元素自身完整高度而非 viewport
-                            height: container.scrollHeight,
-                            windowHeight: container.scrollHeight,
-                        },
-                        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-                        pagebreak: { mode: ['avoid-all', 'css'], before: '.pdf-case-break', avoid: ['.pdf-step', '.pdf-case-header', '.pdf-step-shots'] },
-                    })
-                    .save();
+                // 1. 整份 DOM 渲染成單一 canvas（不讓 html2pdf 自行切頁）
+                const fullCanvas = await html2canvas(container, {
+                    scale: 2,
+                    useCORS: true,
+                    backgroundColor: '#ffffff',
+                    windowWidth: 794,
+                    height: container.scrollHeight,
+                    windowHeight: container.scrollHeight,
+                });
+
+                // 2. A4 portrait 尺寸：210×297 mm，留白各 10/12 mm
+                const MARGIN_T = 10, MARGIN_B = 10, MARGIN_L = 12, MARGIN_R = 12;
+                const CONTENT_W_MM = 210 - MARGIN_L - MARGIN_R; // 186 mm
+                const CONTENT_H_MM = 297 - MARGIN_T - MARGIN_B; // 277 mm
+                const pxPerMm = fullCanvas.width / CONTENT_W_MM;
+                const pageH_px = Math.round(CONTENT_H_MM * pxPerMm);
+
+                // 3. 收集所有「不可被切斷」的元素邊界（canvas 座標系，scale=2 已乘）
+                const containerRect = container.getBoundingClientRect();
+                const avoidEls = container.querySelectorAll('.pdf-step, .pdf-case-header');
+                const avoidBounds = Array.from(avoidEls).map(el => {
+                    const r = el.getBoundingClientRect();
+                    return {
+                        top:    Math.round((r.top    - containerRect.top) * 2),
+                        bottom: Math.round((r.bottom - containerRect.top) * 2),
+                    };
+                }).filter(b => b.bottom > b.top + 4);
+
+                // 4. 計算每頁切割位置（若分頁線落在 avoid 元素內，提前到該元素頂端）
+                const slices = [];
+                let pageStart = 0;
+                while (pageStart < fullCanvas.height) {
+                    let pageEnd = pageStart + pageH_px;
+                    if (pageEnd < fullCanvas.height) {
+                        for (const b of avoidBounds) {
+                            if (b.top < pageEnd && b.bottom > pageEnd && b.top > pageStart) {
+                                pageEnd = b.top;
+                                break;
+                            }
+                        }
+                    }
+                    pageEnd = Math.min(pageEnd, fullCanvas.height);
+                    if (pageEnd > pageStart) slices.push({ start: pageStart, end: pageEnd });
+                    pageStart = pageEnd;
+                }
+
+                // 5. 用 jsPDF（html2pdf bundle 內建）逐頁貼圖
+                const jsPDFCls = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+                const doc = new jsPDFCls({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+                for (let i = 0; i < slices.length; i++) {
+                    const { start, end } = slices[i];
+                    const h_px = end - start;
+                    const tmp = document.createElement('canvas');
+                    tmp.width  = fullCanvas.width;
+                    tmp.height = h_px;
+                    const ctx = tmp.getContext('2d');
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, tmp.width, tmp.height);
+                    ctx.drawImage(fullCanvas, 0, start, fullCanvas.width, h_px,
+                                              0,     0, fullCanvas.width, h_px);
+                    if (i > 0) doc.addPage();
+                    const imgH_mm = h_px / pxPerMm;
+                    doc.addImage(tmp.toDataURL('image/jpeg', 0.92), 'JPEG',
+                                 MARGIN_L, MARGIN_T, CONTENT_W_MM, imgH_mm);
+                }
+                doc.save(filename);
                 showToast('PDF 匯出完成', 'success');
             } catch (e) {
                 showToast('PDF 匯出失敗：' + (e?.message || e), 'error');
