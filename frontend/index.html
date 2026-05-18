@@ -5753,16 +5753,16 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                         filename,
                         image: { type: 'jpeg', quality: 0.92 },
                         html2canvas: {
-                            scale: 1.5,
+                            scale: 2,
                             useCORS: true,
                             backgroundColor: '#ffffff',
-                            windowWidth: 960,
+                            windowWidth: 794,
                             // 用元素自身完整高度而非 viewport
                             height: container.scrollHeight,
                             windowHeight: container.scrollHeight,
                         },
-                        jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
-                        pagebreak: { mode: ['css', 'legacy'], before: '.pdf-case-break', avoid: ['.pdf-step', '.pdf-case-header', 'img'] },
+                        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+                        pagebreak: { mode: ['avoid-all', 'css'], before: '.pdf-case-break', avoid: ['.pdf-step', '.pdf-case-header', '.pdf-step-shots'] },
                     })
                     .save();
                 showToast('PDF 匯出完成', 'success');
@@ -5826,7 +5826,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             // 可見地擺在最頂層渲染（html2canvas 對 left:-99999px 的元素常常截不到 →
             // 結果會是空白 PDF）。為了不干擾使用者，外層再加一個 backdrop 遮住，
             // 等匯出完成再一起移除。
-            wrap.style.cssText = 'position:absolute; left:0; top:0; margin:0; width:960px; box-sizing:border-box; overflow:hidden; word-break:break-word; overflow-wrap:anywhere; background:#ffffff; padding:20px 32px; font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif; color:#1e293b; z-index:99999;';
+            wrap.style.cssText = 'position:absolute; left:0; top:0; margin:0; width:794px; box-sizing:border-box; overflow:visible; word-break:break-word; overflow-wrap:anywhere; background:#ffffff; padding:20px 28px; font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif; color:#1e293b; z-index:99999;';
 
             const statusColor = report.status === 'Passed' ? '#16a34a' : '#dc2626';
             const statusBg = report.status === 'Passed' ? '#dcfce7' : '#fee2e2';
@@ -5875,14 +5875,14 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             const shotMaxH = kind === 'APP' ? 320 : 200;
             const shotLabel = kind === 'APP' ? 'Mobile' : 'Pre';
             const screenshots = showScreens ? `
-                <div style="display:flex; gap:10px; margin-top:10px;">
+                <div class="pdf-step-shots" style="margin-top:10px; page-break-inside:avoid; break-inside:avoid; display:block;">
                     ${step.preScreenshotUrl ? `
-                        <div style="flex:1; border:1px solid #e2e8f0; border-radius:4px; padding:6px;">
+                        <div style="border:1px solid #e2e8f0; border-radius:4px; padding:6px; margin-bottom:6px; page-break-inside:avoid; break-inside:avoid; display:block;">
                             <div style="font-size:10px; color:#64748b; margin-bottom:4px;">動作前 (${shotLabel}-Action)</div>
                             <img src="${step.preScreenshotUrl}" style="max-width:100%; max-height:${shotMaxH}px; display:block; margin:auto;" crossorigin="anonymous">
                         </div>` : ''}
                     ${step.postScreenshotUrl ? `
-                        <div style="flex:1; border:1px solid #e2e8f0; border-radius:4px; padding:6px;">
+                        <div style="border:1px solid #e2e8f0; border-radius:4px; padding:6px; margin-bottom:6px; page-break-inside:avoid; break-inside:avoid; display:block;">
                             <div style="font-size:10px; color:#64748b; margin-bottom:4px;">動作後 (Post-Action)</div>
                             <img src="${step.postScreenshotUrl}" style="max-width:100%; max-height:${shotMaxH}px; display:block; margin:auto;" crossorigin="anonymous">
                         </div>` : ''}
@@ -5934,7 +5934,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             })[kind] || { bg:'#f1f5f9', fg:'#475569' };
 
             return `
-                <div class="pdf-step" style="border:1px solid #e2e8f0; border-radius:6px; padding:12px; margin-bottom:10px; background:#ffffff; page-break-inside:avoid; box-sizing:border-box; overflow:hidden;">
+                <div class="pdf-step" style="border:1px solid #e2e8f0; border-radius:6px; padding:12px; margin-bottom:10px; background:#ffffff; page-break-inside:avoid; break-inside:avoid; box-sizing:border-box; display:block;">
                     <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px; min-width:0;">
                         <span style="display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; flex-shrink:0; border-radius:50%; background:${sBg}; color:${sColor}; font-weight:700; font-size:12px;">${sIcon}</span>
                         <span style="background:#f1f5f9; color:#475569; padding:1px 6px; border-radius:3px; font-size:10px; font-weight:700; flex-shrink:0;">${escapeHtml(step.bdd || '')}</span>
