@@ -2977,20 +2977,9 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
 
                         <!-- Settings bar（兩個檔案至少一個上傳後顯示）-->
                         <div id="fcSettingsBar" class="px-5 pb-4 hidden">
-                            <div class="bg-slate-50 rounded-lg border border-slate-200 p-3 flex flex-wrap items-center gap-4">
-                                <label class="flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none">
-                                    <input type="checkbox" id="fcHasHeader" checked onchange="_fcUpdateKeyColOptions()"
-                                        class="rounded border-slate-300 text-indigo-500 focus:ring-indigo-400">
-                                    第一列為標題列
-                                </label>
-                                <div class="flex items-center gap-2">
-                                    <label for="fcKeyCol" class="text-sm text-slate-700 whitespace-nowrap">比對依據欄</label>
-                                    <select id="fcKeyCol" class="border border-slate-300 rounded px-2 py-1.5 text-sm bg-white focus:ring-1 focus:ring-indigo-400 outline-none min-w-[160px]">
-                                        <option value="">按列序 (Row Index)</option>
-                                    </select>
-                                </div>
+                            <div class="flex justify-end">
                                 <button type="button" onclick="_fcRunCompare()"
-                                    class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-sm font-medium flex items-center gap-1 ml-auto">
+                                    class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-sm font-medium flex items-center gap-1">
                                     <i class="fa-solid fa-magnifying-glass"></i> 開始比對
                                 </button>
                             </div>
@@ -16967,39 +16956,15 @@ curl -X POST http://localhost:8000/api/defects \\
     }
 
     function _fcUpdateKeyColOptions() {
-        const sel       = document.getElementById('fcKeyCol');
-        const hasHeader = document.getElementById('fcHasHeader').checked;
-        const rows      = (_fcFileA?.rows || _fcFileB?.rows || []);
-        const prevVal   = sel.value;
-        sel.innerHTML   = '<option value="">按列序 (Row Index)</option>';
-        if (rows.length === 0) return;
-        if (hasHeader) {
-            rows[0].forEach((h, i) => {
-                const o = document.createElement('option');
-                o.value = String(i);
-                o.textContent = (h && h.trim()) ? h.trim() : `欄 ${i+1}`;
-                sel.appendChild(o);
-            });
-        } else {
-            const maxCols = Math.max(...rows.slice(0,5).map(r => r.length), 0);
-            for (let i = 0; i < maxCols; i++) {
-                const o = document.createElement('option');
-                o.value = String(i);
-                o.textContent = `欄 ${i+1}`;
-                sel.appendChild(o);
-            }
-        }
-        // 恢復上一次選取的欄位
-        if (prevVal) sel.value = prevVal;
+        // 已移除 UI 控件，無操作
     }
 
     // ── 執行比對 ─────────────────────────────────────────────────────
     function _fcRunCompare() {
         if (!_fcFileA || !_fcFileB) { showToast('請先上傳兩個檔案', 'warning'); return; }
 
-        const hasHeader = document.getElementById('fcHasHeader').checked;
-        const keyColStr = document.getElementById('fcKeyCol').value;
-        const keyCol    = keyColStr === '' ? null : parseInt(keyColStr, 10);
+        const hasHeader = true;   // 固定：第一列為標題列
+        const keyCol    = null;   // 固定：按列序比對
 
         let rowsA = _fcFileA.rows.map(r => [...r]);
         let rowsB = _fcFileB.rows.map(r => [...r]);
