@@ -2063,31 +2063,6 @@
                             <button onclick="openTcCreateModal()" class="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold shadow-sm transition flex items-center gap-1.5" title="新增測試案例">
                                 <i class="fa-solid fa-plus"></i> 新增案例
                             </button>
-                            <!-- 匯出 -->
-                            <div class="relative" id="tcExportMenuWrap">
-                                <button onclick="tcToggleMenu('tcExportMenu')" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50 transition flex items-center gap-1.5">
-                                    <i class="fa-solid fa-file-export text-amber-600"></i> 匯出 <i class="fa-solid fa-caret-down text-xs ml-0.5"></i>
-                                </button>
-                                <div id="tcExportMenu" class="hidden absolute left-0 top-full mt-1 z-50 bg-white border border-stone-200 rounded-md shadow-lg py-1 w-36">
-                                    <button onclick="tcExport('csv');tcToggleMenu('tcExportMenu')" class="w-full text-left px-4 py-2 text-sm hover:bg-amber-50 flex items-center gap-2"><i class="fa-solid fa-file-csv text-stone-500"></i> CSV</button>
-                                    <button onclick="tcExport('excel');tcToggleMenu('tcExportMenu')" class="w-full text-left px-4 py-2 text-sm hover:bg-amber-50 flex items-center gap-2"><i class="fa-solid fa-file-excel text-emerald-600"></i> Excel</button>
-                                </div>
-                            </div>
-                            <!-- 匯入 -->
-                            <button onclick="document.getElementById('tcImportFileInput').click()" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50 transition flex items-center gap-1.5">
-                                <i class="fa-solid fa-file-import text-amber-600"></i> 匯入
-                            </button>
-                            <!-- 下載範本 -->
-                            <div class="relative" id="tcTemplateMenuWrap">
-                                <button onclick="tcToggleMenu('tcTemplateMenu')" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50 transition flex items-center gap-1.5">
-                                    <i class="fa-solid fa-file-arrow-down text-amber-600"></i> 下載範本 <i class="fa-solid fa-caret-down text-xs ml-0.5"></i>
-                                </button>
-                                <div id="tcTemplateMenu" class="hidden absolute left-0 top-full mt-1 z-50 bg-white border border-stone-200 rounded-md shadow-lg py-1 w-36">
-                                    <button onclick="tcDownloadTemplate('csv');tcToggleMenu('tcTemplateMenu')" class="w-full text-left px-4 py-2 text-sm hover:bg-amber-50 flex items-center gap-2"><i class="fa-solid fa-file-csv text-stone-500"></i> CSV</button>
-                                    <button onclick="tcDownloadTemplate('excel');tcToggleMenu('tcTemplateMenu')" class="w-full text-left px-4 py-2 text-sm hover:bg-amber-50 flex items-center gap-2"><i class="fa-solid fa-file-excel text-emerald-600"></i> Excel</button>
-                                </div>
-                            </div>
-                            <input type="file" id="tcImportFileInput" accept=".csv,.xlsx,.xls" onchange="tcHandleImportFile(this)" class="hidden">
                             <div class="text-xs text-stone-500 ml-auto flex items-center gap-3">
                                 <span id="tcBulkSelectionBadge" class="hidden px-2 py-0.5 bg-amber-100 text-amber-800 border border-amber-300 rounded font-medium">
                                     已勾選 <span id="tcBulkSelectionCount">0</span> 筆(跨頁保留)
