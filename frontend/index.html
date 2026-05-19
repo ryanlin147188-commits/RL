@@ -13453,6 +13453,14 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         }
         const escapeAttrBasic = escapeAttr;
 
+        function collectAllSchedulableNodes(nodes, path, out) {
+            if (!Array.isArray(nodes)) return;
+            for (const n of nodes) {
+                out.push({ id: n.id, label: n.name || n.title || n.label || '', level_type: n.level_type, isFile: !!n.isFile });
+                if (n.children && n.children.length) collectAllSchedulableNodes(n.children, path, out);
+            }
+        }
+
         function setTestRoundSelection(ids) {
             trNodeSelection.clear();
             (ids || []).forEach(id => trNodeSelection.add(id));
