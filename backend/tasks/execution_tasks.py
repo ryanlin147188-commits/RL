@@ -110,11 +110,10 @@ def run_tests(
             return
 
         # ── 載入專案層級設定（環境變數 / 設備）一次，所有 testcase 共用 ──
-        # 撈 report.project_id，再依 project_id 撈 project_env_vars + project_devices
+        # 分開兩個 try 區塊，避免 ProjectDevice import 失敗時靜默吃掉環境變數載入
         project_env_vars: dict[str, str] = {}
         project_devices: list[dict] = []
         try:
-            from app.models.project_device import ProjectDevice
             from app.models.project_env_var import ProjectEnvVar
 
             with SessionLocal() as db:
@@ -125,7 +124,17 @@ def run_tests(
                         ProjectEnvVar.project_id == pid
                     ).all()
                     project_env_vars = {row.name: row.value for row in env_rows}
+            if project_env_vars:
+                publish_log("INFO", f"🔑 載入專案環境變數 {len(project_env_vars)} 筆")
+        except Exception as exc:  # noqa: BLE001
+            publish_log("WARN", f"⚠ 載入專案環境變數失敗（將以空清單繼續）: {exc}")
+        try:
+            from app.models.project_device import ProjectDevice
 
+            with SessionLocal() as db:
+                report = db.get(ExecutionReport, report_id)
+                if report and report.project_id:
+                    pid = report.project_id
                     dev_rows = db.query(ProjectDevice).filter(
                         ProjectDevice.project_id == pid
                     ).all()
@@ -142,12 +151,10 @@ def run_tests(
                         }
                         for d in dev_rows
                     ]
-            if project_env_vars:
-                publish_log("INFO", f"🔑 載入專案環境變數 {len(project_env_vars)} 筆")
             if project_devices:
                 publish_log("INFO", f"📱 載入專案設備 {len(project_devices)} 筆")
-        except Exception as exc:  # noqa: BLE001
-            publish_log("WARN", f"⚠ 載入專案設定失敗（將以空清單繼續）: {exc}")
+        except Exception:  # noqa: BLE001
+            pass  # ProjectDevice 模組不存在時靜默略過，不影響環境變數載入
 
         passed_cases = 0
         failed_cases = 0
