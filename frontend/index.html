@@ -544,6 +544,7 @@
             100% { transform: translateX(350%); }
         }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body class="h-screen flex flex-col bg-stone-50 text-stone-800 font-sans overflow-hidden relative">
 
@@ -2037,6 +2038,31 @@
                             <button onclick="openTcCreateModal()" class="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold shadow-sm transition flex items-center gap-1.5" title="新增測試案例">
                                 <i class="fa-solid fa-plus"></i> 新增案例
                             </button>
+                            <!-- 匯出 -->
+                            <div class="relative" id="tcExportMenuWrap">
+                                <button onclick="tcToggleMenu('tcExportMenu')" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50 transition flex items-center gap-1.5">
+                                    <i class="fa-solid fa-file-export text-amber-600"></i> 匯出 <i class="fa-solid fa-caret-down text-xs ml-0.5"></i>
+                                </button>
+                                <div id="tcExportMenu" class="hidden absolute left-0 top-full mt-1 z-50 bg-white border border-stone-200 rounded-md shadow-lg py-1 w-36">
+                                    <button onclick="tcExport('csv');tcToggleMenu('tcExportMenu')" class="w-full text-left px-4 py-2 text-sm hover:bg-amber-50 flex items-center gap-2"><i class="fa-solid fa-file-csv text-stone-500"></i> CSV</button>
+                                    <button onclick="tcExport('excel');tcToggleMenu('tcExportMenu')" class="w-full text-left px-4 py-2 text-sm hover:bg-amber-50 flex items-center gap-2"><i class="fa-solid fa-file-excel text-emerald-600"></i> Excel</button>
+                                </div>
+                            </div>
+                            <!-- 匯入 -->
+                            <button onclick="document.getElementById('tcImportFileInput').click()" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50 transition flex items-center gap-1.5">
+                                <i class="fa-solid fa-file-import text-amber-600"></i> 匯入
+                            </button>
+                            <!-- 下載範本 -->
+                            <div class="relative" id="tcTemplateMenuWrap">
+                                <button onclick="tcToggleMenu('tcTemplateMenu')" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50 transition flex items-center gap-1.5">
+                                    <i class="fa-solid fa-file-arrow-down text-amber-600"></i> 下載範本 <i class="fa-solid fa-caret-down text-xs ml-0.5"></i>
+                                </button>
+                                <div id="tcTemplateMenu" class="hidden absolute left-0 top-full mt-1 z-50 bg-white border border-stone-200 rounded-md shadow-lg py-1 w-36">
+                                    <button onclick="tcDownloadTemplate('csv');tcToggleMenu('tcTemplateMenu')" class="w-full text-left px-4 py-2 text-sm hover:bg-amber-50 flex items-center gap-2"><i class="fa-solid fa-file-csv text-stone-500"></i> CSV</button>
+                                    <button onclick="tcDownloadTemplate('excel');tcToggleMenu('tcTemplateMenu')" class="w-full text-left px-4 py-2 text-sm hover:bg-amber-50 flex items-center gap-2"><i class="fa-solid fa-file-excel text-emerald-600"></i> Excel</button>
+                                </div>
+                            </div>
+                            <input type="file" id="tcImportFileInput" accept=".csv,.xlsx,.xls" onchange="tcHandleImportFile(this)" class="hidden">
                             <div class="text-xs text-stone-500 ml-auto flex items-center gap-3">
                                 <span id="tcBulkSelectionBadge" class="hidden px-2 py-0.5 bg-amber-100 text-amber-800 border border-amber-300 rounded font-medium">
                                     已勾選 <span id="tcBulkSelectionCount">0</span> 筆(跨頁保留)
@@ -2221,6 +2247,19 @@
                             </button>
                         </div>
                     </form>
+                </div>
+            </div>
+
+            <!-- 測試案例匯入 Modal -->
+            <div id="tcImportModal" class="hidden fixed inset-0 z-[160] bg-black/40 flex items-center justify-center p-4">
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg border border-stone-200">
+                    <div class="px-6 py-4 border-b border-stone-200 bg-amber-50/60 flex items-center justify-between">
+                        <h3 class="font-bold text-stone-800 text-base flex items-center gap-2">
+                            <i class="fa-solid fa-file-import text-amber-500"></i> 匯入測試案例
+                        </h3>
+                        <button type="button" onclick="document.getElementById('tcImportModal').classList.add('hidden')" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <div id="tcImportModalBody" class="p-6 space-y-4 max-h-[70vh] overflow-y-auto"></div>
                 </div>
             </div>
 
@@ -11089,6 +11128,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                         const platform = chain.find(a => a.level_type === 'PLATFORM');
                         const page = chain.find(a => a.level_type === 'PAGE');
                         const feature = chain.find(a => a.level_type === 'FEATURE');
+                        const scenario = chain.find(a => a.level_type === 'SCENARIO');
                         out.push({
                             id: n.id,
                             title: stripMd(n.title || n.name || n.id),
@@ -11096,6 +11136,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                             platform: platform ? (platform.name || platform.title) : '',
                             page: page ? (page.name || page.title) : '',
                             feature: feature ? (feature.name || feature.title) : '',
+                            scenario: scenario ? (scenario.name || scenario.title) : '',
                             path: chain.slice(0, -1).map(a => a.title || a.name).filter(Boolean).join(' / ')
                         });
                     }
@@ -11269,6 +11310,281 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             if (selAll) { selAll.checked = false; selAll.indeterminate = false; }
             tcUpdateBulkDeleteUI();
         }
+
+        // ==================== 測試案例 匯入 / 匯出 / 下載範本 ====================
+        const _TC_EXPORT_HEADERS = ['功能', '平台', '頁面', '情境', '測試案例名稱', '所在路徑'];
+        const _TC_IMPORT_HEADERS = ['功能', '平台', '頁面', '情境', '測試案例名稱'];
+        let _tcImportPendingRows = null;
+        let _tcImportNodeCache = new Map();
+
+        function tcToggleMenu(menuId) {
+            ['tcExportMenu', 'tcTemplateMenu'].forEach(id => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                if (id === menuId) el.classList.toggle('hidden');
+                else el.classList.add('hidden');
+            });
+        }
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('#tcExportMenuWrap') && !e.target.closest('#tcTemplateMenuWrap')) {
+                document.getElementById('tcExportMenu')?.classList.add('hidden');
+                document.getElementById('tcTemplateMenu')?.classList.add('hidden');
+            }
+        });
+
+        function _tcDownloadBlob(blob, filename) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = filename;
+            document.body.appendChild(a); a.click();
+            setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 500);
+        }
+
+        function tcExport(format) {
+            const rows = collectTestCaseNodesWithAncestors();
+            if (!rows.length) { showToast('目前沒有測試案例可匯出', 'error'); return; }
+            const data = rows.map(r => [r.feature || '', r.platform || '', r.page || '', r.scenario || '', r.title || '', r.path || '']);
+            const filename = 'testcases_' + new Date().toISOString().slice(0, 10);
+            if (format === 'csv') {
+                const csv = [_TC_EXPORT_HEADERS, ...data]
+                    .map(row => row.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(','))
+                    .join('\r\n');
+                _tcDownloadBlob(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' }), filename + '.csv');
+            } else {
+                if (typeof XLSX === 'undefined') { showToast('Excel 函式庫載入中，請稍後再試', 'error'); return; }
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([_TC_EXPORT_HEADERS, ...data]), '測試案例');
+                XLSX.writeFile(wb, filename + '.xlsx');
+            }
+            showToast('已匯出 ' + rows.length + ' 筆測試案例', 'success');
+        }
+
+        function tcDownloadTemplate(format) {
+            const sample = [
+                ['功能：登入頁', 'WEB', '頁面：登入頁', '正向', '成功登入'],
+                ['功能：登入頁', 'WEB', '頁面：登入頁', '負向', '密碼錯誤'],
+            ];
+            if (format === 'csv') {
+                const csv = [_TC_IMPORT_HEADERS, ...sample]
+                    .map(row => row.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(','))
+                    .join('\r\n');
+                _tcDownloadBlob(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' }), 'testcases_template.csv');
+            } else {
+                if (typeof XLSX === 'undefined') { showToast('Excel 函式庫載入中，請稍後再試', 'error'); return; }
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([_TC_IMPORT_HEADERS, ...sample]), '範本');
+                XLSX.writeFile(wb, 'testcases_template.xlsx');
+            }
+        }
+
+        async function tcHandleImportFile(input) {
+            const file = input.files[0];
+            input.value = '';
+            if (!file) return;
+            if (!currentProjectId) { showToast('請先選擇專案', 'error'); return; }
+            const ext = file.name.split('.').pop().toLowerCase();
+            let rows;
+            try {
+                if (ext === 'csv') {
+                    rows = await _tcParseCsv(file);
+                } else if (ext === 'xlsx' || ext === 'xls') {
+                    if (typeof XLSX === 'undefined') { showToast('Excel 函式庫載入中，請稍後再試', 'error'); return; }
+                    rows = await _tcParseExcel(file);
+                } else {
+                    showToast('請上傳 .csv 或 .xlsx / .xls 檔案', 'error'); return;
+                }
+            } catch(e) {
+                showToast('解析檔案失敗：' + e.message, 'error'); return;
+            }
+            const valid = rows.filter(r => (r['測試案例名稱'] || '').trim());
+            if (!valid.length) { showToast('檔案中沒有有效資料（請確認欄位標題符合範本）', 'error'); return; }
+            _tcShowImportPreview(rows, valid);
+        }
+
+        async function _tcParseCsv(file) {
+            const text = await file.text();
+            const content = text.replace(/^﻿/, '');
+            const lines = content.split(/\r?\n/);
+            if (!lines.length) return [];
+            const headers = _tcCsvLine(lines[0]);
+            return lines.slice(1)
+                .filter(l => l.trim())
+                .map(l => {
+                    const vals = _tcCsvLine(l);
+                    const obj = {};
+                    headers.forEach((h, i) => { obj[h.trim()] = (vals[i] || '').trim(); });
+                    return obj;
+                });
+        }
+        function _tcCsvLine(line) {
+            const res = []; let cur = ''; let inQ = false;
+            for (let i = 0; i < line.length; i++) {
+                const ch = line[i];
+                if (ch === '"') { if (inQ && line[i+1] === '"') { cur += '"'; i++; } else inQ = !inQ; }
+                else if (ch === ',' && !inQ) { res.push(cur); cur = ''; }
+                else cur += ch;
+            }
+            res.push(cur); return res;
+        }
+        async function _tcParseExcel(file) {
+            const buf = await file.arrayBuffer();
+            const wb = XLSX.read(buf, { type: 'array' });
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            return XLSX.utils.sheet_to_json(ws, { defval: '' })
+                .map(row => {
+                    const obj = {};
+                    Object.keys(row).forEach(k => { obj[k.trim()] = String(row[k] || '').trim(); });
+                    return obj;
+                });
+        }
+
+        function _tcShowImportPreview(allRows, validRows) {
+            _tcImportPendingRows = validRows;
+            const skipped = allRows.length - validRows.length;
+            const modal = document.getElementById('tcImportModal');
+            const body = document.getElementById('tcImportModalBody');
+            const previewRows = validRows.slice(0, 6);
+            body.innerHTML =
+                '<div class="text-sm text-stone-700">' +
+                    '<p>偵測到 <span class="font-bold text-amber-700">' + validRows.length + '</span> 筆有效資料' +
+                    (skipped > 0 ? '，另有 ' + skipped + ' 筆因缺少「測試案例名稱」將被略過。' : '。') + '</p>' +
+                    '<p class="mt-1 text-stone-500 text-xs">必要欄位：功能、平台、頁面、情境、測試案例名稱。若路徑中的節點不存在，系統會自動建立。</p>' +
+                '</div>' +
+                '<div class="border border-stone-200 rounded overflow-x-auto">' +
+                    '<table class="w-full text-xs min-w-[480px]">' +
+                    '<thead class="bg-stone-50 sticky top-0"><tr>' +
+                    _TC_IMPORT_HEADERS.map(h => '<th class="p-2 text-left text-stone-500 font-medium">' + escapeHtml(h) + '</th>').join('') +
+                    '</tr></thead><tbody>' +
+                    previewRows.map(r =>
+                        '<tr class="border-t border-stone-100">' +
+                        _TC_IMPORT_HEADERS.map(h => '<td class="p-2">' + escapeHtml(r[h] || '') + '</td>').join('') +
+                        '</tr>'
+                    ).join('') +
+                    (validRows.length > 6 ? '<tr><td colspan="5" class="p-2 text-center text-stone-400">… 還有 ' + (validRows.length - 6) + ' 筆</td></tr>' : '') +
+                    '</tbody></table>' +
+                '</div>' +
+                '<div class="flex justify-end gap-2 pt-2">' +
+                    '<button onclick="document.getElementById(\'tcImportModal\').classList.add(\'hidden\')" class="px-4 py-2 border border-stone-300 rounded text-sm text-stone-600 hover:bg-stone-50">取消</button>' +
+                    '<button onclick="_tcDoImport()" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded text-sm font-semibold"><i class="fa-solid fa-file-import"></i> 開始匯入</button>' +
+                '</div>';
+            modal.classList.remove('hidden');
+        }
+
+        async function _tcDoImport() {
+            const rows = _tcImportPendingRows;
+            _tcImportPendingRows = null;
+            _tcImportNodeCache = new Map();
+            if (!rows || !rows.length) return;
+            const body = document.getElementById('tcImportModalBody');
+            let success = 0; const errors = [];
+
+            for (let i = 0; i < rows.length; i++) {
+                const row = rows[i];
+                const featureName  = (row['功能']     || '').trim();
+                const platformName = (row['平台']     || '').trim();
+                const pageName     = (row['頁面']     || '').trim();
+                const scenarioName = (row['情境']     || '').trim();
+                let   tcName       = (row['測試案例名稱'] || '').trim();
+                if (!tcName) continue;
+                if (!/\.md$/i.test(tcName)) tcName += '.md';
+                body.innerHTML = '<div class="text-center py-6"><i class="fa-solid fa-spinner fa-spin text-amber-500 text-2xl"></i>' +
+                    '<p class="mt-2 text-sm text-stone-600">正在匯入第 ' + (i+1) + ' / ' + rows.length + ' 筆：' + escapeHtml(tcName) + '</p></div>';
+                try {
+                    const scenarioNode = await _tcFindOrCreatePath(featureName, platformName, pageName, scenarioName);
+                    await apiFetch('/api/nodes', {
+                        method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ project_id: currentProjectId, parent_id: scenarioNode.id, name: tcName })
+                    });
+                    success++;
+                } catch(e) {
+                    errors.push({ idx: i+1, name: tcName, reason: e.message || String(e) });
+                }
+            }
+
+            try { await switchProject(currentProjectId, { goHome: false }); } catch(_) {}
+            renderTestCasesList();
+
+            const errHtml = errors.length
+                ? '<div class="mt-3 border border-red-200 rounded bg-red-50 p-3 max-h-36 overflow-y-auto">' +
+                  '<p class="text-xs font-semibold text-red-700 mb-1">失敗 ' + errors.length + ' 筆：</p>' +
+                  errors.map(e => '<p class="text-xs text-red-600">第 ' + e.idx + ' 筆「' + escapeHtml(e.name) + '」：' + escapeHtml(e.reason) + '</p>').join('') +
+                  '</div>'
+                : '';
+            body.innerHTML =
+                '<div class="text-center py-2">' +
+                    '<i class="fa-solid fa-circle-check text-emerald-500 text-3xl"></i>' +
+                    '<p class="mt-2 font-semibold text-stone-800">匯入完成</p>' +
+                    '<p class="text-sm text-stone-600 mt-1">成功 <span class="text-emerald-600 font-bold">' + success + '</span> 筆，' +
+                    '失敗 <span class="' + (errors.length ? 'text-red-600' : 'text-stone-500') + ' font-bold">' + errors.length + '</span> 筆</p>' +
+                '</div>' + errHtml +
+                '<div class="flex justify-center mt-4">' +
+                    '<button onclick="document.getElementById(\'tcImportModal\').classList.add(\'hidden\')" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded text-sm font-semibold">關閉</button>' +
+                '</div>';
+        }
+
+        async function _tcFindOrCreatePath(featureName, platformName, pageName, scenarioName) {
+            // FEATURE
+            const fKey = 'F:' + featureName;
+            let featureId = _tcImportNodeCache.get(fKey);
+            if (!featureId) {
+                const node = (activeTreeData || []).find(n => (n.name || n.title) === featureName);
+                if (node) { featureId = node.id; }
+                else {
+                    const r = await apiFetch('/api/nodes', { method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ project_id: currentProjectId, parent_id: null, name: featureName }) });
+                    featureId = r.id;
+                }
+                _tcImportNodeCache.set(fKey, featureId);
+            }
+            // PLATFORM
+            const pKey = 'P:' + platformName + ':' + featureId;
+            let platformId = _tcImportNodeCache.get(pKey);
+            if (!platformId) {
+                const featureNode = (activeTreeData || []).find(n => n.id === featureId);
+                const node = (featureNode?.children || []).find(n => (n.name || n.title) === platformName);
+                if (node) { platformId = node.id; }
+                else {
+                    const r = await apiFetch('/api/nodes', { method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ project_id: currentProjectId, parent_id: featureId, name: platformName }) });
+                    platformId = r.id;
+                }
+                _tcImportNodeCache.set(pKey, platformId);
+            }
+            // PAGE
+            const pgKey = 'PG:' + pageName + ':' + platformId;
+            let pageId = _tcImportNodeCache.get(pgKey);
+            if (!pageId) {
+                const platformNode = (activeTreeData || []).flatMap(n => n.children || []).find(n => n.id === platformId);
+                const node = (platformNode?.children || []).find(n => (n.name || n.title) === pageName);
+                if (node) { pageId = node.id; }
+                else {
+                    const r = await apiFetch('/api/nodes', { method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ project_id: currentProjectId, parent_id: platformId, name: pageName }) });
+                    pageId = r.id;
+                }
+                _tcImportNodeCache.set(pgKey, pageId);
+            }
+            // SCENARIO
+            const sKey = 'S:' + scenarioName + ':' + pageId;
+            let scenarioId = _tcImportNodeCache.get(sKey);
+            if (!scenarioId) {
+                const pageNode = (activeTreeData || [])
+                    .flatMap(n => n.children || [])
+                    .flatMap(n => n.children || [])
+                    .find(n => n.id === pageId);
+                const node = (pageNode?.children || []).find(n => (n.name || n.title) === scenarioName);
+                if (node) { scenarioId = node.id; }
+                else {
+                    const r = await apiFetch('/api/nodes', { method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ project_id: currentProjectId, parent_id: pageId, name: scenarioName }) });
+                    scenarioId = r.id;
+                }
+                _tcImportNodeCache.set(sKey, scenarioId);
+            }
+            return { id: scenarioId };
+        }
+        // ==================== 測試案例 匯入/匯出 結束 ====================
+
         // Tier G-4 共用:從 N 個 target entity 一次建立 N 筆追蹤 todo + 自動連結
         async function _bulkCreateTodosForTargets(targetType, ids, onDone) {
             if (!ids.length) return;
