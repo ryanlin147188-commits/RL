@@ -3476,6 +3476,14 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 .catch((e) => { _jsPDFPromise = null; throw e; });
             return _jsPDFPromise;
         }
+        let _jszipPromise = null;
+        function ensureJSZip() {
+            if (window.JSZip) return Promise.resolve();
+            if (_jszipPromise) return _jszipPromise;
+            _jszipPromise = _loadScript('https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js')
+                .catch((e) => { _jszipPromise = null; throw e; });
+            return _jszipPromise;
+        }
 
         // ==================== 0. Toast 提示系統 ====================
         function showToast(message, type = 'info') {
@@ -4576,8 +4584,81 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
 
         // ==================== 測試步驟 匯入 / 匯出 / 下載範本 ====================
         const STEP_EXPORT_HEADERS = ['BDD 關鍵字', '步驟描述', '動作(Action)', '定位器(Locator)', '輸入值(Input)', '比對條件', '預期結果'];
+        const STEP_BDD_KEYWORDS = ['Given', 'When', 'And', 'Then', 'But'];
         let _stepImportPendingRows = null;
         let _stepImportReplaceMode = true;
+
+        // 把 0-based column index 轉成 Excel 欄位字母（0 → A, 25 → Z, 26 → AA）
+        function _stepColLetter(idx) {
+            let s = '', n = idx + 1;
+            while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); }
+            return s;
+        }
+
+        // 取得當前 testCase 或預設 (WEB) 平台的 Action 清單
+        function _stepActionOptionsFor(platform) {
+            const list = ACTION_OPTIONS_BY_PLATFORM[platform] || ACTION_OPTIONS_BY_PLATFORM.WEB;
+            // 去重保險
+            return Array.from(new Set(list));
+        }
+
+        // 產生含下拉選單的 xlsx Blob:
+        //   1. 主 sheet 寫入 headers + rows
+        //   2. 另開 "選項清單" sheet,A 欄放 BDD 關鍵字,B 欄放 Action
+        //   3. 用 SheetJS 寫成 ArrayBuffer
+        //   4. 用 JSZip 解壓 sheet1.xml,在 </sheetData> 後注入 dataValidations XML
+        // 回傳 Blob (可直接餵 _tcDownloadBlob)
+        async function _buildStepsXlsxWithDropdowns(headers, rows, mainSheetName, actions) {
+            if (typeof XLSX === 'undefined') throw new Error('Excel 函式庫尚未載入');
+            await ensureJSZip();
+
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([headers, ...rows]), mainSheetName);
+
+            const LIST_SHEET = '選項清單';
+            const maxLen = Math.max(STEP_BDD_KEYWORDS.length, actions.length);
+            const listAoa = [['BDD 關鍵字', '動作(Action)']];
+            for (let i = 0; i < maxLen; i++) {
+                listAoa.push([STEP_BDD_KEYWORDS[i] || '', actions[i] || '']);
+            }
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(listAoa), LIST_SHEET);
+
+            const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+
+            const zip = await JSZip.loadAsync(out);
+            // 主 sheet 為第一個加入,SheetJS 0.18 命名為 sheet1.xml
+            const sheetPath = 'xl/worksheets/sheet1.xml';
+            const sheetFile = zip.file(sheetPath);
+            if (sheetFile) {
+                let xml = await sheetFile.async('string');
+                const bddCol = _stepColLetter(headers.indexOf('BDD 關鍵字'));
+                const actionCol = _stepColLetter(headers.indexOf('動作(Action)'));
+                const bddRange = `${bddCol}2:${bddCol}1048576`;
+                const actionRange = `${actionCol}2:${actionCol}1048576`;
+                const bddFormula = `'${LIST_SHEET}'!$A$2:$A$${STEP_BDD_KEYWORDS.length + 1}`;
+                const actionFormula = `'${LIST_SHEET}'!$B$2:$B$${actions.length + 1}`;
+                const dv =
+                    `<dataValidations count="2">` +
+                        `<dataValidation type="list" allowBlank="1" showInputMessage="1" showErrorMessage="1" sqref="${bddRange}">` +
+                            `<formula1>${bddFormula}</formula1>` +
+                        `</dataValidation>` +
+                        `<dataValidation type="list" allowBlank="1" showInputMessage="1" showErrorMessage="1" sqref="${actionRange}">` +
+                            `<formula1>${actionFormula}</formula1>` +
+                        `</dataValidation>` +
+                    `</dataValidations>`;
+                // dataValidations 必須在 sheetData 之後、pageMargins / hyperlinks 之前
+                if (xml.includes('<pageMargins')) {
+                    xml = xml.replace('<pageMargins', dv + '<pageMargins');
+                } else if (xml.includes('</worksheet>')) {
+                    xml = xml.replace('</worksheet>', dv + '</worksheet>');
+                }
+                zip.file(sheetPath, xml);
+            }
+            return await zip.generateAsync({
+                type: 'blob',
+                mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            });
+        }
 
         function tcStepToggleMenu(menuId) {
             ['stepExportMenu', 'stepTemplateMenu'].forEach(id => {
@@ -4594,7 +4675,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             }
         });
 
-        function tcStepExport(format) {
+        async function tcStepExport(format) {
             if (!currentTestCase) { showToast('請先開啟測試案例', 'error'); return; }
             const tc = testCases[currentTestCase];
             if (!tc || !tc.steps || !tc.steps.length) { showToast('目前沒有步驟可匯出', 'error'); return; }
@@ -4607,14 +4688,20 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 _tcDownloadBlob(new Blob(['﻿' + csv], {type:'text/csv;charset=utf-8;'}), filename + '.csv');
             } else {
                 if (typeof XLSX === 'undefined') { showToast('Excel 函式庫載入中，請稍後再試', 'error'); return; }
-                const wb = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([STEP_EXPORT_HEADERS, ...rows]), '測試步驟');
-                XLSX.writeFile(wb, filename + '.xlsx');
+                try {
+                    const platform = getTestCasePlatform(currentTestCase);
+                    const actions = _stepActionOptionsFor(platform);
+                    const blob = await _buildStepsXlsxWithDropdowns(STEP_EXPORT_HEADERS, rows, '測試步驟', actions);
+                    _tcDownloadBlob(blob, filename + '.xlsx');
+                } catch (e) {
+                    showToast('匯出 Excel 失敗：' + (e.message || e), 'error');
+                    return;
+                }
             }
             showToast('已匯出 ' + tc.steps.length + ' 個步驟', 'success');
         }
 
-        function tcStepDownloadTemplate(format) {
+        async function tcStepDownloadTemplate(format) {
             const sample = [
                 ['Given', '使用者前往登入頁面', 'Navigate', 'https://example.com/login', '', '', ''],
                 ['When',  '輸入帳號',           'Input',    'id=username',               'admin',  '', ''],
@@ -4628,9 +4715,15 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 _tcDownloadBlob(new Blob(['﻿' + csv], {type:'text/csv;charset=utf-8;'}), 'steps_template.csv');
             } else {
                 if (typeof XLSX === 'undefined') { showToast('Excel 函式庫載入中，請稍後再試', 'error'); return; }
-                const wb = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([STEP_EXPORT_HEADERS, ...sample]), '範本');
-                XLSX.writeFile(wb, 'steps_template.xlsx');
+                try {
+                    // 範本沒有特定平台,使用當前開啟案例的平台;若未開啟則用 WEB
+                    const platform = currentTestCase ? getTestCasePlatform(currentTestCase) : 'WEB';
+                    const actions = _stepActionOptionsFor(platform);
+                    const blob = await _buildStepsXlsxWithDropdowns(STEP_EXPORT_HEADERS, sample, '範本', actions);
+                    _tcDownloadBlob(blob, 'steps_template.xlsx');
+                } catch (e) {
+                    showToast('產生範本失敗：' + (e.message || e), 'error');
+                }
             }
         }
 
