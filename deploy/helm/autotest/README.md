@@ -1,7 +1,7 @@
 # AutoTest Helm Chart（骨架）
 
 本 Chart 將 AutoTest v1.1 部署至 Kubernetes。**目前狀態：骨架。**
-Backend Deployment + Service + PDB + Secret + chart helpers 已可用於正式環境；其餘服務（celery、frontend、postgres、valkey、seaweedfs、ingress）的 template 為待辦事項，記錄在 `templates/TODO.md`。
+Backend Deployment + Service + PDB + Secret + chart helpers 已可用於正式環境；其餘服務（celery、frontend、postgres、valkey、seaweedfs、ingress）的 template 為待辦事項，狀態見下方「目前狀態」表格。
 
 ---
 

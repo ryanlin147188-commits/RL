@@ -28,19 +28,14 @@
 
 ### 步驟一：建立快照
 
-在 staging 環境執行標準備份：
+備份有兩個入口，產出的檔案數不同 — 演習請優先使用 host 端完整版（5 個檔），以驗證 `.env` 加密與 manifest 流程：
 
-```bash
-BACKUP_KEY_FILE=~/.config/autotest/backup.key ./scripts/backup.sh
-```
+| 入口 | 執行方式 | 產出檔案 |
+|---|---|---|
+| **Host 端完整版**（演習用）| `BACKUP_KEY_FILE=~/.config/autotest/backup.key ./scripts/backup.sh` | `postgres.dump.gz`、`seaweedfs.tar.gz`、`env.enc`、`manifest.json`、`SHA256SUMS` |
+| **容器內精簡版**（每日 cron）| `docker exec autotest-backup-cron sh /backup.sh` | `postgres.dump.gz`、`seaweedfs.tar.gz`、`SHA256SUMS`（無 `.env` 加密、無 manifest） |
 
-確認快照目錄包含以下 5 個檔案：
-
-- `postgres.dump.gz`
-- `seaweedfs.tar.gz`
-- `env.enc`
-- `manifest.json`
-- `SHA256SUMS`
+> 容器版（`scripts/container-backup.sh`）為日常自動快照，因容器內無 `.env` 與 `BACKUP_KEY_FILE`，刻意不加密 `.env` 也不寫 manifest；正式演習與災難復原請以 host 版為準。
 
 ### 步驟二：完全拆除 stack
 

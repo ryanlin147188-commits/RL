@@ -88,7 +88,7 @@ docker compose up -d --build
 | **待辦清單（Backlog）** | Feature → Task / Bug / Spike 兩層階層，Sprint 標籤，逾期 badge，CRUD |
 | **測試資料集** | 獨立 DDT 資料集（可跨多個 TestCase 共用），欄位 + 資料列管理，JSON 匯入匯出 |
 | **環境變數** | 每個專案有獨立環境變數表，Faker 隨機資料生成，`.env` 格式批次匯入 |
-| **Mock 端點** | Per-org mock API 定義（method + path + canned response），供前端測試尚未完成的 API |
+| **Mock 端點** | Per-project mock API 定義（method + path + canned response），供前端測試尚未完成的 API |
 | **本機 Agent** | 有頭模式，讓測試在你的桌面瀏覽器上跑（便於 debug），無需 headless Docker |
 | **Markdown 匯入/匯出** | 整個子樹可與 `.md` 檔雙向轉換，方便版控與跨環境搬遷 |
 | **版本歷史** | 每次儲存 TestCase 皆建立 entity_version 快照，可回溯或比對 diff |

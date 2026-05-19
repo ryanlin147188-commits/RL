@@ -69,14 +69,16 @@ async function loadCases(pid) {
 
 ---
 
-## 各階段計劃
+## 各階段規劃
 
-| 階段 | 範圍 | 預估工時 |
-|---|---|---|
-| **1** | `core/` 工具 + `window.AutoTest` shim **← 目前進度** | 2 天 |
-| 2 | `components/`（Modal / Form / Table / Toast）+ login view 作為試點 | 3 天 |
-| 3 | 將 18 個 view 從 `index.html` 移出，每天 2–3 個 | 5–7 天 |
-| 4 | 將全域變數替換為 `store.subscribe` | 2–3 天 |
-| 5 | 選用：加入 ESLint + Prettier（無需建置步驟） | 1–2 天 |
+| 階段 | 範圍 | 目標工時 | 目前進度 |
+|---|---|---|---|
+| **1** | `core/` 工具 + `window.AutoTest` shim | 2 天 | ✅ 已完成（`core/api.js`、`core/auth.js`、`core/store.js`）|
+| 2 | `components/`（Modal / Form / Table / Toast）+ login view 作為試點 | 3 天 | ⏳ 尚未啟動 |
+| 3 | 將 18 個 view 從 `index.html` 移出，每天 2–3 個 | 5–7 天 | ⏳ 尚未啟動 |
+| 4 | 將全域變數替換為 `store.subscribe` | 2–3 天 | ⏳ 尚未啟動 |
+| 5 | 選用：加入 ESLint + Prettier（無需建置步驟） | 1–2 天 | ⏳ 尚未啟動 |
 
 每個階段結束時 `index.html` 仍可正常運作——不做大爆炸式重寫。
+
+**啟動下一階段的條件**：當主分支累積了 3 個以上需要修改同一個 inline view 的 PR，且 PR 之間互相衝突嚴重時，就是該推進階段 2 的訊號。

@@ -8,9 +8,11 @@
 | 停止服務 | `docker compose down` | ✅ 保留 |
 | 重啟單一容器 | `docker compose restart backend` | ✅ 保留 |
 | **清除全部資料** | `docker compose down -v` | ❌ 刪除所有 volume |
-| **刪除 volume** | `docker volume rm rl_tmp_postgres_data` | ❌ 資料消失 |
+| **刪除 volume** | `docker volume rm <專案名>_postgres_data` | ❌ 資料消失 |
 
-> **重點**：Named volume（`rl_tmp_postgres_data`、`rl_tmp_seaweedfs_data` 等）只要沒有 `-v` 旗標，任何 rebuild 或重啟都不會影響資料。
+> **重點**：Named volume（`postgres_data`、`seaweedfs_data` 等）只要沒有 `-v` 旗標，任何 rebuild 或重啟都不會影響資料。
+>
+> **volume 名稱的實際前綴**：docker compose 會自動把 named volume 加上「專案名前綴」（compose 預設取 working dir 名稱小寫，例如 `RL_TMP/` → `rl_tmp_postgres_data`；本機若是 `rl-for-kapito-main/` 則變 `rl-for-kapito-main_postgres_data`）。可用 `docker volume ls` 確認實際名稱，或用 `COMPOSE_PROJECT_NAME` 環境變數固定前綴。
 
 ---
 
@@ -29,12 +31,14 @@ docker compose up -d --build
 
 ### Named Volumes（持久化資料）
 
+> 表格中的 volume 名稱為 `docker-compose.yml` 內定義；實際 docker volume 會由 compose 加上專案名前綴（例如 `rl_tmp_postgres_data`）。
+
 | Volume | 掛載點 | 存什麼 |
 |---|---|---|
-| `rl_tmp_postgres_data` | `/var/lib/postgresql/data`（主庫） | 所有資料庫（TestCase、Report、User、RBAC…） |
-| `rl_tmp_seaweedfs_data` | `/data` | 截圖、MP4 影片、Playwright trace、測試報告 |
-| `rl_tmp_postgres_replica_data` | `/var/lib/postgresql/data`（副本） | 主庫的 streaming replication 熱備副本 |
-| `rl_tmp_backup_data` | `/backups`（backup-cron 容器內） | 每日自動備份快照（保留 7 天） |
+| `postgres_data` | `/var/lib/postgresql/data`（主庫） | 所有資料庫（TestCase、Report、User、RBAC…） |
+| `seaweedfs_data` | `/data` | 截圖、MP4 影片、Playwright trace、測試報告 |
+| `postgres_replica_data` | `/var/lib/postgresql/data`（副本） | 主庫的 streaming replication 熱備副本 |
+| `backup_data` | `/backups`（backup-cron 容器內） | 每日自動備份快照（保留 7 天） |
 
 ### Bind Mounts（程式碼，非資料）
 
