@@ -2026,15 +2026,7 @@
                                 <input id="tcListSearch" type="search" oninput="renderTestCasesList()" placeholder="搜尋測試案例名稱、平台、頁面、所在路徑..."
                                     class="w-full pl-9 pr-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400">
                             </div>
-                            <select id="tcListPlatform" onchange="renderTestCasesList()" aria-label="依平台過濾測試案例" title="依平台過濾測試案例" class="px-3 py-2 border border-stone-300 rounded-md text-sm bg-white">
-                                <option value="">全部平台</option>
-                                <option value="WEB">WEB</option>
-                                <option value="API">API</option>
-                                <option value="APP">APP</option>
-                                <option value="DB">DB</option>
-                                <option value="UI">UI</option>
-                                <option value="E2E">E2E</option>
-                            </select>
+
                             <button onclick="renderTestCasesList()" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50 transition" title="同步左側目錄樹">
                                 <i class="fa-solid fa-rotate"></i> 重新整理
                             </button>
@@ -2890,7 +2882,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                     <!-- Tier E-2:bulk reassign 工具列 -->
                     <div id="reviewBulkBar" class="hidden mb-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded flex flex-wrap items-center gap-3 text-xs">
                         <span class="font-semibold text-amber-700">已選 <span id="reviewBulkCount">0</span> 筆</span>
-                        <button onclick="reviewBulkReassign()" class="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold"><i class="fa-solid fa-user-tag"></i> 重新指派</button>
+
                         <button onclick="reviewBulkClear()" class="text-stone-500 hover:text-stone-700 ml-auto"><i class="fa-solid fa-xmark"></i> 取消選取</button>
                     </div>
 
@@ -10249,6 +10241,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         // ==================== TestRun (Test Round) ====================
         let testRoundList = [];
         let testRoundEditingId = null;
+        let _tvCache = null;
         const trNodeSelection = new Set();
 
         // 共用：把所有主 workspace 收起來，給 show*View 用
