@@ -1137,7 +1137,9 @@ def _build_robot_file(
     case_steps_per_row: list[list[dict]] = []
 
     for row_i, row in enumerate(rows):
-        ctx = {h: (row[i] if i < len(row) else "") for i, h in enumerate(headers)}
+        # 以 project_env_vars 為基底，DDT row 資料優先覆蓋（優先級：DDT > env vars）
+        ctx: dict = dict(project_env_vars or {})
+        ctx.update({h: (row[i] if i < len(row) else "") for i, h in enumerate(headers)})
 
         test_name = f"{case_tag}_row{row_i:02d}"
         lines.append(test_name)
