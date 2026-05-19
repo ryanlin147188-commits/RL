@@ -83,12 +83,29 @@ def _extract_token(request: Request) -> str | None:
     # query param fallback（給檔案下載連結用）
     qp = request.query_params.get("access_token")
     if qp:
+        _promote_to_authorization_header(request, qp)
         return qp
-    # cookie fallback
+    # cookie fallback（OIDC callback 把 token 塞 httpOnly cookie,前端 JS 讀不到也
+    # 就拼不出 Authorization header;這裡把 cookie token promote 回 header,讓
+    # fastapi-users 的 BearerTransport 在後續 Depends(get_current_user) 也能解開。
+    # 不影響密碼登入流程,因為那條路徑 header 已經有值,不會走到這裡。）
     ck = request.cookies.get("access_token")
     if ck:
+        _promote_to_authorization_header(request, ck)
         return ck
     return None
+
+
+def _promote_to_authorization_header(request: Request, token: str) -> None:
+    """把 cookie / query 取得的 token 補成 ``Authorization: Bearer <token>``,
+    讓 fastapi-users 的 BearerTransport 在 Depends(get_current_user) 鏈中也能讀到。
+
+    僅 mutate request.scope["headers"](ASGI 規範允許),
+    不重建 Request 物件,starlette 後續讀 headers 時會看到新值。
+    """
+    headers = list(request.scope.get("headers", []))
+    headers.append((b"authorization", f"Bearer {token}".encode("latin-1")))
+    request.scope["headers"] = headers
 
 
 def _resolve_active_org(payload: dict | None, request: Request) -> str | None:
