@@ -1535,6 +1535,31 @@
                                 class="text-sm px-3 py-1.5 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 disabled:bg-stone-100 disabled:text-stone-400 disabled:cursor-not-allowed rounded flex items-center gap-1 transition shadow-sm" title="刪除已勾選的步驟">
                                 <i class="fa-solid fa-trash"></i> 刪除已勾選 <span id="stepBulkDeleteCount">(0)</span>
                             </button>
+                            <!-- 匯出步驟 -->
+                            <div class="relative" id="stepExportMenuWrap">
+                                <button onclick="tcStepToggleMenu('stepExportMenu')" class="text-sm px-3 py-1.5 bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 rounded flex items-center gap-1 transition shadow-sm">
+                                    <i class="fa-solid fa-file-export"></i> 匯出 <i class="fa-solid fa-caret-down text-xs ml-0.5"></i>
+                                </button>
+                                <div id="stepExportMenu" class="hidden absolute right-0 top-full mt-1 z-50 bg-white border border-stone-200 rounded-md shadow-lg py-1 w-36">
+                                    <button onclick="tcStepExport('csv');tcStepToggleMenu('stepExportMenu')" class="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 flex items-center gap-2"><i class="fa-solid fa-file-csv text-stone-500"></i> CSV</button>
+                                    <button onclick="tcStepExport('excel');tcStepToggleMenu('stepExportMenu')" class="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 flex items-center gap-2"><i class="fa-solid fa-file-excel text-emerald-600"></i> Excel</button>
+                                </div>
+                            </div>
+                            <!-- 匯入步驟 -->
+                            <button onclick="document.getElementById('stepImportFileInput').click()" class="text-sm px-3 py-1.5 bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 rounded flex items-center gap-1 transition shadow-sm">
+                                <i class="fa-solid fa-file-import"></i> 匯入
+                            </button>
+                            <!-- 下載步驟範本 -->
+                            <div class="relative" id="stepTemplateMenuWrap">
+                                <button onclick="tcStepToggleMenu('stepTemplateMenu')" class="text-sm px-3 py-1.5 bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 rounded flex items-center gap-1 transition shadow-sm">
+                                    <i class="fa-solid fa-file-arrow-down"></i> 下載範本 <i class="fa-solid fa-caret-down text-xs ml-0.5"></i>
+                                </button>
+                                <div id="stepTemplateMenu" class="hidden absolute right-0 top-full mt-1 z-50 bg-white border border-stone-200 rounded-md shadow-lg py-1 w-36">
+                                    <button onclick="tcStepDownloadTemplate('csv');tcStepToggleMenu('stepTemplateMenu')" class="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 flex items-center gap-2"><i class="fa-solid fa-file-csv text-stone-500"></i> CSV</button>
+                                    <button onclick="tcStepDownloadTemplate('excel');tcStepToggleMenu('stepTemplateMenu')" class="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 flex items-center gap-2"><i class="fa-solid fa-file-excel text-emerald-600"></i> Excel</button>
+                                </div>
+                            </div>
+                            <input type="file" id="stepImportFileInput" accept=".csv,.xlsx,.xls" onchange="tcStepHandleImportFile(this)" class="hidden">
                             <button onclick="addEmptyStep()" class="text-sm px-3 py-1.5 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded flex items-center gap-1 transition shadow-sm">
                                 <i class="fa-solid fa-plus"></i> 新增步驟
                             </button>
@@ -2247,6 +2272,19 @@
                             </button>
                         </div>
                     </form>
+                </div>
+            </div>
+
+            <!-- 測試步驟匯入 Modal -->
+            <div id="stepImportModal" class="hidden fixed inset-0 z-[155] bg-black/40 flex items-center justify-center p-4">
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-xl border border-slate-200">
+                    <div class="px-6 py-4 border-b border-slate-200 bg-slate-50/60 flex items-center justify-between">
+                        <h3 class="font-bold text-slate-800 text-base flex items-center gap-2">
+                            <i class="fa-solid fa-file-import text-blue-500"></i> 匯入測試步驟
+                        </h3>
+                        <button type="button" onclick="document.getElementById('stepImportModal').classList.add('hidden')" class="text-slate-400 hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <div id="stepImportModalBody" class="p-6 space-y-4 max-h-[70vh] overflow-y-auto"></div>
                 </div>
             </div>
 
@@ -4535,6 +4573,154 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             markDirty();
             renderSteps();
         }
+
+        // ==================== 測試步驟 匯入 / 匯出 / 下載範本 ====================
+        const STEP_EXPORT_HEADERS = ['BDD 關鍵字', '步驟描述', '動作(Action)', '定位器(Locator)', '輸入值(Input)', '比對條件', '預期結果'];
+        let _stepImportPendingRows = null;
+        let _stepImportReplaceMode = true;
+
+        function tcStepToggleMenu(menuId) {
+            ['stepExportMenu', 'stepTemplateMenu'].forEach(id => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                if (id === menuId) el.classList.toggle('hidden');
+                else el.classList.add('hidden');
+            });
+        }
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('#stepExportMenuWrap') && !e.target.closest('#stepTemplateMenuWrap')) {
+                document.getElementById('stepExportMenu')?.classList.add('hidden');
+                document.getElementById('stepTemplateMenu')?.classList.add('hidden');
+            }
+        });
+
+        function tcStepExport(format) {
+            if (!currentTestCase) { showToast('請先開啟測試案例', 'error'); return; }
+            const tc = testCases[currentTestCase];
+            if (!tc || !tc.steps || !tc.steps.length) { showToast('目前沒有步驟可匯出', 'error'); return; }
+            const rows = tc.steps.map(s => [s.bdd||'', s.desc||'', s.action||'', s.loc||'', s.input||'', s.compare||'', s.expected||'']);
+            const filename = (tc.filename || 'steps').replace(/\.md$/i, '') + '_steps_' + new Date().toISOString().slice(0, 10);
+            if (format === 'csv') {
+                const csv = [STEP_EXPORT_HEADERS, ...rows]
+                    .map(row => row.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(','))
+                    .join('\r\n');
+                _tcDownloadBlob(new Blob(['﻿' + csv], {type:'text/csv;charset=utf-8;'}), filename + '.csv');
+            } else {
+                if (typeof XLSX === 'undefined') { showToast('Excel 函式庫載入中，請稍後再試', 'error'); return; }
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([STEP_EXPORT_HEADERS, ...rows]), '測試步驟');
+                XLSX.writeFile(wb, filename + '.xlsx');
+            }
+            showToast('已匯出 ' + tc.steps.length + ' 個步驟', 'success');
+        }
+
+        function tcStepDownloadTemplate(format) {
+            const sample = [
+                ['Given', '使用者前往登入頁面', 'Navigate', 'https://example.com/login', '', '', ''],
+                ['When',  '輸入帳號',           'Input',    'id=username',               'admin',  '', ''],
+                ['And',   '輸入密碼',           'Input',    'id=password',               '123456', '', ''],
+                ['Then',  '驗證登入成功',        'GetText',  'id=welcome',                '',      'Contains', '歡迎'],
+            ];
+            if (format === 'csv') {
+                const csv = [STEP_EXPORT_HEADERS, ...sample]
+                    .map(row => row.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(','))
+                    .join('\r\n');
+                _tcDownloadBlob(new Blob(['﻿' + csv], {type:'text/csv;charset=utf-8;'}), 'steps_template.csv');
+            } else {
+                if (typeof XLSX === 'undefined') { showToast('Excel 函式庫載入中，請稍後再試', 'error'); return; }
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([STEP_EXPORT_HEADERS, ...sample]), '範本');
+                XLSX.writeFile(wb, 'steps_template.xlsx');
+            }
+        }
+
+        async function tcStepHandleImportFile(input) {
+            const file = input.files[0];
+            input.value = '';
+            if (!file) return;
+            if (!currentTestCase) { showToast('請先開啟測試案例', 'error'); return; }
+            const ext = file.name.split('.').pop().toLowerCase();
+            let rows;
+            try {
+                if (ext === 'csv') rows = await _tcParseCsv(file);
+                else if (ext === 'xlsx' || ext === 'xls') {
+                    if (typeof XLSX === 'undefined') { showToast('Excel 函式庫載入中，請稍後再試', 'error'); return; }
+                    rows = await _tcParseExcel(file);
+                } else { showToast('請上傳 .csv 或 .xlsx / .xls 檔案', 'error'); return; }
+            } catch(e) { showToast('解析檔案失敗：' + e.message, 'error'); return; }
+            const validRows = rows.filter(r => Object.values(r).some(v => v));
+            if (!validRows.length) { showToast('檔案中沒有有效資料（請確認欄位標題符合範本）', 'error'); return; }
+            _stepImportPendingRows = validRows;
+            _stepImportReplaceMode = true;
+            _stepShowImportPreview(validRows);
+        }
+
+        function _stepShowImportPreview(rows) {
+            const modal = document.getElementById('stepImportModal');
+            const body  = document.getElementById('stepImportModalBody');
+            const tc    = testCases[currentTestCase];
+            const existingCount = tc?.steps?.length || 0;
+            const previewRows = rows.slice(0, 5);
+            body.innerHTML =
+                '<div class="text-sm text-slate-700">' +
+                    '<p>偵測到 <span class="font-bold text-blue-700">' + rows.length + '</span> 個步驟' +
+                    (existingCount > 0 ? '，目前案例已有 ' + existingCount + ' 個步驟。' : '。') + '</p>' +
+                '</div>' +
+                '<div class="border border-slate-200 rounded overflow-x-auto">' +
+                    '<table class="w-full text-xs min-w-[560px]"><thead class="bg-slate-50 sticky top-0"><tr>' +
+                    STEP_EXPORT_HEADERS.map(h => '<th class="p-1.5 text-left text-slate-500 font-medium whitespace-nowrap">' + escapeHtml(h) + '</th>').join('') +
+                    '</tr></thead><tbody>' +
+                    previewRows.map(r =>
+                        '<tr class="border-t border-slate-100">' +
+                        STEP_EXPORT_HEADERS.map(h => '<td class="p-1.5 max-w-[120px] truncate" title="' + escapeHtml(r[h]||'') + '">' + escapeHtml(r[h]||'') + '</td>').join('') +
+                        '</tr>'
+                    ).join('') +
+                    (rows.length > 5 ? '<tr><td colspan="7" class="p-1.5 text-center text-slate-400">… 還有 ' + (rows.length - 5) + ' 個</td></tr>' : '') +
+                    '</tbody></table>' +
+                '</div>' +
+                (existingCount > 0
+                    ? '<div class="space-y-2 bg-slate-50 border border-slate-200 rounded p-3">' +
+                      '<p class="text-xs font-semibold text-slate-600 mb-1">匯入方式</p>' +
+                      '<label class="flex items-center gap-2 cursor-pointer"><input type="radio" name="stepImportMode" value="replace" checked onchange="_stepImportReplaceMode=true"><span class="text-sm text-slate-700">取代全部現有步驟</span></label>' +
+                      '<label class="flex items-center gap-2 cursor-pointer"><input type="radio" name="stepImportMode" value="append" onchange="_stepImportReplaceMode=false"><span class="text-sm text-slate-700">附加到現有步驟之後</span></label>' +
+                      '</div>'
+                    : '') +
+                '<div class="flex justify-end gap-2 pt-2">' +
+                    '<button onclick="document.getElementById(\'stepImportModal\').classList.add(\'hidden\')" class="px-4 py-2 border border-slate-300 rounded text-sm text-slate-600 hover:bg-slate-50">取消</button>' +
+                    '<button onclick="_tcStepDoImport()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-semibold"><i class="fa-solid fa-file-import"></i> 確認匯入</button>' +
+                '</div>';
+            modal.classList.remove('hidden');
+        }
+
+        function _tcStepDoImport() {
+            const rows = _stepImportPendingRows;
+            _stepImportPendingRows = null;
+            if (!rows || !currentTestCase) return;
+            document.getElementById('stepImportModal').classList.add('hidden');
+            const platform = getTestCasePlatform(currentTestCase);
+            const defaultAction = (ACTION_OPTIONS_BY_PLATFORM[platform] || ACTION_OPTIONS_BY_PLATFORM.WEB)[0] || 'Click';
+            const newSteps = rows.map((r, i) => ({
+                bdd:      r['BDD 關鍵字']     || 'And',
+                tcid:     'TC-' + String(i + 1).padStart(2, '0'),
+                desc:     r['步驟描述']       || '',
+                action:   r['動作(Action)']   || defaultAction,
+                loc:      r['定位器(Locator)'] || '',
+                input:    r['輸入值(Input)']   || '',
+                compare:  r['比對條件']        || 'Equals',
+                expected: r['預期結果']        || '',
+            }));
+            const tc = testCases[currentTestCase];
+            if (_stepImportReplaceMode) {
+                tc.steps = newSteps;
+                showToast('已取代為 ' + newSteps.length + ' 個步驟', 'success');
+            } else {
+                tc.steps = (tc.steps || []).concat(newSteps);
+                showToast('已附加 ' + newSteps.length + ' 個步驟（共 ' + tc.steps.length + ' 個）', 'success');
+            }
+            markDirty();
+            renderSteps();
+        }
+        // ==================== 測試步驟 匯入/匯出 結束 ====================
 
         function deleteStep(idx) {
             if (!confirm(`確定要刪除第 ${idx + 1} 個步驟？`)) return;
