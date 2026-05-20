@@ -10481,15 +10481,37 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         }
         function closeUserMenu() { /* no-op, kept for backward compat */ }
 
-        function updateUserMenuUI() {
+        // updateUserMenuUI(me?):若 caller 已有 me 物件就傳進來(上傳大頭貼後同步刷新);
+        // 沒傳就 fire-and-forget fetch /me 取 avatar_url 並更新(避免畫面殘留舊頭像)。
+        function updateUserMenuUI(me) {
             const u = authCurrentUser();
             if (!u) return;
-            const display = u.displayName || u.username;
+            const display = (me && me.display_name) || u.displayName || u.username;
             const initial = (display || u.username || '?').charAt(0).toUpperCase();
-            const avatar = document.getElementById('userMenuAvatar');
-            const name = document.getElementById('userMenuName');
-            if (avatar) avatar.textContent = initial;
-            if (name) name.textContent = display;
+            const avatarEl = document.getElementById('userMenuAvatar');
+            const nameEl = document.getElementById('userMenuName');
+            const setAvatar = (avatarUrl) => {
+                if (!avatarEl) return;
+                if (avatarUrl) {
+                    avatarEl.innerHTML = `<img src="${avatarUrl}" alt="" class="w-full h-full object-cover">`;
+                    avatarEl.classList.remove('bg-gradient-to-br', 'from-amber-400', 'to-orange-500', 'text-white', 'font-bold');
+                } else {
+                    avatarEl.innerHTML = '';
+                    avatarEl.textContent = initial;
+                    avatarEl.classList.add('bg-gradient-to-br', 'from-amber-400', 'to-orange-500', 'text-white', 'font-bold');
+                }
+            };
+            if (me !== undefined) {
+                setAvatar(me && me.avatar_url);
+            } else {
+                // 沒傳 me — 先 fallback 字母,背景非同步 fetch 補上 avatar_url
+                setAvatar(null);
+                fetch('/api/auth/me')
+                    .then(r => r.ok ? r.json() : null)
+                    .then(m => { if (m) setAvatar(m.avatar_url); })
+                    .catch(() => {});
+            }
+            if (nameEl) nameEl.textContent = display;
             // 啟動通知輪詢(idempotent — 重複呼叫會先 clear 再 set)
             try { startNotifPolling(); } catch (_) {}
         }
@@ -10579,8 +10601,8 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             try {
                 const me = await apiFetch('/api/auth/me/avatar', { method: 'POST', body: fd });
                 _renderUserAvatar(me);
-                // 同步更新上方列的小頭像
-                if (typeof updateUserMenuUI === 'function') updateUserMenuUI();
+                // 同步更新上方列的小頭像(把 me 傳進去,直接 set 新的 avatar_url)
+                if (typeof updateUserMenuUI === 'function') updateUserMenuUI(me);
                 showToast('大頭貼已更新', 'success');
             } catch (e) {
                 showToast('上傳失敗:' + (e.message || e), 'error');
@@ -10594,7 +10616,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             try {
                 const me = await apiFetch('/api/auth/me/avatar', { method: 'DELETE' });
                 _renderUserAvatar(me);
-                if (typeof updateUserMenuUI === 'function') updateUserMenuUI();
+                if (typeof updateUserMenuUI === 'function') updateUserMenuUI(me);
                 showToast('大頭貼已移除', 'success');
             } catch (e) {
                 showToast('移除失敗:' + (e.message || e), 'error');
