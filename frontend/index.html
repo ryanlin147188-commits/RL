@@ -15852,7 +15852,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             { key: 'delete', label: '刪除' },
         ];
 
-        let _rolesCache = [];          // 最新 GET /api/settings/roles 結果
+        let _userSettingsRolesCache = [];          // 最新 GET /api/settings/roles 結果
         let _roleEditing = null;       // 目前 modal 編輯中的 role(null = 新建)
 
         async function rolesLoadList() {
@@ -15862,13 +15862,13 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             try {
                 const r = await fetch('/api/settings/roles');
                 if (!r.ok) throw new Error('HTTP ' + r.status);
-                _rolesCache = await r.json();
+                _userSettingsRolesCache = await r.json();
             } catch (e) {
                 tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-rose-500">載入失敗:${e.message || e}</td></tr>`;
                 return;
             }
             // 同時取每個 role 的 usage count
-            const usagePromises = _rolesCache.map(async (role) => {
+            const usagePromises = _userSettingsRolesCache.map(async (role) => {
                 try {
                     const ur = await fetch(`/api/settings/roles/${role.id}/usage`);
                     if (!ur.ok) return 0;
@@ -15878,11 +15878,11 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             });
             const usages = await Promise.all(usagePromises);
 
-            if (!_rolesCache.length) {
+            if (!_userSettingsRolesCache.length) {
                 tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-stone-400">尚無任何角色</td></tr>';
                 return;
             }
-            tbody.innerHTML = _rolesCache.map((role, i) => {
+            tbody.innerHTML = _userSettingsRolesCache.map((role, i) => {
                 const isSystem = !!role.is_system;
                 const cnt = usages[i];
                 const canDelete = !isSystem && cnt === 0;
@@ -15919,7 +15919,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         }
 
         function rolesOpenEditModal(roleId) {
-            const role = _rolesCache.find(r => r.id === roleId);
+            const role = _userSettingsRolesCache.find(r => r.id === roleId);
             if (!role) return;
             _roleEditing = role;
             document.getElementById('rolePermModalTitle').textContent = `編輯角色「${role.name}」`;
