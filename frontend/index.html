@@ -9710,8 +9710,14 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         }
 
         function authIsLoggedIn() {
-            // 後端 JWT 版本：必須有 access token 才算登入；session 只是 UI 的快取
-            return !!(authGetAccessToken() && _authReadSession());
+            // 密碼登入流程: localStorage 有 access_token + session;
+            // OIDC (Zoho) 流程:   token 在 httpOnly cookie (JS 讀不到),只 localStorage 有 session。
+            // 兩條路徑都要算「已登入」,所以 token 或 session 任一存在即可。
+            // 真實 token 有效性由後續 fetch /api/auth/me 自己驗 — 401 時 fetch wrapper
+            // 會嘗試 refresh,refresh 也壞才 authForceReauth() 跳登入。
+            var t = authGetAccessToken();
+            var s = _authReadSession();
+            return !!(t || s);
         }
         function authCurrentUsername() {
             const s = _authReadSession();
