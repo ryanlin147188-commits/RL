@@ -9092,6 +9092,9 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             try { i18nApply(); } catch (_) {}
             // 處理 OIDC callback（網址 hash 帶 token） — 成功就直接進首頁，不再走下面的流程
             try { if (handleOidcCallbackFromHash()) return; } catch (_) {}
+            // OIDC callback 失敗時 backend 把錯誤代碼塞在 query string redirect 回來;
+            // 跳 toast 並把 oidc_error / desc query param 清掉,避免 URL 一直掛著舊訊息。
+            try { _maybeShowOidcError(); } catch (_) {}
             // 第一步：檢查登入狀態。未登入 → 顯示認證覆蓋層並停止初始化。
             authBootstrap();
             // v1.1.5:從 OIDC(Zoho)callback 回來時 URL 帶 ``#oidc_login=1``,
@@ -9248,6 +9251,32 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 return false;
             }
         }
+        // OIDC callback 失敗時 backend 會 302 回 ``/?oidc_error=<code>&desc=<msg>``,
+        // 這個函式負責 (a) 跳 toast 讓使用者知道發生什麼事,(b) 用 replaceState
+        // 把 oidc_error / desc 兩個 query param 從 URL 清掉,避免使用者切到別頁
+        // 後 URL 還掛著舊的錯誤訊息。
+        function _maybeShowOidcError() {
+            const params = new URLSearchParams(location.search);
+            const err = params.get('oidc_error');
+            if (!err) return;
+            const desc = params.get('desc') || '';
+            const ERROR_LABELS = {
+                provision: 'Zoho 登入失敗：帳號建立 / 綁定錯誤',
+                token_exchange: 'Zoho 登入失敗：token 交換錯誤',
+                userinfo: 'Zoho 登入失敗：讀取使用者資訊錯誤',
+                missing_sub: 'Zoho 登入失敗：未取得使用者識別',
+                provider_disabled: 'Zoho 登入失敗：SSO 未啟用',
+            };
+            const label = ERROR_LABELS[err] || `Zoho 登入失敗 (${err})`;
+            const detail = desc ? `:${decodeURIComponent(desc)}` : '';
+            try { showToast(label + detail, 'error'); } catch (_) {}
+            params.delete('oidc_error');
+            params.delete('desc');
+            const qs = params.toString();
+            const newUrl = location.pathname + (qs ? '?' + qs : '') + (location.hash || '');
+            try { history.replaceState(null, '', newUrl); } catch (_) {}
+        }
+
         async function _maybeShowZohoButton() {
             try {
                 const r = await _origFetch('/api/auth/zoho/enabled');
