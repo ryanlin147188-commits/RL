@@ -379,6 +379,12 @@ async def get_role_usage(
     project_members_count = (await db.execute(
         select(func.count()).select_from(ProjectMember).where(ProjectMember.role_id == role_id)
     )).scalar_one() or 0
+
+    # users 表中 role_id = this role 的 user 數 — 給前端「使用人數」直接用
+    from app.models.user import User
+    user_count = (await db.execute(
+        select(func.count()).select_from(User).where(User.role_id == role_id)
+    )).scalar_one() or 0
     project_rows = (await db.execute(
         select(Project.id, Project.name, func.count(ProjectMember.id).label("count"))
         .join(ProjectMember, ProjectMember.project_id == Project.id)
@@ -390,6 +396,7 @@ async def get_role_usage(
     return {
         "role_id": role_id,
         "role_name": r.name,
+        "user_count": int(user_count),                # users 表直接掛此 role 的 user 數
         "org_members_count": int(org_members_count),
         "default_org_for_users": int(default_org_for_users),
         "project_members_count": int(project_members_count),
