@@ -38,6 +38,10 @@ class UserResponse(BaseModel):
     last_login_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
+    # /api/auth/me 會把 role.permissions_json 解出來填進來,給前端 capability gate;
+    # superuser 一律拿到 ["*"] (萬用權限,前端 hasPerm 直接 short-circuit)。
+    # 其他 endpoint 回 UserResponse 時若沒填則保持 [],前端 hasPerm fail-safe deny。
+    permissions: list[str] = []
 
 
 class UserCreateRequest(BaseModel):

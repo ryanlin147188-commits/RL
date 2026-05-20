@@ -338,8 +338,24 @@ async def logout(request: Request, user: User = Depends(get_current_user)):
 
 
 @router.get("/auth/me", response_model=UserResponse, tags=["U · 認證"])
-async def me(user: User = Depends(get_current_user)):
-    return user
+async def me(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """回傳目前登入使用者基本資料 + ``permissions`` 解析後字串清單,給前端 capability gate。
+
+    * superuser    → ``["*"]`` (萬用,前端 hasPerm 直接 true)
+    * 有 role_id   → role.permissions_json 直接複製出來
+    * 沒 role_id   → ``[]`` (前端 hasPerm fail-safe deny)
+    """
+    resp = UserResponse.model_validate(user)
+    if user.is_superuser:
+        resp.permissions = ["*"]
+    elif user.role_id:
+        role = await db.get(Role, user.role_id)
+        if role and role.permissions_json:
+            resp.permissions = list(role.permissions_json)
+    return resp
 
 
 @router.get("/auth/me/orgs", tags=["U · 認證"])

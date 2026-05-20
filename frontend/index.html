@@ -1087,7 +1087,7 @@
                 <!-- 專案目錄 Header：右側為「新增專案」icon（對齊下方刪除專案欄位上方）-->
                 <div class="flex justify-between items-center mb-1">
                     <h2 class="font-semibold text-sm text-stone-600 uppercase tracking-wider" data-i18n="sidebar.projectDir">專案目錄</h2>
-                    <button type="button" onclick="openNodeModal(event, 'root_project', 'add')" title="新增專案" aria-label="新增專案"
+                    <button type="button" data-perm="project.write" onclick="openNodeModal(event, 'root_project', 'add')" title="新增專案" aria-label="新增專案"
                         class="w-8 h-8 shrink-0 flex items-center justify-center bg-gradient-to-br from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-md shadow-sm hover:shadow transition">
                         <i class="fa-solid fa-folder-plus text-sm"></i>
                     </button>
@@ -2060,7 +2060,7 @@
                                 class="px-3 py-2 bg-rose-500 hover:bg-rose-600 disabled:bg-stone-300 disabled:cursor-not-allowed text-white rounded-md text-sm font-semibold shadow-sm transition flex items-center gap-1.5" title="刪除已勾選的測試案例(可跨頁)">
                                 <i class="fa-solid fa-trash"></i> 刪除 <span id="tcBulkDeleteCount">(0)</span>
                             </button>
-                            <button onclick="openTcCreateModal()" class="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold shadow-sm transition flex items-center gap-1.5" title="新增測試案例">
+                            <button data-perm="testcase.write" onclick="openTcCreateModal()" class="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-sm font-semibold shadow-sm transition flex items-center gap-1.5" title="新增測試案例">
                                 <i class="fa-solid fa-plus"></i> 新增案例
                             </button>
                             <div class="text-xs text-stone-500 ml-auto flex items-center gap-3">
@@ -9229,6 +9229,8 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                     displayName: me.display_name || s.displayName || me.username,
                     email: me.email || s.email || '',
                 });
+                // Phase 2:把 role.permissions_json 載入 capability set,供 hasPerm / applyPermissionGuards 使用
+                window.AUTOTEST_PERMS = new Set(me.permissions || []);
             } catch (_) {
                 authForceReauth();
                 return;
@@ -9236,6 +9238,8 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             // 通過驗證 → 正常初始化平台
             renderExecutionModeButton();
             updateUserMenuUI();
+            // Phase 2:套用權限 gate,把 [data-perm] 沒權限的元素隱藏
+            try { applyPermissionGuards(); } catch (_) {}
             // Phase 4 多組織:抓使用者所屬的所有組織,只在 ≥ 2 個時才顯示切換器。
             try { renderOrgSwitcher(); } catch (_) {}
             initProjects(projReq).then(() => {
@@ -9268,6 +9272,60 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 // 後端版本：不需要再 seed users 到 localStorage（首位管理員由後端 CLI/bootstrap 建立）
             // 只清掉舊版本可能殘留的 plaintext users（升級時的 cleanup）
             try { localStorage.removeItem(AUTH_KEYS.users); } catch (_) {}
+        }
+
+        // ── 權限 capability gate（Phase 2）────────────────────────────────
+        // window.AUTOTEST_PERMS = Set<string>:
+        //   - superuser → 含 "*" (萬用)
+        //   - 一般使用者 → 含 role.permissions_json 字串
+        //   - 未登入或載入失敗 → 空集合 (fail-safe deny)
+        //
+        // 用法:
+        //   hasPerm('testcase.create')          → boolean
+        //   applyPermissionGuards(root?)        → 自動隱藏 [data-perm] 沒權限的元素
+        //   HTML 加 data-perm="<resource>.<action>" 即可被掃描
+        window.AUTOTEST_PERMS = new Set();
+
+        function hasPerm(perm) {
+            if (!perm) return true;
+            if (window.AUTOTEST_PERMS.has('*')) return true;
+            return window.AUTOTEST_PERMS.has(perm);
+        }
+
+        // 同時要 N 個權限才放行(AND);多個逗號分隔
+        function hasPerms(perms) {
+            if (!perms) return true;
+            return perms.split(',').every(p => hasPerm(p.trim()));
+        }
+
+        // 掃描指定 root 內所有 [data-perm] 元素,沒權限就加 hidden class。
+        // data-perm 支援逗號分隔多權限 (AND 邏輯)。
+        // data-perm-any 邏輯改為 OR (滿足任一即可)。
+        function applyPermissionGuards(root) {
+            const scope = root || document;
+            scope.querySelectorAll('[data-perm]').forEach(el => {
+                const perms = el.getAttribute('data-perm');
+                if (hasPerms(perms)) el.classList.remove('hidden');
+                else el.classList.add('hidden');
+            });
+            scope.querySelectorAll('[data-perm-any]').forEach(el => {
+                const list = (el.getAttribute('data-perm-any') || '').split(',');
+                if (list.some(p => hasPerm(p.trim()))) el.classList.remove('hidden');
+                else el.classList.add('hidden');
+            });
+        }
+
+        async function refreshPermissions() {
+            try {
+                const r = await fetch('/api/auth/me');
+                if (!r.ok) { window.AUTOTEST_PERMS = new Set(); return; }
+                const me = await r.json();
+                window.AUTOTEST_PERMS = new Set(me.permissions || []);
+            } catch (_) {
+                window.AUTOTEST_PERMS = new Set();
+            } finally {
+                try { applyPermissionGuards(); } catch (_) {}
+            }
         }
 
         // ── 後端 token 管理 ──────────────────────────────────────────────
@@ -9333,6 +9391,9 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 });
                 showToast(`歡迎回來,${me.display_name || me.username}`, 'success');
                 authHideOverlay();
+                // Phase 2: 載入 capability set + 套權限 gate
+                window.AUTOTEST_PERMS = new Set(me.permissions || []);
+                try { applyPermissionGuards(); } catch (_) {}
                 renderExecutionModeButton();
                 updateUserMenuUI();
                 initProjects().then(() => { try { showHomeView(); } catch (_) {} }).catch(() => {});
@@ -9751,6 +9812,9 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 });
                 showToast(`歡迎回來，${me.display_name || uname}`, 'success');
                 authHideOverlay();
+                // Phase 2: 載入 capability set + 套權限 gate
+                window.AUTOTEST_PERMS = new Set(me.permissions || []);
+                try { applyPermissionGuards(); } catch (_) {}
                 renderExecutionModeButton();
                 updateUserMenuUI();
                 initProjects().then(() => { try { showHomeView(); } catch (_) {} }).catch(() => {});
