@@ -887,11 +887,10 @@
          - 環境切換移到 drawer 底部
          ═══════════════════════════════════════════════════════════════ -->
     <header class="bg-white/95 backdrop-blur border-b border-stone-200 flex flex-col shrink-0 shadow-[0_1px_2px_rgba(0,0,0,0.04)] relative z-[100]">
-        <!-- 頂部 2px 漸層 — 品牌色錨點 -->
-        <div class="h-[2px] bg-gradient-to-r from-amber-300 via-orange-300 to-rose-300"></div>
+        <!-- 頂部漸層條已移除 (緊湊化) -->
 
-        <!-- 單列：Brand | Nav pills (可橫捲) | 右側動作群 -->
-        <div class="h-14 flex items-center px-3 md:px-5 gap-2 min-w-0">
+        <!-- 第一列:Brand + (空白) + 右側動作群 -->
+        <div class="h-11 flex items-center px-3 md:px-5 gap-2 min-w-0">
             <!-- 專案樹(只在行動裝置顯示) -->
             <button type="button" id="sidebarMobileToggle" onclick="toggleMobileSidebar()"
                 class="md:hidden w-9 h-9 flex items-center justify-center rounded-lg text-stone-600 hover:bg-amber-50 hover:text-amber-600 transition shrink-0"
@@ -901,9 +900,9 @@
             <!-- Brand -->
             <button type="button" id="navHomeBtn" onclick="showHomeView()" title="回首頁" aria-label="回首頁"
                 class="flex items-center hover:opacity-80 transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 rounded shrink-0">
-                <div class="flex flex-col items-start leading-none">
-                    <h1 class="font-extrabold text-2xl md:text-3xl text-slate-800 tracking-tight whitespace-nowrap">AutoTest</h1>
-                    <span class="hidden sm:inline text-[11px] text-amber-700 bg-amber-50 font-semibold mt-1 px-2 py-0.5 rounded border border-amber-200">v1.1.8.1</span>
+                <div class="flex items-baseline gap-2 leading-none">
+                    <h1 class="font-extrabold text-xl text-slate-800 tracking-tight whitespace-nowrap">AutoTest</h1>
+                    <span class="hidden sm:inline text-[10px] text-amber-700 bg-amber-50 font-semibold px-1.5 py-0.5 rounded border border-amber-200">v1.1.8.1</span>
                 </div>
             </button>
             <!-- nav pills 移到第二列(<nav id="topNavRow">),此處空出 flex-1 把右側 actions 推到底 -->
@@ -957,7 +956,7 @@
         </div>
 
         <!-- 第二列:nav pills(從原本第一列抽出來,釋出主列空間;靠右對齊) -->
-        <nav id="topNavRow" class="px-3 md:px-5 py-1.5 overflow-x-auto flex items-center justify-end gap-1 whitespace-nowrap" style="-ms-overflow-style:none;scrollbar-width:none;">
+        <nav id="topNavRow" class="px-3 md:px-5 py-1 overflow-x-auto flex items-center justify-end gap-1 whitespace-nowrap" style="-ms-overflow-style:none;scrollbar-width:none;">
             <button type="button" data-nav-hash="#testcases"    onclick="showTestCasesView()"    class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-list-check text-blue-600"></i><span data-i18n="nav.testCases">測試案例</span></button>
             <button type="button" data-nav-hash="#testdatasets" onclick="showTestDataSetsView()" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-table text-violet-600"></i><span data-i18n="nav.dataSets">測試資料</span></button>
             <button type="button" data-nav-hash="#envvars"      onclick="showEnvVarsView()"      class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-key text-emerald-600"></i><span data-i18n="nav.envVars">環境變數</span></button>
