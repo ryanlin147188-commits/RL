@@ -176,6 +176,12 @@ class UserManager(BaseUserManager[User, str]):
 
         # 3) JIT 新建。密碼 hash 走 fastapi-users PasswordHelper(argon2)。
         username = (email or sub).lower()
+        # 預設角色:user(系統 role,只有 *.read 權限);
+        # 之後可由 admin 在 #usersettings 改派為 admin / 自訂角色。
+        from app.models.role import Role  # 區域 import 避免循環
+        default_role = (await self.user_db.session.execute(  # type: ignore[attr-defined]
+            select(Role).where(Role.name == "user", Role.is_system.is_(True))
+        )).scalar_one_or_none()
         new_user = User(
             username=username,
             display_name=display_name or username,
@@ -185,6 +191,7 @@ class UserManager(BaseUserManager[User, str]):
             oidc_subject=sub,
             is_active=True,
             is_superuser=False,
+            role_id=default_role.id if default_role else None,
         )
         self.user_db.session.add(new_user)  # type: ignore[attr-defined]
         await self.user_db.session.flush()  # type: ignore[attr-defined]

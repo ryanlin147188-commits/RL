@@ -42,86 +42,57 @@ from slowapi.middleware import SlowAPIMiddleware
 
 async def _seed_default_roles() -> None:
     """確保系統內建角色存在;不存在才建立。
-    * scope=org:Admin / QA / Viewer(套用全 org)
-    * scope=project:Project-Admin / Project-Tester / Project-Reviewer / Project-Viewer
-      (套用在 ProjectMember.role_id,override OrgMembership 的角色)
+
+    Phase 1 簡化版:只保留兩個系統角色
+    * ``admin`` — 完整權限(包含既有 catalog 25 個 + 新矩陣 48 個)
+    * ``user``  — 預設只能查看(12 個 *.read)
+
+    舊角色 (Admin / QA / Viewer / Project-Admin / Project-Tester /
+    Project-Reviewer / Project-Viewer) 已透過一次性 SQL migration 刪除,
+    這支 seed 只負責「不存在才建立」,不會把舊角色長回來。
     """
     from sqlalchemy import select
     from app.database import AsyncSessionLocal
 
+    # 新矩陣權限:12 個資源 × 4 個動作 (read/create/update/delete) = 48 個
+    _MATRIX_RESOURCES = [
+        "testcase", "testdata", "envvar", "testrun", "schedule", "recording",
+        "report", "review", "filecompare", "project", "user", "role",
+    ]
+    _MATRIX_ACTIONS = ["read", "create", "update", "delete"]
+    _matrix_perms = [f"{r}.{a}" for r in _MATRIX_RESOURCES for a in _MATRIX_ACTIONS]
+
+    # 既有 catalog 的特殊權限(非 CRUD,例如 testcase.execute / plan.approve);
+    # 為了不破壞既有 endpoint 的 require_casbin,admin 全部留著。
+    _legacy_admin_perms = [
+        "project.read", "project.write", "project.delete",
+        "testcase.read", "testcase.write", "testcase.delete", "testcase.execute",
+        "defect.read", "defect.write", "defect.delete",
+        "requirement.read", "requirement.write", "requirement.delete",
+        "plan.read", "plan.write", "plan.approve",
+        "wbs.read", "wbs.write",
+        "document.read", "document.write",
+        "report.read",
+        "settings.read", "settings.write",
+        "user.manage", "role.manage",
+        "review.read", "review.submit", "review.manage",
+    ]
+
+    admin_perms = sorted(set(_matrix_perms) | set(_legacy_admin_perms))
+    user_perms = [f"{r}.read" for r in _MATRIX_RESOURCES]
+
     DEFAULTS = [
         {
-            "name": "Admin",
+            "name": "admin",
             "scope": "org",
-            "description": "系統管理員 — 全部權限",
-            "permissions_json": [
-                "project.read", "project.write", "project.delete",
-                "testcase.read", "testcase.write", "testcase.delete", "testcase.execute",
-                "report.read",
-                "settings.read", "settings.write",
-                "user.manage", "role.manage",
-            ],
+            "description": "系統管理員 — 完整權限",
+            "permissions_json": admin_perms,
         },
         {
-            "name": "QA",
+            "name": "user",
             "scope": "org",
-            "description": "測試人員 — 撰寫 / 執行測試 + 缺陷管理",
-            "permissions_json": [
-                "project.read",
-                "testcase.read", "testcase.write", "testcase.execute",
-                "report.read",
-                "settings.read",
-            ],
-        },
-        {
-            "name": "Viewer",
-            "scope": "org",
-            "description": "檢視者 — 只讀全部",
-            "permissions_json": [
-                "project.read", "testcase.read",
-                "report.read", "settings.read",
-            ],
-        },
-        # ── Phase 3 多租戶:per-project 角色 ───────────────────────────────
-        {
-            "name": "Project-Admin",
-            "scope": "project",
-            "description": "專案管理員 — 該專案內全部權限(可加減成員)",
-            "permissions_json": [
-                "project.read", "project.write",
-                "testcase.read", "testcase.write", "testcase.delete", "testcase.execute",
-                "report.read",
-                "user.manage",
-            ],
-        },
-        {
-            "name": "Project-Tester",
-            "scope": "project",
-            "description": "專案測試人員 — 寫案例 + 跑測試 + 缺陷",
-            "permissions_json": [
-                "project.read",
-                "testcase.read", "testcase.write", "testcase.execute",
-                "report.read",
-            ],
-        },
-        {
-            "name": "Project-Reviewer",
-            "scope": "project",
-            "description": "專案審核者 — 讀全部 + 核准計畫",
-            "permissions_json": [
-                "project.read",
-                "testcase.read",
-                "report.read",
-            ],
-        },
-        {
-            "name": "Project-Viewer",
-            "scope": "project",
-            "description": "專案檢視者 — 只讀",
-            "permissions_json": [
-                "project.read", "testcase.read",
-                "report.read",
-            ],
+            "description": "一般使用者 — 預設只能查看",
+            "permissions_json": user_perms,
         },
     ]
 
@@ -138,10 +109,101 @@ async def _seed_default_roles() -> None:
                     is_system=True,
                     scope=spec["scope"],
                 ))
-            elif existing.scope != spec["scope"]:
-                # 既有 row 把 scope 補回;permissions_json 不動,避免覆蓋使用者客製
-                existing.scope = spec["scope"]
+            else:
+                # 既有 system role:對齊最新 permissions 與 scope
+                # (避免使用者意外把 admin / user 的權限改壞,啟動時自動 heal)
+                if existing.is_system:
+                    existing.permissions_json = spec["permissions_json"]
+                if existing.scope != spec["scope"]:
+                    existing.scope = spec["scope"]
         await session.commit()
+
+
+async def _migrate_legacy_roles() -> None:
+    """Phase 1 role simplification 一次性 migration:把舊 7 個角色合併成
+    ``admin`` / ``user`` 兩個系統角色。
+
+    舊角色:Admin / QA / Viewer / Project-Admin / Project-Tester /
+            Project-Reviewer / Project-Viewer
+    新角色:admin / user(由 _seed_default_roles 建立)
+
+    動作(全部 idempotent):
+    1. 把舊 ``Admin`` 角色重命名為 ``admin`` (若 admin 已存在則跳過,改刪 Admin)
+    2. 把所有非 superuser 且 role_id 指向舊 6 個角色的 user → reassign 到 user role
+    3. 把 superuser + 指向舊角色的 user → reassign 到 admin role
+    4. 刪除舊 6 個角色(role_id FK 已全部解開)
+
+    完成後 ``roles`` 表只剩 admin / user + 任何使用者自訂角色。
+    """
+    from sqlalchemy import select, delete, update
+    from app.database import AsyncSessionLocal
+
+    LEGACY_NAMES = [
+        "Admin", "QA", "Viewer",
+        "Project-Admin", "Project-Tester", "Project-Reviewer", "Project-Viewer",
+    ]
+
+    async with AsyncSessionLocal() as session:
+        # 取得 admin / user role(可能 _seed_default_roles 還沒跑;先試,沒有就 return)
+        admin_role = (await session.execute(
+            select(Role).where(Role.name == "admin", Role.is_system.is_(True))
+        )).scalar_one_or_none()
+        user_role = (await session.execute(
+            select(Role).where(Role.name == "user", Role.is_system.is_(True))
+        )).scalar_one_or_none()
+        if not admin_role or not user_role:
+            return  # seed 還沒跑,下次 startup 再試
+
+        # 找出所有舊角色
+        legacy_rows = (await session.execute(
+            select(Role).where(Role.name.in_(LEGACY_NAMES))
+        )).scalars().all()
+        if not legacy_rows:
+            return  # 已 migrate 完
+        legacy_ids = [r.id for r in legacy_rows]
+
+        # Reassign 使用者:superuser → admin role,其他 → user role
+        await session.execute(
+            update(User)
+            .where(User.role_id.in_(legacy_ids), User.is_superuser.is_(True))
+            .values(role_id=admin_role.id)
+        )
+        await session.execute(
+            update(User)
+            .where(User.role_id.in_(legacy_ids), User.is_superuser.is_(False))
+            .values(role_id=user_role.id)
+        )
+
+        # 把 OrgMembership / ProjectMember 等其他可能參照的表也清掉舊 role_id
+        # (set NULL,FK 不死綁;Casbin sync 會在下次 enforce 時重建)
+        try:
+            from app.models.org_membership import OrgMembership
+            await session.execute(
+                update(OrgMembership)
+                .where(OrgMembership.role_id.in_(legacy_ids))
+                .values(role_id=None)
+            )
+        except Exception:
+            pass
+        try:
+            from app.models.project_member import ProjectMember
+            await session.execute(
+                update(ProjectMember)
+                .where(ProjectMember.role_id.in_(legacy_ids))
+                .values(role_id=None)
+            )
+        except Exception:
+            pass
+
+        # 最後刪除舊角色
+        await session.execute(delete(Role).where(Role.id.in_(legacy_ids)))
+        await session.commit()
+
+        import logging
+        logging.getLogger(__name__).info(
+            "legacy roles migrated: %d removed (%s)",
+            len(legacy_rows), ", ".join(r.name for r in legacy_rows),
+        )
 
 
 async def _heal_admin_user() -> None:
@@ -169,7 +231,7 @@ async def _heal_admin_user() -> None:
             return  # CLI bootstrap will handle creation
         admin_role = (
             await session.execute(
-                select(Role).where(Role.name == "Admin", Role.is_system.is_(True))
+                select(Role).where(Role.name == "admin", Role.is_system.is_(True))
             )
         ).scalar_one_or_none()
 
@@ -260,7 +322,7 @@ async def _ensure_default_admin() -> None:
         ).scalar_one_or_none()
         admin_role = (
             await session.execute(
-                select(Role).where(Role.name == "Admin", Role.is_system.is_(True))
+                select(Role).where(Role.name == "admin", Role.is_system.is_(True))
             )
         ).scalar_one_or_none()
         default_org = (
@@ -340,6 +402,12 @@ async def lifespan(app: FastAPI):
         await _seed_default_roles()
     except Exception as e:  # 不要因為 seed 失敗而擋住服務啟動
         logging.getLogger(__name__).warning("seed default roles failed: %s", e)
+    # Phase 1 role simplification:把舊 7 個角色合併成 admin / user
+    # 這個 step idempotent;migrate 完之後每次 startup 都 no-op。
+    try:
+        await _migrate_legacy_roles()
+    except Exception as e:
+        logging.getLogger(__name__).warning("legacy role migration failed: %s", e)
     try:
         await _seed_default_org_and_backfill()
     except Exception as e:

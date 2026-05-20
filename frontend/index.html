@@ -2525,6 +2525,8 @@
                         <button id="setTabUser"     onclick="settingsSwitchTab('user')"     class="px-3 py-1.5 text-sm font-medium rounded text-amber-700 bg-amber-50 border border-amber-300"><i class="fa-solid fa-user-circle"></i> <span data-i18n="settings.tab.user">設定</span></button>
                         <button id="setTabNotif"   onclick="settingsSwitchTab('notif')"   class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-bell text-amber-500"></i> 通知設定</button>
                         <button id="setTabEmail"   onclick="settingsSwitchTab('email')"   class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-envelope text-blue-500"></i> Email 通知</button>
+                        <!-- 僅 admin / superuser 可見;預設 hidden,settingsTabsApplyVisibility() 載入時依 me 決定顯示 -->
+                        <button id="setTabRoles"   onclick="settingsSwitchTab('roles')"   class="hidden px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-shield-halved text-violet-500"></i> 角色與權限</button>
                     </div>
 
                     <!-- ─── Pane 1: 使用者設定（保留原本內容） ─── -->
@@ -2875,8 +2877,97 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
 
                     </div>  <!-- /setPaneEmail -->
 
+                    <!-- ─── Pane 4: 角色與權限管理（admin only） ─── -->
+                    <div id="setPaneRoles" class="hidden space-y-4">
+                        <section class="bg-white rounded-xl border border-violet-100 shadow-sm p-4 sm:p-6">
+                            <div class="flex items-center justify-between mb-3">
+                                <h3 class="font-bold text-stone-700 text-base flex items-center gap-2">
+                                    <i class="fa-solid fa-shield-halved text-violet-500"></i> 角色與權限管理
+                                </h3>
+                                <button onclick="rolesOpenCreateModal()" class="px-3 py-1.5 bg-violet-500 hover:bg-violet-600 text-white rounded text-sm font-semibold shadow-sm flex items-center gap-1.5">
+                                    <i class="fa-solid fa-plus"></i> 新增角色
+                                </button>
+                            </div>
+                            <p class="text-xs text-stone-500 mb-3">系統角色（admin / user）不可刪除,但可調整權限。新使用者預設為 user 角色（只能查看）;admin 為完整權限。</p>
+                            <div class="border border-stone-200 rounded overflow-hidden">
+                                <table class="w-full text-sm">
+                                    <thead class="bg-stone-50 text-stone-600 text-xs">
+                                        <tr>
+                                            <th class="p-2 text-left">角色名稱</th>
+                                            <th class="p-2 text-left">說明</th>
+                                            <th class="p-2 text-center w-20">類型</th>
+                                            <th class="p-2 text-center w-24">使用人數</th>
+                                            <th class="p-2 text-right w-44">操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="rolesListTbody">
+                                        <tr><td colspan="5" class="p-4 text-center text-stone-400">載入中…</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </section>
+                    </div>  <!-- /setPaneRoles -->
+
                 </div>  <!-- /max-w-5xl mx-auto -->
             </div>  <!-- /userSettingsWorkspace -->
+
+            <!-- 角色編輯 Modal：12 個資源 × 4 個動作 (查看 / 新增 / 修改 / 刪除) 矩陣 -->
+            <div id="rolePermModal" class="hidden fixed inset-0 z-[160] bg-black/40 flex items-center justify-center p-4">
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-3xl border border-violet-200 max-h-[92vh] overflow-y-auto">
+                    <div class="px-6 py-4 border-b border-stone-200 bg-violet-50/60 flex items-center justify-between">
+                        <h3 class="font-bold text-stone-800 flex items-center gap-2">
+                            <i class="fa-solid fa-shield-halved text-violet-500"></i>
+                            <span id="rolePermModalTitle">編輯角色權限</span>
+                        </h3>
+                        <button type="button" onclick="rolesCloseModal()" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <div class="p-6 space-y-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-medium text-stone-600 mb-1">角色名稱 <span class="text-rose-500">*</span></label>
+                                <input id="rolePermName" type="text" class="w-full px-3 py-2 border border-stone-300 rounded text-sm focus:ring-1 focus:ring-violet-400 outline-none" placeholder="例如:tester">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-stone-600 mb-1">說明（選填）</label>
+                                <input id="rolePermDesc" type="text" class="w-full px-3 py-2 border border-stone-300 rounded text-sm focus:ring-1 focus:ring-violet-400 outline-none" placeholder="這個角色能做什麼…">
+                            </div>
+                        </div>
+                        <div class="border border-stone-200 rounded">
+                            <div class="px-3 py-2 bg-stone-50 border-b border-stone-200 text-xs text-stone-600 flex items-center justify-between">
+                                <span>權限矩陣（資源 × 動作）</span>
+                                <span class="flex gap-2">
+                                    <button onclick="rolesMatrixToggleAll(true)" class="text-violet-600 hover:underline">全選</button>
+                                    <span class="text-stone-300">|</span>
+                                    <button onclick="rolesMatrixToggleAll(false)" class="text-stone-500 hover:underline">全部清除</button>
+                                </span>
+                            </div>
+                            <table class="w-full text-sm">
+                                <thead class="bg-stone-50 text-xs text-stone-600">
+                                    <tr>
+                                        <th class="p-2 text-left">資源</th>
+                                        <th class="p-2 text-center w-16">查看</th>
+                                        <th class="p-2 text-center w-16">新增</th>
+                                        <th class="p-2 text-center w-16">修改</th>
+                                        <th class="p-2 text-center w-16">刪除</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="rolePermMatrixTbody">
+                                    <!-- 由 rolesRenderMatrix() 動態產生 12 列 -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <p id="rolePermSystemHint" class="hidden text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+                            <i class="fa-solid fa-circle-info"></i> 這是系統角色,名稱不可修改;權限可調整但 admin 不建議降低,以免鎖死管理功能。
+                        </p>
+                    </div>
+                    <div class="px-6 py-3 border-t border-stone-200 bg-stone-50 flex justify-end gap-2">
+                        <button onclick="rolesCloseModal()" class="px-4 py-2 border border-stone-300 rounded text-sm text-stone-600 hover:bg-stone-100">取消</button>
+                        <button id="rolePermSaveBtn" onclick="rolesSaveModal()" class="px-4 py-2 bg-violet-500 hover:bg-violet-600 text-white rounded text-sm font-semibold">
+                            <i class="fa-solid fa-floppy-disk"></i> 儲存
+                        </button>
+                    </div>
+                </div>
+            </div>
 
             <!-- 角色 Modal -->
             <div id="roleModal" class="hidden fixed inset-0 z-[150] bg-black/40 flex items-center justify-center p-4">
@@ -10082,6 +10173,8 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             document.getElementById('viewTag').textContent = 'Settings';
             currentTestCase = null;
             loadUserSettingsView();
+            // admin / superuser 才顯示「角色與權限」分頁按鈕
+            try { settingsTabsApplyVisibility(); } catch (_) {}
             try { i18nApply(document.getElementById('userSettingsWorkspace')); } catch (_) {}
             try { i18nApply(document.getElementById('mainHeader')); } catch (_) {}
         }
@@ -15601,8 +15694,9 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         };
         function _zh(group, val) { return (_ZH[group] && _ZH[group][val]) || val || ''; }
 
-        // ─── 設定（Settings）── user / notif / email tabs
-        const _SETTINGS_TABS = ['user','notif','email'];
+        // ─── 設定（Settings）── user / notif / email / roles tabs
+        // roles tab 僅 admin / superuser 可見;settingsTabsApplyVisibility() 載入時依 me 決定。
+        const _SETTINGS_TABS = ['user','notif','email','roles'];
         const _SETTINGS_TAB_BTN_ON  = 'px-3 py-1.5 text-sm font-medium rounded text-amber-700 bg-amber-50 border border-amber-300';
         const _SETTINGS_TAB_BTN_OFF = 'px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50';
         function settingsSwitchTab(name) {
@@ -15611,15 +15705,219 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 const pane = document.getElementById('setPane' + t.charAt(0).toUpperCase() + t.slice(1));
                 if (!btn || !pane) return;
                 if (t === name) {
-                    btn.className = _SETTINGS_TAB_BTN_ON;
+                    // roles tab 即使選中也要保留其他狀態（hidden 由 visibility apply 控制）
+                    if (!btn.classList.contains('hidden')) {
+                        btn.className = _SETTINGS_TAB_BTN_ON + (btn.classList.contains('hidden') ? ' hidden' : '');
+                    }
                     pane.classList.remove('hidden');
                 } else {
-                    btn.className = _SETTINGS_TAB_BTN_OFF;
+                    const wasHidden = btn.classList.contains('hidden');
+                    btn.className = _SETTINGS_TAB_BTN_OFF + (wasHidden ? ' hidden' : '');
                     pane.classList.add('hidden');
                 }
             });
             if (name === 'notif') loadNotificationPrefs();
             if (name === 'email') loadEmailConfig();
+            if (name === 'roles') rolesLoadList();
+        }
+
+        // 角色 tab 顯示控制:實際打 GET /api/settings/roles,2xx 就是 admin / superuser
+        // (該端點要 settings.read 權限,user role 沒有 → 403 / 401 → 不顯示按鈕)
+        async function settingsTabsApplyVisibility() {
+            const btn = document.getElementById('setTabRoles');
+            if (!btn) return;
+            try {
+                const r = await fetch('/api/settings/roles');
+                if (r.ok) btn.classList.remove('hidden'); else btn.classList.add('hidden');
+            } catch (_) { btn.classList.add('hidden'); }
+        }
+
+        // ─── 角色與權限管理 ────────────────────────────────────────────────
+        // 矩陣定義:12 個資源 × 4 個動作。內部 permission 字串為 "<res>.<act>"。
+        const ROLE_MATRIX_RESOURCES = [
+            { key: 'testcase',    label: '測試案例' },
+            { key: 'testdata',    label: '測試資料' },
+            { key: 'envvar',      label: '環境變數' },
+            { key: 'testrun',     label: 'TestRun' },
+            { key: 'schedule',    label: '測試排程' },
+            { key: 'recording',   label: '測試錄製' },
+            { key: 'report',      label: '測試報告' },
+            { key: 'review',      label: '審核' },
+            { key: 'filecompare', label: '檔案比對' },
+            { key: 'project',     label: '專案' },
+            { key: 'user',        label: '使用者管理' },
+            { key: 'role',        label: '角色管理' },
+        ];
+        const ROLE_MATRIX_ACTIONS = [
+            { key: 'read',   label: '查看' },
+            { key: 'create', label: '新增' },
+            { key: 'update', label: '修改' },
+            { key: 'delete', label: '刪除' },
+        ];
+
+        let _rolesCache = [];          // 最新 GET /api/settings/roles 結果
+        let _roleEditing = null;       // 目前 modal 編輯中的 role(null = 新建)
+
+        async function rolesLoadList() {
+            const tbody = document.getElementById('rolesListTbody');
+            if (!tbody) return;
+            tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-stone-400">載入中…</td></tr>';
+            try {
+                const r = await fetch('/api/settings/roles');
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                _rolesCache = await r.json();
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-rose-500">載入失敗:${e.message || e}</td></tr>`;
+                return;
+            }
+            // 同時取每個 role 的 usage count
+            const usagePromises = _rolesCache.map(async (role) => {
+                try {
+                    const ur = await fetch(`/api/settings/roles/${role.id}/usage`);
+                    if (!ur.ok) return 0;
+                    const d = await ur.json();
+                    return d.user_count || 0;
+                } catch (_) { return 0; }
+            });
+            const usages = await Promise.all(usagePromises);
+
+            if (!_rolesCache.length) {
+                tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-stone-400">尚無任何角色</td></tr>';
+                return;
+            }
+            tbody.innerHTML = _rolesCache.map((role, i) => {
+                const isSystem = !!role.is_system;
+                const cnt = usages[i];
+                const canDelete = !isSystem && cnt === 0;
+                const escName = (role.name || '').replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+                const escDesc = (role.description || '').replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+                return `<tr class="border-t border-stone-100 hover:bg-violet-50/30">
+                    <td class="p-2 font-medium text-stone-800">${escName}</td>
+                    <td class="p-2 text-stone-600 text-xs">${escDesc || '<span class="text-stone-400">—</span>'}</td>
+                    <td class="p-2 text-center">${isSystem
+                        ? '<span class="inline-block px-2 py-0.5 bg-violet-100 text-violet-700 border border-violet-200 rounded text-[11px]">系統</span>'
+                        : '<span class="inline-block px-2 py-0.5 bg-stone-100 text-stone-600 border border-stone-200 rounded text-[11px]">自訂</span>'}</td>
+                    <td class="p-2 text-center text-stone-600">${cnt}</td>
+                    <td class="p-2 text-right whitespace-nowrap">
+                        <button onclick="rolesOpenEditModal('${role.id}')" class="px-2 py-1 text-xs border border-violet-300 text-violet-600 rounded hover:bg-violet-50">
+                            <i class="fa-solid fa-pen"></i> 編輯權限
+                        </button>
+                        ${canDelete
+                            ? `<button onclick="rolesDelete('${role.id}','${escName}')" class="ml-1 px-2 py-1 text-xs border border-rose-300 text-rose-600 rounded hover:bg-rose-50"><i class="fa-solid fa-trash"></i></button>`
+                            : `<button disabled class="ml-1 px-2 py-1 text-xs border border-stone-200 text-stone-300 rounded cursor-not-allowed" title="${isSystem ? '系統角色不可刪除' : '尚有使用者使用此角色,無法刪除'}"><i class="fa-solid fa-trash"></i></button>`}
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        function rolesOpenCreateModal() {
+            _roleEditing = null;
+            document.getElementById('rolePermModalTitle').textContent = '新增角色';
+            document.getElementById('rolePermName').value = '';
+            document.getElementById('rolePermName').disabled = false;
+            document.getElementById('rolePermDesc').value = '';
+            document.getElementById('rolePermSystemHint').classList.add('hidden');
+            rolesRenderMatrix(new Set());
+            document.getElementById('rolePermModal').classList.remove('hidden');
+        }
+
+        function rolesOpenEditModal(roleId) {
+            const role = _rolesCache.find(r => r.id === roleId);
+            if (!role) return;
+            _roleEditing = role;
+            document.getElementById('rolePermModalTitle').textContent = `編輯角色「${role.name}」`;
+            document.getElementById('rolePermName').value = role.name;
+            document.getElementById('rolePermName').disabled = !!role.is_system;  // 系統角色名稱不可改
+            document.getElementById('rolePermDesc').value = role.description || '';
+            if (role.is_system) {
+                document.getElementById('rolePermSystemHint').classList.remove('hidden');
+            } else {
+                document.getElementById('rolePermSystemHint').classList.add('hidden');
+            }
+            const granted = new Set(role.permissions_json || []);
+            rolesRenderMatrix(granted);
+            document.getElementById('rolePermModal').classList.remove('hidden');
+        }
+
+        function rolesRenderMatrix(grantedSet) {
+            const tbody = document.getElementById('rolePermMatrixTbody');
+            tbody.innerHTML = ROLE_MATRIX_RESOURCES.map(res => {
+                const cells = ROLE_MATRIX_ACTIONS.map(act => {
+                    const perm = `${res.key}.${act.key}`;
+                    const checked = grantedSet.has(perm) ? 'checked' : '';
+                    return `<td class="p-2 text-center">
+                        <input type="checkbox" data-perm="${perm}" ${checked}
+                               class="rolePermCb h-4 w-4 rounded border-stone-300 text-violet-500 focus:ring-1 focus:ring-violet-400">
+                    </td>`;
+                }).join('');
+                return `<tr class="border-t border-stone-100">
+                    <td class="p-2 text-stone-700">${res.label} <span class="text-[10px] text-stone-400">${res.key}</span></td>
+                    ${cells}
+                </tr>`;
+            }).join('');
+        }
+
+        function rolesMatrixToggleAll(checked) {
+            document.querySelectorAll('.rolePermCb').forEach(cb => { cb.checked = !!checked; });
+        }
+
+        function rolesCloseModal() {
+            document.getElementById('rolePermModal').classList.add('hidden');
+            _roleEditing = null;
+        }
+
+        async function rolesSaveModal() {
+            const name = (document.getElementById('rolePermName').value || '').trim();
+            const desc = (document.getElementById('rolePermDesc').value || '').trim();
+            if (!name) { showToast('請輸入角色名稱', 'error'); return; }
+            const perms = Array.from(document.querySelectorAll('.rolePermCb'))
+                .filter(cb => cb.checked)
+                .map(cb => cb.getAttribute('data-perm'));
+            const payload = { name, description: desc, permissions_json: perms };
+            const btn = document.getElementById('rolePermSaveBtn');
+            btn.disabled = true; btn.classList.add('opacity-60');
+            try {
+                let r;
+                if (_roleEditing) {
+                    // 系統角色名稱不可改;若 disabled 沒送 name(送了 backend 也會擋)
+                    if (_roleEditing.is_system) delete payload.name;
+                    r = await fetch(`/api/settings/roles/${_roleEditing.id}`, {
+                        method: 'PUT', headers: {'Content-Type':'application/json'},
+                        body: JSON.stringify(payload),
+                    });
+                } else {
+                    r = await fetch('/api/settings/roles', {
+                        method: 'POST', headers: {'Content-Type':'application/json'},
+                        body: JSON.stringify(payload),
+                    });
+                }
+                if (!r.ok) {
+                    const err = await r.json().catch(() => ({}));
+                    throw new Error(err.detail || `HTTP ${r.status}`);
+                }
+                showToast(_roleEditing ? '角色已更新' : '角色已新增', 'success');
+                rolesCloseModal();
+                rolesLoadList();
+            } catch (e) {
+                showToast('儲存失敗:' + (e.message || e), 'error');
+            } finally {
+                btn.disabled = false; btn.classList.remove('opacity-60');
+            }
+        }
+
+        async function rolesDelete(roleId, roleName) {
+            if (!confirm(`確定要刪除角色「${roleName}」?此操作無法復原。`)) return;
+            try {
+                const r = await fetch(`/api/settings/roles/${roleId}`, { method: 'DELETE' });
+                if (!r.ok && r.status !== 204) {
+                    const err = await r.json().catch(() => ({}));
+                    throw new Error(err.detail || `HTTP ${r.status}`);
+                }
+                showToast(`角色「${roleName}」已刪除`, 'success');
+                rolesLoadList();
+            } catch (e) {
+                showToast('刪除失敗:' + (e.message || e), 'error');
+            }
         }
 
         let _permsCatalogue = [];
