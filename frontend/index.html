@@ -10490,6 +10490,50 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         let recScriptFile = null;
         let recTraceFile = null;
 
+        // 「建立 / 重新開始」按鈕入口:POST /api/recordings 建一個新的錄製 session,
+        // 設好 recCurrentSession,顯示「啟動錄製器」區塊讓使用者能按 recDockerStart()。
+        // 若 session 已存在(重新開始),先把舊的清空。
+        async function recCreateSession() {
+            const urlInput = document.getElementById('recUrl');
+            const url = (urlInput?.value || '').trim();
+            if (!url) { showToast('請輸入目標 URL', 'error'); urlInput?.focus(); return; }
+            if (!currentProjectId) { showToast('請先選擇專案', 'error'); return; }
+            const sessionInfo = document.getElementById('recSessionInfo');
+            try {
+                const r = await fetch('/api/recordings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ project_id: currentProjectId, target_url: url }),
+                });
+                if (!r.ok) {
+                    const err = await r.json().catch(() => ({}));
+                    throw new Error(err.detail || `HTTP ${r.status}`);
+                }
+                const data = await r.json();
+                recCurrentSession = data.session;
+                // 把 backend 回的 commands 寫入隱藏 textarea(原邏輯保留,本機 CLI 模式已停用但留欄位)
+                const cmds = data.commands || {};
+                ['cmdPs', 'cmdBash', 'cmdNpx', 'cmdPip', 'cmdRfb'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (!el) return;
+                    const key = id.replace('cmd', '').toLowerCase();
+                    el.value = cmds[key] || cmds[id] || '';
+                });
+                // 顯示「啟動錄製器」區塊;清掉舊上傳狀態
+                document.getElementById('recCmdSection')?.classList.remove('hidden');
+                if (sessionInfo) {
+                    sessionInfo.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-500"></i> Session 已建立 · ID <code class="font-mono text-stone-700">${recCurrentSession.id.slice(0, 8)}</code> · 請按下方「啟動容器並開始錄製」`;
+                }
+                // 確保 Docker 按鈕回到「啟動」狀態(若之前跑過,有可能是 hidden)
+                document.getElementById('recDockerStartBtn')?.classList.remove('hidden');
+                document.getElementById('recDockerStopBtn')?.classList.add('hidden');
+                showToast('已建立錄製 session,請接著按啟動容器', 'success');
+            } catch (e) {
+                showToast('建立 session 失敗:' + (e.message || e), 'error');
+                if (sessionInfo) sessionInfo.innerHTML = `<span class="text-rose-600"><i class="fa-solid fa-circle-xmark"></i> ${(e.message || e)}</span>`;
+            }
+        }
+
         function showRecorderView() {
             if (!confirmDiscardIfDirty()) return false;
             _navPush();
