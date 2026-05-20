@@ -3012,10 +3012,9 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                                     <p class="text-[11px] text-stone-500 mt-1">系統會寄一封含邀請碼的信給此 email,該使用者必須用同一個 email 登入才能兌換。</p>
                                 </div>
                                 <div>
-                                    <label for="pmInviteRoleId" class="block text-xs font-semibold text-stone-600 mb-1">本專案角色（選填）</label>
-                                    <select id="pmInviteRoleId" class="w-full px-3 py-2 border border-stone-300 rounded text-sm">
-                                        <option value="">— 沿用該使用者的組織角色 —</option>
-                                    </select>
+                                    <label for="pmInviteRoleId" class="block text-xs font-semibold text-stone-600 mb-1">系統角色</label>
+                                    <select id="pmInviteRoleId" class="w-full px-3 py-2 border border-stone-300 rounded text-sm"></select>
+                                    <p class="text-[11px] text-stone-500 mt-1">預設為 <code class="bg-stone-100 px-1 rounded">user</code>(只能查看);若要給 admin 權限請改選 admin。</p>
                                 </div>
                                 <div>
                                     <label for="pmInviteExpiresDays" class="block text-xs font-semibold text-stone-600 mb-1">過期天數</label>
@@ -9977,6 +9976,16 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 if (tab === 'login') subtitle.textContent = '歡迎回來，請登入以繼續';
                 else if (tab === 'forgot') subtitle.textContent = '沒關係，我們來幫你重設密碼';
             }
+            // SSO (Zoho) 區塊只在「登入」分頁顯示;切到「忘記密碼」時隱藏。
+            // 切回「登入」時若後端有 enabled,由 _maybeShowZohoButton 重新解 hidden。
+            const oidc = document.getElementById('oidcBlock');
+            if (oidc) {
+                if (tab === 'login') {
+                    try { if (typeof _maybeShowZohoButton === 'function') _maybeShowZohoButton().catch(() => {}); } catch (_) {}
+                } else {
+                    oidc.classList.add('hidden');
+                }
+            }
         }
 
         async function authHandleLogin(ev) {
@@ -13917,12 +13926,16 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         // ─── Project Invites:邀請流程 admin 端 UI ─────────────────────────
         async function pmInviteOpen() {
             if (!currentProjectId) { showToast('請先選擇專案', 'error'); return; }
-            // 角色下拉沿用 _pmAllRoles
             const sel = document.getElementById('pmInviteRoleId');
-            sel.innerHTML = '<option value="">— 沿用該使用者的組織角色 —</option>';
+            sel.innerHTML = '';
+            // 系統角色清單(admin / user 等),預設選 "user"
+            if (!(_pmAllRoles || []).length) {
+                try { await pmLoadRoles(); } catch (_) {}
+            }
             (_pmAllRoles || []).forEach(r => {
                 const opt = document.createElement('option');
                 opt.value = r.id; opt.textContent = r.name;
+                if (r.name === 'user') opt.selected = true;
                 sel.appendChild(opt);
             });
             document.getElementById('pmInviteEmail').value = '';
