@@ -9863,7 +9863,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                     const isActive = !!target && target === hash;
                     if (isActive) {
                         btn.classList.add('bg-amber-50', 'text-amber-700');
-                        btn.style.boxShadow = 'inset 0 -2px 0 0 #d97706';  // amber-600 底線
+                        btn.style.boxShadow = 'inset 0 -2px 0 0 #d97706';
                     } else {
                         btn.classList.remove('bg-amber-50', 'text-amber-700');
                         btn.style.boxShadow = '';
@@ -9872,6 +9872,25 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             }
             window.addEventListener('hashchange', _updateNavActiveHighlight);
             document.addEventListener('DOMContentLoaded', _updateNavActiveHighlight);
+            // 點 nav pill 後 hash 通常會由 show*View() 設成同一個 hash,有時 hashchange
+            // 沒 fire(瀏覽器對「設成完全相同的 hash」會跳過)→ active highlight 不更新。
+            // 改用 click delegation 立即套上 active 樣式,不等 hashchange。
+            // 等 show*View 設完 hash 再跑一次 sync(下一個 tick),確保跟最終 hash 一致。
+            document.addEventListener('click', (ev) => {
+                const btn = ev.target && ev.target.closest && ev.target.closest('[data-nav-hash]');
+                if (!btn) return;
+                const target = (btn.dataset.navHash || '').toLowerCase();
+                if (!target) return;
+                // 樂觀套上(立即視覺反饋)
+                document.querySelectorAll('[data-nav-hash]').forEach(b => {
+                    b.classList.remove('bg-amber-50', 'text-amber-700');
+                    b.style.boxShadow = '';
+                });
+                btn.classList.add('bg-amber-50', 'text-amber-700');
+                btn.style.boxShadow = 'inset 0 -2px 0 0 #d97706';
+                // 下一個 tick 用 location.hash 校正(若 show*View 改了不同的 hash)
+                setTimeout(_updateNavActiveHighlight, 0);
+            }, true);
             window._updateNavActiveHighlight = _updateNavActiveHighlight;
         })();
 
