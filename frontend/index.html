@@ -9413,13 +9413,17 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                     return;
                 }
                 const me = await r.json();
-                // 把後端最新的 displayName / email 同步進 session 快取
+                // 把後端最新的 displayName / email + last_login_at 同步進 session 快取。
+                // loginCount 在「同 username 累加」(open page 一次算一次);切到別人就重置。
                 const s = _authReadSession() || {};
+                const sameUser = s.username === me.username;
                 _authWriteSession({
                     ...s,
                     username: me.username,
                     displayName: me.display_name || s.displayName || me.username,
                     email: me.email || s.email || '',
+                    loginAt: me.last_login_at || s.loginAt || new Date().toISOString(),
+                    loginCount: sameUser ? (s.loginCount || 0) + 1 : 1,
                 });
                 // Phase 2:把 role.permissions_json 載入 capability set,供 hasPerm / applyPermissionGuards 使用
                 window.AUTOTEST_PERMS = new Set(me.permissions || []);
@@ -10525,7 +10529,9 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             document.getElementById('usUsername').value = me.username || u.username || '';
             document.getElementById('usEmail').value = me.email || '';
             document.getElementById('usDisplayName').value = me.display_name || '';
-            document.getElementById('usLastLogin').textContent = s && s.loginAt ? s.loginAt.replace('T', ' ').slice(0, 19) : '—';
+            // 「最近登入時間」優先用 backend last_login_at (權威);沒拿到 fallback session
+            const lastLoginISO = me.last_login_at || (s && s.loginAt) || '';
+            document.getElementById('usLastLogin').textContent = lastLoginISO ? String(lastLoginISO).replace('T', ' ').slice(0, 19) : '—';
             document.getElementById('usLoginCount').textContent = s && s.loginCount ? String(s.loginCount) : '1';
             // 角色下拉已移除 — 角色由系統管理員透過「專案協作成員」頁編輯使用者時設定。
             // OIDC-only 帳號 (me.oidc_provider 非空) 沒真實密碼,隱藏「變更密碼」卡片
