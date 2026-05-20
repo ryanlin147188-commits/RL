@@ -918,13 +918,13 @@
                     </div>
                 </div>
                 <!-- 通知鈴鐺(toggleNotifPanel) — onclick stopPropagation 後切換 #notifPanel -->
-                <div class="relative">
+                <div class="relative inline-block">
                     <button type="button" id="notifToggleBtn" onclick="toggleNotifPanel(event)"
                         title="通知" aria-label="通知"
-                        class="relative w-9 h-9 flex items-center justify-center rounded-full text-stone-500 hover:bg-amber-50 hover:text-amber-600 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400">
-                        <i class="fa-solid fa-bell text-[16px]"></i>
-                        <span id="notifBadge" class="hidden absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">0</span>
+                        class="w-10 h-10 flex items-center justify-center rounded-md text-stone-600 hover:bg-amber-50 hover:text-amber-600 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400">
+                        <i class="fa-solid fa-bell" style="font-size:18px;"></i>
                     </button>
+                    <span id="notifBadge" class="hidden pointer-events-none absolute top-0 right-0 -translate-y-1 translate-x-1 min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">0</span>
                     <!-- popover -->
                     <div id="notifPanel" class="hidden absolute right-0 top-full mt-2 w-[360px] max-w-[92vw] bg-white rounded-xl shadow-2xl border border-stone-200 z-[200] overflow-hidden">
                         <div class="px-4 py-3 border-b border-stone-100 flex items-center justify-between bg-stone-50/60">
@@ -2505,23 +2505,18 @@
                         <div>
                             <label class="block text-xs font-semibold text-stone-600 mb-1">系統角色</label>
                             <select id="pmEuRoleId" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm">
-                                <option value="">— 無角色 —</option>
+                                <!-- 角色選項由 pmOpenEditUserModal() 動態填入(僅 admin / user 兩個系統角色) -->
                             </select>
                         </div>
                         <label class="flex items-center gap-2 text-xs text-stone-600 cursor-pointer">
                             <input type="checkbox" id="pmEuIsActive" class="rounded border-stone-300 text-amber-500 focus:ring-amber-400">
                             <span>啟用(取消勾選 = 停用此帳號,本人無法登入)</span>
                         </label>
-                        <label class="flex items-center gap-2 text-xs text-stone-600 cursor-pointer">
-                            <input type="checkbox" id="pmEuIsSuperuser" class="rounded border-stone-300 text-rose-500 focus:ring-rose-400">
-                            <span class="text-rose-700 font-semibold">系統管理員(superuser)</span>
-                        </label>
-                        <div class="flex justify-between gap-2 pt-2">
-                            <button type="button" data-perm="user.manage" onclick="pmOpenResetPwdModal()" class="px-3 py-1.5 text-xs border border-amber-300 text-amber-700 rounded hover:bg-amber-50"><i class="fa-solid fa-key"></i> 重設密碼</button>
-                            <div class="flex gap-2">
-                                <button type="button" onclick="pmCloseEditUserModal()" class="px-3 py-1.5 text-sm border border-stone-300 rounded hover:bg-stone-50">取消</button>
-                                <button type="submit" class="px-4 py-1.5 text-sm bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold">儲存</button>
-                            </div>
+                        <!-- 「系統管理員(superuser)」checkbox 已隱藏:用 admin role 代替 -->
+                        <input type="checkbox" id="pmEuIsSuperuser" class="hidden">
+                        <div class="flex justify-end gap-2 pt-2">
+                            <button type="button" onclick="pmCloseEditUserModal()" class="px-3 py-1.5 text-sm border border-stone-300 rounded hover:bg-stone-50">取消</button>
+                            <button type="submit" class="px-4 py-1.5 text-sm bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold">儲存</button>
                         </div>
                     </form>
                 </div>
@@ -2925,9 +2920,6 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                                     <button onclick="pmOpenAddExistingModal()" class="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded text-sm font-semibold shadow-sm flex items-center gap-1.5">
                                         <i class="fa-solid fa-user-plus"></i> 加入既有使用者
                                     </button>
-                                    <button onclick="pmOpenCreateUserModal()" class="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded text-sm font-semibold shadow-sm flex items-center gap-1.5">
-                                        <i class="fa-solid fa-plus"></i> 建立新使用者
-                                    </button>
                                 </div>
                             </div>
                             <div id="pmEmptyHint" class="hidden p-6 text-center text-stone-400 text-sm border border-dashed border-stone-200 rounded">
@@ -2936,26 +2928,17 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                             <div id="pmSearchWrap" class="hidden mb-3">
                                 <input type="text" placeholder="搜尋使用者名稱 / Email…" oninput="pmOnSearchInput(this.value)"
                                     class="w-full px-3 py-2 border border-stone-300 rounded text-sm focus:ring-1 focus:ring-amber-400 outline-none">
-                            </div>
-                            <div id="pmBulkBar" class="hidden mb-2 p-2 bg-amber-50 border border-amber-200 rounded flex items-center gap-3 text-xs">
-                                <span>已選 <span id="pmBulkCount" class="font-bold">0</span> 位</span>
-                                <select id="pmBulkRoleSelect" class="px-2 py-1 border border-stone-300 rounded text-xs">
-                                    <option value="">— 批次改角色 —</option>
-                                </select>
-                                <button onclick="pmBulkApplyRole()" class="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded text-xs">套用</button>
-                                <button onclick="pmBulkRemove()" class="px-2 py-1 bg-rose-500 hover:bg-rose-600 text-white rounded text-xs">批次移除</button>
+                                <p id="pmFilterHint" class="text-[11px] text-stone-500 mt-1"></p>
                             </div>
                             <div id="pmTableWrap" class="hidden border border-stone-200 rounded overflow-hidden">
                                 <table class="w-full text-sm">
                                     <thead class="bg-stone-50 text-xs text-stone-600">
                                         <tr>
-                                            <th class="p-2 w-8 text-center"><input type="checkbox" id="pmSelectAll" onchange="pmToggleSelectAll(this.checked)"></th>
-                                            <th class="p-2 text-left cursor-pointer" onclick="pmToggleSort('username')">使用者</th>
-                                            <th class="p-2 text-left cursor-pointer" onclick="pmToggleSort('email')">Email</th>
-                                            <th class="p-2 text-left cursor-pointer" onclick="pmToggleSort('role')">角色</th>
-                                            <th class="p-2 text-left cursor-pointer" onclick="pmToggleSort('status')">狀態</th>
-                                            <th class="p-2 text-left">最後登入</th>
-                                            <th class="p-2 text-right">操作</th>
+                                            <th class="p-2 text-left cursor-pointer" onclick="pmToggleSort('username')">使用者 <span id="pmSortUsername"></span></th>
+                                            <th class="p-2 text-left cursor-pointer" onclick="pmToggleSort('email')">註冊 Email <span id="pmSortEmail"></span></th>
+                                            <th class="p-2 text-left">狀態</th>
+                                            <th class="p-2 text-left cursor-pointer" onclick="pmToggleSort('joined_at')">加入時間 <span id="pmSortJoinedAt"></span></th>
+                                            <th class="p-2 text-center w-28">操作</th>
                                         </tr>
                                     </thead>
                                     <tbody id="pmTableBody"></tbody>
@@ -13892,10 +13875,6 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                                 class="text-stone-400 hover:text-rose-600 transition px-1">
                                 <i class="fa-solid fa-user-minus"></i>
                             </button>
-                            <button onclick="pmDeleteUser('${_esc(m.username)}')" title="徹底刪除帳號(連同所有專案成員身分)"
-                                class="text-stone-400 hover:text-rose-700 transition px-1">
-                                <i class="fa-solid fa-user-xmark"></i>
-                            </button>
                         </td>
                     </tr>
                 `;
@@ -14054,7 +14033,8 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             document.getElementById('pmEuIsActive').checked = m.is_active !== false;
             document.getElementById('pmEuIsSuperuser').checked = !!m.is_superuser;
             const sel = document.getElementById('pmEuRoleId');
-            sel.innerHTML = '<option value="">— 無角色 —</option>';
+            // 「無角色」選項已移除 — 系統強制每個 user 必須掛 admin / user 之一
+            sel.innerHTML = '';
             const roles = await _pmLoadAdminRoles();
             // 注意:這個 modal 的「系統角色」對應到 ``users.role_id``(全域),
             // 不是 ``ProjectMember.role_id``(本專案 override)。後端
