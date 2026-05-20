@@ -38,6 +38,10 @@ class UserResponse(BaseModel):
     last_login_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
+    # OIDC-only 帳號(zoho / casdoor 等)的 provider key;密碼登入帳號為 None。
+    # 前端 #usersettings 用它判斷「變更密碼」卡片要不要顯示 — SSO 帳號沒真實密碼,
+    # 改了也沒意義(password_hash 只是隨機 32-byte token)。
+    oidc_provider: Optional[str] = None
     # /api/auth/me 會把 role.permissions_json 解出來填進來,給前端 capability gate;
     # superuser 一律拿到 ["*"] (萬用權限,前端 hasPerm 直接 short-circuit)。
     # 其他 endpoint 回 UserResponse 時若沒填則保持 [],前端 hasPerm fail-safe deny。

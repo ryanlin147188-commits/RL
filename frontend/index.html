@@ -2587,8 +2587,8 @@
                         </div>
                     </section>
 
-                    <!-- 變更密碼卡 -->
-                    <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-4 sm:p-6">
+                    <!-- 變更密碼卡(OIDC-only 帳號不顯示,loadUserSettingsView 依 me.oidc_provider 控制) -->
+                    <section id="usChangePasswordCard" class="bg-white rounded-xl border border-amber-100 shadow-sm p-4 sm:p-6">
                         <h3 class="font-bold text-stone-700 text-base mb-4 flex items-center gap-2">
                             <i class="fa-solid fa-lock text-amber-500"></i> 變更密碼
                         </h3>
@@ -10304,6 +10304,14 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             document.getElementById('usLastLogin').textContent = s && s.loginAt ? s.loginAt.replace('T', ' ').slice(0, 19) : '—';
             document.getElementById('usLoginCount').textContent = s && s.loginCount ? String(s.loginCount) : '1';
             // 角色下拉已移除 — 角色由系統管理員透過「專案協作成員」頁編輯使用者時設定。
+            // OIDC-only 帳號 (me.oidc_provider 非空) 沒真實密碼,隱藏「變更密碼」卡片
+            try {
+                const card = document.getElementById('usChangePasswordCard');
+                if (card) {
+                    if (me.oidc_provider) card.classList.add('hidden');
+                    else card.classList.remove('hidden');
+                }
+            } catch (_) {}
             // 偏好
             const prefs = _loadUserPrefs();
             document.getElementById('usPrefDefaultExec').value = prefs.defaultExec || 'docker';
