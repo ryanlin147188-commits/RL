@@ -1106,13 +1106,13 @@
                             <i class="fa-solid fa-angle-down text-slate-400 text-sm"></i>
                         </div>
                     </div>
-                    <button onclick="openNodeModal(event, 'root_feature', 'add')" class="w-[38px] shrink-0 flex items-center justify-center bg-indigo-50 text-indigo-600 border border-indigo-200 rounded-md hover:bg-indigo-100 transition shadow-sm" title="新增功能至此專案">
+                    <button data-perm="project.write" onclick="openNodeModal(event, 'root_feature', 'add')" class="w-[38px] shrink-0 flex items-center justify-center bg-indigo-50 text-indigo-600 border border-indigo-200 rounded-md hover:bg-indigo-100 transition shadow-sm" title="新增功能至此專案">
                         <i class="fa-solid fa-plus"></i>
                     </button>
-                    <button onclick="renameCurrentProject()" class="w-[38px] shrink-0 flex items-center justify-center bg-amber-50 text-amber-600 border border-amber-200 rounded-md hover:bg-amber-100 transition shadow-sm" title="重新命名目前專案">
+                    <button data-perm="project.update" onclick="renameCurrentProject()" class="w-[38px] shrink-0 flex items-center justify-center bg-amber-50 text-amber-600 border border-amber-200 rounded-md hover:bg-amber-100 transition shadow-sm" title="重新命名目前專案">
                         <i class="fa-solid fa-pen-to-square"></i>
                     </button>
-                    <button onclick="deleteCurrentProject()" class="w-[38px] shrink-0 flex items-center justify-center bg-rose-50 text-rose-600 border border-rose-200 rounded-md hover:bg-rose-100 transition shadow-sm" title="刪除目前專案">
+                    <button data-perm="project.delete" onclick="deleteCurrentProject()" class="w-[38px] shrink-0 flex items-center justify-center bg-rose-50 text-rose-600 border border-rose-200 rounded-md hover:bg-rose-100 transition shadow-sm" title="刪除目前專案">
                         <i class="fa-solid fa-trash"></i>
                     </button>
                 </div>
@@ -1168,11 +1168,11 @@
                     </h2>
                 </div>
                 <div id="mainActions" class="flex gap-3">
-                    <button id="saveBtn" onclick="saveDraft()" class="px-4 py-2 border border-slate-300 rounded-md text-slate-600 hover:bg-slate-50 font-medium transition flex items-center gap-2 shadow-sm">
+                    <button id="saveBtn" data-perm="testcase.write" onclick="saveDraft()" class="px-4 py-2 border border-slate-300 rounded-md text-slate-600 hover:bg-slate-50 font-medium transition flex items-center gap-2 shadow-sm">
                         <i class="fa-regular fa-floppy-disk"></i> <span id="saveBtnLabel">儲存</span>
                     </button>
 
-                    <button onclick="runTest()" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium shadow-sm transition flex items-center gap-2">
+                    <button data-perm="testcase.execute" onclick="runTest()" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium shadow-sm transition flex items-center gap-2">
                         <i class="fa-solid fa-play"></i> 執行測試
                     </button>
                     <!-- 執行設定已移到「設定 → 個人偏好」(localStorage 持久化跨案例)。
@@ -1198,7 +1198,7 @@
                     <h3 class="font-bold text-slate-700 flex items-center gap-2 mb-3"><i class="fa-solid fa-circle-1 text-rose-500"></i> 建立錄製 Session</h3>
                     <div class="flex gap-3">
                         <input id="recUrl" type="url" placeholder="目標 URL,例如 https://example.com/login" value="https://example.com/login" class="flex-1 text-sm p-2 border border-slate-300 rounded focus:ring-2 focus:ring-rose-100 focus:border-rose-400 outline-none" />
-                        <button onclick="recCreateSession()" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded font-medium text-sm flex items-center gap-2"><i class="fa-solid fa-bolt"></i> 建立 / 重新開始</button>
+                        <button data-perm="recording.create" onclick="recCreateSession()" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded font-medium text-sm flex items-center gap-2"><i class="fa-solid fa-bolt"></i> 建立 / 重新開始</button>
                     </div>
                     <!-- Sprint 2.2 — 自動建案模式(僅 Docker 容器錄製生效) -->
                     <div class="mt-3 flex items-center gap-3 flex-wrap text-xs">
@@ -1240,8 +1240,8 @@
                             </div>
                         </div>
                         <div class="flex gap-2 flex-wrap">
-                            <button id="recDockerStartBtn" onclick="recDockerStart()" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded font-medium text-sm flex items-center gap-2"><i class="fa-solid fa-play"></i> 啟動容器並開始錄製</button>
-                            <button id="recDockerStopBtn" onclick="recDockerStop()" class="hidden px-4 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded font-medium text-sm flex items-center gap-2"><i class="fa-solid fa-stop"></i> 停止錄製(關閉容器)</button>
+                            <button id="recDockerStartBtn" data-perm="recording.create" onclick="recDockerStart()" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded font-medium text-sm flex items-center gap-2"><i class="fa-solid fa-play"></i> 啟動容器並開始錄製</button>
+                            <button id="recDockerStopBtn" data-perm="recording.update" onclick="recDockerStop()" class="hidden px-4 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded font-medium text-sm flex items-center gap-2"><i class="fa-solid fa-stop"></i> 停止錄製(關閉容器)</button>
                             <span id="recDockerStatus" class="text-xs text-slate-500 self-center"></span>
                         </div>
                         <!-- noVNC 一律以「新分頁」方式開啟,避開 iframe 在不同瀏覽器
@@ -1277,13 +1277,13 @@
                     <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
                         <h3 class="font-bold text-slate-700 flex items-center gap-2"><i class="fa-solid fa-circle-4 text-rose-500"></i> 解析後的 BDD 步驟</h3>
                         <div class="flex items-center gap-2 flex-wrap">
-                            <button onclick="recCreateNewCaseFromSteps()" class="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded text-xs font-medium flex items-center gap-1" title="直接把這些步驟建成一個全新測試案例(不用先選目標)"><i class="fa-solid fa-bolt"></i> 直接建為新案例</button>
+                            <button data-perm="testcase.create" onclick="recCreateNewCaseFromSteps()" class="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded text-xs font-medium flex items-center gap-1" title="直接把這些步驟建成一個全新測試案例(不用先選目標)"><i class="fa-solid fa-bolt"></i> 直接建為新案例</button>
                             <span class="text-stone-300 text-xs">|</span>
                             <label class="text-xs text-slate-500">或套用至:</label>
                             <select id="recApplyTarget" title="選擇要套用的測試案例" aria-label="選擇要套用的測試案例" class="text-sm border border-slate-200 rounded p-1.5 bg-white focus:ring-1 focus:ring-blue-400 outline-none min-w-[200px]">
                                 <option value="">— 請選擇目標 .md 案例 —</option>
                             </select>
-                            <button onclick="recApplySteps()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-medium flex items-center gap-1"><i class="fa-solid fa-circle-down"></i> 套用</button>
+                            <button data-perm="testcase.update" onclick="recApplySteps()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-medium flex items-center gap-1"><i class="fa-solid fa-circle-down"></i> 套用</button>
                         </div>
                     </div>
                     <div class="overflow-x-auto">
@@ -1310,7 +1310,7 @@
                     <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
                         <h3 class="font-bold text-slate-700 flex items-center gap-2"><i class="fa-solid fa-circle-5 text-rose-500"></i> 歷史錄製清單</h3>
                         <div class="flex items-center gap-2">
-                            <button onclick="recBulkDelete()" id="recBulkDeleteBtn" disabled class="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded text-xs font-medium flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"><i class="fa-solid fa-trash"></i> 刪除選取 (<span id="recBulkCount">0</span>)</button>
+                            <button data-perm="recording.delete" onclick="recBulkDelete()" id="recBulkDeleteBtn" disabled class="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded text-xs font-medium flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"><i class="fa-solid fa-trash"></i> 刪除選取 (<span id="recBulkCount">0</span>)</button>
                             <button onclick="recRefreshList()" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-xs font-medium flex items-center gap-1"><i class="fa-solid fa-rotate"></i> 重新整理</button>
                         </div>
                     </div>
@@ -1339,7 +1339,7 @@
                     <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
                         <h3 class="font-bold text-slate-700 flex items-center gap-2"><i class="fa-solid fa-calendar-days text-emerald-500"></i> 排程</h3>
                         <div class="flex gap-2">
-                            <button type="button" onclick="openScheduleModal()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-sm font-medium flex items-center gap-1"><i class="fa-solid fa-plus"></i> 新增排程</button>
+                            <button type="button" data-perm="schedule.create" onclick="openScheduleModal()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-sm font-medium flex items-center gap-1"><i class="fa-solid fa-plus"></i> 新增排程</button>
                             <button type="button" onclick="refreshScheduleList()" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-sm font-medium flex items-center gap-1"><i class="fa-solid fa-rotate"></i> 重新整理</button>
                         </div>
                     </div>
@@ -1371,7 +1371,7 @@
                     <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
                         <h3 class="font-bold text-slate-700 flex items-center gap-2"><i class="fa-solid fa-layer-group text-purple-500"></i> TestRun</h3>
                         <div class="flex gap-2">
-                            <button type="button" onclick="openTestRoundModal()" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-medium flex items-center gap-1"><i class="fa-solid fa-plus"></i> 新增回合</button>
+                            <button type="button" data-perm="testrun.create" onclick="openTestRoundModal()" class="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm font-medium flex items-center gap-1"><i class="fa-solid fa-plus"></i> 新增回合</button>
                             <button type="button" onclick="refreshTestRoundList()" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-sm font-medium flex items-center gap-1"><i class="fa-solid fa-rotate"></i> 重新整理</button>
                         </div>
                     </div>
@@ -1412,16 +1412,16 @@
                             </p>
                         </div>
                         <div class="flex gap-2 flex-wrap">
-                            <button type="button" onclick="openFakerBatchModal()" class="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded text-sm font-medium flex items-center gap-1" title="批次新增多筆 Faker 隨機變數">
+                            <button type="button" data-perm="envvar.create" onclick="openFakerBatchModal()" class="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded text-sm font-medium flex items-center gap-1" title="批次新增多筆 Faker 隨機變數">
                                 <i class="fa-solid fa-dice"></i> 批次 Faker
                             </button>
-                            <button type="button" onclick="openEnvImportModal()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded text-sm font-medium flex items-center gap-1" title="從 .env 文字批次匯入">
+                            <button type="button" data-perm="envvar.create" onclick="openEnvImportModal()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded text-sm font-medium flex items-center gap-1" title="從 .env 文字批次匯入">
                                 <i class="fa-solid fa-file-import"></i> 匯入 .env
                             </button>
-                            <button type="button" onclick="addEnvVarRow()" class="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded text-sm font-medium flex items-center gap-1">
+                            <button type="button" data-perm="envvar.create" onclick="addEnvVarRow()" class="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded text-sm font-medium flex items-center gap-1">
                                 <i class="fa-solid fa-plus"></i> 新增變數
                             </button>
-                            <button type="button" onclick="saveEnvVars()" id="envVarsSaveBtn" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-sm font-medium flex items-center gap-1">
+                            <button type="button" data-perm="envvar.update" onclick="saveEnvVars()" id="envVarsSaveBtn" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-sm font-medium flex items-center gap-1">
                                 <i class="fa-solid fa-floppy-disk"></i> 儲存
                             </button>
                         </div>
@@ -1479,7 +1479,7 @@
                     </div>
                     <div class="p-3 border-t border-slate-200 flex justify-end gap-2 bg-slate-50 rounded-b-lg shrink-0">
                         <button onclick="closeEnvImportModal()" class="px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-200 rounded">取消</button>
-                        <button onclick="applyEnvImport()" class="px-3 py-1.5 text-sm bg-emerald-600 text-white hover:bg-emerald-700 rounded shadow-sm">
+                        <button data-perm="envvar.update" onclick="applyEnvImport()" class="px-3 py-1.5 text-sm bg-emerald-600 text-white hover:bg-emerald-700 rounded shadow-sm">
                             <i class="fa-solid fa-check"></i> 合併到清單
                         </button>
                     </div>
@@ -1512,7 +1512,7 @@
                                 <select id="preconditionPicker" class="text-xs px-2 py-1 border border-slate-300 rounded bg-white max-w-[260px]" aria-label="選擇前置案例">
                                     <option value="">-- 選擇要加入的案例 --</option>
                                 </select>
-                                <button type="button" onclick="addPreconditionFromPicker()" class="text-xs px-2 py-1 bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 rounded transition">
+                                <button type="button" data-perm="testcase.update" onclick="addPreconditionFromPicker()" class="text-xs px-2 py-1 bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 rounded transition">
                                     <i class="fa-solid fa-plus"></i> 加入
                                 </button>
                             </div>
@@ -1531,7 +1531,7 @@
                                 <button onclick="setStepMode('BDD')" id="btnModeBDD" class="px-3 py-1 text-xs font-medium rounded text-slate-500 hover:text-slate-700 transition">BDD 模式</button>
                                 <button onclick="setStepMode('KDT')" id="btnModeKDT" class="px-3 py-1 text-xs font-medium rounded text-slate-500 hover:text-slate-700 transition">KDT 模式</button>
                             </div>
-                            <button id="stepBulkDeleteBtn" onclick="stepBulkDeleteSelected()" disabled
+                            <button id="stepBulkDeleteBtn" data-perm="testcase.delete" onclick="stepBulkDeleteSelected()" disabled
                                 class="text-sm px-3 py-1.5 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 disabled:bg-stone-100 disabled:text-stone-400 disabled:cursor-not-allowed rounded flex items-center gap-1 transition shadow-sm" title="刪除已勾選的步驟">
                                 <i class="fa-solid fa-trash"></i> 刪除已勾選 <span id="stepBulkDeleteCount">(0)</span>
                             </button>
@@ -1560,7 +1560,7 @@
                                 </div>
                             </div>
                             <input type="file" id="stepImportFileInput" accept=".csv,.xlsx,.xls" onchange="tcStepHandleImportFile(this)" class="hidden">
-                            <button onclick="addEmptyStep()" class="text-sm px-3 py-1.5 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded flex items-center gap-1 transition shadow-sm">
+                            <button data-perm="testcase.update" onclick="addEmptyStep()" class="text-sm px-3 py-1.5 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded flex items-center gap-1 transition shadow-sm">
                                 <i class="fa-solid fa-plus"></i> 新增步驟
                             </button>
                         </div>
@@ -1630,7 +1630,7 @@
                     <div class="flex items-center justify-between mb-4">
                         <h3 class="font-bold text-slate-700 flex items-center gap-2"><i class="fa-solid fa-clock-rotate-left text-slate-500"></i> 最近執行紀錄 <span class="text-xs font-normal text-slate-400 ml-2">(點擊任一列查看詳細報告與截圖)</span></h3>
                         <div class="flex items-center gap-2 text-sm">
-                            <button id="recentReportsDeleteBtn" onclick="deleteSelectedReports()" disabled
+                            <button id="recentReportsDeleteBtn" data-perm="report.delete" onclick="deleteSelectedReports()" disabled
                                 class="px-3 py-1 bg-rose-50 text-rose-600 border border-rose-200 rounded hover:bg-rose-100 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1">
                                 <i class="fa-solid fa-trash"></i>
                                 <span>刪除</span>
@@ -2056,7 +2056,7 @@
                             <button onclick="renderTestCasesList()" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50 transition" title="同步左側目錄樹">
                                 <i class="fa-solid fa-rotate"></i> 重新整理
                             </button>
-                            <button id="tcBulkDeleteBtn" onclick="tcBulkDeleteSelected()" disabled
+                            <button id="tcBulkDeleteBtn" data-perm="testcase.delete" onclick="tcBulkDeleteSelected()" disabled
                                 class="px-3 py-2 bg-rose-500 hover:bg-rose-600 disabled:bg-stone-300 disabled:cursor-not-allowed text-white rounded-md text-sm font-semibold shadow-sm transition flex items-center gap-1.5" title="刪除已勾選的測試案例(可跨頁)">
                                 <i class="fa-solid fa-trash"></i> 刪除 <span id="tcBulkDeleteCount">(0)</span>
                             </button>
@@ -2130,7 +2130,7 @@
                                     class="w-full pl-9 pr-3 py-2 border border-stone-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-violet-400">
                             </div>
                             <button onclick="renderDataSetsList()" class="px-3 py-2 border border-stone-300 rounded-md text-sm hover:bg-amber-50"><i class="fa-solid fa-rotate"></i> 重新整理</button>
-                            <button onclick="openDataSetModal()" class="px-3 py-2 bg-violet-500 hover:bg-violet-600 text-white rounded-md text-sm font-semibold shadow-sm"><i class="fa-solid fa-plus"></i> 新增資料集</button>
+                            <button data-perm="testdata.create" onclick="openDataSetModal()" class="px-3 py-2 bg-violet-500 hover:bg-violet-600 text-white rounded-md text-sm font-semibold shadow-sm"><i class="fa-solid fa-plus"></i> 新增資料集</button>
                             <div class="text-xs text-stone-500 ml-auto">共 <span id="dsListCount" class="font-bold text-stone-700">0</span> 筆</div>
                         </div>
                     </div>
@@ -2191,7 +2191,7 @@
                                     <input type="file" id="dsJsonImportInput" accept=".json,application/json" multiple aria-label="匯入 JSON 測試資料(可複選)" class="hidden" onchange="dsImportJson(event)">
                                     <button type="button" onclick="document.getElementById('dsJsonImportInput').click()" class="text-xs px-2 py-1 border border-stone-300 bg-white rounded hover:bg-violet-50" title="可一次選取多個 JSON 檔;巢狀結構會以點記法展開為 Key 路徑"><i class="fa-solid fa-file-import"></i> 匯入 JSON</button>
                                     <button type="button" onclick="dsExportJson()" class="text-xs px-2 py-1 border border-stone-300 bg-white rounded hover:bg-violet-50" title="把目前資料表下載成 JSON 檔(rows_json 結構)"><i class="fa-solid fa-file-export"></i> 匯出 JSON</button>
-                                    <button type="button" onclick="dsClearGrid()" class="text-xs px-2 py-1 border border-rose-200 text-rose-600 bg-white rounded hover:bg-rose-50" title="清空所有欄列"><i class="fa-solid fa-eraser"></i> 清空</button>
+                                    <button type="button" data-perm="testdata.update" onclick="dsClearGrid()" class="text-xs px-2 py-1 border border-rose-200 text-rose-600 bg-white rounded hover:bg-rose-50" title="清空所有欄列"><i class="fa-solid fa-eraser"></i> 清空</button>
                                     <span class="text-[11px] text-stone-500 ml-auto">總計 <span id="dsColCount" class="font-mono font-bold text-stone-700">0</span> 欄 × <span id="dsRowCount" class="font-mono font-bold text-stone-700">0</span> 列</span>
                                 </div>
                                 <div id="dsGridTableWrap" class="overflow-auto max-h-[55vh] border border-violet-100 rounded bg-white">
@@ -2299,7 +2299,7 @@
                         <div class="flex items-center justify-between text-xs">
                             <span class="text-stone-500">選 <span id="pmAddSelectedCount" class="font-bold text-amber-700">0</span> / <span id="pmAddCandidateCount">0</span> 人</span>
                             <div class="flex gap-2">
-                                <button onclick="pmAddSelectAllVisible()" class="px-2 py-0.5 border border-stone-300 rounded hover:bg-amber-50">全選顯示中</button>
+                                <button data-perm="user.manage" onclick="pmAddSelectAllVisible()" class="px-2 py-0.5 border border-stone-300 rounded hover:bg-amber-50">全選顯示中</button>
                                 <button onclick="pmAddClearSelection()" class="px-2 py-0.5 border border-stone-300 rounded hover:bg-amber-50">清除</button>
                             </div>
                         </div>
@@ -2339,7 +2339,7 @@
 
                     <div class="px-5 py-3 border-t flex justify-end gap-2 bg-stone-50 flex-shrink-0">
                         <button onclick="pmCloseAddModal()" class="px-3 py-1.5 text-sm border border-stone-300 rounded hover:bg-white">取消</button>
-                        <button id="pmAddSubmitBtn" onclick="pmSubmitAdd()" class="px-4 py-1.5 text-sm bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold">加入</button>
+                        <button id="pmAddSubmitBtn" data-perm="user.manage" onclick="pmSubmitAdd()" class="px-4 py-1.5 text-sm bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold">加入</button>
                     </div>
                 </div>
             </div>
@@ -2406,7 +2406,7 @@
                         </p>
                         <div id="prpPermsBox" class="space-y-3 max-h-[55vh] overflow-y-auto"></div>
                         <div class="flex justify-between gap-2 pt-2 border-t border-stone-100">
-                            <button type="button" onclick="prpResetToDefault()" class="px-3 py-1.5 text-sm border border-rose-300 text-rose-700 rounded hover:bg-rose-50" title="移除本專案 override,回到該 role 的全域預設權限"><i class="fa-solid fa-rotate-left"></i> 重設為預設</button>
+                            <button type="button" data-perm="role.manage" onclick="prpResetToDefault()" class="px-3 py-1.5 text-sm border border-rose-300 text-rose-700 rounded hover:bg-rose-50" title="移除本專案 override,回到該 role 的全域預設權限"><i class="fa-solid fa-rotate-left"></i> 重設為預設</button>
                             <div class="flex gap-2">
                                 <button type="button" onclick="prpCloseEditModal()" class="px-3 py-1.5 text-sm border border-stone-300 rounded hover:bg-stone-50">取消</button>
                                 <button type="submit" class="px-4 py-1.5 text-sm bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold">儲存覆蓋</button>
@@ -2482,7 +2482,7 @@
                             <span class="text-rose-700 font-semibold">系統管理員(superuser)</span>
                         </label>
                         <div class="flex justify-between gap-2 pt-2">
-                            <button type="button" onclick="pmOpenResetPwdModal()" class="px-3 py-1.5 text-xs border border-amber-300 text-amber-700 rounded hover:bg-amber-50"><i class="fa-solid fa-key"></i> 重設密碼</button>
+                            <button type="button" data-perm="user.manage" onclick="pmOpenResetPwdModal()" class="px-3 py-1.5 text-xs border border-amber-300 text-amber-700 rounded hover:bg-amber-50"><i class="fa-solid fa-key"></i> 重設密碼</button>
                             <div class="flex gap-2">
                                 <button type="button" onclick="pmCloseEditUserModal()" class="px-3 py-1.5 text-sm border border-stone-300 rounded hover:bg-stone-50">取消</button>
                                 <button type="submit" class="px-4 py-1.5 text-sm bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold">儲存</button>
@@ -4556,7 +4556,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                                 aria-label="設定基準圖" title="設定 / 替換 baseline 圖"
                                 class="text-purple-500 hover:text-purple-700 transition mr-1"><i class="fa-solid fa-camera"></i></button>
                         ` : ''}
-                        <button onclick="deleteStep(${idx})" aria-label="刪除步驟" class="text-slate-300 hover:text-red-500 transition"><i class="fa-solid fa-xmark"></i></button>
+                        <button data-perm="testcase.delete" onclick="deleteStep(${idx})" aria-label="刪除步驟" class="text-slate-300 hover:text-red-500 transition"><i class="fa-solid fa-xmark"></i></button>
                     </td>
                 `;
                 tbody.appendChild(tr);
@@ -4846,7 +4846,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                     : '') +
                 '<div class="flex justify-end gap-2 pt-2">' +
                     '<button onclick="document.getElementById(\'stepImportModal\').classList.add(\'hidden\')" class="px-4 py-2 border border-slate-300 rounded text-sm text-slate-600 hover:bg-slate-50">取消</button>' +
-                    '<button onclick="_tcStepDoImport()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-semibold"><i class="fa-solid fa-file-import"></i> 確認匯入</button>' +
+                    '<button data-perm="testcase.create" onclick="_tcStepDoImport()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-semibold"><i class="fa-solid fa-file-import"></i> 確認匯入</button>' +
                 '</div>';
             modal.classList.remove('hidden');
         }
@@ -8496,8 +8496,8 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                     : '';
                 html += `<i class="${n.icon} shrink-0"></i><span class="flex-1 truncate ml-1">${highlightKeyword(n.title)}</span>`;
                 html += `<div class="opacity-0 group-hover:opacity-100 flex items-center gap-1.5 transition-opacity tree-actions pl-2" onclick="event.stopPropagation()">`;
-                if (!n.isFile) html += `<button onclick="openNodeModal(event, '${n.id}', 'add')" class="text-slate-400 hover:text-blue-500 transform hover:scale-110" title="新增子節點"><i class="fa-solid fa-plus text-[11px]"></i></button>`;
-                html += `<button onclick="openNodeModal(event, '${n.id}', 'edit')" class="text-slate-400 hover:text-green-500 transform hover:scale-110" title="修改名稱"><i class="fa-solid fa-pen text-[11px]"></i></button>
+                if (!n.isFile) html += `<button data-perm="project.write" onclick="openNodeModal(event, '${n.id}', 'add')" class="text-slate-400 hover:text-blue-500 transform hover:scale-110" title="新增子節點"><i class="fa-solid fa-plus text-[11px]"></i></button>`;
+                html += `<button data-perm="project.update" onclick="openNodeModal(event, '${n.id}', 'edit')" class="text-slate-400 hover:text-green-500 transform hover:scale-110" title="修改名稱"><i class="fa-solid fa-pen text-[11px]"></i></button>
                          <button onclick="openDeleteModal(event, '${n.id}')" class="text-slate-400 hover:text-red-500 transform hover:scale-110" title="刪除"><i class="fa-solid fa-trash text-[11px]"></i></button>
                          </div>`;
 
@@ -9328,6 +9328,35 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             }
         }
 
+        // 平台大量 view 用 JS template literal 動態 render 按鈕(排程 / TestRun / 審核
+        // 列表等)。這些按鈕 HTML 中已帶 data-perm,但在 innerHTML 後不會被原本的
+        // applyPermissionGuards 自動掃到 — 用 MutationObserver 監聽 childList,
+        // 有新增節點時排一個 idle reapply。同一輪 batch 只排一次,避免效能爆炸。
+        let _permGuardScheduled = false;
+        function _scheduleGuardReapply() {
+            if (_permGuardScheduled) return;
+            _permGuardScheduled = true;
+            const run = () => {
+                _permGuardScheduled = false;
+                try { applyPermissionGuards(); } catch (_) {}
+            };
+            if (window.requestIdleCallback) requestIdleCallback(run, { timeout: 300 });
+            else setTimeout(run, 0);
+        }
+        try {
+            const _permObs = new MutationObserver((muts) => {
+                for (const m of muts) {
+                    if (m.type === 'childList' && m.addedNodes && m.addedNodes.length) {
+                        _scheduleGuardReapply();
+                        break;
+                    }
+                }
+            });
+            document.addEventListener('DOMContentLoaded', () => {
+                try { _permObs.observe(document.body, { childList: true, subtree: true }); } catch (_) {}
+            });
+        } catch (_) { /* MutationObserver 不可用就放棄,靜態 [data-perm] 仍 work */ }
+
         // ── 後端 token 管理 ──────────────────────────────────────────────
         // access_token / refresh_token 存 localStorage；fetch 自動帶上 Bearer header；
         // 401 時嘗試 refresh，refresh 也壞了就跳登入畫面。
@@ -9734,6 +9763,10 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             document.documentElement.setAttribute('data-auth', 'out');
             // 把 enabled SSO providers 拉下來畫成按鈕（沒有就保持隱藏）
             try { if (typeof loadSsoButtons === 'function') loadSsoButtons(); } catch (_) {}
+            // v1.1.5 in-process OIDC Zoho 按鈕 — onload 已登入路徑被 token expire 踢
+            // 回 overlay 時也要解 #oidcBlock 的 hidden,否則使用者卡在「沒密碼也沒
+            // Zoho 按鈕」的死路。
+            try { if (typeof _maybeShowZohoButton === 'function') _maybeShowZohoButton().catch(() => {}); } catch (_) {}
             // URL 帶 #register → 切到註冊分頁(邀請碼改成登入後在「設定 → 兌換邀請碼」輸入)
             try {
                 if ((window.location.hash || '').toLowerCase() === '#register') {
@@ -10643,9 +10676,9 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                         <td class="p-2 whitespace-nowrap">
                             <div class="flex gap-1 flex-wrap">
                                 ${modeIcon}
-                                <button onclick="triggerScheduleNow('${s.id}')" class="text-xs px-2 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 rounded" title="立即執行"><i class="fa-solid fa-play"></i> 立即</button>
-                                <button onclick="openScheduleModal('${s.id}')" class="text-xs px-2 py-1 bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 rounded"><i class="fa-solid fa-pen"></i> 編輯</button>
-                                <button onclick="deleteSchedule('${s.id}')" class="text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded"><i class="fa-solid fa-trash"></i> 刪除</button>
+                                <button data-perm="schedule.update" onclick="triggerScheduleNow('${s.id}')" class="text-xs px-2 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 rounded" title="立即執行"><i class="fa-solid fa-play"></i> 立即</button>
+                                <button data-perm="schedule.update" onclick="openScheduleModal('${s.id}')" class="text-xs px-2 py-1 bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 rounded"><i class="fa-solid fa-pen"></i> 編輯</button>
+                                <button data-perm="schedule.delete" onclick="deleteSchedule('${s.id}')" class="text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded"><i class="fa-solid fa-trash"></i> 刪除</button>
                             </div>
                         </td>
                     </tr>`;
@@ -10933,10 +10966,10 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 btns.push(`<button type="button" onclick="reviewExportReport('${r.entity_id}')" title="${lc==='en'?'Export PDF':'匯出 PDF'}" class="px-2 py-1 text-xs border border-blue-300 rounded hover:bg-blue-50 text-blue-600 font-semibold"><i class="fa-solid fa-file-pdf"></i> ${lc==='en'?'Export':'匯出'}</button>`);
             }
             if (r.status === 'InReview' || r.status === 'pending') {
-                btns.push(`<button type="button" onclick="reviewApprove('${r.id}')" class="px-2 py-1 text-xs bg-emerald-500 hover:bg-emerald-600 text-white rounded font-semibold"><i class="fa-solid fa-check"></i> ${lc==='en'?'Approve':'通過'}</button>`);
-                btns.push(`<button type="button" onclick="reviewPromptReject('${r.id}')" class="px-2 py-1 text-xs bg-rose-500 hover:bg-rose-600 text-white rounded font-semibold"><i class="fa-solid fa-xmark"></i> ${lc==='en'?'Reject':'拒絕'}</button>`);
+                btns.push(`<button type="button" data-perm="review.manage" onclick="reviewApprove('${r.id}')" class="px-2 py-1 text-xs bg-emerald-500 hover:bg-emerald-600 text-white rounded font-semibold"><i class="fa-solid fa-check"></i> ${lc==='en'?'Approve':'通過'}</button>`);
+                btns.push(`<button type="button" data-perm="review.manage" onclick="reviewPromptReject('${r.id}')" class="px-2 py-1 text-xs bg-rose-500 hover:bg-rose-600 text-white rounded font-semibold"><i class="fa-solid fa-xmark"></i> ${lc==='en'?'Reject':'拒絕'}</button>`);
             } else {
-                btns.push(`<button type="button" onclick="reviewPromptRevert('${r.id}')" class="px-2 py-1 text-xs bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold"><i class="fa-solid fa-undo"></i> ${lc==='en'?'Revert':'退回'}</button>`);
+                btns.push(`<button type="button" data-perm="review.manage" onclick="reviewPromptRevert('${r.id}')" class="px-2 py-1 text-xs bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold"><i class="fa-solid fa-undo"></i> ${lc==='en'?'Revert':'退回'}</button>`);
             }
             return `<div class="flex items-center gap-1 justify-center flex-wrap">${btns.join('')}</div>`;
         }
@@ -11905,7 +11938,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 '</div>' +
                 '<div class="flex justify-end gap-2 pt-2">' +
                     '<button onclick="document.getElementById(\'tcImportModal\').classList.add(\'hidden\')" class="px-4 py-2 border border-stone-300 rounded text-sm text-stone-600 hover:bg-stone-50">取消</button>' +
-                    '<button onclick="_tcDoImport()" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded text-sm font-semibold"><i class="fa-solid fa-file-import"></i> 開始匯入</button>' +
+                    '<button data-perm="testcase.create" onclick="_tcDoImport()" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded text-sm font-semibold"><i class="fa-solid fa-file-import"></i> 開始匯入</button>' +
                 '</div>';
             modal.classList.remove('hidden');
         }
@@ -12390,9 +12423,9 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             if (envVarsBuffer.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-400 text-sm">
                     尚無環境變數
-                    <button type="button" onclick="addEnvVarRow()" class="ml-2 text-emerald-600 hover:underline">+ 新增第一個</button>
-                    或 <button type="button" onclick="openEnvImportModal()" class="text-emerald-600 hover:underline">從 .env 匯入</button>
-                    或 <button type="button" onclick="openFakerBatchModal()" class="text-amber-600 hover:underline">🎲 產生 Faker 樣本</button>
+                    <button type="button" data-perm="envvar.create" onclick="addEnvVarRow()" class="ml-2 text-emerald-600 hover:underline">+ 新增第一個</button>
+                    或 <button type="button" data-perm="envvar.create" onclick="openEnvImportModal()" class="text-emerald-600 hover:underline">從 .env 匯入</button>
+                    或 <button type="button" data-perm="envvar.create" onclick="openFakerBatchModal()" class="text-amber-600 hover:underline">🎲 產生 Faker 樣本</button>
                 </td></tr>`;
                 return;
             }
@@ -14329,9 +14362,9 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                         <td class="p-2 text-slate-600 text-xs max-w-xs truncate" title="${escapeAttrBasic(r.description || '')}">${escapeAttrBasic(r.description || '')}</td>
                         <td class="p-2 font-mono text-xs text-slate-500">${formatBackendTime(r.created_at)}</td>
                         <td class="p-2 space-x-1 whitespace-nowrap">
-                            <button type="button" onclick="executeTestRound('${r.id}')" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded" title="立即執行全部案例"><i class="fa-solid fa-play"></i> 執行</button>
-                            <button type="button" onclick="openTestRoundModal('${r.id}')" class="text-xs px-2 py-1 bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 rounded"><i class="fa-solid fa-pen"></i> 編輯</button>
-                            <button type="button" onclick="deleteTestRound('${r.id}')" class="text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded"><i class="fa-solid fa-trash"></i> 刪除</button>
+                            <button type="button" data-perm="testrun.update" onclick="executeTestRound('${r.id}')" class="text-xs px-2 py-1 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded" title="立即執行全部案例"><i class="fa-solid fa-play"></i> 執行</button>
+                            <button type="button" data-perm="testrun.update" onclick="openTestRoundModal('${r.id}')" class="text-xs px-2 py-1 bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 rounded"><i class="fa-solid fa-pen"></i> 編輯</button>
+                            <button type="button" data-perm="testrun.delete" onclick="deleteTestRound('${r.id}')" class="text-xs px-2 py-1 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded"><i class="fa-solid fa-trash"></i> 刪除</button>
                         </td>`;
                     tbody.appendChild(tr);
                 });
@@ -15863,11 +15896,11 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                         : '<span class="inline-block px-2 py-0.5 bg-stone-100 text-stone-600 border border-stone-200 rounded text-[11px]">自訂</span>'}</td>
                     <td class="p-2 text-center text-stone-600">${cnt}</td>
                     <td class="p-2 text-right whitespace-nowrap">
-                        <button onclick="rolesOpenEditModal('${role.id}')" class="px-2 py-1 text-xs border border-violet-300 text-violet-600 rounded hover:bg-violet-50">
+                        <button data-perm="role.manage" onclick="rolesOpenEditModal('${role.id}')" class="px-2 py-1 text-xs border border-violet-300 text-violet-600 rounded hover:bg-violet-50">
                             <i class="fa-solid fa-pen"></i> 編輯權限
                         </button>
                         ${canDelete
-                            ? `<button onclick="rolesDelete('${role.id}','${escName}')" class="ml-1 px-2 py-1 text-xs border border-rose-300 text-rose-600 rounded hover:bg-rose-50"><i class="fa-solid fa-trash"></i></button>`
+                            ? `<button data-perm="role.manage" onclick="rolesDelete('${role.id}','${escName}')" class="ml-1 px-2 py-1 text-xs border border-rose-300 text-rose-600 rounded hover:bg-rose-50"><i class="fa-solid fa-trash"></i></button>`
                             : `<button disabled class="ml-1 px-2 py-1 text-xs border border-stone-200 text-stone-300 rounded cursor-not-allowed" title="${isSystem ? '系統角色不可刪除' : '尚有使用者使用此角色,無法刪除'}"><i class="fa-solid fa-trash"></i></button>`}
                     </td>
                 </tr>`;
