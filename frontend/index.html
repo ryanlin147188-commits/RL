@@ -8155,13 +8155,20 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         };
 
         async function toggleNotifPanel(ev) {
-            if (ev) ev.stopPropagation();
-            closeUserDropdown();
+            try { if (ev) ev.stopPropagation(); } catch (_) {}
+            try { if (typeof closeUserDropdown === 'function') closeUserDropdown(); } catch (_) {}
             const panel = document.getElementById('notifPanel');
-            if (!panel) return;
+            console.log('[notif] toggleNotifPanel: panel=', panel, 'hidden=', panel ? panel.classList.contains('hidden') : 'no panel');
+            if (!panel) { console.warn('[notif] panel element not found'); return; }
             const opening = panel.classList.contains('hidden');
             panel.classList.toggle('hidden');
-            if (opening) await loadNotifications();
+            // Phase B 防呆:把 inline display 清掉,避免歷史殘留 style 蓋掉 class
+            panel.style.display = '';
+            if (opening) {
+                console.log('[notif] opening panel, calling loadNotifications');
+                try { await loadNotifications(); }
+                catch (e) { console.error('[notif] loadNotifications failed:', e); }
+            }
         }
         function closeNotifPanel() {
             const panel = document.getElementById('notifPanel');
