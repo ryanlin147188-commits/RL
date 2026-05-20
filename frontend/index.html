@@ -902,8 +902,8 @@
             <button type="button" id="navHomeBtn" onclick="showHomeView()" title="回首頁" aria-label="回首頁"
                 class="flex items-center hover:opacity-80 transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 rounded shrink-0">
                 <div class="flex flex-col items-start leading-none">
-                    <h1 class="font-bold text-base text-slate-800 tracking-tight whitespace-nowrap">AutoTest</h1>
-                    <span class="hidden sm:inline text-[10px] text-amber-700 bg-amber-50 font-semibold mt-0.5 px-1.5 py-0.5 rounded border border-amber-200">v1.1.8.1</span>
+                    <h1 class="font-extrabold text-2xl md:text-3xl text-slate-800 tracking-tight whitespace-nowrap">AutoTest</h1>
+                    <span class="hidden sm:inline text-[11px] text-amber-700 bg-amber-50 font-semibold mt-1 px-2 py-0.5 rounded border border-amber-200">v1.1.8.1</span>
                 </div>
             </button>
             <!-- nav pills 移到第二列(<nav id="topNavRow">),此處空出 flex-1 把右側 actions 推到底 -->
@@ -957,7 +957,7 @@
         </div>
 
         <!-- 第二列:nav pills(從原本第一列抽出來,釋出主列空間;靠右對齊) -->
-        <nav id="topNavRow" class="border-t border-stone-100 px-3 md:px-5 py-1.5 overflow-x-auto flex items-center justify-end gap-1 whitespace-nowrap" style="-ms-overflow-style:none;scrollbar-width:none;">
+        <nav id="topNavRow" class="px-3 md:px-5 py-1.5 overflow-x-auto flex items-center justify-end gap-1 whitespace-nowrap" style="-ms-overflow-style:none;scrollbar-width:none;">
             <button type="button" data-nav-hash="#testcases"    onclick="showTestCasesView()"    class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-list-check text-blue-600"></i><span data-i18n="nav.testCases">測試案例</span></button>
             <button type="button" data-nav-hash="#testdatasets" onclick="showTestDataSetsView()" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-table text-violet-600"></i><span data-i18n="nav.dataSets">測試資料</span></button>
             <button type="button" data-nav-hash="#envvars"      onclick="showEnvVarsView()"      class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-key text-emerald-600"></i><span data-i18n="nav.envVars">環境變數</span></button>
