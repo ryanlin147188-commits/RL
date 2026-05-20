@@ -10489,6 +10489,10 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         let recCurrentSession = null;
         let recScriptFile = null;
         let recTraceFile = null;
+        // 使用者按「停止錄製」時設 true,讓 5 秒 polling 別重複跑「容器結束」流程
+        // (否則手按 stop + polling 同時 detect → _recAutoCreateNewCase 跑兩次,
+        //  同一個 session 出 2 個 .md 案例)。
+        let _recStoppingFlag = false;
 
         // 「建立 / 重新開始」按鈕入口:POST /api/recordings 建一個新的錄製 session,
         // 設好 recCurrentSession,顯示「啟動錄製器」區塊讓使用者能按 recDockerStart()。
@@ -10542,6 +10546,11 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             document.getElementById('recorderWorkspace').classList.remove('hidden');
             document.getElementById('mainHeader').classList.remove('hidden');
             document.getElementById('mainActions').classList.add('hidden');
+            // 進來時把 Docker UI 重設為「未啟動」狀態 — 容器跑跑停停,前端 state 不可靠,
+            // 重設後使用者看到的就跟「新進場」一樣。若有正在跑的容器,使用者要在歷史錄製
+            // 清單點該 session 才重新顯示。否則上次按過「停止錄製」的 DOM 殘留會讓
+            // 使用者重新進來看到「停止錄製」按鈕。
+            try { _recDockerResetUI(); } catch (_) {}
             recRefreshList();
             recPopulateApplyTarget();
             // 預設停留在上次平台（首次進入則為 WEB）
@@ -14840,6 +14849,9 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             if (_recDockerPollTimer) clearInterval(_recDockerPollTimer);
             _recDockerPollTimer = setInterval(async () => {
                 if (!recCurrentSession || !recCurrentSession.id) return;
+                // 使用者正按「停止錄製」中 — recDockerStop 自己會跑「容器結束」流程,
+                // polling 別重複跑(否則 _recAutoCreateNewCase 會被叫兩次,出 2 個 .md)。
+                if (_recStoppingFlag) return;
                 try {
                     const r = await fetch(`/api/recordings/${encodeURIComponent(recCurrentSession.id)}/docker-status`);
                     if (!r.ok) return;
@@ -14982,6 +14994,10 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         async function recDockerStop() {
             if (!recCurrentSession || !recCurrentSession.id) return;
             if (!confirm('確定停止錄製?容器會關閉;codegen 目前產出的腳本會自動上傳並解析。')) return;
+            // 立刻清 polling timer + 設 flag,避免 polling tick 也 detect 容器結束、
+            // 再跑一次 _recAutoCreateNewCase → 同一 session 出兩個 .md。
+            _recStoppingFlag = true;
+            if (_recDockerPollTimer) { clearInterval(_recDockerPollTimer); _recDockerPollTimer = null; }
             const status = document.getElementById('recDockerStatus');
             const sessionId = recCurrentSession.id;
             try {
@@ -15029,6 +15045,8 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 }
             } catch (e) {
                 showToast('停止失敗:' + (e.message || e), 'error');
+            } finally {
+                _recStoppingFlag = false;
             }
         }
 
