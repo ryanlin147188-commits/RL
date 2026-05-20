@@ -931,8 +931,23 @@
                     <span class="hidden sm:inline text-[10px] text-amber-700 bg-amber-50 font-semibold px-1.5 py-0.5 rounded border border-amber-200">v1.1.8.1</span>
                 </div>
             </button>
-            <!-- nav pills 移到第二列(<nav id="topNavRow">),此處空出 flex-1 把右側 actions 推到底 -->
+            <!-- flex-1 空白把 nav + actions 推到右側,nav 跟 actions 之間用 gap-1 分隔 -->
             <div class="flex-1"></div>
+            <nav id="topNavRow" class="overflow-x-auto flex items-center gap-1 whitespace-nowrap min-w-0" style="-ms-overflow-style:none;scrollbar-width:none;">
+                <button type="button" data-nav-hash="#testcases"    onclick="showTestCasesView()"    title="測試案例" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-list-check text-blue-600"></i><span class="nav-label" data-i18n="nav.testCases">測試案例</span></button>
+                <button type="button" data-nav-hash="#testdatasets" onclick="showTestDataSetsView()" title="測試資料" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-table text-violet-600"></i><span class="nav-label" data-i18n="nav.dataSets">測試資料</span></button>
+                <button type="button" data-nav-hash="#envvars"      onclick="showEnvVarsView()"      title="環境變數" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-key text-emerald-600"></i><span class="nav-label" data-i18n="nav.envVars">環境變數</span></button>
+                <button type="button" data-nav-hash="#testround"    onclick="showTestRoundView()"    title="TestRun" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-layer-group text-purple-600"></i><span class="nav-label" data-i18n="nav.testRound">TestRun</span></button>
+                <button type="button" data-nav-hash="#schedule"     onclick="showScheduleView()"     title="測試排程" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-calendar-days text-emerald-600"></i><span class="nav-label" data-i18n="nav.schedule">測試排程</span></button>
+                <button type="button" data-nav-hash="#recorder"     onclick="showRecorderView()"     title="測試錄製" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-video text-rose-600"></i><span class="nav-label" data-i18n="nav.recorder">測試錄製</span></button>
+                <button type="button" data-nav-hash="#report"       onclick="showReportView()"       title="測試報告" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-chart-pie text-blue-600"></i><span class="nav-label" data-i18n="nav.reports">測試報告</span></button>
+                <button type="button" data-nav-hash="#review"       onclick="showReviewView()"       title="審核" class="topnav-pill hover:bg-stone-100">
+                    <i class="fa-solid fa-clipboard-check text-violet-600"></i>
+                    <span class="nav-label" data-i18n="nav.review">審核</span>
+                    <span id="navReviewPendingBadge" class="hidden ml-1 px-1.5 py-0.5 text-[10px] font-mono bg-amber-500 text-white rounded-full"></span>
+                </button>
+                <button type="button" data-nav-hash="#filecompare"  onclick="showFileCompareView()"  title="檔案比對" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-code-compare text-indigo-600"></i><span class="nav-label">檔案比對</span></button>
+            </nav>
             <!-- 右:執行環境 + 組織切換 + 使用者 + 登出 -->
             <div class="flex items-center gap-1 sm:gap-1.5 shrink-0">
                 <div class="h-6 w-px bg-stone-200 mx-1" aria-hidden="true"></div>
@@ -981,22 +996,6 @@
             </div>
         </div>
 
-        <!-- 第二列:nav pills(從原本第一列抽出來,釋出主列空間;靠右對齊) -->
-        <nav id="topNavRow" class="px-3 md:px-5 py-1 overflow-x-auto flex items-center justify-end gap-1 whitespace-nowrap" style="-ms-overflow-style:none;scrollbar-width:none;">
-            <button type="button" data-nav-hash="#testcases"    onclick="showTestCasesView()"    title="測試案例" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-list-check text-blue-600"></i><span class="nav-label" data-i18n="nav.testCases">測試案例</span></button>
-            <button type="button" data-nav-hash="#testdatasets" onclick="showTestDataSetsView()" title="測試資料" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-table text-violet-600"></i><span class="nav-label" data-i18n="nav.dataSets">測試資料</span></button>
-            <button type="button" data-nav-hash="#envvars"      onclick="showEnvVarsView()"      title="環境變數" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-key text-emerald-600"></i><span class="nav-label" data-i18n="nav.envVars">環境變數</span></button>
-            <button type="button" data-nav-hash="#testround"    onclick="showTestRoundView()"    title="TestRun" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-layer-group text-purple-600"></i><span class="nav-label" data-i18n="nav.testRound">TestRun</span></button>
-            <button type="button" data-nav-hash="#schedule"     onclick="showScheduleView()"     title="測試排程" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-calendar-days text-emerald-600"></i><span class="nav-label" data-i18n="nav.schedule">測試排程</span></button>
-            <button type="button" data-nav-hash="#recorder"     onclick="showRecorderView()"     title="測試錄製" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-video text-rose-600"></i><span class="nav-label" data-i18n="nav.recorder">測試錄製</span></button>
-            <button type="button" data-nav-hash="#report"       onclick="showReportView()"       title="測試報告" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-chart-pie text-blue-600"></i><span class="nav-label" data-i18n="nav.reports">測試報告</span></button>
-            <button type="button" data-nav-hash="#review"       onclick="showReviewView()"       title="審核" class="topnav-pill hover:bg-stone-100">
-                <i class="fa-solid fa-clipboard-check text-violet-600"></i>
-                <span class="nav-label" data-i18n="nav.review">審核</span>
-                <span id="navReviewPendingBadge" class="hidden ml-1 px-1.5 py-0.5 text-[10px] font-mono bg-amber-500 text-white rounded-full"></span>
-            </button>
-            <button type="button" data-nav-hash="#filecompare"  onclick="showFileCompareView()"  title="檔案比對" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-code-compare text-indigo-600"></i><span class="nav-label">檔案比對</span></button>
-        </nav>
     </header>
 
     <!-- ═══════════════════════════════════════════════════════════════
