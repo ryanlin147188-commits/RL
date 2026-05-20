@@ -8209,9 +8209,17 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 const unreadCls = n.is_read ? '' : 'unread';
                 const safeTitle = (n.title || '').replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
                 const safeBody = (n.body || '').replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+                // n.link 用 JSON.stringify 變字串(含外層 ")。直接 inline 到
+                // onclick="..." 會被 HTML parser 看到 " 提早關閉屬性 →
+                // Uncaught SyntaxError: Unexpected end of input。
+                // 必須把 " 換成 &quot;,parser 還原時又變回 " 給 JS。
+                const safeLinkArg = JSON.stringify(n.link || '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
                 return `
                     <div class="notif-item ${unreadCls} relative px-4 py-3 border-b border-stone-100 hover:bg-stone-50 transition cursor-pointer"
-                         onclick="onNotifClick('${n.id}', ${JSON.stringify(n.link || '').replace(/'/g, '&#39;')})">
+                         onclick="onNotifClick('${n.id}', ${safeLinkArg})">
                         <div class="flex items-start gap-3">
                             <div class="w-8 h-8 rounded-full ${st.bg} ${st.color} flex items-center justify-center shrink-0 mt-0.5">
                                 <i class="fa-solid ${st.icon} text-sm"></i>
