@@ -596,8 +596,13 @@
                 }
                 var t = localStorage.getItem('autotest.auth.access_token');
                 var exp = localStorage.getItem('autotest.auth.access_expires_at');
-                var valid = !!t && (!exp || Date.now() < Number(exp));
-                if (valid) {
+                var session = localStorage.getItem('autotest.auth.session');
+                var tokenValid = !!t && (!exp || Date.now() < Number(exp));
+                // OIDC (Zoho) 登入路徑只在 localStorage 寫 session(token 在 httpOnly
+                // cookie),所以 session 存在也算「樂觀已登入」— onload 流程實際 fetch
+                // /api/auth/me 失敗時會再切回 out。沒這層樂觀標記,OIDC 登入後重整一律
+                // 跳回登入頁。
+                if (tokenValid || !!session) {
                     document.documentElement.setAttribute('data-auth', 'in');
                 } else {
                     document.documentElement.setAttribute('data-auth', 'out');
@@ -15818,15 +15823,24 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             if (name === 'roles') rolesLoadList();
         }
 
-        // 角色 tab 顯示控制:實際打 GET /api/settings/roles,2xx 就是 admin / superuser
-        // (該端點要 settings.read 權限,user role 沒有 → 403 / 401 → 不顯示按鈕)
-        async function settingsTabsApplyVisibility() {
-            const btn = document.getElementById('setTabRoles');
-            if (!btn) return;
-            try {
-                const r = await fetch('/api/settings/roles');
-                if (r.ok) btn.classList.remove('hidden'); else btn.classList.add('hidden');
-            } catch (_) { btn.classList.add('hidden'); }
+        // 設定頁 tab 顯示控制 — 改用 hasPerm 不打 API 探測,避免 DevTools 一堆 403 紅字。
+        // 規則:
+        //   角色與權限 (setTabRoles)  → 需要 role.manage     (admin)
+        //   通知設定   (setTabNotif)  → 需要 settings.read   (admin) — 系統通知 catalogue
+        //   Email 通知 (setTabEmail)  → 需要 settings.write  (admin) — SMTP server 設定
+        //   設定       (setTabUser)   → 任何登入者都看得到(改自己)
+        function settingsTabsApplyVisibility() {
+            const rules = [
+                { id: 'setTabRoles', perm: 'role.manage' },
+                { id: 'setTabNotif', perm: 'settings.read' },
+                { id: 'setTabEmail', perm: 'settings.write' },
+            ];
+            rules.forEach(({ id, perm }) => {
+                const btn = document.getElementById(id);
+                if (!btn) return;
+                if (hasPerm(perm)) btn.classList.remove('hidden');
+                else btn.classList.add('hidden');
+            });
         }
 
         // ─── 角色與權限管理 ────────────────────────────────────────────────
