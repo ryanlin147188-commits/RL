@@ -767,3 +767,259 @@ async def clone_project(
 
     await db.refresh(new_proj)
     return new_proj
+
+
+# ─────────────────────────────────────────────────────────────────
+# Project Invites — pull-based onboarding
+# ─────────────────────────────────────────────────────────────────
+import logging
+from datetime import datetime
+from app.models.project_invite import ProjectInvite
+from app.schemas.project_invite import (
+    ProjectInviteCreate, ProjectInviteRedeem, ProjectInviteResponse,
+)
+
+_invite_logger = logging.getLogger(__name__)
+
+
+def _send_invite_email(
+    db_sync, *, to: str, project_name: str, invite_code: str,
+    expires_at: datetime, inviter: str, redeem_url: str,
+    organization_id: Optional[str],
+) -> None:
+    """Try to send the invite email. Failure is non-fatal — invite row stays,
+    admin can copy-paste the code manually as fallback (frontend 會顯示 code)。"""
+    from app.services.email_service import send_email_sync
+    subject = f"[AutoTest] 邀請加入專案「{project_name}」"
+    html = f"""\
+<html><body style="font-family:system-ui,-apple-system,sans-serif;color:#1f2937;max-width:600px">
+<h2 style="color:#f59e0b">AutoTest 專案邀請</h2>
+<p>您好,</p>
+<p><b>{inviter}</b> 邀請您加入 AutoTest 的專案「<b>{project_name}</b>」。</p>
+<p>請先<b>登入 AutoTest</b> (建議用 Zoho SSO),登入後到「設定 → 兌換邀請碼」貼上下列邀請碼:</p>
+<pre style="background:#f3f4f6;padding:12px;border-radius:6px;font-size:14px;font-weight:bold">{invite_code}</pre>
+<p>或直接點此一鍵兌換:</p>
+<p><a href="{redeem_url}" style="display:inline-block;padding:10px 18px;background:#f59e0b;color:white;text-decoration:none;border-radius:6px">登入並加入專案</a></p>
+<p style="color:#6b7280;font-size:12px">邀請碼將於 {expires_at:%Y-%m-%d %H:%M} (UTC) 過期,僅限使用一次。</p>
+<p style="color:#6b7280;font-size:12px">兌換時系統會驗證您登入的 email 必須是這封信寄到的地址,請用同一個 email 登入。</p>
+<hr style="border:none;border-top:1px solid #e5e7eb;margin-top:24px">
+<p style="color:#9ca3af;font-size:11px">本信件由 AutoTest 自動發出,請勿直接回覆。</p>
+</body></html>"""
+    text = (
+        f"AutoTest 專案邀請\n\n{inviter} 邀請您加入專案「{project_name}」。\n\n"
+        f"請登入 AutoTest 後到「設定 → 兌換邀請碼」貼上邀請碼:\n"
+        f"  {invite_code}\n\n"
+        f"或開啟連結一鍵兌換:\n  {redeem_url}\n\n"
+        f"邀請碼將於 {expires_at:%Y-%m-%d %H:%M} (UTC) 過期。"
+    )
+    try:
+        send_email_sync(
+            db=db_sync, to=to, subject=subject,
+            html_body=html, text_body=text,
+            organization_id=organization_id,
+        )
+    except Exception as e:
+        _invite_logger.warning("invite email failed (non-fatal): %s", e)
+
+
+def _frontend_origin() -> str:
+    """從 ALLOWED_ORIGINS 取第一個當 frontend host,組 redeem URL。"""
+    import os
+    allow = os.environ.get("ALLOWED_ORIGINS") or ""
+    for o in allow.split(","):
+        o = o.strip()
+        if o.startswith("http"):
+            return o.rstrip("/")
+    return "http://localhost"
+
+
+@router.post(
+    "/projects/{project_id}/invites",
+    response_model=ProjectInviteResponse,
+    status_code=201,
+    dependencies=[Depends(require_casbin(P.USER_MANAGE))],
+    tags=["G · 專案"],
+)
+async def create_project_invite(
+    project_id: str,
+    payload: ProjectInviteCreate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    proj = await db.get(Project, project_id)
+    proj = _check_org_or_404(proj, user)
+
+    email_lc = payload.invitee_email.lower().strip()
+
+    # 已是 member?
+    existing_mem = (await db.execute(
+        select(ProjectMember).join(User, User.username == ProjectMember.username)
+        .where(ProjectMember.project_id == project_id, func.lower(User.email) == email_lc)
+    )).scalars().first()
+    if existing_mem:
+        raise HTTPException(409, "該 email 對應的使用者已是本專案成員")
+
+    # 是否已有同 email 的 pending invite?(防垃圾發信)
+    existing_inv = (await db.execute(
+        select(ProjectInvite).where(
+            ProjectInvite.project_id == project_id,
+            func.lower(ProjectInvite.invitee_email) == email_lc,
+            ProjectInvite.status == "pending",
+        )
+    )).scalars().first()
+    if existing_inv:
+        raise HTTPException(
+            409,
+            f"已有 pending 邀請寄給 {email_lc};請先撤銷舊邀請或等使用者兌換 / 過期",
+        )
+
+    if payload.role_id:
+        role = await db.get(Role, payload.role_id)
+        if not role:
+            raise HTTPException(400, "指定的 role_id 不存在")
+
+    invite = ProjectInvite(
+        project_id=project_id,
+        organization_id=proj.organization_id or user.organization_id,
+        invitee_email=email_lc,
+        role_id=payload.role_id,
+        inviter_username=user.username,
+        expires_at=ProjectInvite.default_expires_at(payload.expires_days),
+    )
+    db.add(invite)
+    await db.flush()
+    await db.refresh(invite)
+
+    # 寄信(非同步呼叫 sync helper;失敗只 log,invite row 仍保留)
+    try:
+        from app.db.sync_session import SessionLocal
+        with SessionLocal() as sync_db:
+            redeem_url = f"{_frontend_origin()}/?invite_code={invite.invite_code}"
+            _send_invite_email(
+                sync_db,
+                to=email_lc,
+                project_name=proj.name,
+                invite_code=invite.invite_code,
+                expires_at=invite.expires_at,
+                inviter=user.display_name or user.username,
+                redeem_url=redeem_url,
+                organization_id=invite.organization_id,
+            )
+    except Exception as e:
+        _invite_logger.warning("invite email send failed: %s", e)
+
+    return invite
+
+
+@router.get(
+    "/projects/{project_id}/invites",
+    response_model=list[ProjectInviteResponse],
+    dependencies=[Depends(require_casbin(P.USER_MANAGE))],
+    tags=["G · 專案"],
+)
+async def list_project_invites(
+    project_id: str,
+    status: Optional[str] = None,   # pending / redeemed / expired / revoked
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    proj = await db.get(Project, project_id)
+    _check_org_or_404(proj, user)
+    stmt = select(ProjectInvite).where(ProjectInvite.project_id == project_id)
+    if status:
+        stmt = stmt.where(ProjectInvite.status == status)
+    stmt = stmt.order_by(desc(ProjectInvite.created_at))
+    rows = (await db.execute(stmt)).scalars().all()
+    return rows
+
+
+@router.delete(
+    "/projects/invites/{invite_id}",
+    status_code=204,
+    dependencies=[Depends(require_casbin(P.USER_MANAGE))],
+    tags=["G · 專案"],
+)
+async def revoke_project_invite(
+    invite_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    inv = await db.get(ProjectInvite, invite_id)
+    if inv is None:
+        raise HTTPException(404, "邀請不存在")
+    proj = await db.get(Project, inv.project_id)
+    _check_org_or_404(proj, user)
+    if inv.status != "pending":
+        # 已 redeemed / 已 revoked / 已 expired 都 idempotent skip
+        return
+    inv.status = "revoked"
+    await db.flush()
+
+
+@router.post(
+    "/projects/invites/redeem",
+    response_model=ProjectInviteResponse,
+    tags=["G · 專案"],
+)
+async def redeem_project_invite(
+    payload: ProjectInviteRedeem,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """任何登入 user 都能呼叫(沒 require_casbin)。內部驗 email 完全相符。"""
+    code = (payload.invite_code or "").strip()
+    if not code:
+        raise HTTPException(400, "invite_code 不能為空")
+    inv = (await db.execute(
+        select(ProjectInvite).where(ProjectInvite.invite_code == code)
+    )).scalar_one_or_none()
+    if inv is None:
+        raise HTTPException(404, "邀請碼不存在")
+    if inv.status == "redeemed":
+        raise HTTPException(409, "此邀請碼已被使用過")
+    if inv.status == "revoked":
+        raise HTTPException(409, "此邀請碼已被撤銷")
+    if inv.expires_at < datetime.utcnow():
+        if inv.status == "pending":
+            inv.status = "expired"
+            await db.flush()
+        raise HTTPException(409, "此邀請碼已過期")
+
+    user_email = (user.email or "").lower().strip()
+    if not user_email:
+        raise HTTPException(
+            403,
+            "您的帳號沒有設定 email,請先到「個人設定 → 帳戶資訊」補上 email 後再兌換",
+        )
+    if user_email != inv.invitee_email.lower():
+        raise HTTPException(
+            403,
+            f"此邀請碼是寄給 {inv.invitee_email},您目前登入的帳號 email 是 {user_email},不能兌換",
+        )
+
+    # 是否已是 member?(防重複)
+    existing = (await db.execute(
+        select(ProjectMember).where(
+            ProjectMember.project_id == inv.project_id,
+            ProjectMember.username == user.username,
+        )
+    )).scalars().first()
+    if existing:
+        if existing.status != "active":
+            existing.status = "active"
+        if inv.role_id:
+            existing.role_id = inv.role_id
+    else:
+        db.add(ProjectMember(
+            project_id=inv.project_id,
+            username=user.username,
+            role_id=inv.role_id,
+            status="active",
+        ))
+
+    inv.status = "redeemed"
+    inv.redeemed_at = datetime.utcnow()
+    inv.redeemed_by_username = user.username
+    await db.flush()
+    await db.refresh(inv)
+    return inv

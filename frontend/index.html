@@ -2744,6 +2744,22 @@
                             </button>
                         </div>
                     </section>
+
+                    <!-- 兌換邀請碼卡 -->
+                    <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-4 sm:p-6">
+                        <h3 class="font-bold text-stone-700 text-base mb-1 flex items-center gap-2">
+                            <i class="fa-solid fa-ticket text-amber-500"></i> 兌換邀請碼
+                        </h3>
+                        <p class="text-xs text-stone-500 mb-3">如果有 admin 寄邀請信給你,把信中的邀請碼貼到下方按「兌換」即可加入該專案。</p>
+                        <form onsubmit="return userRedeemInviteSubmit(event)" class="flex items-center gap-2">
+                            <input id="userRedeemCodeInput" type="text" required placeholder="貼上邀請碼…"
+                                class="flex-1 px-3 py-2 border border-stone-300 rounded text-sm font-mono focus:ring-1 focus:ring-amber-400 outline-none">
+                            <button type="submit" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded text-sm font-semibold whitespace-nowrap">
+                                <i class="fa-solid fa-arrow-right-to-bracket"></i> 兌換
+                            </button>
+                        </form>
+                        <p class="text-[11px] text-stone-400 mt-2">兌換時系統會驗證你登入帳號的 email 必須跟邀請信寄到的 email 相符。</p>
+                    </section>
                     </div>
 
                     <!-- ─── Pane: 通知設定 ─── -->
@@ -2928,8 +2944,8 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                                     專案協作成員 — <span id="pmCurrentProjectName" class="text-amber-600">—</span>
                                 </h3>
                                 <div class="flex items-center gap-2">
-                                    <button onclick="pmOpenAddExistingModal()" class="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded text-sm font-semibold shadow-sm flex items-center gap-1.5">
-                                        <i class="fa-solid fa-user-plus"></i> 加入既有使用者
+                                    <button onclick="pmInviteOpen()" class="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded text-sm font-semibold shadow-sm flex items-center gap-1.5">
+                                        <i class="fa-solid fa-envelope"></i> 邀請使用者
                                     </button>
                                 </div>
                             </div>
@@ -2956,7 +2972,62 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                                 </table>
                             </div>
                         </section>
+
+                        <!-- 待兌換邀請清單 -->
+                        <section id="pmInvitesSection" class="bg-white rounded-xl border border-amber-100 shadow-sm p-4 sm:p-6">
+                            <h3 class="font-bold text-stone-700 text-base flex items-center gap-2 mb-3">
+                                <i class="fa-solid fa-paper-plane text-amber-500"></i> 待兌換邀請
+                            </h3>
+                            <p class="text-[11px] text-stone-500 mb-2">已寄出邀請信但尚未被兌換的清單。使用者收到信後請他先用 Zoho 登入,再到「設定 → 兌換邀請碼」貼上邀請碼。</p>
+                            <div class="border border-stone-200 rounded overflow-hidden">
+                                <table class="w-full text-sm">
+                                    <thead class="bg-stone-50 text-xs text-stone-600">
+                                        <tr>
+                                            <th class="p-2 text-left">收件 Email</th>
+                                            <th class="p-2 text-left">邀請碼</th>
+                                            <th class="p-2 text-left">寄送時間</th>
+                                            <th class="p-2 text-left">過期時間</th>
+                                            <th class="p-2 text-center w-20">操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="pmInvitesBody">
+                                        <tr><td colspan="5" class="p-4 text-center text-stone-400">尚無 pending 邀請</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </section>
                     </div>  <!-- /setPaneProjectMembers -->
+
+                    <!-- 邀請使用者 Modal -->
+                    <div id="pmInviteModal" class="hidden fixed inset-0 z-[170] bg-black/40 flex items-center justify-center p-4">
+                        <div class="bg-white rounded-lg shadow-xl border border-stone-200 w-full max-w-md">
+                            <div class="px-5 py-3 border-b flex justify-between items-center">
+                                <div class="font-bold text-stone-800"><i class="fa-solid fa-envelope text-amber-500"></i> 邀請使用者加入專案</div>
+                                <button onclick="pmInviteClose()" class="text-stone-400 hover:text-rose-600"><i class="fa-solid fa-xmark"></i></button>
+                            </div>
+                            <form onsubmit="return pmInviteSubmit(event)" class="p-4 space-y-3">
+                                <div>
+                                    <label for="pmInviteEmail" class="block text-xs font-semibold text-stone-600 mb-1">收件 Email <span class="text-rose-500">*</span></label>
+                                    <input id="pmInviteEmail" type="email" required class="w-full px-3 py-2 border border-stone-300 rounded text-sm focus:ring-1 focus:ring-amber-400 outline-none" placeholder="user@example.com">
+                                    <p class="text-[11px] text-stone-500 mt-1">系統會寄一封含邀請碼的信給此 email,該使用者必須用同一個 email 登入才能兌換。</p>
+                                </div>
+                                <div>
+                                    <label for="pmInviteRoleId" class="block text-xs font-semibold text-stone-600 mb-1">本專案角色（選填）</label>
+                                    <select id="pmInviteRoleId" class="w-full px-3 py-2 border border-stone-300 rounded text-sm">
+                                        <option value="">— 沿用該使用者的組織角色 —</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label for="pmInviteExpiresDays" class="block text-xs font-semibold text-stone-600 mb-1">過期天數</label>
+                                    <input id="pmInviteExpiresDays" type="number" min="1" max="90" value="7" class="w-full px-3 py-2 border border-stone-300 rounded text-sm">
+                                </div>
+                                <div class="flex justify-end gap-2 pt-2">
+                                    <button type="button" onclick="pmInviteClose()" class="px-3 py-1.5 text-sm border border-stone-300 rounded hover:bg-stone-50">取消</button>
+                                    <button type="submit" class="px-4 py-1.5 text-sm bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold"><i class="fa-solid fa-paper-plane"></i> 寄出邀請</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
 
                     <!-- ─── Pane 5: 角色與權限管理（admin only） ─── -->
                     <div id="setPaneRoles" class="hidden space-y-4">
@@ -9336,6 +9407,8 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             updateUserMenuUI();
             // Phase 2:套用權限 gate,把 [data-perm] 沒權限的元素隱藏
             try { applyPermissionGuards(); } catch (_) {}
+            // URL 帶 ?invite_code=XXX → 自動兌換(僅登入後跑)
+            try { _maybeAutoRedeemInvite(); } catch (_) {}
             // Phase 4 多組織:抓使用者所屬的所有組織,只在 ≥ 2 個時才顯示切換器。
             try { renderOrgSwitcher(); } catch (_) {}
             initProjects(projReq).then(() => {
@@ -13837,6 +13910,143 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             }
             // v1.1.6:同步把本專案角色權限那一塊也載入
             prpReload().catch(() => {});
+            // 同步刷待兌換邀請清單(pending only)
+            pmInvitesReload().catch(() => {});
+        }
+
+        // ─── Project Invites:邀請流程 admin 端 UI ─────────────────────────
+        async function pmInviteOpen() {
+            if (!currentProjectId) { showToast('請先選擇專案', 'error'); return; }
+            // 角色下拉沿用 _pmAllRoles
+            const sel = document.getElementById('pmInviteRoleId');
+            sel.innerHTML = '<option value="">— 沿用該使用者的組織角色 —</option>';
+            (_pmAllRoles || []).forEach(r => {
+                const opt = document.createElement('option');
+                opt.value = r.id; opt.textContent = r.name;
+                sel.appendChild(opt);
+            });
+            document.getElementById('pmInviteEmail').value = '';
+            document.getElementById('pmInviteExpiresDays').value = '7';
+            document.getElementById('pmInviteModal').classList.remove('hidden');
+        }
+        function pmInviteClose() {
+            document.getElementById('pmInviteModal').classList.add('hidden');
+        }
+        async function pmInviteSubmit(ev) {
+            ev.preventDefault();
+            if (!currentProjectId) return false;
+            const email = document.getElementById('pmInviteEmail').value.trim();
+            const roleId = document.getElementById('pmInviteRoleId').value || null;
+            const days = parseInt(document.getElementById('pmInviteExpiresDays').value, 10) || 7;
+            if (!email) { showToast('請輸入收件 email', 'error'); return false; }
+            try {
+                const r = await fetch(`/api/projects/${encodeURIComponent(currentProjectId)}/invites`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ invitee_email: email, role_id: roleId, expires_days: days }),
+                });
+                if (!r.ok) {
+                    const err = await r.json().catch(() => ({}));
+                    throw new Error(err.detail || `HTTP ${r.status}`);
+                }
+                const inv = await r.json();
+                showToast(`邀請已寄出(碼:${inv.invite_code})`, 'success');
+                pmInviteClose();
+                pmInvitesReload();
+            } catch (e) {
+                showToast('邀請失敗:' + (e.message || e), 'error');
+            }
+            return false;
+        }
+        async function pmInvitesReload() {
+            const tbody = document.getElementById('pmInvitesBody');
+            if (!tbody || !currentProjectId) return;
+            try {
+                const r = await fetch(`/api/projects/${encodeURIComponent(currentProjectId)}/invites?status=pending`);
+                if (!r.ok) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-stone-400">尚無 pending 邀請</td></tr>';
+                    return;
+                }
+                const rows = await r.json();
+                if (!rows.length) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-stone-400">尚無 pending 邀請</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = rows.map(inv => {
+                    const fmt = (s) => s ? new Date(s).toLocaleString() : '—';
+                    return `<tr class="hover:bg-amber-50/40 border-t border-stone-100">
+                        <td class="p-2 text-stone-700">${_esc(inv.invitee_email)}</td>
+                        <td class="p-2 font-mono text-xs">
+                            <button onclick="navigator.clipboard.writeText('${_esc(inv.invite_code)}');showToast('邀請碼已複製','success')"
+                                title="點擊複製"
+                                class="text-violet-600 hover:underline">${_esc(inv.invite_code)}</button>
+                        </td>
+                        <td class="p-2 text-stone-500 text-xs">${fmt(inv.created_at)}</td>
+                        <td class="p-2 text-stone-500 text-xs">${fmt(inv.expires_at)}</td>
+                        <td class="p-2 text-center">
+                            <button onclick="pmInviteRevoke('${_esc(inv.id)}', '${_esc(inv.invitee_email)}')" title="撤銷邀請"
+                                class="text-rose-500 hover:text-rose-700 px-1"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                    </tr>`;
+                }).join('');
+            } catch (_) { /* silent */ }
+        }
+        async function pmInviteRevoke(invId, email) {
+            if (!confirm(`確定撤銷給 ${email} 的邀請?該邀請碼立即失效。`)) return;
+            try {
+                const r = await fetch(`/api/projects/invites/${encodeURIComponent(invId)}`, { method: 'DELETE' });
+                if (!r.ok && r.status !== 204) {
+                    const err = await r.json().catch(() => ({}));
+                    throw new Error(err.detail || `HTTP ${r.status}`);
+                }
+                showToast('邀請已撤銷', 'success');
+                pmInvitesReload();
+            } catch (e) {
+                showToast('撤銷失敗:' + (e.message || e), 'error');
+            }
+        }
+
+        // ─── Invite redeem:任何登入 user 都能用的兌換邏輯 ─────────────────
+        async function redeemInviteCode(code) {
+            code = (code || '').trim();
+            if (!code) { showToast('請輸入邀請碼', 'error'); return; }
+            try {
+                const r = await fetch('/api/projects/invites/redeem', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ invite_code: code }),
+                });
+                if (!r.ok) {
+                    const err = await r.json().catch(() => ({}));
+                    throw new Error(err.detail || `HTTP ${r.status}`);
+                }
+                showToast('邀請已兌換,已加入專案', 'success');
+                // 刷新左側專案清單
+                try { await initProjects(); } catch (_) {}
+                return true;
+            } catch (e) {
+                showToast('兌換失敗:' + (e.message || e), 'error');
+                return false;
+            }
+        }
+        function userRedeemInviteSubmit(ev) {
+            ev.preventDefault();
+            const input = document.getElementById('userRedeemCodeInput');
+            const code = (input?.value || '').trim();
+            redeemInviteCode(code).then(ok => { if (ok && input) input.value = ''; });
+            return false;
+        }
+        // URL ?invite_code=XXX 自動兌換(登入後跑一次,跑完把 query 從 URL 拿掉)
+        async function _maybeAutoRedeemInvite() {
+            const params = new URLSearchParams(location.search);
+            const code = params.get('invite_code');
+            if (!code) return;
+            // 從 URL 拿掉,避免重整時又跑一次
+            params.delete('invite_code');
+            const qs = params.toString();
+            const newUrl = location.pathname + (qs ? '?' + qs : '') + (location.hash || '');
+            try { history.replaceState(null, '', newUrl); } catch (_) {}
+            await redeemInviteCode(code);
         }
 
         async function pmLoadRoles() {
