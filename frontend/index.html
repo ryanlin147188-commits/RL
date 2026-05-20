@@ -126,18 +126,22 @@
         };
     </script>
     <script>
-        tailwind.config = {
-            darkMode: 'class',   // 用 <html class="dark"> 切換，可配合 localStorage 持久化
-            theme: {
-                extend: {
-                    colors: {
-                        primary: '#2563eb',
-                        secondary: '#475569',
-                        bglight: '#f8fafc',
+        // Tailwind 已改用預編譯 /tailwind.css(line 11),不再載 CDN runtime;
+        // 這段 config 只在仍然有 CDN runtime 時才會生效,避免 ReferenceError。
+        if (typeof tailwind !== 'undefined' && tailwind && tailwind.config !== undefined) {
+            tailwind.config = {
+                darkMode: 'class',
+                theme: {
+                    extend: {
+                        colors: {
+                            primary: '#2563eb',
+                            secondary: '#475569',
+                            bglight: '#f8fafc',
+                        }
                     }
                 }
-            }
-        };
+            };
+        }
         // 載入時立即套用暗黑模式（避免切換時閃爍）
         (function applyStoredTheme() {
             try {
@@ -2388,21 +2392,21 @@
                     </div>
                     <form onsubmit="return pmSubmitCreateUser(event)" class="p-4 space-y-3">
                         <div>
-                            <label class="block text-xs font-semibold text-stone-600 mb-1">使用者名稱 <span class="text-rose-500">*</span></label>
+                            <label for="pmCuUsername" class="block text-xs font-semibold text-stone-600 mb-1">使用者名稱 <span class="text-rose-500">*</span></label>
                             <input type="text" id="pmCuUsername" required pattern="[A-Za-z0-9_]{3,32}" autocomplete="off"
                                 class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm">
                             <p class="text-[10px] text-stone-500 mt-1">3-32 字元,英數與底線</p>
                         </div>
                         <div>
-                            <label class="block text-xs font-semibold text-stone-600 mb-1">顯示名稱</label>
+                            <label for="pmCuDisplayName" class="block text-xs font-semibold text-stone-600 mb-1">顯示名稱</label>
                             <input type="text" id="pmCuDisplayName" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm">
                         </div>
                         <div>
-                            <label class="block text-xs font-semibold text-stone-600 mb-1">Email</label>
+                            <label for="pmCuEmail" class="block text-xs font-semibold text-stone-600 mb-1">Email</label>
                             <input type="email" id="pmCuEmail" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm">
                         </div>
                         <div>
-                            <label class="block text-xs font-semibold text-stone-600 mb-1">初始密碼 <span class="text-rose-500">*</span></label>
+                            <label for="pmCuPassword" class="block text-xs font-semibold text-stone-600 mb-1">初始密碼 <span class="text-rose-500">*</span></label>
                             <input type="text" id="pmCuPassword" required minlength="6" autocomplete="new-password"
                                 class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm font-mono">
                             <p class="text-[10px] text-stone-500 mt-1">至少 6 字元;使用者第一次登入後會被強制修改。</p>
@@ -2464,7 +2468,7 @@
                             找不到要的人?用「建立新使用者」按鈕(superuser 限定)在本地建,或請管理員操作。
                         </p>
                         <div>
-                            <label class="block text-xs font-semibold text-stone-600 mb-1">使用者 <span class="text-rose-500">*</span></label>
+                            <label for="pmAeUsername" class="block text-xs font-semibold text-stone-600 mb-1">使用者 <span class="text-rose-500">*</span></label>
                             <input list="pmAeUsernameList" id="pmAeUsername" required autocomplete="off"
                                 placeholder="輸入或選擇 username…"
                                 class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm">
@@ -2495,11 +2499,11 @@
                     <form onsubmit="return pmSubmitEditUser(event)" class="p-4 space-y-3">
                         <input type="hidden" id="pmEuUsername">
                         <div>
-                            <label class="block text-xs font-semibold text-stone-600 mb-1">顯示名稱</label>
+                            <label for="pmEuDisplayName" class="block text-xs font-semibold text-stone-600 mb-1">顯示名稱</label>
                             <input type="text" id="pmEuDisplayName" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm">
                         </div>
                         <div>
-                            <label class="block text-xs font-semibold text-stone-600 mb-1">Email</label>
+                            <label for="pmEuEmail" class="block text-xs font-semibold text-stone-600 mb-1">Email</label>
                             <input type="email" id="pmEuEmail" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm">
                         </div>
                         <div>
@@ -2535,7 +2539,7 @@
                             重設後對方下次登入會被自動要求再次修改密碼,管理員不會看到對方的最終密碼。
                         </p>
                         <div>
-                            <label class="block text-xs font-semibold text-stone-600 mb-1">新密碼</label>
+                            <label for="pmRpNewPassword" class="block text-xs font-semibold text-stone-600 mb-1">新密碼</label>
                             <input type="text" id="pmRpNewPassword" required minlength="6" autocomplete="new-password"
                                 class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm font-mono">
                             <p class="text-[10px] text-stone-500 mt-1">至少 6 字元</p>
@@ -2994,11 +2998,11 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                     <div class="p-6 space-y-4">
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
-                                <label class="block text-xs font-medium text-stone-600 mb-1">角色名稱 <span class="text-rose-500">*</span></label>
+                                <label for="rolePermName" class="block text-xs font-medium text-stone-600 mb-1">角色名稱 <span class="text-rose-500">*</span></label>
                                 <input id="rolePermName" type="text" class="w-full px-3 py-2 border border-stone-300 rounded text-sm focus:ring-1 focus:ring-violet-400 outline-none" placeholder="例如:tester">
                             </div>
                             <div>
-                                <label class="block text-xs font-medium text-stone-600 mb-1">說明（選填）</label>
+                                <label for="rolePermDesc" class="block text-xs font-medium text-stone-600 mb-1">說明（選填）</label>
                                 <input id="rolePermDesc" type="text" class="w-full px-3 py-2 border border-stone-300 rounded text-sm focus:ring-1 focus:ring-violet-400 outline-none" placeholder="這個角色能做什麼…">
                             </div>
                         </div>
@@ -3266,7 +3270,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             </div>
             <div class="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
                 <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">排程名稱 <span class="text-rose-500">*</span></label>
+                    <label for="schName" class="block text-sm font-medium text-slate-700 mb-1">排程名稱 <span class="text-rose-500">*</span></label>
                     <input type="text" id="schName" placeholder="例：每日首頁回歸" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-400 outline-none">
                 </div>
                 <div>
@@ -3292,7 +3296,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                         </select>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-slate-700 mb-1">執行時間</label>
+                        <label for="schNextRunAt" class="block text-sm font-medium text-slate-700 mb-1">執行時間</label>
                         <input type="datetime-local" id="schNextRunAt" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-400 outline-none">
                     </div>
                 </div>
@@ -3301,7 +3305,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                     <div id="schWeekdays" class="flex flex-wrap gap-2"></div>
                 </div>
                 <div id="schMonthDayRow" class="hidden">
-                    <label class="block text-sm font-medium text-slate-700 mb-1">每月幾號</label>
+                    <label for="schMonthDay" class="block text-sm font-medium text-slate-700 mb-1">每月幾號</label>
                     <input type="number" id="schMonthDay" min="1" max="31" value="1" class="w-24 border border-slate-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-400 outline-none">
                 </div>
                 <div>
