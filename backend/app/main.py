@@ -206,6 +206,72 @@ async def _migrate_legacy_roles() -> None:
         )
 
 
+async def _backfill_org_wide_project_members() -> None:
+    """仁慈模式 backfill:每個 organization 內所有 active user 自動成為該 org 所有
+    project 的 ProjectMember。idempotent — 已存在就跳過,只 INSERT 缺的組合。
+
+    Why this exists:
+        list_projects 對 non-superuser 用 INNER JOIN ProjectMember 過濾,沒 row
+        就看不到專案。OIDC JIT 建的 user / 早期建立但沒被 grandfather 的 user
+        會撞上「進來什麼都看不到」。透過 startup backfill 把歷史殘留組合補齊。
+
+    新建 user / project 的 forward path 已由 ``ensure_user_in_org_projects`` /
+    ``ensure_project_has_all_org_users`` 處理,不會再有新缺洞。
+    """
+    from sqlalchemy import select
+    from app.database import AsyncSessionLocal
+    from app.models.user import User
+    from app.models.project import Project
+    from app.models.project_member import ProjectMember
+    import logging
+
+    log = logging.getLogger(__name__)
+    async with AsyncSessionLocal() as session:
+        # 一次取 (organization_id → [project_id...]) 與 (organization_id → [username...])
+        proj_rows = (await session.execute(
+            select(Project.id, Project.organization_id).where(Project.organization_id.isnot(None))
+        )).all()
+        user_rows = (await session.execute(
+            select(User.username, User.organization_id).where(
+                User.is_active.is_(True),
+                User.organization_id.isnot(None),
+            )
+        )).all()
+        if not proj_rows or not user_rows:
+            return
+        org_to_projects: dict[str, list[str]] = {}
+        for pid, oid in proj_rows:
+            org_to_projects.setdefault(oid, []).append(pid)
+        org_to_users: dict[str, list[str]] = {}
+        for uname, oid in user_rows:
+            org_to_users.setdefault(oid, []).append(uname)
+
+        # 找出已存在的 (project_id, username) tuple,避免重複 INSERT
+        existing = set(
+            (pid, uname) for pid, uname in (await session.execute(
+                select(ProjectMember.project_id, ProjectMember.username)
+            )).all()
+        )
+
+        added = 0
+        for org_id, pids in org_to_projects.items():
+            usernames = org_to_users.get(org_id, [])
+            for pid in pids:
+                for uname in usernames:
+                    if (pid, uname) in existing:
+                        continue
+                    session.add(ProjectMember(
+                        project_id=pid,
+                        username=uname,
+                        role_id=None,
+                        status="active",
+                    ))
+                    added += 1
+        if added:
+            await session.commit()
+            log.info("org-wide project_members backfill: added %d rows", added)
+
+
 async def _heal_admin_user() -> None:
     """Self-heal the built-in `admin` account so every restart guarantees
     a working RBAC entry point.
@@ -418,6 +484,13 @@ async def lifespan(app: FastAPI):
         logging.getLogger(__name__).exception(
             "seed default org / backfill failed: %s", e,
         )
+    # 仁慈模式 project_members backfill:同 org 內所有 user × 該 org 所有 project
+    # 的交集,缺 ProjectMember 的補上(idempotent — 已存在就跳過)。確保歷史殘留
+    # user (例如本次 ryan 透過 OIDC 綁定前是密碼帳號) 也能看到 admin 建的 project。
+    try:
+        await _backfill_org_wide_project_members()
+    except Exception as e:
+        logging.getLogger(__name__).warning("org-wide project_members backfill failed: %s", e)
     # NOTE: previous versions ran `_heal_admin_user()` here to keep the
     # built-in `admin` account in working state across restarts. That's
     # been removed per product decision: ship with NO default admin and

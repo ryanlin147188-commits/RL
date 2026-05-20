@@ -199,6 +199,17 @@ class UserManager(BaseUserManager[User, str]):
         # — SSO 進來的人不必首登改密碼,所以 SSO 路徑要把 flag 拔掉)
         await self.on_after_register(new_user)
         new_user.must_change_password = False
+        # 仁慈模式:把新 user 加進該 org 的所有 active project_members,
+        # 否則 list_projects 的 INNER JOIN ProjectMember 會把所有 project 過濾掉。
+        # 若 user.organization_id 還沒被 on_after_register 設好,helper 內部會 return 0。
+        try:
+            from app.auth.project_membership import ensure_user_in_org_projects
+            await ensure_user_in_org_projects(
+                self.user_db.session, new_user, user_obj=new_user  # type: ignore[attr-defined]
+            )
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning("ensure_user_in_org_projects failed: %s", e)
         return new_user
 
     # ─ Lifecycle hooks ───────────────────────────────────────────────

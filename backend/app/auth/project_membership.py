@@ -176,3 +176,90 @@ def require_project_permission(*needed: str) -> Callable:
         return user
 
     return _check
+
+
+# ── 「仁慈模式」backfill helper ──────────────────────────────────────────
+# 預設行為:同 organization 內的使用者可以看到所有 active project。
+# 透過 ensure_user_in_org_projects() 在以下三個時機補齊 project_members:
+#   1. OIDC JIT 建新 user 時 (fastapi_users_integration.get_or_provision_via_oidc)
+#   2. POST /api/projects 建新 project 時 (該 org 所有 user 都要加進來)
+#   3. backend startup 一次性 backfill (歷史殘留資料補齊)
+#
+# 仍保留 ProjectMember.status = inactive / 移除 row 的能力 — admin 想踢人
+# 隨時可從「設定 → 專案協作成員」做。預設給但可移除,是平衡點。
+async def ensure_user_in_org_projects(
+    db: AsyncSession, user, *, user_obj=None
+) -> int:
+    """確保 ``user`` 是其 organization 內所有 project 的 active member。
+    回傳新增的 project_members 數。
+    """
+    if user_obj is None:
+        user_obj = user
+    org_id = getattr(user_obj, "organization_id", None)
+    if not org_id:
+        return 0
+    username = user_obj.username
+    proj_ids = (await db.execute(
+        select(Project.id).where(Project.organization_id == org_id)
+    )).scalars().all()
+    if not proj_ids:
+        return 0
+    existing = set((await db.execute(
+        select(ProjectMember.project_id).where(
+            ProjectMember.username == username,
+            ProjectMember.project_id.in_(proj_ids),
+        )
+    )).scalars().all())
+    added = 0
+    for pid in proj_ids:
+        if pid in existing:
+            continue
+        db.add(ProjectMember(
+            project_id=pid,
+            username=username,
+            role_id=None,  # 從 OrgMembership 繼承
+            status="active",
+        ))
+        added += 1
+    if added:
+        await db.flush()
+    return added
+
+
+async def ensure_project_has_all_org_users(db: AsyncSession, project) -> int:
+    """確保 ``project`` 已掛上所屬 organization 內所有 active user。
+    用於 POST /api/projects 建新 project 後,讓全 org 都看得到。
+    回傳新增的 project_members 數。
+    """
+    from app.models.user import User
+    org_id = getattr(project, "organization_id", None)
+    if not org_id:
+        return 0
+    usernames = (await db.execute(
+        select(User.username).where(
+            User.organization_id == org_id,
+            User.is_active.is_(True),
+        )
+    )).scalars().all()
+    if not usernames:
+        return 0
+    existing = set((await db.execute(
+        select(ProjectMember.username).where(
+            ProjectMember.project_id == project.id,
+            ProjectMember.username.in_(usernames),
+        )
+    )).scalars().all())
+    added = 0
+    for name in usernames:
+        if name in existing:
+            continue
+        db.add(ProjectMember(
+            project_id=project.id,
+            username=name,
+            role_id=None,
+            status="active",
+        ))
+        added += 1
+    if added:
+        await db.flush()
+    return added

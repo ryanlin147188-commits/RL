@@ -107,6 +107,14 @@ async def create_project(
         status="active",
     ))
     await db.flush()
+    # 仁慈模式:同 org 所有 active user 都自動加入此 project,讓他們的
+    # list_projects 看得到。建立者已加過,helper 內部會用 NOT IN 跳過。
+    try:
+        from app.auth.project_membership import ensure_project_has_all_org_users
+        await ensure_project_has_all_org_users(db, project)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("ensure_project_has_all_org_users failed: %s", e)
     await db.refresh(project)
     return project
 
