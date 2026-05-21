@@ -20,6 +20,7 @@ submit; approve/reject/revert require Admin. Hook into RFC-5
 """
 from __future__ import annotations
 
+from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -529,6 +530,64 @@ async def _sync_content_status_on_reject(db, record, username: str, reason: str 
         by=username,
         reason=f"Rejected via review_records: {reason or '—'}",
     )
+
+
+@router.patch(
+    "/reviews/{record_id}/assignee",
+    response_model=ReviewRecordResponse,
+    tags=["AB · 審核"],
+)
+async def update_review_assignee(
+    record_id: str,
+    payload: dict,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """變更此筆審核紀錄的指派審核者。Body:
+        ``{"assignee": "<username|null>", "assignee_type": "user|group"}``
+
+    - assignee=null/空字串 → 取消指派(``assigned_to`` 清空)。
+    - 有給 assignee → 同 _validate_assignee 防呆(存在 + 同 org)。
+    - 發 review.submitted 通知給新被指派者(若有);取消指派 → 不發。
+    - 任何已登入使用者皆可呼叫(自指派 / 認領 / 轉派)。
+    """
+    record = await _load_for_action(db, record_id, user)
+    raw_assignee = payload.get("assignee")
+    assignee = (raw_assignee or "").strip() if isinstance(raw_assignee, str) else None
+    assignee_type = (payload.get("assignee_type") or "user")
+    if not isinstance(assignee_type, str):
+        assignee_type = "user"
+    assignee_type = assignee_type.strip().lower()
+    if assignee_type not in {"user", "group"}:
+        raise HTTPException(422, f"invalid assignee_type: {assignee_type}")
+
+    if assignee:
+        await _validate_assignee(db, assignee, assignee_type, user)
+        record.assigned_to = assignee
+        record.assigned_to_type = assignee_type
+        record.assigned_by = user.username
+        record.assigned_at = datetime.utcnow()
+    else:
+        record.assigned_to = None
+        record.assigned_to_type = None
+        record.assigned_by = None
+        record.assigned_at = None
+    await db.flush()
+
+    # 通知新被指派者(若有);取消指派時不發
+    if assignee:
+        from app.services.review_service import _notify_review_event, _entity_label
+        await _notify_review_event(
+            db,
+            record=record,
+            event_key="review.submitted",
+            recipient=assignee if assignee_type == "user" else None,
+            title=f"指派審核：{_entity_label(record)}",
+            body=f"{user.username} 將此筆 {record.entity_type.value} 審核指派給您。",
+        )
+
+    names = await _resolve_entity_names(db, [record])
+    return _to_response(record, names)
 
 
 @router.post(

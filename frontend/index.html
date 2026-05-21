@@ -2078,16 +2078,17 @@
                     </div>
                 </section>
 
-                <!-- 最近測試案例（預設顯示最近 10 筆） -->
+                <!-- 我的待審核任務（指派給我 + status=pending,最多 10 筆） -->
                 <section class="max-w-6xl mx-auto mb-8">
                     <div class="flex items-center justify-between mb-3">
                         <h3 class="text-sm font-bold text-stone-500 uppercase tracking-wider flex items-center gap-2">
-                            <i class="fa-regular fa-clock text-amber-500"></i> <span data-i18n="home.recentCases">最近測試案例</span>
-                            <span class="text-[11px] font-normal normal-case tracking-normal text-stone-400">（最多顯示 10 筆）</span>
+                            <i class="fa-regular fa-clipboard text-violet-500"></i> <span data-i18n="home.myPendingReviews">我的待審核任務</span>
+                            <span class="text-[11px] font-normal normal-case tracking-normal text-stone-400">（指派給我且待審核,最多 10 筆）</span>
                         </h3>
+                        <button onclick="loadHomeMyPendingReviews()" class="text-xs text-stone-500 hover:text-violet-700 transition" title="重新整理"><i class="fa-solid fa-rotate"></i></button>
                     </div>
-                    <div id="homeRecentCases" class="bg-white rounded-xl border border-amber-100 shadow-sm divide-y divide-stone-100">
-                        <div class="p-6 text-center text-stone-400 text-sm">尚無測試案例，請先在左側目錄樹建立 Feature → Platform → Page → Scenario → TestCase。</div>
+                    <div id="homeMyPendingReviews" class="bg-white rounded-xl border border-violet-100 shadow-sm divide-y divide-stone-100">
+                        <div class="p-6 text-center text-stone-400 text-sm">載入中…</div>
                     </div>
                 </section>
 
@@ -7127,6 +7128,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             'common.cancel':  { 'zh-TW': '取消',     'en': 'Cancel' },
             'common.confirm': { 'zh-TW': '確認',     'en': 'Confirm' },
             'home.recentCases': { 'zh-TW': '最近測試案例', 'en': 'Recent Test Cases' },
+            'home.myPendingReviews': { 'zh-TW': '我的待審核任務', 'en': 'My Pending Reviews' },
             'home.todos': { 'zh-TW': '待辦事項', 'en': 'To-do' },
             'home.calendar': { 'zh-TW': '行事曆', 'en': 'Calendar' },
             'home.todoBucket.overdue': { 'zh-TW': '過期', 'en': 'Overdue' },
@@ -11540,6 +11542,15 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                         </div>
                         <div class="bg-stone-50/60 rounded-lg border border-stone-100 px-3 py-1">
                             ${_row(lc==='en'?'Submitted by':'送審者', `${_esc(r.submitted_by||'—')} <span class="text-[11px] text-stone-500 ml-2">${_reviewFmtTs(r.submitted_at)}</span>`)}
+                            ${_row(lc==='en'?'Assignee':'指派審核者', `
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <select id="reviewAssigneeSel" data-record-id="${_esc(r.id)}" onchange="reviewChangeAssignee(this)"
+                                        class="text-xs border border-stone-300 rounded px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-violet-300 min-w-[200px]"
+                                        aria-label="指派審核者">
+                                        <option value="">${lc==='en'?'Loading members…':'載入專案成員中…'}</option>
+                                    </select>
+                                    <span id="reviewAssigneeMeta" class="text-[11px] text-stone-500">${r.assigned_by ? `${lc==='en'?'by':'指派者'}: ${_esc(r.assigned_by)} · ${_reviewFmtTs(r.assigned_at)}` : ''}</span>
+                                </div>`)}
                             ${_row(lc==='en'?'Reviewed by':'審核者', r.reviewed_by ? `${_esc(r.reviewed_by)} <span class="text-[11px] text-stone-500 ml-2">${_reviewFmtTs(r.reviewed_at)}</span>` : null)}
                             ${reasonHtml ? _row(lc==='en'?'Reason':'原因', reasonHtml) : ''}
                             ${_row(lc==='en'?'Created':'建立時間', `<span class="text-[11px] font-mono text-stone-500">${_reviewFmtTs(r.created_at)}</span>`)}
@@ -11668,6 +11679,17 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                     }
                 })(),
                 (async () => {
+                    // Populate 指派審核者下拉(目前專案成員)
+                    try {
+                        const sel = document.getElementById('reviewAssigneeSel');
+                        if (!sel) return;
+                        await _reviewPopulateAssigneeSelect(sel, r);
+                    } catch (e) {
+                        const sel = document.getElementById('reviewAssigneeSel');
+                        if (sel) sel.innerHTML = `<option value="">${lc==='en'?'load members failed':'載入成員失敗'}</option>`;
+                    }
+                })(),
+                (async () => {
                     try {
                         const entries = await apiFetch(`/api/reviews/${recordId}/history`);
                         const histBox = document.getElementById('reviewDetailHistory');
@@ -11706,6 +11728,72 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
 
         function reviewCloseDetail() {
             document.getElementById('reviewDetailModal').classList.add('hidden');
+        }
+
+        // 拉目前專案成員填到 review detail 的指派下拉。
+        // 沒選專案 → fallback 載入 org 內全部使用者(via /api/auth/users)。
+        async function _reviewPopulateAssigneeSelect(sel, record) {
+            const lc = _reviewLocale();
+            let members = [];
+            try {
+                if (currentProjectId) {
+                    members = await apiFetch(`/api/projects/${encodeURIComponent(currentProjectId)}/members`);
+                } else {
+                    members = await apiFetch('/api/auth/users');
+                }
+            } catch (e) {
+                sel.innerHTML = `<option value="">${lc==='en'?'load failed':'載入失敗'}</option>`;
+                return;
+            }
+            const me = (typeof authCurrentUsername === 'function' ? authCurrentUsername() : '') || '';
+            const cur = record && record.assigned_to_type === 'user' ? (record.assigned_to || '') : '';
+            const opts = [`<option value="">${lc==='en'?'— Unassigned —':'— 未指派 —'}</option>`];
+            (members || []).forEach(m => {
+                const u = m.username || '';
+                if (!u) return;
+                const label = m.display_name ? `${m.display_name} (${u})` : u;
+                const tag = u === me ? (lc==='en'?' [me]':' (我)') : '';
+                const sel_ = u === cur ? ' selected' : '';
+                opts.push(`<option value="${_esc(u)}"${sel_}>${_esc(label)}${tag}</option>`);
+            });
+            sel.innerHTML = opts.join('');
+        }
+
+        // onchange handler:更新 assignee。失敗 → toast + 回復原值。
+        async function reviewChangeAssignee(selEl) {
+            const lc = _reviewLocale();
+            const recId = selEl.dataset.recordId;
+            const newAssignee = (selEl.value || '').trim();
+            if (!recId) return;
+            // disable 防止重複點
+            selEl.disabled = true;
+            try {
+                const updated = await apiFetch(`/api/reviews/${encodeURIComponent(recId)}/assignee`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ assignee: newAssignee || null, assignee_type: 'user' }),
+                });
+                // 更新 cache 內的 row(reviewOpenDetail 用 _reviewRowsCache 找 row)
+                if (Array.isArray(_reviewRowsCache)) {
+                    const idx = _reviewRowsCache.findIndex(x => x.id === recId);
+                    if (idx >= 0) _reviewRowsCache[idx] = updated;
+                }
+                // 更新 meta 行
+                const meta = document.getElementById('reviewAssigneeMeta');
+                if (meta) {
+                    meta.textContent = updated.assigned_by
+                        ? `${lc==='en'?'by':'指派者'}: ${updated.assigned_by} · ${_reviewFmtTs(updated.assigned_at)}`
+                        : '';
+                }
+                showToast(newAssignee
+                    ? (lc==='en' ? `Assigned to ${newAssignee}` : `已指派給 ${newAssignee}`)
+                    : (lc==='en' ? 'Unassigned' : '已取消指派'),
+                    'success');
+            } catch (e) {
+                showToast((lc==='en' ? 'Update failed: ' : '更新失敗:') + (e.message || e), 'error');
+            } finally {
+                selEl.disabled = false;
+            }
         }
 
         async function _reviewUpdatePendingBadge() {
@@ -11904,38 +11992,42 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             const rdEl = document.getElementById('homeStatRounds');
             if (rdEl) rdEl.textContent = String((Array.isArray(testRoundList) ? testRoundList.length : 0));
 
-            // 最近測試案例（取前 5 筆）
-            const recentBox = document.getElementById('homeRecentCases');
-            if (recentBox) {
-                const list = [];
-                const _stripMd = (s) => String(s || '').replace(/\.md$/i, '');
-                (function walk2(nodes, path) {
-                    if (!nodes) return;
-                    for (const n of nodes) {
-                        if (n.level_type === 'TESTCASE' || n.isFile) {
-                            // 需求 #2：首頁最近測試案例也隱藏 .md 副檔名
-                            list.push({ id: n.id, title: _stripMd(n.title || n.name || n.id), path });
-                        }
-                        if (n.children && n.children.length) {
-                            walk2(n.children, path ? path + ' / ' + (n.title || n.name) : (n.title || n.name));
-                        }
-                    }
-                })(activeTreeData || [], '');
-                const top = list.slice(0, 10);
+            // 我的待審核任務 — 換掉原本「最近測試案例」widget。
+            // 從 server fetch /api/reviews?mine=true&status=pending,呈現前 10 筆。
+            try { loadHomeMyPendingReviews(); } catch (_) {}
+        }
+
+        // 載入首頁「我的待審核任務」widget。
+        async function loadHomeMyPendingReviews() {
+            const box = document.getElementById('homeMyPendingReviews');
+            if (!box) return;
+            box.innerHTML = '<div class="p-6 text-center text-stone-400 text-sm">載入中…</div>';
+            try {
+                const rows = await apiFetch('/api/reviews?mine=true&status=pending');
+                const top = (Array.isArray(rows) ? rows : []).slice(0, 10);
                 if (!top.length) {
-                    recentBox.innerHTML = '<div class="p-6 text-center text-stone-400 text-sm">尚無測試案例，請先在左側目錄樹建立 Feature → Platform → Page → Scenario → TestCase。</div>';
-                } else {
-                    recentBox.innerHTML = top.map(x =>
-                        '<button onclick="loadTestCase(\'' + String(x.id).replace(/'/g, "\\'") + '\')" class="w-full text-left p-4 hover:bg-amber-50/60 transition flex items-center gap-3">' +
-                        '<i class="fa-regular fa-file-lines text-amber-500"></i>' +
-                        '<div class="flex-1 min-w-0">' +
-                        '  <div class="text-sm font-semibold text-slate-800 truncate">' + escapeHtml(x.title) + '</div>' +
-                        '  <div class="text-xs text-slate-500 truncate">' + escapeHtml(x.path || '—') + '</div>' +
-                        '</div>' +
-                        '<i class="fa-solid fa-chevron-right text-slate-300 text-xs"></i>' +
-                        '</button>'
-                    ).join('');
+                    box.innerHTML = '<div class="p-6 text-center text-stone-400 text-sm"><i class="fa-regular fa-circle-check text-emerald-400 text-xl mb-1 block"></i>目前沒有指派給您的待審核任務。</div>';
+                    return;
                 }
+                const typeLabel = { testcase: '測試案例', report: '測試報告', script: '錄製腳本', document: '文件' };
+                const typeIcon = { testcase: 'fa-vial text-emerald-600', report: 'fa-file-lines text-blue-500', script: 'fa-video text-rose-500', document: 'fa-file text-stone-500' };
+                box.innerHTML = top.map(r => {
+                    const tName = r.entity_name || (r.entity_type + ' · ' + (r.entity_id || '').slice(0, 8));
+                    const tLbl = typeLabel[r.entity_type] || r.entity_type || '—';
+                    const ic = typeIcon[r.entity_type] || 'fa-circle-dot text-stone-400';
+                    const subLine = `<i class="fa-regular fa-user mr-1"></i>${escapeHtml(r.submitted_by || '—')} · <i class="fa-regular fa-clock ml-1 mr-1"></i>${(r.submitted_at || '').replace('T',' ').slice(0,16)}`;
+                    return '<button onclick="reviewOpenDetail(\'' + String(r.id).replace(/\'/g, "\\\\'") + '\')" class="w-full text-left p-4 hover:bg-violet-50/40 transition flex items-center gap-3">' +
+                        '<i class="fa-solid ' + ic + '"></i>' +
+                        '<div class="flex-1 min-w-0">' +
+                        '  <div class="text-sm font-semibold text-slate-800 truncate">' + escapeHtml(tName) + '</div>' +
+                        '  <div class="text-xs text-stone-500 mt-0.5">' + subLine + '</div>' +
+                        '</div>' +
+                        '<span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold bg-violet-100 text-violet-700 border border-violet-200">' + escapeHtml(tLbl) + '</span>' +
+                        '<i class="fa-solid fa-chevron-right text-stone-300 text-xs ml-1"></i>' +
+                        '</button>';
+                }).join('');
+            } catch (e) {
+                box.innerHTML = '<div class="p-6 text-center text-rose-500 text-xs"><i class="fa-solid fa-triangle-exclamation mr-1"></i>載入失敗:' + escapeHtml(e.message || String(e)) + '</div>';
             }
         }
 
