@@ -49,6 +49,40 @@ from app.services import review_service
 router = APIRouter()
 
 
+async def _ensure_review_manage(user: User, db: AsyncSession) -> None:
+    """delete / bulk-delete 走的權限規則:
+      1. superuser:覆蓋
+      2. Admin role:覆蓋
+      3. role.permissions_json 內有 `review.manage` 或 `review.delete`
+    delete 是破壞性操作(整筆 audit 連帶 cascade 清),所以要走「審核」群組
+    的權限 gate;非 admin 角色只要授與此權限即可刪。
+    """
+    if user.is_superuser:
+        return
+    if user.role_id is None:
+        raise HTTPException(
+            status_code=403,
+            detail={"error": "permission_denied", "missing_permissions": ["review.manage"]},
+        )
+    from app.models.role import Role
+
+    role = await db.get(Role, user.role_id)
+    if role is None:
+        raise HTTPException(403, "role not found")
+    if role.name == "Admin":
+        return
+    perms = role.permissions_json or []
+    if "review.manage" in perms or "review.delete" in perms:
+        return
+    raise HTTPException(
+        status_code=403,
+        detail={
+            "error": "permission_denied",
+            "missing_permissions": ["review.manage"],
+        },
+    )
+
+
 async def _ensure_admin(user: User, db: AsyncSession) -> None:
     """(legacy)`revert` 仍走純 Admin / superuser 的舊規則:revert 是把
     通過/退回的審核重新拉回 pending 的決策動作,跟 assignee 無關,
@@ -548,7 +582,7 @@ async def delete_review(
     Admin role 才能呼叫。一般使用者即使具 review.manage,也不能刪審核
     紀錄本身。
     """
-    await _ensure_admin(user, db)
+    await _ensure_review_manage(user, db)
     record = (
         await db.execute(TenantQuery.for_(ReviewRecord).where(ReviewRecord.id == record_id))
     ).scalar_one_or_none()
@@ -571,7 +605,7 @@ async def bulk_delete_reviews(
     """批次刪除審核紀錄。body: ``{"ids": ["<uuid>", ...]}``,最多 200 筆/次。
     語意同 DELETE /reviews/{id} × N,只是省 round-trip。回傳已刪數量。
     """
-    await _ensure_admin(user, db)
+    await _ensure_review_manage(user, db)
     raw_ids = payload.get("ids")
     if not isinstance(raw_ids, list) or not raw_ids:
         raise HTTPException(422, "ids 必須是非空陣列")

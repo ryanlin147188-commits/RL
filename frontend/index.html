@@ -3200,13 +3200,19 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                         </div>
                     </div>
 
-                    <!-- Tier E-2:bulk reassign 工具列 -->
+                    <!-- 工具列:勾選 row 後出現「刪除」;「全選刪除」常駐(權限決定可見) -->
                     <div id="reviewBulkBar" class="hidden mb-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded flex flex-wrap items-center gap-3 text-xs">
                         <span class="font-semibold text-amber-700">已選 <span id="reviewBulkCount">0</span> 筆</span>
-                        <button onclick="reviewBulkDelete()" class="px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded font-semibold flex items-center gap-1" title="批次刪除(僅 Admin)">
-                            <i class="fa-solid fa-trash"></i> 批次刪除
+                        <button data-perm-any="review.manage,review.delete" onclick="reviewDeleteSelected()" class="px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded font-semibold flex items-center gap-1" title="刪除選取筆數">
+                            <i class="fa-solid fa-trash"></i> 刪除
                         </button>
                         <button onclick="reviewBulkClear()" class="text-stone-500 hover:text-stone-700 ml-auto"><i class="fa-solid fa-xmark"></i> 取消選取</button>
+                    </div>
+                    <!-- 全選刪除(常駐;對「整個目前篩選結果」做刪除,權限不足會被 data-perm-any 隱藏) -->
+                    <div class="mb-2 flex justify-end">
+                        <button data-perm-any="review.manage,review.delete" onclick="reviewDeleteAllFiltered()" class="px-3 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-700 border border-rose-300 rounded font-semibold text-xs flex items-center gap-1" title="刪除目前篩選結果的全部審核紀錄">
+                            <i class="fa-solid fa-trash-can"></i> 全選刪除
+                        </button>
                     </div>
 
                     <!-- 列表 -->
@@ -11268,15 +11274,36 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             window._assignPickerBulkIds = ids;
         }
 
-        // 批次刪除選取的審核紀錄(僅 Admin / superuser;後端 _ensure_admin 把關)。
-        async function reviewBulkDelete() {
+        // 刪除目前勾選的審核紀錄(權限 gate 走 review.manage / review.delete)。
+        async function reviewDeleteSelected() {
             const ids = Array.from(_reviewSelected || []);
             if (!ids.length) return;
+            await _reviewDeleteByIds(ids);
+        }
+
+        // 全選刪除:對目前篩選結果(_reviewRowsCache,已套 status / type filter)的全部 row。
+        // 用 reviewLoad 拉回的列表為「主動範圍」,避免不小心一鍵清掉跨 tab 的歷史。
+        async function reviewDeleteAllFiltered() {
+            const rows = Array.isArray(_reviewRowsCache) ? _reviewRowsCache : [];
+            const ids = rows.map(r => r.id).filter(Boolean);
+            if (!ids.length) {
+                const lc = _reviewLocale();
+                showToast(lc==='en' ? 'No rows to delete' : '目前沒有可刪除的紀錄', 'info');
+                return;
+            }
+            await _reviewDeleteByIds(ids, true);
+        }
+
+        // 共用:刪指定 ids;allFlag=true 時 confirm 訊息更嚴格。
+        async function _reviewDeleteByIds(ids, allFlag) {
             const lc = _reviewLocale();
-            const msg = lc === 'en'
-                ? `Delete ${ids.length} review record(s)? This also wipes their audit history and CANNOT be undone.`
-                : `確定刪除選取的 ${ids.length} 筆審核紀錄?\n\n會一併移除對應的審核軌跡(history),此操作無法復原。`;
-            if (!confirm(msg)) return;
+            const prefix = allFlag
+                ? (lc==='en' ? `Delete ALL ${ids.length} review record(s) in current view?` : `確定刪除目前篩選下的【全部 ${ids.length} 筆】審核紀錄?`)
+                : (lc==='en' ? `Delete ${ids.length} review record(s)?` : `確定刪除選取的 ${ids.length} 筆審核紀錄?`);
+            const tail = lc==='en'
+                ? '\n\nThis also wipes their audit history and CANNOT be undone.'
+                : '\n\n會一併移除對應的審核軌跡(history),此操作無法復原。';
+            if (!confirm(prefix + tail)) return;
             try {
                 const resp = await apiFetch('/api/reviews/bulk-delete', {
                     method: 'POST',
@@ -11284,18 +11311,18 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                     body: JSON.stringify({ ids }),
                 });
                 showToast(
-                    lc === 'en'
-                        ? `Deleted ${resp.deleted}/${resp.requested}`
-                        : `已刪除 ${resp.deleted}/${resp.requested} 筆`,
+                    lc==='en' ? `Deleted ${resp.deleted}/${resp.requested}` : `已刪除 ${resp.deleted}/${resp.requested} 筆`,
                     'success'
                 );
                 _reviewSelected.clear();
                 _reviewRefreshBulkBar();
                 await reviewLoad();
             } catch (e) {
-                showToast((lc === 'en' ? 'Delete failed: ' : '刪除失敗:') + (e.message || e), 'error');
+                showToast((lc==='en' ? 'Delete failed: ' : '刪除失敗:') + (e.message || e), 'error');
             }
         }
+        // 舊名相容:外部呼叫 reviewBulkDelete 仍可用
+        const reviewBulkDelete = reviewDeleteSelected;
 
         async function reviewLoad() {
             const tbody = document.getElementById('reviewListBody');

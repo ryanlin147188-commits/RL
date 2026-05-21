@@ -76,6 +76,8 @@ _PERMISSION_CATALOGUE = [
     {"key": "settings.write", "label": "修改設定", "group": "設定"},
     {"key": "user.manage", "label": "管理使用者", "group": "使用者"},
     {"key": "role.manage", "label": "管理角色", "group": "使用者"},
+    {"key": "review.manage", "label": "審核(通過 / 退回 / 指派)", "group": "審核"},
+    {"key": "review.delete", "label": "刪除審核紀錄", "group": "審核"},
 ]
 
 _NOTIFICATION_EVENT_CATALOGUE = [
