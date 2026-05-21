@@ -562,6 +562,15 @@ async def update_review_assignee(
         raise HTTPException(422, f"invalid assignee_type: {assignee_type}")
 
     if assignee:
+        # 不能指派給本人(自己指派自己審核會繞過自審防呆)
+        if assignee_type == "user" and assignee == user.username:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "cannot_self_assign",
+                    "message": "不能將審核指派給自己",
+                },
+            )
         await _validate_assignee(db, assignee, assignee_type, user)
         record.assigned_to = assignee
         record.assigned_to_type = assignee_type

@@ -11542,16 +11542,23 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                         </div>
                         <div class="bg-stone-50/60 rounded-lg border border-stone-100 px-3 py-1">
                             ${_row(lc==='en'?'Submitted by':'送審者', `${_esc(r.submitted_by||'—')} <span class="text-[11px] text-stone-500 ml-2">${_reviewFmtTs(r.submitted_at)}</span>`)}
-                            ${_row(lc==='en'?'Assignee':'指派審核者', `
-                                <div class="flex items-center gap-2 flex-wrap">
-                                    <select id="reviewAssigneeSel" data-record-id="${_esc(r.id)}" onchange="reviewChangeAssignee(this)"
-                                        class="text-xs border border-stone-300 rounded px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-violet-300 min-w-[200px]"
-                                        aria-label="指派審核者">
-                                        <option value="">${lc==='en'?'Loading members…':'載入專案成員中…'}</option>
-                                    </select>
-                                    <span id="reviewAssigneeMeta" class="text-[11px] text-stone-500">${r.assigned_by ? `${lc==='en'?'by':'指派者'}: ${_esc(r.assigned_by)} · ${_reviewFmtTs(r.assigned_at)}` : ''}</span>
-                                </div>`)}
-                            ${_row(lc==='en'?'Reviewed by':'審核者', r.reviewed_by ? `${_esc(r.reviewed_by)} <span class="text-[11px] text-stone-500 ml-2">${_reviewFmtTs(r.reviewed_at)}</span>` : null)}
+                            ${(() => {
+                                // 待審核(InReview / pending):「審核者」== 指派審核者,做成可改的下拉
+                                // 已通過 / 已退回(Verified / approved, Closed / rejected):「審核者」= record.reviewed_by(read-only)
+                                const isPending = (r.status === 'InReview' || r.status === 'pending');
+                                if (isPending) {
+                                    return _row(lc==='en'?'Reviewer':'審核者', `
+                                        <div class="flex items-center gap-2 flex-wrap">
+                                            <select id="reviewAssigneeSel" data-record-id="${_esc(r.id)}" onchange="reviewChangeAssignee(this)"
+                                                class="text-xs border border-stone-300 rounded px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-violet-300 min-w-[200px]"
+                                                aria-label="指派審核者">
+                                                <option value="">${lc==='en'?'Loading members…':'載入專案成員中…'}</option>
+                                            </select>
+                                            <span id="reviewAssigneeMeta" class="text-[11px] text-stone-500">${r.assigned_by ? `${lc==='en'?'by':'指派者'}: ${_esc(r.assigned_by)} · ${_reviewFmtTs(r.assigned_at)}` : ''}</span>
+                                        </div>`);
+                                }
+                                return _row(lc==='en'?'Reviewer':'審核者', r.reviewed_by ? `${_esc(r.reviewed_by)} <span class="text-[11px] text-stone-500 ml-2">${_reviewFmtTs(r.reviewed_at)}</span>` : null);
+                            })()}
                             ${reasonHtml ? _row(lc==='en'?'Reason':'原因', reasonHtml) : ''}
                             ${_row(lc==='en'?'Created':'建立時間', `<span class="text-[11px] font-mono text-stone-500">${_reviewFmtTs(r.created_at)}</span>`)}
                             ${_row(lc==='en'?'Updated':'最後更新', `<span class="text-[11px] font-mono text-stone-500">${_reviewFmtTs(r.updated_at)}</span>`)}
@@ -11751,10 +11758,10 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             (members || []).forEach(m => {
                 const u = m.username || '';
                 if (!u) return;
+                if (u === me) return; // 不能指派給本人
                 const label = m.display_name ? `${m.display_name} (${u})` : u;
-                const tag = u === me ? (lc==='en'?' [me]':' (我)') : '';
                 const sel_ = u === cur ? ' selected' : '';
-                opts.push(`<option value="${_esc(u)}"${sel_}>${_esc(label)}${tag}</option>`);
+                opts.push(`<option value="${_esc(u)}"${sel_}>${_esc(label)}</option>`);
             });
             sel.innerHTML = opts.join('');
         }
