@@ -691,6 +691,44 @@ async def create_user(
     await db.refresh(new_user)
     from app.auth.casbin_sync import schedule_user_resync
     schedule_user_resync(new_user.username)
+
+    # ── 寄送註冊歡迎信(transactional;不走 NotificationPreference)──
+    # 失敗只記 log,不影響使用者建立流程。
+    if new_user.email:
+        import logging as _logging
+        logger = _logging.getLogger(__name__)
+        try:
+            from app.services.email_service import render_notification_email
+            from tasks.email_tasks import send_email_task
+            login_url = "/"  # SPA 進站登入
+            title = f"AutoTest 帳號建立成功 — 歡迎 {new_user.display_name or new_user.username}"
+            body = (
+                f"您好 {new_user.display_name or new_user.username},\n\n"
+                f"管理員 {user.username} 已為您建立 AutoTest 帳號:\n"
+                f"  使用者名稱:{new_user.username}\n"
+                f"  Email:{new_user.email}\n\n"
+                f"首次登入請使用管理員提供的密碼,登入後系統會引導您修改密碼。\n"
+                f"如有任何問題,請聯絡管理員 {user.username}。"
+            )
+            html_body, text_body = render_notification_email(
+                title=title, body=body, link=login_url,
+            )
+            send_email_task.delay(
+                to=new_user.email,
+                subject=title,
+                html_body=html_body,
+                text_body=text_body,
+                organization_id=new_user.organization_id,
+            )
+            logger.info(
+                "register-email: enqueued welcome email for new user=%s",
+                new_user.username,
+            )
+        except Exception:
+            logger.exception(
+                "register-email: enqueue failed for new user=%s",
+                new_user.username,
+            )
     return new_user
 
 

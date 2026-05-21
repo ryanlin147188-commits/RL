@@ -87,14 +87,31 @@ def run_tests(
         # task opens runs under the right tenant context. The ORM auto-stamp
         # listener (RFC-4) relies on ``current_org_id`` to fill ``organization_id``
         # on new rows like ExecutionStepLog inserts later in the loop.
+        _report_org_id: Optional[str] = None
         with SessionLocal() as db:
             _report = db.get(ExecutionReport, report_id)
-            _org_id_token = current_org_id.set(
-                _report.organization_id if _report else None
-            )
+            _report_org_id = _report.organization_id if _report else None
+            _org_id_token = current_org_id.set(_report_org_id)
 
         publish_log("INFO", f"🚀 任務啟動 | Task: {task_id[:8]}…")
         publish_log("INFO", f"📋 共 {len(testcase_ids)} 個測試案例")
+
+        # ── 通知:測試開始執行(run.started)─── fan-out 給 org 內訂閱者
+        try:
+            from app.services.notification_dispatch import notify_broadcast_sync
+            with SessionLocal() as _ndb:
+                notify_broadcast_sync(
+                    sync_db=_ndb,
+                    event_key="run.started",
+                    organization_id=_report_org_id,
+                    title=f"測試開始執行({len(testcase_ids)} 案例)",
+                    body=f"Task: {task_id[:8]}… 已開始執行 {len(testcase_ids)} 個測試案例。",
+                    level="info",
+                    related_entity_type="report",
+                    related_entity_id=report_id,
+                )
+        except Exception:
+            logger.exception("notify run.started failed (task=%s)", task_id)
 
         # 延遲 import：runner 載入會 import robot framework，未安裝時給出明確訊息
         try:
@@ -410,6 +427,33 @@ def run_tests(
             f"🏁 執行完成 ── 通過: {passed_cases}  失敗: {failed_cases}  耗時: {total_dur}ms",
         )
         _pub_done(r, channel, final_status.value)
+
+        # ── 通知:測試執行通過 / 失敗 ─── fan-out 給 org 內訂閱者
+        try:
+            from app.services.notification_dispatch import notify_broadcast_sync
+            _event = "run.passed" if final_status == ReportStatus.PASSED else "run.failed"
+            _title = (
+                f"測試執行通過({passed_cases}/{passed_cases + failed_cases} 案例)"
+                if final_status == ReportStatus.PASSED
+                else f"測試執行失敗({failed_cases} 案例未通過)"
+            )
+            _body = (
+                f"Task {task_id[:8]}… 執行完成。\n"
+                f"通過 {passed_cases} / 失敗 {failed_cases} / 耗時 {total_dur}ms。"
+            )
+            with SessionLocal() as _ndb:
+                notify_broadcast_sync(
+                    sync_db=_ndb,
+                    event_key=_event,
+                    organization_id=_report_org_id,
+                    title=_title,
+                    body=_body,
+                    level="success" if final_status == ReportStatus.PASSED else "warning",
+                    related_entity_type="report",
+                    related_entity_id=report_id,
+                )
+        except Exception:
+            logger.exception("notify run.passed/run.failed failed (task=%s)", task_id)
 
     except Exception as exc:
         publish_log("ERROR", f"💥 執行器異常: {exc}")

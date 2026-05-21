@@ -175,6 +175,25 @@ async def _trigger_schedule(
         source_node_id=schedule.node_id,
     )
 
+    # ── 通知:排程觸發(schedule.fired)─── 給 org 內訂閱者
+    try:
+        from app.services.notification_dispatch import notify_broadcast
+        await notify_broadcast(
+            db=db,
+            event_key="schedule.fired",
+            organization_id=getattr(schedule, "organization_id", None) or getattr(report, "organization_id", None),
+            title=f"排程觸發:{getattr(schedule, 'name', None) or schedule.id[:8]}",
+            body=(
+                f"排程 {getattr(schedule, 'name', '') or schedule.id} 已觸發,"
+                f"共 {len(testcase_ids)} 個測試案例排入執行。"
+            ),
+            level="info",
+            related_entity_type="report",
+            related_entity_id=report.id,
+        )
+    except Exception:
+        logger.exception("notify schedule.fired failed (schedule=%s)", schedule.id)
+
     # local 模式：不送 Celery，改由本機 agent 透過 /api/local-runner/claim 認領
     if (execution_mode or "docker").lower() == "local":
         logger.info("Schedule %s 以 local 模式排入，等待本機 agent 認領", schedule.id)

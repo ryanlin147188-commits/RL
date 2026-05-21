@@ -33,7 +33,7 @@ from app.models.review import (
     ReviewRecord,
     ReviewStatus,
 )
-from app.services.notification_dispatch import notify
+from app.services.notification_dispatch import notify, notify_broadcast
 
 
 def _entity_label(record: ReviewRecord) -> str:
@@ -51,21 +51,39 @@ async def _notify_review_event(
     body: str,
     level: str = "info",
 ) -> None:
-    """Wrap notify() with the review-specific payload. Silently skips if
-    there's no recipient (e.g. submitted but nobody assigned to review)."""
-    if not recipient:
+    """Wrap notify() with the review-specific payload.
+
+    v1.1.9 起「指派審核者」機制已移除 — 若 ``review.submitted`` 沒給
+    具體 recipient,改成 broadcast 給該 org 內具 ``review.manage`` 權限
+    (含 Admin / superuser)的使用者,免得送審後沒人收到信。
+    其他事件(approve / reject / revert)recipient 是送審者本人,
+    缺值時維持靜默 skip。
+    """
+    if recipient:
+        await notify(
+            db=db,
+            event_key=event_key,
+            recipient=recipient,
+            title=title,
+            body=body,
+            level=level,
+            related_entity_type=record.entity_type.value,
+            related_entity_id=record.entity_id,
+            organization_id=record.organization_id,
+        )
         return
-    await notify(
-        db=db,
-        event_key=event_key,
-        recipient=recipient,
-        title=title,
-        body=body,
-        level=level,
-        related_entity_type=record.entity_type.value,
-        related_entity_id=record.entity_id,
-        organization_id=record.organization_id,
-    )
+    if event_key == "review.submitted":
+        await notify_broadcast(
+            db=db,
+            event_key=event_key,
+            organization_id=record.organization_id,
+            title=title,
+            body=body,
+            level=level,
+            related_entity_type=record.entity_type.value,
+            related_entity_id=record.entity_id,
+            required_permission="review.manage",
+        )
 
 
 # ── Internal helpers ────────────────────────────────────────────────────
