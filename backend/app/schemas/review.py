@@ -12,8 +12,9 @@ from app.models.review import ReviewableEntityType, ReviewAction, ReviewStatus
 class SubmitReviewRequest(BaseModel):
     entity_type: ReviewableEntityType
     entity_id: str = Field(..., min_length=1, max_length=64)
-    # 送審必選審核者 — 一般使用者(`user`)或群組(`group`)
-    assignee: str = Field(..., min_length=1, max_length=80)
+    # v1.1.9 移除「指派審核者」必填 — assignee 變 optional;空值 = 不指派,
+    # 任何具 review.manage / Admin 角色的使用者都能 approve / reject。
+    assignee: Optional[str] = Field(default=None, max_length=80)
     assignee_type: str = Field(default="user", pattern="^(user|group)$")
 
 

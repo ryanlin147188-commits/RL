@@ -80,12 +80,12 @@ async def _ensure_admin(user: User, db: AsyncSession) -> None:
 async def _ensure_can_review(
     user: User, db: AsyncSession, record: ReviewRecord
 ) -> None:
-    """approve / reject 的權限規則:
+    """approve / reject 的權限規則(v1.1.9 起 移除「指派審核者」機制):
       1. superuser、Admin role:可覆蓋(平台管理員角色)
       2. 否則送審者本人不可自審
-      3. 一般使用者必須具 `review.manage` 權限,且:
-         - assignee_type='user' → username 等於 record.assigned_to
-         - assignee_type='group' → 是該 group(含巢狀子群組)成員
+      3. 一般使用者必須具 `review.manage` 權限
+    不再要求請求者一定是 record.assigned_to(或所屬群組成員),只要具備
+    上述權限就能 approve / reject — 對應前端「拿掉指派機制」需求。
     """
     if user.is_superuser:
         return
@@ -112,7 +112,7 @@ async def _ensure_can_review(
             },
         )
 
-    # 3) 一般使用者:必須具 review.manage 才有資格進到 assignee 比對
+    # 3) 一般使用者必須具 review.manage 權限
     if "review.manage" not in role_perms:
         raise HTTPException(
             status_code=403,
@@ -121,47 +121,6 @@ async def _ensure_can_review(
                 "missing_permissions": ["review.manage"],
             },
         )
-
-    assigned_to = record.assigned_to or ""
-    assigned_type = (record.assigned_to_type or "user").lower()
-    if not assigned_to:
-        raise HTTPException(
-            status_code=403,
-            detail={
-                "error": "no_assignee",
-                "message": "此筆審核未指派審核者,請由 Admin 處理",
-            },
-        )
-
-    if assigned_type == "user":
-        if assigned_to != user.username:
-            raise HTTPException(
-                status_code=403,
-                detail={
-                    "error": "not_assigned_reviewer",
-                    "message": "您不是被指派的審核者",
-                },
-            )
-        return
-
-    if assigned_type == "group":
-        from app.services.group_resolver import resolve_group_members
-
-        members = await resolve_group_members(db, assigned_to)
-        if user.username not in members:
-            raise HTTPException(
-                status_code=403,
-                detail={
-                    "error": "not_in_assigned_group",
-                    "message": "您不是被指派群組的成員",
-                },
-            )
-        return
-
-    raise HTTPException(
-        status_code=400,
-        detail=f"未知的 assignee_type: {assigned_type}",
-    )
 
 
 @router.post(
@@ -175,16 +134,19 @@ async def submit_review(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    # 校驗 assignee 真實存在(避免送出髒資料)
-    await _validate_assignee(db, payload.assignee, payload.assignee_type, user)
+    # v1.1.9 移除「指派審核者」機制:assignee 變 optional;若有給才校驗
+    # 真實存在(避免髒資料),沒給就直接送審 → 任何具 review.manage / Admin
+    # 的審核者都能 approve / reject。
+    if payload.assignee:
+        await _validate_assignee(db, payload.assignee, payload.assignee_type, user)
     record = await review_service.submit(
         db,
         entity_type=payload.entity_type,
         entity_id=payload.entity_id,
         submitted_by=user.username,
         organization_id=user.organization_id,
-        assignee=payload.assignee,
-        assignee_type=payload.assignee_type,
+        assignee=payload.assignee or None,
+        assignee_type=payload.assignee_type if payload.assignee else None,
     )
     names = await _resolve_entity_names(db, [record])
     return _to_response(record, names)
