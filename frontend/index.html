@@ -10462,9 +10462,28 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             }
         }
 
-        function authLogout() {
+        async function authLogout() {
             if (!confirm('確定要登出嗎？')) return;
             try { stopNotifPolling(); } catch (_) {}
+            // 順手清 VM 磁碟(dangling images / stopped containers / build cache)
+            // — 不會碰 autotest-robot-runner / recorder / recorder-api / mcp 這些
+            // 動態 spawn 用的 tagged image,因為走 prune dangling=True。
+            // best-effort:5 秒 timeout 不阻塞,失敗不影響登出。
+            try {
+                const ctrl = new AbortController();
+                const t = setTimeout(() => ctrl.abort(), 5000);
+                const r = await fetch('/api/system/cleanup-storage', {
+                    method: 'POST', signal: ctrl.signal,
+                });
+                clearTimeout(t);
+                if (r.ok) {
+                    const d = await r.json().catch(() => ({}));
+                    const mb = (d.total_reclaimed_bytes || 0) / (1024 * 1024);
+                    if (mb >= 0.1) {
+                        showToast(`已釋出 ${mb.toFixed(1)} MB VM 磁碟空間`, 'info');
+                    }
+                }
+            } catch (_) { /* fire-and-forget — 失敗就直接登出 */ }
             authClearTokens();
             _authWriteSession(null);
             showToast('已登出', 'success');

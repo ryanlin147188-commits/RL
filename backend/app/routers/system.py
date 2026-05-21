@@ -21,13 +21,18 @@
 """
 from __future__ import annotations
 
+import logging
 import os
 import time
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, HTTPException
+
+from app.auth.dependencies import get_current_user
+from app.models.user import User
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # 追蹤名稱前綴，只計算 AutoTest 平台自己的容器
 _PLATFORM_PREFIX = "autotest-"
@@ -218,6 +223,123 @@ def _read_docker() -> tuple[dict[str, Any], dict[str, Any]]:
             {"status": "unknown", "error": str(e)[:120], "containers_running": None, "images": None},
             {"os": "unknown", "cores": 0, "total_mem_mb": 0},
         )
+
+
+# ── 清磁碟 (登出時觸發) ───────────────────────────────────────────────
+# 動態 spawn 用的 image 名單 — image_prune(dangling=True) 不會碰 tagged
+# image,所以這四個天然安全;這份名單只用來「事後驗證」與檔住未來有人
+# 不小心改成 dangling=False 時的 fail-loud。
+_PROTECTED_IMAGE_REPOS = (
+    "autotest-robot-runner",
+    "autotest-recorder",
+    "autotest-recorder-api",
+    "autotest-mcp",
+)
+
+
+def _protected_image_presence() -> dict[str, bool]:
+    """回傳 {repo_name: 是否仍存在}。"""
+    out: dict[str, bool] = {name: False for name in _PROTECTED_IMAGE_REPOS}
+    try:
+        import docker as docker_sdk  # type: ignore
+        client = docker_sdk.from_env(timeout=5)
+        for img in client.images.list():
+            for tag in (img.tags or []):
+                repo = tag.split(":", 1)[0]
+                if repo in out:
+                    out[repo] = True
+    except Exception as e:
+        logger.warning("protected-image presence check failed: %s", e)
+    return out
+
+
+@router.post("/system/cleanup-storage", tags=["System"])
+def cleanup_storage(user: User = Depends(get_current_user)) -> dict[str, Any]:
+    """清掉 VM 上的 dangling docker images / 已停止的 containers / build cache,
+    釋出 VM 磁碟空間。設計給「使用者點登出」時 fire-and-forget 呼叫。
+
+    保護機制(以下 image 平台會動態 spawn,絕不能被砍):
+        - autotest-robot-runner / autotest-recorder
+        - autotest-recorder-api / autotest-mcp
+    這幾個 image 都是有 tag 的,而 ``images.prune(filters={'dangling': True})``
+    只清沒 tag 的 image,所以天然安全;本函式額外在 prune 前後檢查它們
+    是否還在,若被誤砍會以 critical log 警示。
+
+    權限:任何已登入使用者皆可呼叫 — prune 是 idempotent,第一次觸發後
+    其他人都是 no-op,不會重複工作;auth gate 已擋掉匿名濫用。
+    Body 不收任何參數;回傳釋出位元組數與被刪數量的彙整。
+    """
+    try:
+        import docker as docker_sdk  # type: ignore
+    except ImportError:
+        raise HTTPException(500, "docker SDK not installed")
+
+    before = _protected_image_presence()
+
+    summary: dict[str, Any] = {
+        "ok": True,
+        "images_deleted_count": 0,
+        "images_reclaimed_bytes": 0,
+        "containers_deleted_count": 0,
+        "containers_reclaimed_bytes": 0,
+        "build_cache_reclaimed_bytes": 0,
+        "errors": [],
+    }
+
+    try:
+        client = docker_sdk.from_env(timeout=60)
+
+        # 1) Dangling images(沒 tag 的 layer)— 絕對不會碰 autotest-* tagged image
+        try:
+            ir = client.images.prune(filters={"dangling": True})
+            summary["images_deleted_count"] = len(ir.get("ImagesDeleted") or [])
+            summary["images_reclaimed_bytes"] = int(ir.get("SpaceReclaimed", 0) or 0)
+        except Exception as e:
+            summary["errors"].append(f"images.prune: {e}")
+
+        # 2) 停止的 containers
+        try:
+            cr = client.containers.prune()
+            summary["containers_deleted_count"] = len(cr.get("ContainersDeleted") or [])
+            summary["containers_reclaimed_bytes"] = int(cr.get("SpaceReclaimed", 0) or 0)
+        except Exception as e:
+            summary["errors"].append(f"containers.prune: {e}")
+
+        # 3) Build cache
+        try:
+            br = client.api.prune_builds()
+            summary["build_cache_reclaimed_bytes"] = int(br.get("SpaceReclaimed", 0) or 0)
+        except Exception as e:
+            summary["errors"].append(f"prune_builds: {e}")
+
+    except Exception as e:
+        raise HTTPException(500, f"docker client init failed: {e}")
+
+    # 事後驗證 — 動態 spawn 用的 image 仍在
+    after = _protected_image_presence()
+    missing = [name for name, present in after.items() if not present and before.get(name)]
+    summary["protected_images_intact"] = not missing
+    summary["protected_images_missing"] = missing
+    if missing:
+        logger.critical(
+            "cleanup-storage: protected images MISSING after prune: %s (caller=%s)",
+            missing, user.username,
+        )
+
+    total_reclaimed = (
+        summary["images_reclaimed_bytes"]
+        + summary["containers_reclaimed_bytes"]
+        + summary["build_cache_reclaimed_bytes"]
+    )
+    summary["total_reclaimed_bytes"] = total_reclaimed
+    logger.info(
+        "cleanup-storage: caller=%s reclaimed=%.1fMB images=%d containers=%d",
+        user.username,
+        total_reclaimed / (1024 * 1024),
+        summary["images_deleted_count"],
+        summary["containers_deleted_count"],
+    )
+    return summary
 
 
 @router.get("/system/status", tags=["System"])
