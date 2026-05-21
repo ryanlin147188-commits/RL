@@ -10481,6 +10481,26 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         }
         function closeUserMenu() { /* no-op, kept for backward compat */ }
 
+        // 透過已包裝的 fetch(會自動帶 Bearer)把 /pics/<key> 抓回轉成 blob URL,
+        // 避免 <img src="/pics/..."> 直接由瀏覽器發 request 時沒有 Authorization
+        // header / access_token cookie(密碼登入流程)導致 401 → 圖片不顯示。
+        // _avatarBlobCache: 同一張 avatar URL 同一個 page-load 內只 fetch 一次。
+        const _avatarBlobCache = new Map();
+        async function _avatarUrlToBlobUrl(url) {
+            if (!url) return null;
+            // data: / blob: 已可直接使用
+            if (url.startsWith('data:') || url.startsWith('blob:')) return url;
+            if (_avatarBlobCache.has(url)) return _avatarBlobCache.get(url);
+            try {
+                const resp = await fetch(url);
+                if (!resp.ok) return null;
+                const blob = await resp.blob();
+                const bu = URL.createObjectURL(blob);
+                _avatarBlobCache.set(url, bu);
+                return bu;
+            } catch (_) { return null; }
+        }
+
         // updateUserMenuUI(me?):若 caller 已有 me 物件就傳進來(上傳大頭貼後同步刷新);
         // 沒傳就 fire-and-forget fetch /me 取 avatar_url 並更新(避免畫面殘留舊頭像)。
         function updateUserMenuUI(me) {
@@ -10490,10 +10510,11 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             const initial = (display || u.username || '?').charAt(0).toUpperCase();
             const avatarEl = document.getElementById('userMenuAvatar');
             const nameEl = document.getElementById('userMenuName');
-            const setAvatar = (avatarUrl) => {
+            const setAvatar = async (avatarUrl) => {
                 if (!avatarEl) return;
-                if (avatarUrl) {
-                    avatarEl.innerHTML = `<img src="${avatarUrl}" alt="" class="w-full h-full object-cover">`;
+                const bu = avatarUrl ? await _avatarUrlToBlobUrl(avatarUrl) : null;
+                if (bu) {
+                    avatarEl.innerHTML = `<img src="${bu}" alt="" class="w-full h-full object-cover">`;
                     avatarEl.classList.remove('bg-gradient-to-br', 'from-amber-400', 'to-orange-500', 'text-white', 'font-bold');
                 } else {
                     avatarEl.innerHTML = '';
@@ -10573,18 +10594,24 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             document.getElementById('usPrefEnableRecording').checked = prefs.enableRecording !== false;
         }
 
-        function _renderUserAvatar(me) {
+        async function _renderUserAvatar(me) {
             const el = document.getElementById('usAvatarLarge');
             const removeBtn = document.getElementById('usAvatarRemoveBtn');
             if (!el) return;
             if (me.avatar_url) {
-                el.innerHTML = `<img src="${_esc(me.avatar_url)}" alt="" class="w-full h-full object-cover">`;
+                // 後端有大頭貼 → 顯示移除按鈕(即使 blob 抓不到,使用者仍可移除)
                 if (removeBtn) removeBtn.classList.remove('hidden');
+                const bu = await _avatarUrlToBlobUrl(me.avatar_url);
+                if (bu) {
+                    el.innerHTML = `<img src="${_esc(bu)}" alt="" class="w-full h-full object-cover">`;
+                    return;
+                }
+                // fetch 失敗(401 / 網路) → 退回首字母,但仍保留移除按鈕
             } else {
-                const initial = (me.display_name || me.username || '?').charAt(0).toUpperCase();
-                el.textContent = initial;
                 if (removeBtn) removeBtn.classList.add('hidden');
             }
+            const initial = (me.display_name || me.username || '?').charAt(0).toUpperCase();
+            el.textContent = initial;
         }
 
         async function uploadUserAvatar(input) {
