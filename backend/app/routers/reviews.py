@@ -532,6 +532,68 @@ async def _sync_content_status_on_reject(db, record, username: str, reason: str 
     )
 
 
+@router.delete(
+    "/reviews/{record_id}",
+    status_code=204,
+    tags=["AB · 審核"],
+)
+async def delete_review(
+    record_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """刪除一筆審核紀錄(及其 review_history rows;FK ondelete=CASCADE)。
+
+    審核紀錄是 audit trail,刪除是不可逆的破壞性動作 → 限制 superuser /
+    Admin role 才能呼叫。一般使用者即使具 review.manage,也不能刪審核
+    紀錄本身。
+    """
+    await _ensure_admin(user, db)
+    record = (
+        await db.execute(TenantQuery.for_(ReviewRecord).where(ReviewRecord.id == record_id))
+    ).scalar_one_or_none()
+    if record is None:
+        raise HTTPException(404, "review record not found")
+    await db.delete(record)
+    await db.flush()
+    return None
+
+
+@router.post(
+    "/reviews/bulk-delete",
+    tags=["AB · 審核"],
+)
+async def bulk_delete_reviews(
+    payload: dict,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """批次刪除審核紀錄。body: ``{"ids": ["<uuid>", ...]}``,最多 200 筆/次。
+    語意同 DELETE /reviews/{id} × N,只是省 round-trip。回傳已刪數量。
+    """
+    await _ensure_admin(user, db)
+    raw_ids = payload.get("ids")
+    if not isinstance(raw_ids, list) or not raw_ids:
+        raise HTTPException(422, "ids 必須是非空陣列")
+    ids = [str(x) for x in raw_ids if isinstance(x, (str, int)) and str(x).strip()]
+    if not ids:
+        raise HTTPException(422, "ids 必須是非空陣列")
+    if len(ids) > 200:
+        raise HTTPException(413, "一次最多 200 筆")
+    # 僅刪同 tenant 看得到的;TenantQuery 已限縮 org
+    rows = (
+        await db.execute(
+            TenantQuery.for_(ReviewRecord).where(ReviewRecord.id.in_(ids))
+        )
+    ).scalars().all()
+    deleted = 0
+    for r in rows:
+        await db.delete(r)
+        deleted += 1
+    await db.flush()
+    return {"deleted": deleted, "requested": len(ids)}
+
+
 @router.patch(
     "/reviews/{record_id}/assignee",
     response_model=ReviewRecordResponse,
