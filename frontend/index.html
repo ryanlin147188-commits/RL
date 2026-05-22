@@ -3809,7 +3809,10 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
     <!-- 圖片燈箱（點擊報告截圖放大；點背景或按 Esc 關閉） -->
     <div id="imgLightbox" class="fixed inset-0 bg-black/85 hidden z-[9999] items-center justify-center cursor-zoom-out" onclick="closeImageLightbox(event)">
         <img id="imgLightboxImg" src="" alt="" class="max-w-[95vw] max-h-[95vh] object-contain shadow-2xl" />
-        <button type="button" onclick="closeImageLightbox(event)" aria-label="關閉圖片" class="absolute top-4 right-6 text-white/80 hover:text-white text-4xl leading-none font-light">&times;</button>
+        <button type="button" onclick="closeImageLightbox(event)" aria-label="關閉圖片" title="關閉"
+            class="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/15 hover:bg-white/30 text-white flex items-center justify-center shadow-lg backdrop-blur-sm transition">
+            <i class="fa-solid fa-xmark text-xl"></i>
+        </button>
         <div class="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/70 text-xs tracking-wide">點背景或按 Esc 關閉</div>
     </div>
 
@@ -9109,6 +9112,10 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 document.getElementById('editorWorkspace').classList.remove('hidden');
                 document.getElementById('mainHeader').classList.remove('hidden');  // 從詳細報告返回時 mainHeader 會被 showDetailReport 收起
                 document.getElementById('mainActions').classList.remove('hidden');
+                // v1.1.9:點側邊樹的 testcase 進 editor 時,上方 nav「測試案例」也要高亮
+                // (editor 跟列表是兩個 workspace,但語意上都歸「測試案例」分頁)
+                document.querySelectorAll('[data-nav-hash]').forEach(b => b.classList.remove('is-active'));
+                document.querySelector('[data-nav-hash="#testcases"]')?.classList.add('is-active');
                 renderEditor();
                 renderAllTree();
                 // G-2:相關待辦反向視圖(切換 testcase 後動態載入)
