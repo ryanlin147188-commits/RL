@@ -67,7 +67,15 @@ RUN ln -sf /usr/share/novnc/vnc.html /usr/share/novnc/index.html
 # ── 合併 autotest-recorder-api:mitmproxy(pure Python 套件,base 已有 pip)──
 # 取代獨立的 autotest-recorder-api image(~250MB)。HAR 由 har_dump.py addon
 # 邊跑邊寫 /work/flows.har。
-RUN pip install --no-cache-dir --break-system-packages mitmproxy==12.2.2
+# NOTE:Playwright Python jammy v1.50 base 是 Python 3.10;mitmproxy 12.x
+# require Python >=3.11,所以 pin 在 11.0.2(PyPI 上 3.10 可裝的最新)。
+# 原 Dockerfile.recorder-api 的 "12.2.2" 是 mitmproxy docker image tag,不是
+# pip package version,別搞混了。
+# 先升 pip/setuptools/packaging:base 的 setuptools 新版會呼叫
+# ``canonicalize_version(strip_trailing_zero=...)``,但 base 的 packaging
+# 還沒這個參數,結果 mitmproxy 的某個 sdist sub-dep 就 metadata 炸掉。
+RUN pip install --no-cache-dir --break-system-packages --upgrade pip setuptools packaging \
+ && pip install --no-cache-dir --break-system-packages mitmproxy==11.0.2
 
 # ── 合併 autotest-mcp:@playwright/mcp(走 npm 全域裝;base 已含 Node)──
 # 取代獨立的 autotest-mcp image(~1.8GB)。預先裝起來避免 spawn 時 npx 才
