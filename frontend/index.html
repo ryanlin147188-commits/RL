@@ -3520,26 +3520,25 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                  (待測試 / 測試中 / 已通過 / 失敗 / 複測中)。
                  狀態純從 ExecutionReport + linked Defect derived,不寫資料庫。
                  ════════════════════════════════════════════════════════════ -->
-            <div id="testKanbanWorkspace" class="flex-1 overflow-y-auto p-4 sm:p-6 bg-teal-50/30 hidden">
+            <div id="testKanbanWorkspace" class="flex-1 overflow-y-auto p-4 sm:p-6 bg-teal-50/20 hidden">
+                <!-- toolbar 完全比照缺陷管理 / 測試報告:title 左 + flex-1 + filter + 主動作 + 重整 -->
                 <div class="flex flex-wrap items-center gap-2 mb-4">
                     <div class="flex items-center gap-2">
                         <i class="fa-solid fa-columns text-teal-600"></i>
                         <h2 class="font-bold text-slate-700">測試看板</h2>
-                        <span class="text-xs text-slate-500">— testcase 工作流</span>
                     </div>
-                    <!-- 主動作按鈕直接放在 title 後,跟測試案例分頁的 + 按鈕同位置邏輯 -->
-                    <button type="button" onclick="_tkOpenCreate()"
-                        class="ml-2 px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-md text-sm font-semibold shadow-sm transition flex items-center gap-1.5">
-                        <i class="fa-solid fa-plus"></i> 新增測試案例
-                    </button>
                     <div class="flex-1"></div>
                     <select id="tkAssigneeFilter" onchange="loadTestKanban()" class="text-xs px-2 py-1.5 border border-slate-300 rounded bg-white">
                         <option value="">所有指派人</option>
                         <option value="null">未指派</option>
                     </select>
+                    <button type="button" onclick="_tkOpenCreate()"
+                        class="text-xs px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded font-medium flex items-center gap-1 shadow-sm">
+                        <i class="fa-solid fa-plus"></i> 新增測試案例
+                    </button>
                     <button type="button" onclick="loadTestKanban()" title="重新整理"
                         class="text-xs px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-300 rounded font-medium text-slate-600 flex items-center gap-1">
-                        <i class="fa-solid fa-rotate"></i> 重整
+                        <i class="fa-solid fa-rotate"></i>
                     </button>
                 </div>
                 <div id="tkEmptyState" class="hidden text-center py-20 text-slate-400">
@@ -19211,11 +19210,11 @@ curl -X POST http://localhost:8000/api/defects \\
     // ExecutionReport + linked Defect derived,backend GET /api/test-kanban。
     // ════════════════════════════════════════════════════════════════════
     const _TK_COLUMNS = [
-        { key: 'todo',        label: '待測試', icon: 'fa-clock',                    headerCls: 'bg-slate-100   text-slate-700',   accent: 'bg-slate-400'   },
-        { key: 'in_progress', label: '測試中', icon: 'fa-circle-notch fa-spin',     headerCls: 'bg-blue-100    text-blue-700',    accent: 'bg-blue-500'    },
-        { key: 'passed',      label: '已通過', icon: 'fa-circle-check',             headerCls: 'bg-emerald-100 text-emerald-700', accent: 'bg-emerald-500' },
-        { key: 'failed',      label: '失敗',   icon: 'fa-circle-xmark',             headerCls: 'bg-rose-100    text-rose-700',    accent: 'bg-rose-500'    },
-        { key: 'retest',      label: '複測中', icon: 'fa-arrows-rotate',            headerCls: 'bg-amber-100   text-amber-700',   accent: 'bg-amber-500'   },
+        { key: 'todo',        label: '待測試', icon: 'fa-clock',                accent: 'bg-slate-400',   headerCls: 'bg-slate-100   text-slate-700',   bodyBg: 'bg-slate-50/50',   border: 'border-slate-200' },
+        { key: 'in_progress', label: '測試中', icon: 'fa-circle-notch fa-spin', accent: 'bg-blue-500',    headerCls: 'bg-blue-100    text-blue-700',    bodyBg: 'bg-blue-50/40',    border: 'border-blue-200' },
+        { key: 'passed',      label: '已通過', icon: 'fa-circle-check',         accent: 'bg-emerald-500', headerCls: 'bg-emerald-100 text-emerald-700', bodyBg: 'bg-emerald-50/40', border: 'border-emerald-200' },
+        { key: 'failed',      label: '失敗',   icon: 'fa-circle-xmark',         accent: 'bg-rose-500',    headerCls: 'bg-rose-100    text-rose-700',    bodyBg: 'bg-rose-50/40',    border: 'border-rose-200' },
+        { key: 'retest',      label: '複測中', icon: 'fa-arrows-rotate',        accent: 'bg-amber-500',   headerCls: 'bg-amber-100   text-amber-700',   bodyBg: 'bg-amber-50/40',   border: 'border-amber-200' },
     ];
 
     const _PRIORITY_PILL = {
@@ -19270,20 +19269,20 @@ curl -X POST http://localhost:8000/api/defects \\
             const count = data.counts[col.key] || 0;
             const targetStatus = _TK_COLUMN_TO_STATUS[col.key] || 'NEW';
             return `
-                <div class="bg-white rounded-lg border border-slate-200 shadow-sm flex flex-col min-h-[400px] overflow-hidden"
+                <div class="rounded-lg border ${col.border} shadow-sm flex flex-col min-h-[400px] overflow-hidden bg-white"
                      data-tk-status="${targetStatus}"
-                     ondragover="event.preventDefault(); this.classList.add('ring-2','ring-teal-300')"
-                     ondragleave="this.classList.remove('ring-2','ring-teal-300')"
+                     ondragover="event.preventDefault(); this.classList.add('ring-2','ring-teal-400')"
+                     ondragleave="this.classList.remove('ring-2','ring-teal-400')"
                      ondrop="_tkOnDrop(event, '${targetStatus}')">
                     <div class="${col.accent} h-1"></div>
-                    <div class="px-3 py-2.5 ${col.headerCls} flex items-center justify-between font-semibold text-sm border-b border-slate-200">
+                    <div class="px-3 py-2.5 ${col.headerCls} flex items-center justify-between font-semibold text-sm border-b ${col.border}">
                         <span class="flex items-center gap-2">
                             <i class="fa-solid ${col.icon} text-xs"></i>
                             ${col.label}
                         </span>
                         <span class="text-xs font-mono px-2 py-0.5 bg-white/80 rounded-full font-bold">${count}</span>
                     </div>
-                    <div class="p-2 space-y-2 flex-1 overflow-y-auto bg-slate-50/30" style="max-height:70vh">
+                    <div class="p-2 space-y-2 flex-1 overflow-y-auto ${col.bodyBg}" style="max-height:70vh">
                         ${cards.length ? cards.map(c => _tkRenderCard(c, col.key)).join('') :
                             '<p class="text-xs text-slate-400 text-center py-10 italic">(本欄無 testcase,可從其他欄拖入或新增)</p>'}
                     </div>
