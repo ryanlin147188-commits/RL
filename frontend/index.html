@@ -1114,7 +1114,7 @@
                     <input type="text" id="defCreateTitle" required maxlength="300"
                         class="w-full border border-slate-300 rounded p-2 text-sm focus:ring-2 focus:ring-rose-400 outline-none">
                 </div>
-                <div class="grid grid-cols-3 gap-2">
+                <div class="grid grid-cols-4 gap-2">
                     <div>
                         <label class="block text-xs font-medium text-slate-700 mb-1">嚴重度</label>
                         <select id="defCreateSeverity" class="w-full border border-slate-300 rounded p-2 text-sm">
@@ -1131,6 +1131,14 @@
                             <option value="P1">P1 (高)</option>
                             <option value="P2" selected>P2 (中)</option>
                             <option value="P3">P3 (低)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-700 mb-1">初始狀態</label>
+                        <select id="defCreateStatus" class="w-full border border-slate-300 rounded p-2 text-sm">
+                            <option value="New" selected>新建立</option>
+                            <option value="Assigned">等待處理</option>
+                            <option value="InProgress">進行中</option>
                         </select>
                     </div>
                     <div>
@@ -1160,15 +1168,32 @@
                 </div>
                 <div class="grid grid-cols-2 gap-2">
                     <div>
-                        <label class="block text-xs font-medium text-slate-700 mb-1">連結 testcase id</label>
-                        <input type="text" id="defCreateLinkedTc" placeholder="(選填) tree_node uuid"
-                            class="w-full border border-slate-300 rounded p-2 text-xs font-mono">
+                        <label class="block text-xs font-medium text-slate-700 mb-1">連結 testcase</label>
+                        <select id="defCreateLinkedTc" class="w-full border border-slate-300 rounded p-2 text-sm">
+                            <option value="">(不連結)</option>
+                        </select>
                     </div>
                     <div>
-                        <label class="block text-xs font-medium text-slate-700 mb-1">連結 report id</label>
-                        <input type="text" id="defCreateLinkedReport" placeholder="(選填) execution_report uuid"
-                            class="w-full border border-slate-300 rounded p-2 text-xs font-mono">
+                        <label class="block text-xs font-medium text-slate-700 mb-1">連結 report</label>
+                        <select id="defCreateLinkedReport" class="w-full border border-slate-300 rounded p-2 text-sm">
+                            <option value="">(不連結)</option>
+                        </select>
                     </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-700 mb-1">附件 / 截圖 (可拖曳多檔)</label>
+                    <div id="defCreateDropZone"
+                        class="border-2 border-dashed border-rose-200 rounded-lg p-4 text-center cursor-pointer hover:border-rose-400 hover:bg-rose-50/40 transition"
+                        ondragover="event.preventDefault(); this.classList.add('border-rose-500','bg-rose-50')"
+                        ondragleave="this.classList.remove('border-rose-500','bg-rose-50')"
+                        ondrop="event.preventDefault(); this.classList.remove('border-rose-500','bg-rose-50'); _defCreateAddFiles(event.dataTransfer.files);"
+                        onclick="document.getElementById('defCreateFilesInput').click()">
+                        <i class="fa-solid fa-cloud-arrow-up text-rose-400 text-xl block mb-1"></i>
+                        <div class="text-xs text-slate-500">點擊或拖曳圖片 / 任意檔案到這裡</div>
+                    </div>
+                    <input type="file" id="defCreateFilesInput" multiple class="hidden"
+                        onchange="_defCreateAddFiles(this.files)">
+                    <div id="defCreateFilesList" class="mt-2 space-y-1"></div>
                 </div>
             </form>
             <div class="px-5 py-3 border-t border-stone-200 bg-stone-50 flex justify-end gap-2">
@@ -3530,17 +3555,6 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                         <h2 class="font-bold text-slate-700">缺陷管理</h2>
                     </div>
                     <div class="flex-1"></div>
-                    <!-- View toggle -->
-                    <div class="inline-flex rounded border border-slate-300 bg-white text-xs overflow-hidden">
-                        <button type="button" id="defViewListBtn" onclick="defectSwitchView('list')"
-                            class="px-3 py-1.5 font-medium bg-rose-600 text-white">
-                            <i class="fa-solid fa-list"></i> List
-                        </button>
-                        <button type="button" id="defViewKanbanBtn" onclick="defectSwitchView('kanban')"
-                            class="px-3 py-1.5 font-medium text-slate-600 hover:bg-slate-50">
-                            <i class="fa-solid fa-columns"></i> Kanban
-                        </button>
-                    </div>
                     <select id="defFilterStatus" onchange="loadDefects()" class="text-xs px-2 py-1.5 border border-slate-300 rounded bg-white">
                         <option value="">所有狀態</option>
                         <option value="New">新建立</option>
@@ -3603,10 +3617,6 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                     </div>
                 </div>
 
-                <!-- Kanban 視圖(預設隱藏)-->
-                <div id="defKanbanPanel" class="hidden grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-3">
-                    <!-- 7 個 column 由 JS 動態 render -->
-                </div>
             </div>
 
             <!-- 執行 Console 底部抽屜 -->
@@ -10072,6 +10082,8 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 'showReviewView', 'showTestRoundView', 'showEnvVarsView',
                 'showTestDataSetsView', 'showBacklogView', 'showScheduleView',
                 'showFileCompareView',
+                // v1.1.9 新增:讓 hash routing + nav active highlight 認得
+                'showTestKanbanView', 'showDefectsView',
             ];
             const _hashToFn = {};   // '#defects' → 'showDefectsView'
             let _suppressHashChange = false;
@@ -16798,11 +16810,13 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             { key: 'schedule',    label: '測試排程' },
             { key: 'recording',   label: '測試錄製' },
             { key: 'report',      label: '測試報告' },
+            { key: 'testkanban',  label: '測試看板' },
+            { key: 'defect',      label: '缺陷管理' },
             { key: 'review',      label: '審核' },
             { key: 'filecompare', label: '檔案比對' },
             { key: 'project',     label: '專案' },
             { key: 'user',        label: '使用者管理' },
-            { key: 'role',        label: '角色管理' },
+            { key: 'role',        label: '角色與權限管理' },
         ];
         const ROLE_MATRIX_ACTIONS = [
             { key: 'read',   label: '查看' },
@@ -19156,11 +19170,11 @@ curl -X POST http://localhost:8000/api/defects \\
     // ExecutionReport + linked Defect derived,backend GET /api/test-kanban。
     // ════════════════════════════════════════════════════════════════════
     const _TK_COLUMNS = [
-        { key: 'todo',        label: '待測試', headerCls: 'bg-slate-100  text-slate-700',   borderCls: 'border-slate-200' },
-        { key: 'in_progress', label: '測試中', headerCls: 'bg-blue-100   text-blue-700',    borderCls: 'border-blue-200'  },
-        { key: 'passed',      label: '已通過', headerCls: 'bg-emerald-100 text-emerald-700',borderCls: 'border-emerald-200' },
-        { key: 'failed',      label: '失敗',   headerCls: 'bg-rose-100   text-rose-700',    borderCls: 'border-rose-200'  },
-        { key: 'retest',      label: '複測中', headerCls: 'bg-amber-100  text-amber-700',   borderCls: 'border-amber-200' },
+        { key: 'todo',        label: '待測試', icon: 'fa-clock',                    headerCls: 'bg-slate-100   text-slate-700',   accent: 'bg-slate-400'   },
+        { key: 'in_progress', label: '測試中', icon: 'fa-circle-notch fa-spin',     headerCls: 'bg-blue-100    text-blue-700',    accent: 'bg-blue-500'    },
+        { key: 'passed',      label: '已通過', icon: 'fa-circle-check',             headerCls: 'bg-emerald-100 text-emerald-700', accent: 'bg-emerald-500' },
+        { key: 'failed',      label: '失敗',   icon: 'fa-circle-xmark',             headerCls: 'bg-rose-100    text-rose-700',    accent: 'bg-rose-500'    },
+        { key: 'retest',      label: '複測中', icon: 'fa-arrows-rotate',            headerCls: 'bg-amber-100   text-amber-700',   accent: 'bg-amber-500'   },
     ];
 
     const _PRIORITY_PILL = {
@@ -19209,14 +19223,21 @@ curl -X POST http://localhost:8000/api/defects \\
             const cards = (data.columns[col.key] || []);
             const count = data.counts[col.key] || 0;
             return `
-                <div class="bg-white rounded-lg border ${col.borderCls} shadow-sm flex flex-col min-h-[300px]">
-                    <div class="px-3 py-2 ${col.headerCls} rounded-t-lg flex items-center justify-between font-semibold text-sm border-b ${col.borderCls}">
-                        <span>${col.label}</span>
-                        <span class="text-xs font-mono px-1.5 py-0.5 bg-white/60 rounded">${count}</span>
+                <div class="bg-white rounded-lg border border-slate-200 shadow-sm flex flex-col min-h-[400px] overflow-hidden">
+                    <!-- 頂端 accent bar -->
+                    <div class="${col.accent} h-1"></div>
+                    <!-- 欄位 header -->
+                    <div class="px-3 py-2.5 ${col.headerCls} flex items-center justify-between font-semibold text-sm border-b border-slate-200">
+                        <span class="flex items-center gap-2">
+                            <i class="fa-solid ${col.icon} text-xs"></i>
+                            ${col.label}
+                        </span>
+                        <span class="text-xs font-mono px-2 py-0.5 bg-white/80 rounded-full font-bold">${count}</span>
                     </div>
-                    <div class="p-2 space-y-2 flex-1 overflow-y-auto" style="max-height:70vh">
+                    <!-- 卡片區 -->
+                    <div class="p-2 space-y-2 flex-1 overflow-y-auto bg-slate-50/30" style="max-height:70vh">
                         ${cards.length ? cards.map(c => _tkRenderCard(c, col.key)).join('') :
-                            '<p class="text-xs text-slate-400 text-center py-6">(空)</p>'}
+                            '<p class="text-xs text-slate-400 text-center py-10 italic">(本欄無 testcase)</p>'}
                     </div>
                 </div>`;
         }).join('');
@@ -19224,29 +19245,44 @@ curl -X POST http://localhost:8000/api/defects \\
 
     function _tkRenderCard(card, columnKey) {
         const tcId = card.testcase_id;
-        const title = (card.title || '').slice(0, 60);
-        const assignee = card.assignee || '—';
+        const title = card.title || '(unnamed)';
+        const assignee = card.assignee || null;
         const defBadge = card.defect_count > 0
-            ? `<span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-rose-100 text-rose-700 text-[10px] font-mono rounded">
-                 <i class="fa-solid fa-bug"></i>${card.defect_count}
+            ? `<span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-rose-100 text-rose-700 text-[10px] font-bold rounded-full border border-rose-200">
+                 <i class="fa-solid fa-bug text-[9px]"></i>${card.defect_count}
                </span>` : '';
         const exec = card.latest_execution;
-        const execLine = exec ? `<div class="text-[10px] text-slate-400 mt-1 font-mono">${exec.status || ''} · ${exec.ended_at ? new Date(exec.ended_at).toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : ''}</div>` : '';
+        const execStatusCls = exec ? ({
+            PASSED: 'text-emerald-600 bg-emerald-50',
+            FAILED: 'text-rose-600 bg-rose-50',
+            RUNNING: 'text-blue-600 bg-blue-50',
+        })[exec.status] || 'text-slate-500 bg-slate-50' : '';
+        const execLine = exec ? `
+            <div class="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
+                <span class="px-1.5 py-0.5 ${execStatusCls} rounded font-mono font-bold">${exec.status || '—'}</span>
+                <span class="text-slate-400">${exec.ended_at ? new Date(exec.ended_at).toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : ''}</span>
+            </div>` : '';
         const failBtn = (columnKey === 'failed' || columnKey === 'retest') && exec ?
             `<button type="button" onclick="event.stopPropagation(); openDefectFromReport('${exec.id}', null, '${tcId}')"
-                class="text-[10px] px-1.5 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded inline-flex items-center gap-0.5">
+                title="從這次失敗執行建立缺陷"
+                class="opacity-0 group-hover:opacity-100 transition text-[10px] px-1.5 py-0.5 bg-rose-600 hover:bg-rose-700 text-white rounded inline-flex items-center gap-0.5">
                 <i class="fa-solid fa-bug"></i> 開缺陷
              </button>` : '';
+        const avatarChar = assignee ? assignee.charAt(0).toUpperCase() : '?';
+        const avatarBg = assignee ? 'bg-gradient-to-br from-teal-400 to-blue-500' : 'bg-slate-300';
         return `
-            <div onclick="openTkCardDrawer('${tcId}')" class="bg-white border border-slate-200 rounded-md p-2.5 shadow-sm hover:shadow-md hover:border-teal-300 cursor-pointer transition group">
-                <div class="flex items-start justify-between gap-1 mb-1">
+            <div onclick="openTkCardDrawer('${tcId}')" class="group bg-white border border-slate-200 rounded-md p-2.5 shadow-sm hover:shadow-md hover:border-teal-400 hover:ring-1 hover:ring-teal-100 cursor-pointer transition">
+                <div class="flex items-start justify-between gap-2 mb-1.5 min-h-[1.5rem]">
                     <span class="text-[10px] font-mono text-slate-400">${card.code}</span>
-                    ${failBtn}
+                    ${failBtn || defBadge}
                 </div>
-                <div class="text-sm text-slate-700 leading-tight mb-1 line-clamp-2">${escapeHtml(title)}</div>
-                <div class="flex items-center justify-between text-[10px] text-slate-500">
-                    <span class="flex items-center gap-1"><i class="fa-solid fa-user-circle text-slate-300"></i>${escapeHtml(assignee)}</span>
-                    ${defBadge}
+                <div class="text-sm text-slate-700 leading-tight mb-2 line-clamp-2 font-medium">${escapeHtml(title)}</div>
+                <div class="flex items-center justify-between gap-2 text-[10px]">
+                    <div class="flex items-center gap-1.5 min-w-0">
+                        <div class="w-5 h-5 rounded-full ${avatarBg} text-white text-[10px] font-bold flex items-center justify-center shrink-0">${escapeHtml(avatarChar)}</div>
+                        <span class="text-slate-500 truncate">${escapeHtml(assignee || '未指派')}</span>
+                    </div>
+                    ${failBtn ? defBadge : ''}
                 </div>
                 ${execLine}
             </div>`;
@@ -19309,27 +19345,27 @@ curl -X POST http://localhost:8000/api/defects \\
 
     // ════════════════════════════════════════════════════════════════════
     // 缺陷管理(Defect Management) — v1.1.9
+    // List 視圖(原本還有 kanban toggle,v1.1.9 移除,kanban 改放在「測試看板」)
     // ════════════════════════════════════════════════════════════════════
-    let _defView = 'list';
     let _defRows = [];
     let _defSearchTimer = null;
 
-    const _DEF_STATUS_COLUMNS = [
-        { key: 'New',            label: '新建立',   cls: 'bg-slate-100 text-slate-700' },
-        { key: 'Assigned',       label: '等待處理', cls: 'bg-blue-100 text-blue-700' },
-        { key: 'InProgress',     label: '進行中',   cls: 'bg-amber-100 text-amber-700' },
-        { key: 'InReview',       label: '等待審核', cls: 'bg-violet-100 text-violet-700' },
-        { key: 'ReworkRequired', label: '退回修改', cls: 'bg-rose-100 text-rose-700' },
-        { key: 'Verified',       label: '已驗證',   cls: 'bg-emerald-100 text-emerald-700' },
-        { key: 'Closed',         label: '已關閉',   cls: 'bg-stone-200 text-stone-700' },
-    ];
+    // 7-state status 配色(detail drawer 跟 list pill 共用)
+    const _DEF_STATUS_PILL = {
+        New:            'bg-slate-100 text-slate-700',
+        Assigned:       'bg-blue-100 text-blue-700',
+        InProgress:     'bg-amber-100 text-amber-700',
+        InReview:       'bg-violet-100 text-violet-700',
+        ReworkRequired: 'bg-rose-100 text-rose-700',
+        Verified:       'bg-emerald-100 text-emerald-700',
+        Closed:         'bg-stone-200 text-stone-700',
+    };
 
     function _defStatusZh(s) { return _ZH?.defStatus?.[s] || s; }
     function _defSeverityZh(s) { return _ZH?.defSeverity?.[s] || s; }
 
     function _defStatusPillCls(s) {
-        const col = _DEF_STATUS_COLUMNS.find(c => c.key === s);
-        return col ? col.cls : 'bg-slate-100 text-slate-700';
+        return _DEF_STATUS_PILL[s] || 'bg-slate-100 text-slate-700';
     }
     function _defSeverityPillCls(s) {
         return ({
@@ -19351,19 +19387,6 @@ curl -X POST http://localhost:8000/api/defects \\
         document.getElementById('mainHeader').classList.remove('hidden');
         document.getElementById('mainActions')?.classList.add('hidden');
         await loadDefects();
-    }
-
-    function defectSwitchView(v) {
-        _defView = v;
-        document.getElementById('defViewListBtn').classList.toggle('bg-rose-600', v === 'list');
-        document.getElementById('defViewListBtn').classList.toggle('text-white',  v === 'list');
-        document.getElementById('defViewListBtn').classList.toggle('text-slate-600', v !== 'list');
-        document.getElementById('defViewKanbanBtn').classList.toggle('bg-rose-600', v === 'kanban');
-        document.getElementById('defViewKanbanBtn').classList.toggle('text-white', v === 'kanban');
-        document.getElementById('defViewKanbanBtn').classList.toggle('text-slate-600', v !== 'kanban');
-        document.getElementById('defListPanel').classList.toggle('hidden', v !== 'list');
-        document.getElementById('defKanbanPanel').classList.toggle('hidden', v !== 'kanban');
-        _defRender();
     }
 
     function defectSearchDebounce() {
@@ -19390,20 +19413,12 @@ curl -X POST http://localhost:8000/api/defects \\
         if (open) params.set('open_only', '1');
         try {
             _defRows = await apiFetch(`/api/defects?${params}`);
-            _defRender();
+            _defRenderList(_defRows);
             refreshDefectsBadge();
         } catch (e) {
             console.error('[defects] load failed', e);
             document.getElementById('defListBody').innerHTML =
                 `<tr><td colspan="8" class="text-center py-10 text-rose-500">載入失敗:${escapeHtml(e.message||String(e))}</td></tr>`;
-        }
-    }
-
-    function _defRender() {
-        if (_defView === 'list') {
-            _defRenderList(_defRows);
-        } else {
-            _defRenderKanban(_defRows);
         }
     }
 
@@ -19426,89 +19441,31 @@ curl -X POST http://localhost:8000/api/defects \\
             </tr>`).join('');
     }
 
-    function _defRenderKanban(rows) {
-        const board = document.getElementById('defKanbanPanel');
-        const buckets = {};
-        _DEF_STATUS_COLUMNS.forEach(c => buckets[c.key] = []);
-        rows.forEach(d => { if (buckets[d.status]) buckets[d.status].push(d); });
-        board.innerHTML = _DEF_STATUS_COLUMNS.map(col => `
-            <div class="bg-white rounded-lg border border-slate-200 shadow-sm flex flex-col min-h-[300px]"
-                 data-status="${col.key}"
-                 ondragover="event.preventDefault(); this.classList.add('ring-2','ring-rose-300')"
-                 ondragleave="this.classList.remove('ring-2','ring-rose-300')"
-                 ondrop="_defOnDrop(event, '${col.key}')">
-                <div class="px-3 py-2 ${col.cls} rounded-t-lg flex items-center justify-between text-sm font-semibold border-b border-slate-200">
-                    <span>${col.label}</span>
-                    <span class="text-xs font-mono px-1.5 py-0.5 bg-white/60 rounded">${buckets[col.key].length}</span>
-                </div>
-                <div class="p-2 space-y-2 flex-1 overflow-y-auto" style="max-height:70vh">
-                    ${buckets[col.key].map(d => _defKanbanCard(d)).join('') ||
-                        '<p class="text-xs text-slate-400 text-center py-4">(空)</p>'}
-                </div>
-            </div>`).join('');
-    }
-
-    function _defKanbanCard(d) {
-        return `
-            <div class="bg-white border border-slate-200 rounded p-2 shadow-sm hover:shadow-md hover:border-rose-300 cursor-pointer transition"
-                 draggable="true"
-                 ondragstart="event.dataTransfer.setData('text/defect-id', '${d.id}')"
-                 onclick="openDefectDetail('${d.id}')">
-                <div class="flex items-start justify-between gap-1 mb-1">
-                    <span class="font-mono text-[10px] text-rose-700">${d.code}</span>
-                    <span class="text-[10px] px-1 py-0.5 ${_PRIORITY_PILL[d.priority]||'bg-slate-100'} rounded">${d.priority}</span>
-                </div>
-                <div class="text-xs text-slate-700 leading-tight line-clamp-2 mb-1">${escapeHtml(d.title)}</div>
-                <div class="flex items-center justify-between text-[10px]">
-                    <span class="px-1 py-0.5 ${_defSeverityPillCls(d.severity)} rounded">${_defSeverityZh(d.severity)}</span>
-                    <span class="text-slate-500"><i class="fa-solid fa-user text-[8px]"></i> ${escapeHtml(d.assignee || '—')}</span>
-                </div>
-            </div>`;
-    }
-
-    async function _defOnDrop(ev, newStatus) {
-        ev.preventDefault();
-        ev.currentTarget.classList.remove('ring-2','ring-rose-300');
-        const id = ev.dataTransfer.getData('text/defect-id');
-        if (!id) return;
-        const row = _defRows.find(d => d.id === id);
-        if (!row || row.status === newStatus) return;
-        try {
-            const updated = await apiFetch(`/api/defects/${id}`, {
-                method: 'PATCH',
-                body: { status: newStatus },
-            });
-            // 成功:更新 local row + 重 render
-            const idx = _defRows.findIndex(d => d.id === id);
-            if (idx >= 0) _defRows[idx] = updated;
-            _defRender();
-            if (typeof showToast === 'function') showToast('狀態已更新', 'success');
-        } catch (e) {
-            const detail = e?.detail || {};
-            const msg = detail.message || (e.message||'') || '狀態轉移失敗';
-            if (typeof showToast === 'function') showToast(msg, 'error');
-            _defRender();  // 退回原狀
-        }
-    }
-
     // ── 新增缺陷 modal ────────────────────────────────────────────────
     let _defCreatePrefill = null;
+    let _defCreatePendingFiles = [];   // 使用者選但還沒 upload 的檔案(create 完才送)
 
-    function openDefectCreateModal(prefill) {
+    async function openDefectCreateModal(prefill) {
         _defCreatePrefill = prefill || null;
+        _defCreatePendingFiles = [];
         document.getElementById('defCreateTitle').value         = prefill?.title || '';
         document.getElementById('defCreateSeverity').value      = prefill?.severity || 'Minor';
         document.getElementById('defCreatePriority').value      = prefill?.priority || 'P2';
+        document.getElementById('defCreateStatus').value        = prefill?.status || 'New';
         document.getElementById('defCreateAssignee').value      = prefill?.assignee || '';
         document.getElementById('defCreateDescription').value   = prefill?.description || '';
         document.getElementById('defCreateSteps').value         = prefill?.steps_to_reproduce || '';
         document.getElementById('defCreateExpected').value      = prefill?.expected_result || '';
         document.getElementById('defCreateActual').value        = prefill?.actual_result || '';
-        document.getElementById('defCreateLinkedTc').value      = prefill?.linked_testcase_id || '';
-        document.getElementById('defCreateLinkedReport').value  = prefill?.linked_report_id || '';
+        document.getElementById('defCreateFilesInput').value    = '';
+        _defRenderPendingFiles();
         document.getElementById('defectCreateModal').classList.remove('hidden');
-        // 載入 assignee 下拉(project members)
-        _defLoadAssigneeOptions();
+        // 平行載入三個下拉(成員 / testcase / report)
+        await Promise.all([
+            _defLoadAssigneeOptions(),
+            _defLoadTestcaseOptions(prefill?.linked_testcase_id || ''),
+            _defLoadReportOptions(prefill?.linked_report_id || ''),
+        ]);
         setTimeout(() => document.getElementById('defCreateTitle').focus(), 50);
     }
 
@@ -19522,13 +19479,80 @@ curl -X POST http://localhost:8000/api/defects \\
                 (members || []).map(m => `<option value="${escapeHtml(m.username || m.user_id || '')}">${escapeHtml(m.username || m.display_name || '')}</option>`).join('');
             if (current) sel.value = current;
         } catch (e) {
-            // 端點不存在或失敗 — 不擋送出,user 可以打字
+            // 端點不存在或失敗 — 不擋送出
         }
+    }
+
+    async function _defLoadTestcaseOptions(preselectId) {
+        const sel = document.getElementById('defCreateLinkedTc');
+        if (!sel || !currentProjectId) return;
+        try {
+            const tree = await apiFetch(`/api/projects/${currentProjectId}/tree`);
+            // 樹是巢狀 {id, name, level_type, children: [...]} — 平鋪挑 TESTCASE
+            const testcases = [];
+            const walk = (node, parentName) => {
+                if (!node) return;
+                const path = parentName ? `${parentName} / ${node.name}` : node.name;
+                if ((node.level_type || node.levelType) === 'TESTCASE') {
+                    testcases.push({ id: node.id, label: path });
+                }
+                (node.children || []).forEach(c => walk(c, path));
+            };
+            (Array.isArray(tree) ? tree : tree?.tree || []).forEach(n => walk(n, ''));
+            sel.innerHTML = '<option value="">(不連結)</option>' +
+                testcases.map(t => `<option value="${t.id}">${escapeHtml(t.label)}</option>`).join('');
+            if (preselectId) sel.value = preselectId;
+        } catch (e) {
+            sel.innerHTML = '<option value="">(載入失敗,可留空)</option>';
+        }
+    }
+
+    async function _defLoadReportOptions(preselectId) {
+        const sel = document.getElementById('defCreateLinkedReport');
+        if (!sel || !currentProjectId) return;
+        try {
+            const r = await apiFetch(`/api/reports?project_id=${encodeURIComponent(currentProjectId)}&page=1&limit=50`);
+            const items = r?.items || r || [];
+            sel.innerHTML = '<option value="">(不連結)</option>' +
+                items.map(rep => {
+                    const ts = rep.created_at ? new Date(rep.created_at).toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
+                    const label = `${ts} · ${rep.status || ''} · ${(rep.id||'').slice(0,8)}`;
+                    return `<option value="${rep.id}">${escapeHtml(label)}</option>`;
+                }).join('');
+            if (preselectId) sel.value = preselectId;
+        } catch (e) {
+            sel.innerHTML = '<option value="">(載入失敗,可留空)</option>';
+        }
+    }
+
+    function _defCreateAddFiles(fileList) {
+        if (!fileList) return;
+        for (const f of fileList) _defCreatePendingFiles.push(f);
+        _defRenderPendingFiles();
+    }
+
+    function _defCreateRemovePending(idx) {
+        _defCreatePendingFiles.splice(idx, 1);
+        _defRenderPendingFiles();
+    }
+
+    function _defRenderPendingFiles() {
+        const wrap = document.getElementById('defCreateFilesList');
+        if (!wrap) return;
+        if (!_defCreatePendingFiles.length) { wrap.innerHTML = ''; return; }
+        wrap.innerHTML = _defCreatePendingFiles.map((f, i) => `
+            <div class="flex items-center gap-2 text-xs bg-slate-50 border border-slate-200 rounded px-2 py-1">
+                <i class="fa-solid ${f.type?.startsWith('image/') ? 'fa-image text-blue-500' : 'fa-file text-slate-500'}"></i>
+                <span class="flex-1 truncate text-slate-700">${escapeHtml(f.name)}</span>
+                <span class="text-slate-400 text-[10px]">${Math.round(f.size / 1024)} KB</span>
+                <button type="button" onclick="_defCreateRemovePending(${i})" class="text-rose-500 hover:text-rose-700"><i class="fa-solid fa-xmark"></i></button>
+            </div>`).join('');
     }
 
     function closeDefectCreateModal() {
         document.getElementById('defectCreateModal').classList.add('hidden');
         _defCreatePrefill = null;
+        _defCreatePendingFiles = [];
     }
 
     async function submitDefectCreate() {
@@ -19541,6 +19565,7 @@ curl -X POST http://localhost:8000/api/defects \\
             if (typeof showToast === 'function') showToast('標題必填', 'error');
             return;
         }
+        const initialStatus = document.getElementById('defCreateStatus').value;
         const payload = {
             project_id: currentProjectId,
             title,
@@ -19555,7 +19580,23 @@ curl -X POST http://localhost:8000/api/defects \\
             linked_report_id: document.getElementById('defCreateLinkedReport').value || null,
         };
         try {
-            const d = await apiFetch('/api/defects', { method: 'POST', body: payload });
+            let d = await apiFetch('/api/defects', { method: 'POST', body: payload });
+            // 若使用者選了非預設 status,送 PATCH 切上去(create 後端會根據 assignee 自動選 NEW/ASSIGNED)
+            if (initialStatus && initialStatus !== d.status) {
+                try {
+                    d = await apiFetch(`/api/defects/${d.id}`, {
+                        method: 'PATCH', body: { status: initialStatus },
+                    });
+                } catch (_) { /* 非法 transition 後端會擋,用預設 status */ }
+            }
+            // 上傳附件(若有)
+            if (_defCreatePendingFiles.length) {
+                try {
+                    d = await _defUploadFilesTo(d.id, _defCreatePendingFiles);
+                } catch (e) {
+                    if (typeof showToast === 'function') showToast(`附件上傳失敗:${e.message||e}`, 'error');
+                }
+            }
             closeDefectCreateModal();
             if (typeof showToast === 'function') showToast(`已建立 ${d.code}`, 'success');
             await loadDefects();
@@ -19563,6 +19604,16 @@ curl -X POST http://localhost:8000/api/defects \\
         } catch (e) {
             if (typeof showToast === 'function') showToast('建立失敗:' + (e.message||e), 'error');
         }
+    }
+
+    async function _defUploadFilesTo(defectId, files) {
+        const fd = new FormData();
+        for (const f of files) fd.append('files', f);
+        // apiFetch 偵測 FormData 不會 stringify;auth header 也由 apiFetch 注入。
+        return await apiFetch(`/api/defects/${defectId}/attachments`, {
+            method: 'POST',
+            body: fd,
+        });
     }
 
     // ── 缺陷詳情 drawer ──────────────────────────────────────────────
@@ -19585,42 +19636,93 @@ curl -X POST http://localhost:8000/api/defects \\
     }
 
     function _defRenderDetail(d) {
+        _defCurrentDetail = d;
         document.getElementById('defDetailHeader').innerHTML = `
             <i class="fa-solid fa-bug text-rose-600"></i>
             <span class="font-mono text-rose-700">${d.code}</span>
-            <span class="text-sm font-normal text-slate-700 ml-2">${escapeHtml(d.title)}</span>`;
+            <span class="text-sm font-normal text-slate-700 ml-2 truncate">${escapeHtml(d.title)}</span>`;
         const attachments = d.attachments_json || [];
-        document.getElementById('defDetailBody').innerHTML = `
-            <div class="space-y-3">
-                <div class="flex flex-wrap gap-2">
-                    <span class="text-xs px-2 py-0.5 ${_defStatusPillCls(d.status)} rounded font-medium">${_defStatusZh(d.status)}</span>
-                    <span class="text-xs px-2 py-0.5 ${_defSeverityPillCls(d.severity)} rounded">${_defSeverityZh(d.severity)}</span>
-                    <span class="text-xs px-2 py-0.5 ${_PRIORITY_PILL[d.priority]||'bg-slate-100'} rounded">${d.priority}</span>
-                    ${d.assignee ? `<span class="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 rounded"><i class="fa-solid fa-user"></i> ${escapeHtml(d.assignee)}</span>` : ''}
+        // Card-style sections, 配合平台其他頁面(reportWorkspace)的 bg-white rounded-lg border 樣式
+        const card = (title, icon, body) => `
+            <section class="bg-white rounded-lg border border-slate-200 shadow-sm">
+                <div class="px-4 py-2.5 border-b border-slate-200 flex items-center gap-2 bg-slate-50/40 rounded-t-lg">
+                    <i class="${icon} text-slate-400 text-xs"></i>
+                    <h4 class="text-xs font-semibold text-slate-700 tracking-wide uppercase">${title}</h4>
                 </div>
-                <dl class="grid grid-cols-3 gap-x-3 gap-y-1 text-xs">
-                    <dt class="text-slate-500">建立者</dt><dd class="col-span-2">${escapeHtml(d.reporter||'—')}</dd>
-                    <dt class="text-slate-500">建立時間</dt><dd class="col-span-2">${new Date(d.created_at).toLocaleString('zh-TW')}</dd>
-                    <dt class="text-slate-500">最後更新</dt><dd class="col-span-2">${new Date(d.updated_at).toLocaleString('zh-TW')}</dd>
-                    ${d.linked_testcase ? `<dt class="text-slate-500">連結 case</dt><dd class="col-span-2 text-blue-700">${escapeHtml(d.linked_testcase.name || d.linked_testcase.id.slice(0,8))}</dd>` : ''}
-                    ${d.linked_report ? `<dt class="text-slate-500">連結 report</dt><dd class="col-span-2 text-emerald-700">${escapeHtml(d.linked_report.name || d.linked_report.id.slice(0,8))} <span class="text-slate-400">[${d.linked_report.status||'—'}]</span></dd>` : ''}
-                </dl>
-                ${d.description ? `<div><div class="text-xs font-medium text-slate-500 mb-1">描述</div><p class="text-sm whitespace-pre-wrap">${escapeHtml(d.description)}</p></div>` : ''}
-                ${d.steps_to_reproduce ? `<div><div class="text-xs font-medium text-slate-500 mb-1">重現步驟</div><p class="text-sm whitespace-pre-wrap">${escapeHtml(d.steps_to_reproduce)}</p></div>` : ''}
-                ${d.expected_result ? `<div><div class="text-xs font-medium text-slate-500 mb-1">預期結果</div><p class="text-sm whitespace-pre-wrap">${escapeHtml(d.expected_result)}</p></div>` : ''}
-                ${d.actual_result ? `<div><div class="text-xs font-medium text-slate-500 mb-1">實際結果</div><p class="text-sm whitespace-pre-wrap">${escapeHtml(d.actual_result)}</p></div>` : ''}
-                ${attachments.length ? `
-                    <div>
-                        <div class="text-xs font-medium text-slate-500 mb-1">附件 (${attachments.length})</div>
-                        <div class="grid grid-cols-3 gap-2">
-                            ${attachments.map(a => a.type && a.type.startsWith('image/') ?
-                                `<a href="${escapeHtml(a.url)}" target="_blank" rel="noopener"><img src="${escapeHtml(a.url)}" alt="${escapeHtml(a.name)}" class="w-full h-20 object-cover border border-slate-200 rounded hover:border-rose-400"></a>` :
-                                `<a href="${escapeHtml(a.url)}" target="_blank" rel="noopener" class="text-xs text-blue-600 hover:underline truncate block">${escapeHtml(a.name)}</a>`
-                            ).join('')}
-                        </div>
-                    </div>` : ''}
+                <div class="p-4 text-sm text-slate-700">${body}</div>
+            </section>`;
+        const richText = txt => txt ? `<p class="whitespace-pre-wrap leading-relaxed">${escapeHtml(txt)}</p>` :
+            `<p class="text-slate-400 italic">(無內容)</p>`;
+
+        document.getElementById('defDetailBody').innerHTML = `
+            <div class="space-y-4 bg-slate-50/50 -m-5 p-5">
+                <!-- 狀態 / 嚴重度 / 優先 / 指派 pill bar -->
+                <div class="flex flex-wrap items-center gap-2">
+                    <span class="text-xs px-2.5 py-1 ${_defStatusPillCls(d.status)} rounded font-semibold">${_defStatusZh(d.status)}</span>
+                    <span class="text-xs px-2.5 py-1 ${_defSeverityPillCls(d.severity)} rounded font-semibold">嚴重度:${_defSeverityZh(d.severity)}</span>
+                    <span class="text-xs px-2.5 py-1 ${_PRIORITY_PILL[d.priority]||'bg-slate-100'} rounded font-semibold">優先:${d.priority}</span>
+                    ${d.assignee ? `<span class="text-xs px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded"><i class="fa-solid fa-user"></i> ${escapeHtml(d.assignee)}</span>` :
+                                   '<span class="text-xs px-2.5 py-1 bg-slate-100 text-slate-500 rounded">未指派</span>'}
+                </div>
+
+                <!-- meta card -->
+                ${card('基本資訊', 'fa-solid fa-circle-info', `
+                    <dl class="grid grid-cols-3 gap-x-4 gap-y-2 text-xs">
+                        <dt class="text-slate-500">建立者</dt><dd class="col-span-2 font-mono">${escapeHtml(d.reporter||'—')}</dd>
+                        <dt class="text-slate-500">建立時間</dt><dd class="col-span-2">${new Date(d.created_at).toLocaleString('zh-TW')}</dd>
+                        <dt class="text-slate-500">最後更新</dt><dd class="col-span-2">${new Date(d.updated_at).toLocaleString('zh-TW')}</dd>
+                        ${d.closed_at ? `<dt class="text-slate-500">關閉時間</dt><dd class="col-span-2">${new Date(d.closed_at).toLocaleString('zh-TW')}</dd>` : ''}
+                        ${d.linked_testcase ? `<dt class="text-slate-500">連結案例</dt><dd class="col-span-2"><span class="text-blue-700"><i class="fa-solid fa-flask-vial"></i> ${escapeHtml(d.linked_testcase.name || d.linked_testcase.id.slice(0,8))}</span></dd>` : ''}
+                        ${d.linked_report ? `<dt class="text-slate-500">連結報告</dt><dd class="col-span-2"><span class="text-emerald-700"><i class="fa-solid fa-chart-pie"></i> ${escapeHtml(d.linked_report.name || d.linked_report.id.slice(0,8))}</span> <span class="text-slate-400">[${d.linked_report.status||'—'}]</span></dd>` : ''}
+                    </dl>`)}
+
+                ${card('描述',     'fa-solid fa-align-left',     richText(d.description))}
+                ${card('重現步驟', 'fa-solid fa-list-ol',         richText(d.steps_to_reproduce))}
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    ${card('預期結果', 'fa-solid fa-check',         richText(d.expected_result))}
+                    ${card('實際結果', 'fa-solid fa-triangle-exclamation', richText(d.actual_result))}
+                </div>
+
+                <!-- 附件 card -->
+                <section class="bg-white rounded-lg border border-slate-200 shadow-sm">
+                    <div class="px-4 py-2.5 border-b border-slate-200 flex items-center justify-between bg-slate-50/40 rounded-t-lg">
+                        <h4 class="text-xs font-semibold text-slate-700 tracking-wide uppercase flex items-center gap-2">
+                            <i class="fa-solid fa-paperclip text-slate-400 text-xs"></i>
+                            附件 / 截圖 (${attachments.length})
+                        </h4>
+                        <label class="text-xs px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded font-medium cursor-pointer inline-flex items-center gap-1">
+                            <i class="fa-solid fa-cloud-arrow-up"></i> 新增附件
+                            <input type="file" multiple class="hidden" onchange="_defDetailUpload(event)">
+                        </label>
+                    </div>
+                    <div class="p-4">
+                        ${attachments.length === 0 ? '<p class="text-xs text-slate-400 italic">(尚無附件,可從上方按鈕上傳)</p>' : `
+                            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                ${attachments.map(a => {
+                                    const isImg = a.type && a.type.startsWith('image/');
+                                    return `
+                                    <div class="group relative bg-slate-50 border border-slate-200 rounded overflow-hidden">
+                                        ${isImg ?
+                                            `<a href="${escapeHtml(a.url)}" target="_blank" rel="noopener">
+                                                <img src="${escapeHtml(a.url)}" alt="${escapeHtml(a.name)}" class="w-full h-24 object-cover">
+                                            </a>` :
+                                            `<a href="${escapeHtml(a.url)}" target="_blank" rel="noopener" class="block h-24 flex items-center justify-center text-slate-500 hover:text-rose-600">
+                                                <i class="fa-solid fa-file text-2xl"></i>
+                                            </a>`
+                                        }
+                                        <div class="px-2 py-1 text-[10px] text-slate-600 truncate" title="${escapeHtml(a.name)}">${escapeHtml(a.name)}</div>
+                                        <button type="button" onclick="_defDetailRemoveAttachment('${escapeHtml(a.url).replace(/'/g, "\\'")}')"
+                                            class="absolute top-1 right-1 w-6 h-6 rounded-full bg-white/90 hover:bg-rose-100 text-rose-600 text-xs opacity-0 group-hover:opacity-100 transition shadow">
+                                            <i class="fa-solid fa-xmark"></i>
+                                        </button>
+                                    </div>`;
+                                }).join('')}
+                            </div>`}
+                    </div>
+                </section>
             </div>`;
-        // 狀態轉移 footer 按鈕
+
+        // 狀態轉移 footer
         const transitions = ({
             New:            ['Assigned','InProgress','Closed'],
             Assigned:       ['InProgress','Closed'],
@@ -19631,16 +19733,45 @@ curl -X POST http://localhost:8000/api/defects \\
             Closed:         ['Assigned'],
         })[d.status] || [];
         document.getElementById('defDetailFooter').innerHTML = `
+            <span class="text-xs text-slate-500 mr-2 self-center">切換狀態 →</span>
             ${transitions.map(t => `
                 <button type="button" onclick="_defChangeStatus('${d.id}', '${t}')"
-                    class="text-xs px-2.5 py-1.5 ${_defStatusPillCls(t)} rounded font-medium hover:opacity-80">
-                    → ${_defStatusZh(t)}
+                    class="text-xs px-2.5 py-1.5 ${_defStatusPillCls(t)} rounded font-medium hover:opacity-80 border border-transparent hover:border-slate-300">
+                    ${_defStatusZh(t)}
                 </button>`).join('')}
             <div class="flex-1"></div>
             <button type="button" onclick="_defConfirmDelete('${d.id}', '${d.code}')"
-                class="text-xs px-2.5 py-1.5 bg-white hover:bg-rose-50 text-rose-600 border border-rose-300 rounded">
+                class="text-xs px-2.5 py-1.5 bg-white hover:bg-rose-50 text-rose-600 border border-rose-300 rounded font-medium">
                 <i class="fa-solid fa-trash"></i> 刪除
             </button>`;
+    }
+
+    let _defCurrentDetail = null;
+
+    async function _defDetailUpload(ev) {
+        const files = ev.target.files;
+        if (!files || !files.length || !_defCurrentDetail) return;
+        try {
+            const updated = await _defUploadFilesTo(_defCurrentDetail.id, files);
+            _defRenderDetail(updated);
+            if (typeof showToast === 'function') showToast('附件上傳成功', 'success');
+        } catch (e) {
+            if (typeof showToast === 'function') showToast('附件上傳失敗:' + (e.message||e), 'error');
+        }
+    }
+
+    async function _defDetailRemoveAttachment(url) {
+        if (!_defCurrentDetail) return;
+        if (!confirm('確定移除此附件?')) return;
+        try {
+            const updated = await apiFetch(
+                `/api/defects/${_defCurrentDetail.id}/attachments?url=${encodeURIComponent(url)}`,
+                { method: 'DELETE' });
+            _defRenderDetail(updated);
+            if (typeof showToast === 'function') showToast('附件已移除', 'success');
+        } catch (e) {
+            if (typeof showToast === 'function') showToast('移除失敗:' + (e.message||e), 'error');
+        }
     }
 
     async function _defChangeStatus(id, newStatus) {
@@ -19651,7 +19782,7 @@ curl -X POST http://localhost:8000/api/defects \\
             if (typeof showToast === 'function') showToast(`狀態 → ${_defStatusZh(newStatus)}`, 'success');
             _defRenderDetail(updated);
             const idx = _defRows.findIndex(d => d.id === id);
-            if (idx >= 0) { _defRows[idx] = updated; _defRender(); }
+            if (idx >= 0) { _defRows[idx] = updated; _defRenderList(_defRows); }
             refreshDefectsBadge();
         } catch (e) {
             const detail = e?.detail || {};

@@ -37,6 +37,9 @@ class P:
     DEFECT_WRITE:   Final[str] = "defect.write"
     DEFECT_DELETE:  Final[str] = "defect.delete"
 
+    # ── Test Kanban (read-only derived view) ─────────────────────────────
+    TESTKANBAN_READ: Final[str] = "testkanban.read"
+
     # ── Requirement ─────────────────────────────────────────────────────
     REQUIREMENT_READ:    Final[str] = "requirement.read"
     REQUIREMENT_WRITE:   Final[str] = "requirement.write"
@@ -110,6 +113,8 @@ PERMISSION_TO_CASBIN: Final[dict[str, tuple[str, str]]] = {
     P.DEFECT_READ:        ("defect:*",      ACT_READ),
     P.DEFECT_WRITE:       ("defect:*",      ACT_WRITE),
     P.DEFECT_DELETE:      ("defect:*",      ACT_DELETE),
+
+    P.TESTKANBAN_READ:    ("testkanban:*",  ACT_READ),
 
     P.REQUIREMENT_READ:   ("requirement:*", ACT_READ),
     P.REQUIREMENT_WRITE:  ("requirement:*", ACT_WRITE),
