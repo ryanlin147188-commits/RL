@@ -39,12 +39,16 @@ from .base import Base
 
 
 class ReviewableEntityType(str, enum.Enum):
-    """The four entity classes that can be put through review (RFC-Review-1)."""
+    """Entity classes that can be put through review (RFC-Review-1)。
+
+    v1.1.9 加 DEFECT:缺陷管理項也能送審(由 QA / Lead 確認分類後關閉)。
+    """
 
     TESTCASE = "testcase"
     DOCUMENT = "document"
     SCRIPT = "script"
     REPORT = "report"
+    DEFECT = "defect"
 
 
 class ReviewStatus(str, enum.Enum):

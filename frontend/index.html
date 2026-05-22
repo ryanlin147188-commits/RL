@@ -1134,11 +1134,14 @@
                         </select>
                     </div>
                     <div>
-                        <label class="block text-xs font-medium text-slate-700 mb-1">初始狀態</label>
+                        <label class="block text-xs font-medium text-slate-700 mb-1">狀態</label>
                         <select id="defCreateStatus" class="w-full border border-slate-300 rounded p-2 text-sm">
                             <option value="New" selected>新建立</option>
-                            <option value="Assigned">等待處理</option>
+                            <option value="InReview">待驗證</option>
                             <option value="InProgress">進行中</option>
+                            <option value="Verified">驗證成功</option>
+                            <option value="ReworkRequired">驗證失敗</option>
+                            <option value="Closed">關閉</option>
                         </select>
                     </div>
                     <div>
@@ -2242,12 +2245,12 @@
                     </div>
                 </section>
 
-                <!-- 我的待審核任務（指派給我 + status=pending,最多 10 筆） -->
+                <!-- 指派給我的任務(指派給我,不論狀態,最多 10 筆) -->
                 <section class="max-w-6xl mx-auto mb-8">
                     <div class="flex items-center justify-between mb-3">
                         <h3 class="text-sm font-bold text-stone-500 uppercase tracking-wider flex items-center gap-2">
-                            <i class="fa-regular fa-clipboard text-violet-500"></i> <span data-i18n="home.myPendingReviews">我的待審核任務</span>
-                            <span class="text-[11px] font-normal normal-case tracking-normal text-stone-400">（指派給我且待審核,最多 10 筆）</span>
+                            <i class="fa-regular fa-clipboard text-violet-500"></i> <span data-i18n="home.myPendingReviews">指派給我的任務</span>
+                            <span class="text-[11px] font-normal normal-case tracking-normal text-stone-400">(指派給我,最多 10 筆)</span>
                         </h3>
                         <button onclick="loadHomeMyPendingReviews()" class="text-xs text-stone-500 hover:text-violet-700 transition" title="重新整理"><i class="fa-solid fa-rotate"></i></button>
                     </div>
@@ -3558,12 +3561,11 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                     <select id="defFilterStatus" onchange="loadDefects()" class="text-xs px-2 py-1.5 border border-slate-300 rounded bg-white">
                         <option value="">所有狀態</option>
                         <option value="New">新建立</option>
-                        <option value="Assigned">等待處理</option>
+                        <option value="InReview">待驗證</option>
                         <option value="InProgress">進行中</option>
-                        <option value="InReview">等待審核</option>
-                        <option value="ReworkRequired">退回修改</option>
-                        <option value="Verified">已驗證</option>
-                        <option value="Closed">已關閉</option>
+                        <option value="Verified">驗證成功</option>
+                        <option value="ReworkRequired">驗證失敗</option>
+                        <option value="Closed">關閉</option>
                     </select>
                     <select id="defFilterSeverity" onchange="loadDefects()" class="text-xs px-2 py-1.5 border border-slate-300 rounded bg-white">
                         <option value="">所有嚴重度</option>
@@ -3594,24 +3596,42 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                     </button>
                 </div>
 
+                <!-- 多選 batch action bar(>=1 列選取時顯示)-->
+                <div id="defBatchBar" class="hidden mb-3 bg-rose-50/60 border border-rose-200 rounded-lg px-4 py-2 flex items-center gap-3 text-sm">
+                    <span class="text-slate-700">已選 <strong id="defBatchCount" class="text-rose-700">0</strong> 筆</span>
+                    <button type="button" onclick="defBatchDelete()"
+                        class="text-xs px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded font-medium">
+                        <i class="fa-solid fa-trash"></i> 批次刪除
+                    </button>
+                    <button type="button" onclick="defBatchClearSelection()"
+                        class="text-xs px-3 py-1 bg-white hover:bg-slate-50 text-slate-600 border border-slate-300 rounded font-medium">
+                        取消選取
+                    </button>
+                </div>
+
                 <!-- List 視圖 -->
                 <div id="defListPanel" class="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
                     <div class="overflow-x-auto">
                         <table class="w-full text-sm">
                             <thead class="bg-slate-50 border-b border-slate-200 text-xs text-slate-500">
                                 <tr>
-                                    <th class="px-4 py-2 text-left font-medium">編號</th>
-                                    <th class="px-4 py-2 text-left font-medium">標題</th>
+                                    <th class="px-3 py-2 text-center w-10">
+                                        <input type="checkbox" id="defListCheckAll" onchange="defToggleAll(this.checked)"
+                                            class="h-4 w-4 rounded border-slate-300 text-rose-500 focus:ring-1 focus:ring-rose-400">
+                                    </th>
+                                    <th class="px-3 py-2 text-left font-medium">編號</th>
+                                    <th class="px-3 py-2 text-left font-medium">標題</th>
                                     <th class="px-3 py-2 text-left font-medium">嚴重度</th>
                                     <th class="px-3 py-2 text-left font-medium">優先</th>
                                     <th class="px-3 py-2 text-left font-medium">狀態</th>
                                     <th class="px-3 py-2 text-left font-medium">指派</th>
                                     <th class="px-3 py-2 text-left font-medium">連結 case</th>
                                     <th class="px-3 py-2 text-left font-medium">建立時間</th>
+                                    <th class="px-3 py-2 text-right font-medium w-24">操作</th>
                                 </tr>
                             </thead>
                             <tbody id="defListBody" class="divide-y divide-slate-100">
-                                <tr><td colspan="8" class="text-center py-10 text-slate-400">載入中…</td></tr>
+                                <tr><td colspan="10" class="text-center py-10 text-slate-400">載入中…</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -7422,7 +7442,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             'common.cancel':  { 'zh-TW': '取消',     'en': 'Cancel' },
             'common.confirm': { 'zh-TW': '確認',     'en': 'Confirm' },
             'home.recentCases': { 'zh-TW': '最近測試案例', 'en': 'Recent Test Cases' },
-            'home.myPendingReviews': { 'zh-TW': '我的待審核任務', 'en': 'My Pending Reviews' },
+            'home.myPendingReviews': { 'zh-TW': '指派給我的任務', 'en': 'Tasks Assigned to Me' },
             'home.todos': { 'zh-TW': '待辦事項', 'en': 'To-do' },
             'home.calendar': { 'zh-TW': '行事曆', 'en': 'Calendar' },
             'home.todoBucket.overdue': { 'zh-TW': '過期', 'en': 'Overdue' },
@@ -11460,6 +11480,8 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             testcase: { zh: '測試案例', en: 'Test Case', cls: 'bg-blue-100 text-blue-700 border-blue-200' },
             document: { zh: '測試文件', en: 'Document',  cls: 'bg-pink-100 text-pink-700 border-pink-200' },
             report:   { zh: '測試報告', en: 'Report',    cls: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+            script:   { zh: '錄製腳本', en: 'Script',    cls: 'bg-rose-100 text-rose-700 border-rose-200' },
+            defect:   { zh: '缺陷管理', en: 'Defect',    cls: 'bg-orange-100 text-orange-700 border-orange-200' },
         };
         const _REVIEW_STATUS_LABEL = {
             pending:   { zh: '待審核', en: 'Pending',  cls: 'bg-amber-100 text-amber-700' },
@@ -11941,6 +11963,8 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 actBtns.push(`<button type="button" onclick="reviewCloseDetail();loadTestCase('${_esc(r.entity_id)}')" class="px-3 py-1.5 text-xs border border-violet-300 text-violet-700 rounded hover:bg-violet-50 font-semibold"><i class="fa-solid fa-vial"></i> ${lc==='en'?'Open Test Case':'前往案例'}</button>`);
             } else if (r.entity_type === 'script') {
                 actBtns.push(`<button type="button" onclick="reviewCloseDetail();showSection('recorderWorkspace')" class="px-3 py-1.5 text-xs border border-violet-300 text-violet-700 rounded hover:bg-violet-50 font-semibold"><i class="fa-solid fa-video"></i> ${lc==='en'?'Open Scripts':'前往腳本'}</button>`);
+            } else if (r.entity_type === 'defect') {
+                actBtns.push(`<button type="button" onclick="reviewCloseDetail();showDefectsView();openDefectDetail('${_esc(r.entity_id)}')" class="px-3 py-1.5 text-xs border border-rose-300 text-rose-700 rounded hover:bg-rose-50 font-semibold"><i class="fa-solid fa-bug"></i> ${lc==='en'?'Open Defect':'前往缺陷'}</button>`);
             }
             if (r.status === 'InReview' || r.status === 'pending') {
                 actBtns.push(`<button type="button" onclick="reviewCloseDetail();reviewApprove('${r.id}')" class="px-3 py-1.5 text-xs bg-emerald-500 hover:bg-emerald-600 text-white rounded font-semibold"><i class="fa-solid fa-check"></i> ${lc==='en'?'Approve':'通過'}</button>`);
@@ -12159,18 +12183,9 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         }
 
         async function _reviewUpdatePendingBadge() {
-            // 載一次 pending count 顯示在 nav drawer 右側
-            try {
-                const rows = await apiFetch('/api/reviews?status=pending');
-                const badge = document.getElementById('navReviewPendingBadge');
-                if (!badge) return;
-                if (rows.length > 0) {
-                    badge.textContent = String(rows.length);
-                    badge.classList.remove('hidden');
-                } else {
-                    badge.classList.add('hidden');
-                }
-            } catch (_) { /* silent */ }
+            // v1.1.9:nav 不再顯示審核 / 缺陷計數 badge,本函式變 no-op
+            // (避免其他地方呼叫炸,並把舊 badge 強制隱藏)。
+            document.getElementById('navReviewPendingBadge')?.classList.add('hidden');
         }
         // tab 預設樣式 helper(進入頁面時跑)
         document.addEventListener('DOMContentLoaded', () => {
@@ -12359,20 +12374,21 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             try { loadHomeMyPendingReviews(); } catch (_) {}
         }
 
-        // 載入首頁「我的待審核任務」widget。
+        // 載入首頁「指派給我的任務」widget(v1.1.9 改:不限狀態,只看指派給我)。
         async function loadHomeMyPendingReviews() {
             const box = document.getElementById('homeMyPendingReviews');
             if (!box) return;
             box.innerHTML = '<div class="p-6 text-center text-stone-400 text-sm">載入中…</div>';
             try {
-                const rows = await apiFetch('/api/reviews?mine=true&status=pending');
+                // v1.1.9:拿掉 status=pending,顯示所有指派給我的(含 InReview / Verified / Closed)
+                const rows = await apiFetch('/api/reviews?mine=true');
                 const top = (Array.isArray(rows) ? rows : []).slice(0, 10);
                 if (!top.length) {
-                    box.innerHTML = '<div class="p-6 text-center text-stone-400 text-sm"><i class="fa-regular fa-circle-check text-emerald-400 text-xl mb-1 block"></i>目前沒有指派給您的待審核任務。</div>';
+                    box.innerHTML = '<div class="p-6 text-center text-stone-400 text-sm"><i class="fa-regular fa-circle-check text-emerald-400 text-xl mb-1 block"></i>目前沒有指派給您的任務。</div>';
                     return;
                 }
-                const typeLabel = { testcase: '測試案例', report: '測試報告', script: '錄製腳本', document: '文件' };
-                const typeIcon = { testcase: 'fa-vial text-emerald-600', report: 'fa-file-lines text-blue-500', script: 'fa-video text-rose-500', document: 'fa-file text-stone-500' };
+                const typeLabel = { testcase: '測試案例', report: '測試報告', script: '錄製腳本', document: '文件', defect: '缺陷管理' };
+                const typeIcon = { testcase: 'fa-vial text-emerald-600', report: 'fa-file-lines text-blue-500', script: 'fa-video text-rose-500', document: 'fa-file text-stone-500', defect: 'fa-bug text-rose-600' };
                 box.innerHTML = top.map(r => {
                     const tName = r.entity_name || (r.entity_type + ' · ' + (r.entity_id || '').slice(0, 8));
                     const tLbl = typeLabel[r.entity_type] || r.entity_type || '—';
@@ -16732,8 +16748,11 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             // 缺陷
             defSeverity: {Critical:'嚴重', Major:'重大', Minor:'次要', Trivial:'輕微'},
             defPriority: {P0:'P0 (最高)', P1:'P1 (高)', P2:'P2 (中)', P3:'P3 (低)'},
-            // 統一 7 值狀態 + 舊值 i18n 相容(migration 0011 前資料)
-            defStatus:   {New:'新建立', Assigned:'等待處理', InProgress:'進行中', InReview:'等待審核', ReworkRequired:'退回修改', Verified:'已驗證', Closed:'已關閉',
+            // 統一 7 值狀態(label 走業務語義:新建立 / 進行中 / 待驗證 / 驗證成功 / 驗證失敗 / 關閉)
+            // 後端 enum 仍是 New/Assigned/InProgress/InReview/Verified/ReworkRequired/Closed;
+            // Assigned 不在使用者語境直接出現,只在「有指派人時 backend 自動 set」時內部用,
+            // 顯示時 fallback 到「等待處理」。
+            defStatus:   {New:'新建立', Assigned:'等待處理', InProgress:'進行中', InReview:'待驗證', ReworkRequired:'驗證失敗', Verified:'驗證成功', Closed:'關閉',
                           Fixed:'已修復', Reopened:'重新開啟', WontFix:'不予修復'},
             // 時程 — 統一 7 值狀態 + 舊值 i18n 相容(migration 0012 前資料)
             msStatus:    {New:'新建立', Assigned:'等待處理', InProgress:'進行中', InReview:'等待審核', ReworkRequired:'退回修改', Verified:'已驗證', Closed:'已關閉',
@@ -19431,23 +19450,126 @@ curl -X POST http://localhost:8000/api/defects \\
         }
     }
 
+    // 多選狀態:儲存被勾選 defect id
+    const _defSelectedIds = new Set();
+
     function _defRenderList(rows) {
         const body = document.getElementById('defListBody');
         if (!rows.length) {
-            body.innerHTML = '<tr><td colspan="8" class="text-center py-10 text-slate-400">沒有符合條件的缺陷</td></tr>';
+            body.innerHTML = '<tr><td colspan="10" class="text-center py-10 text-slate-400">沒有符合條件的缺陷</td></tr>';
+            _defRefreshBatchBar();
             return;
         }
-        body.innerHTML = rows.map(d => `
-            <tr class="hover:bg-rose-50/30 cursor-pointer" onclick="openDefectDetail('${d.id}')">
-                <td class="px-4 py-2 font-mono text-xs text-rose-700">${d.code}</td>
-                <td class="px-4 py-2"><div class="text-sm text-slate-700 line-clamp-1">${escapeHtml(d.title)}</div></td>
+        body.innerHTML = rows.map(d => {
+            const checked = _defSelectedIds.has(d.id) ? 'checked' : '';
+            return `
+            <tr class="hover:bg-rose-50/30">
+                <td class="px-3 py-2 text-center" onclick="event.stopPropagation()">
+                    <input type="checkbox" data-defect-id="${d.id}" ${checked} onchange="defToggleRow('${d.id}', this.checked)"
+                        class="defRowCheck h-4 w-4 rounded border-slate-300 text-rose-500 focus:ring-1 focus:ring-rose-400">
+                </td>
+                <td class="px-3 py-2 font-mono text-xs text-rose-700 cursor-pointer" onclick="openDefectDetail('${d.id}')">${d.code}</td>
+                <td class="px-3 py-2 cursor-pointer" onclick="openDefectDetail('${d.id}')">
+                    <div class="text-sm text-slate-700 whitespace-normal break-words">${escapeHtml(d.title)}</div>
+                </td>
                 <td class="px-3 py-2"><span class="text-[10px] px-1.5 py-0.5 ${_defSeverityPillCls(d.severity)} rounded font-medium">${_defSeverityZh(d.severity)}</span></td>
                 <td class="px-3 py-2"><span class="text-[10px] px-1.5 py-0.5 ${_PRIORITY_PILL[d.priority]||'bg-slate-100'} rounded font-medium">${d.priority}</span></td>
                 <td class="px-3 py-2"><span class="text-[10px] px-1.5 py-0.5 ${_defStatusPillCls(d.status)} rounded font-medium">${_defStatusZh(d.status)}</span></td>
                 <td class="px-3 py-2 text-xs text-slate-600">${escapeHtml(d.assignee || '—')}</td>
                 <td class="px-3 py-2 text-xs">${d.linked_testcase ? `<span class="text-blue-600">${escapeHtml(d.linked_testcase.name||d.linked_testcase.id.slice(0,8))}</span>` : '—'}</td>
-                <td class="px-3 py-2 text-xs text-slate-500">${new Date(d.created_at).toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}</td>
-            </tr>`).join('');
+                <td class="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">${new Date(d.created_at).toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}</td>
+                <td class="px-3 py-2 text-right whitespace-nowrap">
+                    <button type="button" onclick="event.stopPropagation(); openDefectDetail('${d.id}')"
+                        title="編輯 / 檢視" class="text-xs px-2 py-1 border border-slate-300 text-slate-600 rounded hover:bg-slate-50">
+                        <i class="fa-solid fa-pen"></i>
+                    </button>
+                    <button type="button" onclick="event.stopPropagation(); _defRowDelete('${d.id}', '${d.code}')"
+                        title="刪除" class="text-xs px-2 py-1 border border-rose-300 text-rose-600 rounded hover:bg-rose-50 ml-1">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </td>
+            </tr>`;
+        }).join('');
+        _defRefreshBatchBar();
+        _defSyncCheckAllState();
+    }
+
+    // 全選 / 取消全選
+    function defToggleAll(checked) {
+        document.querySelectorAll('.defRowCheck').forEach(cb => {
+            cb.checked = checked;
+            const id = cb.dataset.defectId;
+            if (!id) return;
+            if (checked) _defSelectedIds.add(id);
+            else _defSelectedIds.delete(id);
+        });
+        _defRefreshBatchBar();
+    }
+
+    function defToggleRow(id, checked) {
+        if (checked) _defSelectedIds.add(id); else _defSelectedIds.delete(id);
+        _defRefreshBatchBar();
+        _defSyncCheckAllState();
+    }
+
+    function _defSyncCheckAllState() {
+        const all = document.querySelectorAll('.defRowCheck');
+        const checked = document.querySelectorAll('.defRowCheck:checked');
+        const ca = document.getElementById('defListCheckAll');
+        if (!ca) return;
+        ca.checked = all.length > 0 && checked.length === all.length;
+        ca.indeterminate = checked.length > 0 && checked.length < all.length;
+    }
+
+    function _defRefreshBatchBar() {
+        const bar = document.getElementById('defBatchBar');
+        const cntEl = document.getElementById('defBatchCount');
+        const n = _defSelectedIds.size;
+        if (!bar) return;
+        if (n > 0) {
+            bar.classList.remove('hidden');
+            if (cntEl) cntEl.textContent = String(n);
+        } else {
+            bar.classList.add('hidden');
+        }
+    }
+
+    function defBatchClearSelection() {
+        _defSelectedIds.clear();
+        document.querySelectorAll('.defRowCheck').forEach(cb => { cb.checked = false; });
+        const ca = document.getElementById('defListCheckAll');
+        if (ca) { ca.checked = false; ca.indeterminate = false; }
+        _defRefreshBatchBar();
+    }
+
+    async function defBatchDelete() {
+        const ids = Array.from(_defSelectedIds);
+        if (!ids.length) return;
+        if (!confirm(`確定刪除選取的 ${ids.length} 筆缺陷?此操作無法復原。`)) return;
+        let ok = 0, fail = 0;
+        await Promise.all(ids.map(async id => {
+            try {
+                await apiFetch(`/api/defects/${id}`, { method: 'DELETE', raw: true });
+                ok++;
+            } catch (_) { fail++; }
+        }));
+        _defSelectedIds.clear();
+        if (typeof showToast === 'function') {
+            showToast(`已刪除 ${ok} 筆${fail ? `,失敗 ${fail} 筆(可能權限不足)` : ''}`, fail ? 'error' : 'success');
+        }
+        await loadDefects();
+    }
+
+    async function _defRowDelete(id, code) {
+        if (!confirm(`確定刪除缺陷 ${code}?此操作無法復原。`)) return;
+        try {
+            await apiFetch(`/api/defects/${id}`, { method: 'DELETE', raw: true });
+            _defSelectedIds.delete(id);
+            if (typeof showToast === 'function') showToast(`已刪除 ${code}`, 'success');
+            await loadDefects();
+        } catch (e) {
+            if (typeof showToast === 'function') showToast('刪除失敗:' + (e.message||e), 'error');
+        }
     }
 
     // ── 新增缺陷 modal ────────────────────────────────────────────────
@@ -19650,89 +19772,110 @@ curl -X POST http://localhost:8000/api/defects \\
 
     function _defRenderDetail(d) {
         _defCurrentDetail = d;
+        // Header:顯示 code 跟 title(可 truncate)
         document.getElementById('defDetailHeader').innerHTML = `
-            <i class="fa-solid fa-bug text-rose-600"></i>
+            <i class="fa-solid fa-bug text-rose-600 shrink-0"></i>
             <span class="font-mono text-rose-700">${d.code}</span>
-            <span class="text-sm font-normal text-slate-700 ml-2 truncate">${escapeHtml(d.title)}</span>`;
+            <span class="text-sm font-normal text-slate-700 ml-2 truncate" title="${escapeHtml(d.title)}">${escapeHtml(d.title)}</span>`;
         const attachments = d.attachments_json || [];
-        // Card-style sections, 配合平台其他頁面(reportWorkspace)的 bg-white rounded-lg border 樣式
-        const card = (title, icon, body) => `
-            <section class="bg-white rounded-lg border border-slate-200 shadow-sm">
-                <div class="px-4 py-2.5 border-b border-slate-200 flex items-center gap-2 bg-slate-50/40 rounded-t-lg">
-                    <i class="${icon} text-slate-400 text-xs"></i>
-                    <h4 class="text-xs font-semibold text-slate-700 tracking-wide uppercase">${title}</h4>
-                </div>
-                <div class="p-4 text-sm text-slate-700">${body}</div>
-            </section>`;
-        const richText = txt => txt ? `<p class="whitespace-pre-wrap leading-relaxed">${escapeHtml(txt)}</p>` :
-            `<p class="text-slate-400 italic">(無內容)</p>`;
+
+        // Row helper(label / value)— 仿 reviewDetailModal 設計
+        const _row = (k, v) => `
+            <div class="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 py-1.5 border-b border-slate-100 last:border-b-0">
+                <div class="text-[11px] uppercase tracking-wide text-slate-500 sm:w-32 flex-shrink-0 pt-0.5">${k}</div>
+                <div class="text-sm text-slate-800 break-all">${v ?? '<span class="text-slate-400 italic">—</span>'}</div>
+            </div>`;
+        const sectionHeader = (icon, title) => `
+            <div class="text-[11px] uppercase tracking-wide text-slate-500 mb-2 flex items-center gap-2">
+                <i class="${icon} text-rose-400"></i>
+                <span>${title}</span>
+            </div>`;
+        const textBlock = txt => txt
+            ? `<div class="bg-slate-50/60 rounded-lg border border-slate-100 px-3 py-2 text-sm whitespace-pre-wrap leading-relaxed text-stone-800">${escapeHtml(txt)}</div>`
+            : `<div class="text-stone-400 italic text-xs px-3">(無內容)</div>`;
 
         document.getElementById('defDetailBody').innerHTML = `
-            <div class="space-y-4 bg-slate-50/50 -m-5 p-5">
-                <!-- 狀態 / 嚴重度 / 優先 / 指派 pill bar -->
-                <div class="flex flex-wrap items-center gap-2">
-                    <span class="text-xs px-2.5 py-1 ${_defStatusPillCls(d.status)} rounded font-semibold">${_defStatusZh(d.status)}</span>
-                    <span class="text-xs px-2.5 py-1 ${_defSeverityPillCls(d.severity)} rounded font-semibold">嚴重度:${_defSeverityZh(d.severity)}</span>
-                    <span class="text-xs px-2.5 py-1 ${_PRIORITY_PILL[d.priority]||'bg-slate-100'} rounded font-semibold">優先:${d.priority}</span>
-                    ${d.assignee ? `<span class="text-xs px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded"><i class="fa-solid fa-user"></i> ${escapeHtml(d.assignee)}</span>` :
-                                   '<span class="text-xs px-2.5 py-1 bg-slate-100 text-slate-500 rounded">未指派</span>'}
+            <div class="space-y-5">
+                <!-- Hero:標題 + 嚴重度/優先/狀態 pill + 指派 -->
+                <div class="bg-rose-50/50 rounded-lg p-4 border border-rose-100">
+                    <div class="flex items-center gap-2 mb-2 flex-wrap">
+                        <span class="text-xs px-2.5 py-0.5 ${_defStatusPillCls(d.status)} rounded font-semibold">${_defStatusZh(d.status)}</span>
+                        <span class="text-xs px-2.5 py-0.5 ${_defSeverityPillCls(d.severity)} rounded font-semibold">嚴重度:${_defSeverityZh(d.severity)}</span>
+                        <span class="text-xs px-2.5 py-0.5 ${_PRIORITY_PILL[d.priority]||'bg-slate-100'} rounded font-semibold">優先:${d.priority}</span>
+                        ${d.assignee ? `<span class="text-xs px-2.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded"><i class="fa-regular fa-user mr-1"></i>${escapeHtml(d.assignee)}</span>`
+                                     : '<span class="text-xs px-2.5 py-0.5 bg-slate-100 text-slate-500 rounded">未指派</span>'}
+                    </div>
+                    <div class="text-base font-semibold text-stone-800 leading-snug">${escapeHtml(d.title)}</div>
+                    <div class="mt-1 font-mono text-[12px] text-stone-500">
+                        ${d.code}
+                        <button type="button" onclick="navigator.clipboard?.writeText('${d.code}');showToast?.('已複製','info')" class="ml-2 text-[10px] px-1.5 py-0.5 border border-stone-300 rounded hover:bg-stone-50 text-stone-500">
+                            <i class="fa-regular fa-copy"></i>
+                        </button>
+                    </div>
                 </div>
 
-                <!-- meta card -->
-                ${card('基本資訊', 'fa-solid fa-circle-info', `
-                    <dl class="grid grid-cols-3 gap-x-4 gap-y-2 text-xs">
-                        <dt class="text-slate-500">建立者</dt><dd class="col-span-2 font-mono">${escapeHtml(d.reporter||'—')}</dd>
-                        <dt class="text-slate-500">建立時間</dt><dd class="col-span-2">${new Date(d.created_at).toLocaleString('zh-TW')}</dd>
-                        <dt class="text-slate-500">最後更新</dt><dd class="col-span-2">${new Date(d.updated_at).toLocaleString('zh-TW')}</dd>
-                        ${d.closed_at ? `<dt class="text-slate-500">關閉時間</dt><dd class="col-span-2">${new Date(d.closed_at).toLocaleString('zh-TW')}</dd>` : ''}
-                        ${d.linked_testcase ? `<dt class="text-slate-500">連結案例</dt><dd class="col-span-2"><span class="text-blue-700"><i class="fa-solid fa-flask-vial"></i> ${escapeHtml(d.linked_testcase.name || d.linked_testcase.id.slice(0,8))}</span></dd>` : ''}
-                        ${d.linked_report ? `<dt class="text-slate-500">連結報告</dt><dd class="col-span-2"><span class="text-emerald-700"><i class="fa-solid fa-chart-pie"></i> ${escapeHtml(d.linked_report.name || d.linked_report.id.slice(0,8))}</span> <span class="text-slate-400">[${d.linked_report.status||'—'}]</span></dd>` : ''}
-                    </dl>`)}
-
-                ${card('描述',     'fa-solid fa-align-left',     richText(d.description))}
-                ${card('重現步驟', 'fa-solid fa-list-ol',         richText(d.steps_to_reproduce))}
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    ${card('預期結果', 'fa-solid fa-check',         richText(d.expected_result))}
-                    ${card('實際結果', 'fa-solid fa-triangle-exclamation', richText(d.actual_result))}
+                <!-- 基本資訊(reviewDetailModal-style _row 排版)-->
+                <div>
+                    ${sectionHeader('fa-solid fa-circle-info', '基本資訊')}
+                    <div class="bg-white rounded-lg border border-slate-200 px-3 py-1">
+                        ${_row('建立者', `${escapeHtml(d.reporter||'—')}`)}
+                        ${_row('建立時間', `<span class="text-[11px] font-mono text-slate-500">${new Date(d.created_at).toLocaleString('zh-TW')}</span>`)}
+                        ${_row('最後更新', `<span class="text-[11px] font-mono text-slate-500">${new Date(d.updated_at).toLocaleString('zh-TW')}</span>`)}
+                        ${d.closed_at ? _row('關閉時間', `<span class="text-[11px] font-mono text-slate-500">${new Date(d.closed_at).toLocaleString('zh-TW')}</span>`) : ''}
+                        ${_row('連結案例', d.linked_testcase ? `<span class="text-blue-700"><i class="fa-solid fa-flask-vial mr-1"></i>${escapeHtml(d.linked_testcase.name || d.linked_testcase.id.slice(0,8))}</span>` : null)}
+                        ${_row('連結報告', d.linked_report ? `<span class="text-emerald-700"><i class="fa-solid fa-chart-pie mr-1"></i>${escapeHtml(d.linked_report.name || d.linked_report.id.slice(0,8))}</span> <span class="text-stone-400 text-[11px]">[${d.linked_report.status||'—'}]</span>` : null)}
+                    </div>
                 </div>
 
-                <!-- 附件 card -->
-                <section class="bg-white rounded-lg border border-slate-200 shadow-sm">
-                    <div class="px-4 py-2.5 border-b border-slate-200 flex items-center justify-between bg-slate-50/40 rounded-t-lg">
-                        <h4 class="text-xs font-semibold text-slate-700 tracking-wide uppercase flex items-center gap-2">
-                            <i class="fa-solid fa-paperclip text-slate-400 text-xs"></i>
-                            附件 / 截圖 (${attachments.length})
-                        </h4>
+                <!-- 描述 -->
+                <div>${sectionHeader('fa-solid fa-align-left', '描述')}${textBlock(d.description)}</div>
+
+                <!-- 重現步驟 -->
+                <div>${sectionHeader('fa-solid fa-list-ol', '重現步驟')}${textBlock(d.steps_to_reproduce)}</div>
+
+                <!-- 預期 / 實際 雙欄 -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>${sectionHeader('fa-solid fa-check text-emerald-400', '預期結果')}${textBlock(d.expected_result)}</div>
+                    <div>${sectionHeader('fa-solid fa-triangle-exclamation text-rose-400', '實際結果')}${textBlock(d.actual_result)}</div>
+                </div>
+
+                <!-- 附件 -->
+                <div>
+                    <div class="text-[11px] uppercase tracking-wide text-slate-500 mb-2 flex items-center justify-between">
+                        <span class="flex items-center gap-2">
+                            <i class="fa-solid fa-paperclip text-rose-400"></i>
+                            <span>附件 / 截圖</span>
+                            <span class="font-mono normal-case tracking-normal text-slate-400">(${attachments.length})</span>
+                        </span>
                         <label class="text-xs px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded font-medium cursor-pointer inline-flex items-center gap-1">
                             <i class="fa-solid fa-cloud-arrow-up"></i> 新增附件
                             <input type="file" multiple class="hidden" onchange="_defDetailUpload(event)">
                         </label>
                     </div>
-                    <div class="p-4">
-                        ${attachments.length === 0 ? '<p class="text-xs text-slate-400 italic">(尚無附件,可從上方按鈕上傳)</p>' : `
-                            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    ${attachments.length === 0
+                        ? '<p class="text-xs text-slate-400 italic px-3">(尚無附件,可從上方按鈕上傳)</p>'
+                        : `<div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
                                 ${attachments.map(a => {
                                     const isImg = a.type && a.type.startsWith('image/');
                                     return `
-                                    <div class="group relative bg-slate-50 border border-slate-200 rounded overflow-hidden">
-                                        ${isImg ?
-                                            `<a href="${escapeHtml(a.url)}" target="_blank" rel="noopener">
-                                                <img src="${escapeHtml(a.url)}" alt="${escapeHtml(a.name)}" class="w-full h-24 object-cover">
-                                            </a>` :
-                                            `<a href="${escapeHtml(a.url)}" target="_blank" rel="noopener" class="block h-24 flex items-center justify-center text-slate-500 hover:text-rose-600">
-                                                <i class="fa-solid fa-file text-2xl"></i>
-                                            </a>`
+                                    <div class="group relative bg-white border border-slate-200 rounded overflow-hidden hover:border-rose-300 hover:shadow-sm transition">
+                                        ${isImg
+                                            ? `<a href="${escapeHtml(a.url)}" target="_blank" rel="noopener">
+                                                <img src="${escapeHtml(a.url)}" alt="${escapeHtml(a.name)}" class="w-full h-20 object-cover">
+                                              </a>`
+                                            : `<a href="${escapeHtml(a.url)}" target="_blank" rel="noopener" class="block h-20 flex items-center justify-center text-slate-500 hover:text-rose-600">
+                                                <i class="fa-solid fa-file text-xl"></i>
+                                              </a>`
                                         }
-                                        <div class="px-2 py-1 text-[10px] text-slate-600 truncate" title="${escapeHtml(a.name)}">${escapeHtml(a.name)}</div>
+                                        <div class="px-1.5 py-1 text-[10px] text-slate-600 truncate" title="${escapeHtml(a.name)}">${escapeHtml(a.name)}</div>
                                         <button type="button" onclick="_defDetailRemoveAttachment('${escapeHtml(a.url).replace(/'/g, "\\'")}')"
-                                            class="absolute top-1 right-1 w-6 h-6 rounded-full bg-white/90 hover:bg-rose-100 text-rose-600 text-xs opacity-0 group-hover:opacity-100 transition shadow">
+                                            class="absolute top-1 right-1 w-5 h-5 rounded-full bg-white/90 hover:bg-rose-100 text-rose-600 text-[10px] opacity-0 group-hover:opacity-100 transition shadow">
                                             <i class="fa-solid fa-xmark"></i>
                                         </button>
                                     </div>`;
                                 }).join('')}
-                            </div>`}
-                    </div>
-                </section>
+                           </div>`}
+                </div>
             </div>`;
 
         // 狀態轉移:下拉選單(只列當前 status 允許的目標 state)
@@ -19761,10 +19904,30 @@ curl -X POST http://localhost:8000/api/defects \\
                 套用
             </button>
             <div class="flex-1"></div>
+            <button type="button" onclick="_defSubmitForReview('${d.id}')"
+                class="text-xs px-2.5 py-1.5 bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-300 rounded font-medium">
+                <i class="fa-solid fa-paper-plane"></i> 送審
+            </button>
             <button type="button" onclick="_defConfirmDelete('${d.id}', '${d.code}')"
                 class="text-xs px-2.5 py-1.5 bg-white hover:bg-rose-50 text-rose-600 border border-rose-300 rounded font-medium">
                 <i class="fa-solid fa-trash"></i> 刪除
             </button>`;
+    }
+
+    // 送 defect 進審核流程(v1.1.9)— 後端 POST /api/reviews,entity_type=defect
+    async function _defSubmitForReview(defectId) {
+        if (!confirm('將此缺陷送出審核?送審後可在「審核」分頁追蹤。')) return;
+        try {
+            const r = await apiFetch('/api/reviews', {
+                method: 'POST',
+                body: { entity_type: 'defect', entity_id: defectId },
+            });
+            if (typeof showToast === 'function') showToast(`已送審(${r.id?.slice(0,8) || ''}),可在審核分頁追蹤`, 'success');
+        } catch (e) {
+            const detail = e?.detail || {};
+            const msg = detail.message || detail.detail || e.message || '送審失敗';
+            if (typeof showToast === 'function') showToast('送審失敗:' + msg, 'error');
+        }
     }
 
     async function _defApplyStatusChange(id) {
@@ -19868,20 +20031,12 @@ curl -X POST http://localhost:8000/api/defects \\
         }
     }
 
-    // ── nav badge:未關閉缺陷數 ───────────────────────────────────────
+    // ── nav badge:v1.1.9 起 nav 不再顯示缺陷 / 審核 計數,只保留通知鈴鐺。
+    // 函式變 no-op stub:避開其他地方 fire-and-forget 呼叫造成 ReferenceError,
+    // 同時把現有 badge 強制隱藏(若舊版 cached HTML 還在)。
     async function refreshDefectsBadge() {
-        const badge = document.getElementById('navDefectsOpenBadge');
-        if (!badge || !currentProjectId) { badge?.classList.add('hidden'); return; }
-        try {
-            const r = await apiFetch(`/api/defects/count?project_id=${encodeURIComponent(currentProjectId)}&open_only=1`);
-            const n = r?.count || 0;
-            if (n > 0) {
-                badge.textContent = n > 99 ? '99+' : String(n);
-                badge.classList.remove('hidden');
-            } else {
-                badge.classList.add('hidden');
-            }
-        } catch (_) { badge.classList.add('hidden'); }
+        document.getElementById('navDefectsOpenBadge')?.classList.add('hidden');
+        document.getElementById('navReviewPendingBadge')?.classList.add('hidden');
     }
 
     // 每次切 project 後也更新 badge(不擋,fire-and-forget)

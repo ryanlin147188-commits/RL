@@ -235,6 +235,7 @@ async def _resolve_entity_names(
     Falls back to no-name (None) when the underlying entity was deleted --
     audit history must outlive the entity it audits.
     """
+    from app.models.defect import Defect
     from app.models.execution_report import ExecutionReport
     from app.models.recording import RecordingSession
     from app.models.tree_node import TreeNode
@@ -259,6 +260,16 @@ async def _resolve_entity_names(
 
     # 測試案例：直接用節點名稱（檔案名稱）
     await _fill(TreeNode, "name", ReviewableEntityType.TESTCASE)
+
+    # 缺陷:用 ``DEF-XXXXX · title`` 格式,讓審核列表一眼識別
+    defect_ids = by_type.get(ReviewableEntityType.DEFECT) or []
+    if defect_ids:
+        rows = (
+            await db.execute(select(Defect).where(Defect.id.in_(defect_ids)))
+        ).scalars().all()
+        for row in rows:
+            label = f"{row.code} · {row.title}" if row.code else row.title
+            out[(ReviewableEntityType.DEFECT.value, row.id)] = label
 
     # 測試腳本：yyyymmddhhmmss-target_url_host
     script_ids = by_type.get(ReviewableEntityType.SCRIPT) or []
