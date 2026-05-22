@@ -941,7 +941,7 @@
                 <button type="button" data-nav-hash="#schedule"     onclick="showScheduleView()"     title="測試排程" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-calendar-days text-emerald-600"></i><span class="nav-label" data-i18n="nav.schedule">測試排程</span></button>
                 <button type="button" data-nav-hash="#recorder"     onclick="showRecorderView()"     title="測試錄製" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-video text-rose-600"></i><span class="nav-label" data-i18n="nav.recorder">測試錄製</span></button>
                 <button type="button" data-nav-hash="#report"       onclick="showReportView()"       title="測試報告" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-chart-pie text-blue-600"></i><span class="nav-label" data-i18n="nav.reports">測試報告</span></button>
-                <button type="button" data-nav-hash="#testkanban"   onclick="showTestKanbanView()"   title="測試看板" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-columns text-teal-600"></i><span class="nav-label" data-i18n="nav.testKanban">測試看板</span></button>
+                <button type="button" data-nav-hash="#testkanban"   onclick="showTestKanbanView()"   title="測試看版" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-columns text-teal-600"></i><span class="nav-label" data-i18n="nav.testKanban">測試看版</span></button>
                 <button type="button" data-nav-hash="#defects"      onclick="showDefectsView()"      title="缺陷管理" class="topnav-pill hover:bg-stone-100">
                     <i class="fa-solid fa-bug text-rose-700"></i>
                     <span class="nav-label" data-i18n="nav.defects">缺陷管理</span>
@@ -1226,21 +1226,92 @@
     </div>
 
     <!-- ════════════════════════════════════════════════════════════════════
-         測試看板 — testcase 詳情 drawer(點 kanban 卡片開啟)
+         測試看版 — 新增待辦 modal(置中彈窗,沿用 testRoundModal/defectCreateModal 樣式)
          ════════════════════════════════════════════════════════════════════ -->
-    <div id="tkCardDrawer" class="hidden fixed inset-0 z-[290] bg-black/40"
-         onclick="if(event.target===this) closeTkCardDrawer()">
-        <div class="absolute right-0 top-0 h-full w-full sm:w-[520px] bg-white shadow-2xl flex flex-col"
+    <div id="todoCreateModal" class="fixed inset-0 bg-slate-900/50 hidden z-[160] flex items-center justify-center"
+         onclick="if(event.target===this) closeTodoCreateModal()">
+        <div class="bg-white rounded-lg shadow-xl w-[600px] max-w-[95vw] flex flex-col max-h-[90vh]"
              onclick="event.stopPropagation()">
-            <div class="px-5 py-3 border-b border-stone-200 bg-teal-50/70 flex items-center justify-between flex-shrink-0">
-                <h3 id="tkDrawerHeader" class="font-bold text-stone-800 text-base flex items-center gap-2">
-                    <i class="fa-solid fa-flask-vial text-teal-600"></i>
-                    <span>—</span>
-                </h3>
-                <button type="button" onclick="closeTkCardDrawer()" aria-label="關閉" class="text-stone-400 hover:text-stone-700"><i class="fa-solid fa-xmark"></i></button>
+            <div class="p-4 border-b border-slate-200 flex items-center gap-2">
+                <i class="fa-solid fa-clipboard-list text-teal-500"></i>
+                <h3 class="text-lg font-bold text-slate-800 flex-1">新增待辦</h3>
+                <button type="button" onclick="closeTodoCreateModal()" aria-label="關閉" class="text-slate-400 hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button>
             </div>
-            <div id="tkDrawerBody" class="p-5 text-sm overflow-y-auto flex-1"></div>
-            <div id="tkDrawerFooter" class="px-5 py-3 border-t border-stone-200 bg-stone-50 flex flex-wrap gap-2 justify-end"></div>
+            <form id="todoCreateForm" onsubmit="event.preventDefault(); submitTodoCreate();"
+                  class="p-5 space-y-4 overflow-y-auto flex-1 text-sm">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">標題 <span class="text-rose-500">*</span></label>
+                    <input type="text" id="todoCreateTitle" required maxlength="300"
+                        class="w-full border border-slate-300 rounded p-2 text-sm focus:ring-2 focus:ring-teal-100 focus:border-teal-400 outline-none">
+                </div>
+                <div class="grid grid-cols-4 gap-3">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">類型</label>
+                        <select id="todoCreateType" class="w-full border border-slate-300 rounded p-2 text-sm bg-white">
+                            <option value="Feature">Feature</option>
+                            <option value="Task" selected>Task</option>
+                            <option value="Bug">Bug</option>
+                            <option value="Spike">Spike</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">優先序</label>
+                        <select id="todoCreatePriority" class="w-full border border-slate-300 rounded p-2 text-sm bg-white">
+                            <option value="P0">P0 (最高)</option>
+                            <option value="P1">P1 (高)</option>
+                            <option value="P2" selected>P2 (中)</option>
+                            <option value="P3">P3 (低)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">狀態</label>
+                        <select id="todoCreateStatus" class="w-full border border-slate-300 rounded p-2 text-sm bg-white">
+                            <option value="New" selected>待辦</option>
+                            <option value="InProgress">進行中</option>
+                            <option value="InReview">待驗證</option>
+                            <option value="Verified">已完成</option>
+                            <option value="Closed">關閉</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">到期日</label>
+                        <input type="date" id="todoCreateDueDate"
+                            class="w-full border border-slate-300 rounded p-2 text-sm">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">指派</label>
+                    <select id="todoCreateAssignee" class="w-full border border-slate-300 rounded p-2 text-sm bg-white">
+                        <option value="">(未指派)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">描述 / 每日進度</label>
+                    <textarea id="todoCreateDescription" rows="4" placeholder="可填工作內容、預計步驟、每日進度紀錄..."
+                        class="w-full border border-slate-300 rounded p-2 text-sm resize-none"></textarea>
+                </div>
+            </form>
+            <div class="p-4 border-t border-slate-200 flex justify-end gap-2 bg-slate-50 rounded-b-lg">
+                <button type="button" onclick="closeTodoCreateModal()" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 rounded transition">取消</button>
+                <button type="button" onclick="submitTodoCreate()" class="px-4 py-2 text-sm font-medium bg-teal-600 hover:bg-teal-700 text-white rounded shadow-sm transition">建立</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════════════════════════════
+         測試看版 — 待辦詳情 modal(置中彈窗,可編輯欄位 + 管理連結項目)
+         ════════════════════════════════════════════════════════════════════ -->
+    <div id="todoDetailModal" class="fixed inset-0 bg-slate-900/50 hidden z-[160] flex items-center justify-center"
+         onclick="if(event.target===this) closeTodoDetail()">
+        <div class="bg-white rounded-lg shadow-xl w-[680px] max-w-[95vw] flex flex-col max-h-[90vh]"
+             onclick="event.stopPropagation()">
+            <div class="p-4 border-b border-slate-200 flex items-center gap-2 flex-shrink-0">
+                <i class="fa-solid fa-clipboard-list text-teal-500 shrink-0"></i>
+                <h3 id="todoDetailHeader" class="text-lg font-bold text-slate-800 truncate flex-1">—</h3>
+                <button type="button" onclick="closeTodoDetail()" aria-label="關閉" class="text-slate-400 hover:text-slate-700 shrink-0"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div id="todoDetailBody" class="p-5 space-y-4 overflow-y-auto flex-1 text-sm"></div>
+            <div id="todoDetailFooter" class="p-4 border-t border-slate-200 flex flex-wrap items-center gap-2 justify-end bg-slate-50 rounded-b-lg flex-shrink-0"></div>
         </div>
     </div>
 
@@ -3516,25 +3587,32 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             </div>
 
             <!-- ════════════════════════════════════════════════════════════
-                 視圖:測試看板(Test Kanban) — 5 個泳道顯示 testcase 工作流
-                 (待測試 / 測試中 / 已通過 / 失敗 / 複測中)。
-                 狀態純從 ExecutionReport + linked Defect derived,不寫資料庫。
+                 視圖:測試看版(Task Board) — 5 個泳道追蹤 todo 進度。
+                 v1.1.9 改造:不再放 testcase,改放 TodoItem(Feature/Task/Bug/Spike),
+                 每筆 todo 可連結到 testcase / report / defect / test_round / project
+                 用以追蹤項目狀態跟每日進度。
                  ════════════════════════════════════════════════════════════ -->
             <div id="testKanbanWorkspace" class="flex-1 overflow-y-auto p-4 sm:p-6 bg-teal-50/20 hidden">
-                <!-- toolbar 完全比照缺陷管理 / 測試報告:title 左 + flex-1 + filter + 主動作 + 重整 -->
                 <div class="flex flex-wrap items-center gap-2 mb-4">
                     <div class="flex items-center gap-2">
                         <i class="fa-solid fa-columns text-teal-600"></i>
-                        <h2 class="font-bold text-slate-700">測試看板</h2>
+                        <h2 class="font-bold text-slate-700">測試看版</h2>
                     </div>
                     <div class="flex-1"></div>
                     <select id="tkAssigneeFilter" onchange="loadTestKanban()" class="text-xs px-2 py-1.5 border border-slate-300 rounded bg-white">
                         <option value="">所有指派人</option>
                         <option value="null">未指派</option>
                     </select>
+                    <select id="tkTypeFilter" onchange="loadTestKanban()" class="text-xs px-2 py-1.5 border border-slate-300 rounded bg-white">
+                        <option value="">所有類型</option>
+                        <option value="Feature">Feature</option>
+                        <option value="Task">Task</option>
+                        <option value="Bug">Bug</option>
+                        <option value="Spike">Spike</option>
+                    </select>
                     <button type="button" onclick="_tkOpenCreate()"
                         class="text-xs px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded font-medium flex items-center gap-1 shadow-sm">
-                        <i class="fa-solid fa-plus"></i> 新增測試案例
+                        <i class="fa-solid fa-plus"></i> 新增待辦
                     </button>
                     <button type="button" onclick="loadTestKanban()" title="重新整理"
                         class="text-xs px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-300 rounded font-medium text-slate-600 flex items-center gap-1">
@@ -3542,8 +3620,8 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                     </button>
                 </div>
                 <div id="tkEmptyState" class="hidden text-center py-20 text-slate-400">
-                    <i class="fa-solid fa-folder-open text-4xl mb-3 block"></i>
-                    <p>這個專案還沒有 testcase,先到「測試案例」分頁建立。</p>
+                    <i class="fa-solid fa-clipboard-list text-4xl mb-3 block"></i>
+                    <p>這個專案還沒有待辦項目。點右上「新增待辦」開始追蹤工作。</p>
                 </div>
                 <div id="tkBoard" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
                     <!-- 5 個 column 由 JS 動態 render;這裡只是 skeleton -->
@@ -3892,7 +3970,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             envVarsWorkspace:      '環境變數',
             editorWorkspace:       '案例編輯',
             fileCompareWorkspace:  '檔案比對',
-            testKanbanWorkspace:   '測試看板',
+            testKanbanWorkspace:   '測試看版',
             defectsWorkspace:      '缺陷管理',
         };
 
@@ -7368,7 +7446,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             'nav.testRound': { 'zh-TW': 'TestRun', 'en': 'Test Rounds' },
             'nav.recorder': { 'zh-TW': '測試錄製', 'en': 'Recorder' },
             'nav.reports': { 'zh-TW': '測試報告', 'en': 'Reports' },
-            'nav.testKanban': { 'zh-TW': '測試看板', 'en': 'Test Kanban' },
+            'nav.testKanban': { 'zh-TW': '測試看版', 'en': 'Task Board' },
             'nav.defects': { 'zh-TW': '缺陷管理', 'en': 'Defects' },
             'nav.review': { 'zh-TW': '審核', 'en': 'Review' },
             // 環境切換
@@ -11475,7 +11553,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             document.getElementById('backlogWorkspace')?.classList.add('hidden');
             document.getElementById('reviewWorkspace')?.classList.add('hidden');
             document.getElementById('fileCompareWorkspace')?.classList.add('hidden');
-            // 測試看板 / 缺陷管理(v1.1.9 新增)
+            // 測試看版 / 缺陷管理(v1.1.9 新增)
             document.getElementById('testKanbanWorkspace')?.classList.add('hidden');
             document.getElementById('defectsWorkspace')?.classList.add('hidden');
         }
@@ -16850,7 +16928,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             { key: 'schedule',    label: '測試排程' },
             { key: 'recording',   label: '測試錄製' },
             { key: 'report',      label: '測試報告' },
-            { key: 'testkanban',  label: '測試看板' },
+            { key: 'testkanban',  label: '測試看版' },
             { key: 'defect',      label: '缺陷管理' },
             { key: 'review',      label: '審核' },
             { key: 'filecompare', label: '檔案比對' },
@@ -19205,17 +19283,33 @@ curl -X POST http://localhost:8000/api/defects \\
     }
 
     // ════════════════════════════════════════════════════════════════════
-    // 測試看板(Test Kanban) — v1.1.9
-    // 5 個泳道:待測試 / 測試中 / 已通過 / 失敗 / 複測中。狀態純從
-    // ExecutionReport + linked Defect derived,backend GET /api/test-kanban。
+    // 測試看版(Task Board) — v1.1.9 重做
+    // 5 個泳道:待辦 / 進行中 / 待驗證 / 已完成 / 關閉。卡片是 TodoItem,
+    // 拖拽改 status,可連結 testcase / report / defect / test_round / project
+    // 來追蹤工作進度。
     // ════════════════════════════════════════════════════════════════════
     const _TK_COLUMNS = [
-        { key: 'todo',        label: '待測試', icon: 'fa-clock',                accent: 'bg-slate-400',   headerCls: 'bg-slate-100   text-slate-700',   bodyBg: 'bg-slate-50/50',   border: 'border-slate-200' },
-        { key: 'in_progress', label: '測試中', icon: 'fa-circle-notch fa-spin', accent: 'bg-blue-500',    headerCls: 'bg-blue-100    text-blue-700',    bodyBg: 'bg-blue-50/40',    border: 'border-blue-200' },
-        { key: 'passed',      label: '已通過', icon: 'fa-circle-check',         accent: 'bg-emerald-500', headerCls: 'bg-emerald-100 text-emerald-700', bodyBg: 'bg-emerald-50/40', border: 'border-emerald-200' },
-        { key: 'failed',      label: '失敗',   icon: 'fa-circle-xmark',         accent: 'bg-rose-500',    headerCls: 'bg-rose-100    text-rose-700',    bodyBg: 'bg-rose-50/40',    border: 'border-rose-200' },
-        { key: 'retest',      label: '複測中', icon: 'fa-arrows-rotate',        accent: 'bg-amber-500',   headerCls: 'bg-amber-100   text-amber-700',   bodyBg: 'bg-amber-50/40',   border: 'border-amber-200' },
+        { key: 'todo',        label: '待辦',   icon: 'fa-clock',                accent: 'bg-slate-400',   headerCls: 'bg-slate-100   text-slate-700',   bodyBg: 'bg-slate-50/50',   border: 'border-slate-200',   statuses: ['New','Assigned'] },
+        { key: 'in_progress', label: '進行中', icon: 'fa-circle-notch fa-spin', accent: 'bg-blue-500',    headerCls: 'bg-blue-100    text-blue-700',    bodyBg: 'bg-blue-50/40',    border: 'border-blue-200',    statuses: ['InProgress'] },
+        { key: 'in_review',   label: '待驗證', icon: 'fa-clipboard-check',      accent: 'bg-violet-500',  headerCls: 'bg-violet-100  text-violet-700',  bodyBg: 'bg-violet-50/40',  border: 'border-violet-200',  statuses: ['InReview','ReworkRequired'] },
+        { key: 'verified',    label: '已完成', icon: 'fa-circle-check',         accent: 'bg-emerald-500', headerCls: 'bg-emerald-100 text-emerald-700', bodyBg: 'bg-emerald-50/40', border: 'border-emerald-200', statuses: ['Verified'] },
+        { key: 'closed',      label: '關閉',   icon: 'fa-folder-closed',        accent: 'bg-stone-400',   headerCls: 'bg-stone-100   text-stone-700',   bodyBg: 'bg-stone-50/50',   border: 'border-stone-200',   statuses: ['Closed'] },
     ];
+
+    // column key → 拖到該欄時 PUT 給後端的 TodoStatus 值(第一個是主狀態)
+    const _TK_COLUMN_TO_STATUS = {
+        todo: 'New', in_progress: 'InProgress', in_review: 'InReview', verified: 'Verified', closed: 'Closed',
+    };
+    // status → column key (反查用)
+    const _TK_STATUS_TO_COLUMN = {};
+    _TK_COLUMNS.forEach(c => c.statuses.forEach(s => _TK_STATUS_TO_COLUMN[s] = c.key));
+
+    const _TODO_TYPE_PILL = {
+        Feature: { cls: 'bg-purple-100 text-purple-700 border-purple-200', icon: 'fa-star' },
+        Task:    { cls: 'bg-blue-100 text-blue-700 border-blue-200',       icon: 'fa-gear' },
+        Bug:     { cls: 'bg-rose-100 text-rose-700 border-rose-200',       icon: 'fa-bug' },
+        Spike:   { cls: 'bg-amber-100 text-amber-700 border-amber-200',    icon: 'fa-flask' },
+    };
 
     const _PRIORITY_PILL = {
         P0: 'bg-rose-100 text-rose-700 border-rose-200',
@@ -19224,13 +19318,15 @@ curl -X POST http://localhost:8000/api/defects \\
         P3: 'bg-slate-100 text-slate-600 border-slate-200',
     };
 
+    let _tkTodos = [];  // 最近一次 load 的 todo rows 快取(card click 找詳情用)
+
     async function showTestKanbanView() {
         if (typeof confirmDiscardIfDirty === 'function' && !confirmDiscardIfDirty()) return false;
         _navPush();
         _hideAllWorkspaces();
         _setViewMeta && _setViewMeta('nav.testKanban','nav.testKanban',
             '<i class="fa-solid fa-columns text-teal-600"></i>',
-            'Kanban','bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded font-medium');
+            'Board','bg-teal-100 text-teal-700 px-1.5 py-0.5 rounded font-medium');
         document.getElementById('testKanbanWorkspace').classList.remove('hidden');
         document.getElementById('mainHeader').classList.remove('hidden');
         document.getElementById('mainActions')?.classList.add('hidden');
@@ -19238,36 +19334,43 @@ curl -X POST http://localhost:8000/api/defects \\
     }
 
     async function loadTestKanban() {
-        if (!currentProjectId) {
-            document.getElementById('tkEmptyState').classList.remove('hidden');
-            document.getElementById('tkBoard').innerHTML = '';
-            return;
-        }
+        const board = document.getElementById('tkBoard');
+        const params = new URLSearchParams();
+        if (currentProjectId) params.set('project_id', currentProjectId);
         const assignee = document.getElementById('tkAssigneeFilter')?.value || '';
-        const params = new URLSearchParams({ project_id: currentProjectId });
-        if (assignee) params.set('assignee', assignee);
+        const ttype = document.getElementById('tkTypeFilter')?.value || '';
+        if (assignee === 'null') {
+            // 顯示未指派
+            params.set('mine', 'false');
+        } else if (assignee) {
+            params.set('assignee', assignee);
+        }
+        if (ttype) params.set('item_type', ttype);
+        params.set('limit', '500');
         try {
-            const data = await apiFetch(`/api/test-kanban?${params}`);
-            _tkRenderBoard(data);
+            const rows = await apiFetch(`/api/todos?${params}`);
+            _tkTodos = Array.isArray(rows) ? rows : (rows?.items || []);
+            _tkRenderBoard(_tkTodos);
         } catch (e) {
             console.error('[testKanban] load failed', e);
-            if (typeof showToast === 'function') showToast('載入看板失敗:' + (e.message||e), 'error');
+            if (typeof showToast === 'function') showToast('載入看版失敗:' + (e.message||e), 'error');
         }
     }
 
-    // column key 反查回 backend work_status enum value(拖拽改狀態時要送)
-    const _TK_COLUMN_TO_STATUS = {
-        todo: 'NEW', in_progress: 'IN_PROGRESS', passed: 'PASSED', failed: 'FAILED', retest: 'RETEST',
-    };
-
-    function _tkRenderBoard(data) {
-        const total = Object.values(data.counts || {}).reduce((s, n) => s + n, 0);
+    function _tkRenderBoard(todos) {
+        const buckets = {};
+        _TK_COLUMNS.forEach(c => buckets[c.key] = []);
+        todos.forEach(t => {
+            const col = _TK_STATUS_TO_COLUMN[t.status] || 'todo';
+            buckets[col].push(t);
+        });
+        const total = todos.length;
         document.getElementById('tkEmptyState').classList.toggle('hidden', total > 0);
         const board = document.getElementById('tkBoard');
         board.innerHTML = _TK_COLUMNS.map(col => {
-            const cards = (data.columns[col.key] || []);
-            const count = data.counts[col.key] || 0;
-            const targetStatus = _TK_COLUMN_TO_STATUS[col.key] || 'NEW';
+            const cards = buckets[col.key];
+            const count = cards.length;
+            const targetStatus = _TK_COLUMN_TO_STATUS[col.key];
             return `
                 <div class="rounded-lg border ${col.border} shadow-sm flex flex-col min-h-[400px] overflow-hidden bg-white"
                      data-tk-status="${targetStatus}"
@@ -19283,89 +19386,78 @@ curl -X POST http://localhost:8000/api/defects \\
                         <span class="text-xs font-mono px-2 py-0.5 bg-white/80 rounded-full font-bold">${count}</span>
                     </div>
                     <div class="p-2 space-y-2 flex-1 overflow-y-auto ${col.bodyBg}" style="max-height:70vh">
-                        ${cards.length ? cards.map(c => _tkRenderCard(c, col.key)).join('') :
-                            '<p class="text-xs text-slate-400 text-center py-10 italic">(本欄無 testcase,可從其他欄拖入或新增)</p>'}
+                        ${cards.length ? cards.map(t => _tkRenderCard(t)).join('') :
+                            '<p class="text-xs text-slate-400 text-center py-10 italic">(本欄沒有待辦,可拖入或新增)</p>'}
                     </div>
                 </div>`;
         }).join('');
     }
 
-    function _tkRenderCard(card, columnKey) {
-        const tcId = card.testcase_id;
-        const title = card.title || '(unnamed)';
-        const assignee = card.assignee || null;
-        const defBadge = card.defect_count > 0
-            ? `<span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-rose-100 text-rose-700 text-[10px] font-bold rounded-full border border-rose-200">
-                 <i class="fa-solid fa-bug text-[9px]"></i>${card.defect_count}
-               </span>` : '';
+    function _tkRenderCard(todo) {
+        const id = todo.id;
+        const title = todo.title || '(unnamed)';
+        const assignee = todo.assigned_to || null;
+        const typeInfo = _TODO_TYPE_PILL[todo.item_type] || _TODO_TYPE_PILL.Task;
+        const typePill = `<span class="text-[10px] px-1.5 py-0.5 ${typeInfo.cls} rounded border font-medium inline-flex items-center gap-0.5"><i class="fa-solid ${typeInfo.icon} text-[9px]"></i>${todo.item_type || 'Task'}</span>`;
+        const priPill = `<span class="text-[10px] px-1.5 py-0.5 ${_PRIORITY_PILL[todo.priority]||'bg-slate-100'} rounded font-bold">${todo.priority || 'P2'}</span>`;
+        const dueLine = todo.due_date
+            ? `<span class="text-[10px] text-amber-700"><i class="fa-regular fa-calendar mr-0.5"></i>${todo.due_date}</span>` : '';
         const avatarChar = assignee ? assignee.charAt(0).toUpperCase() : '?';
         const avatarBg = assignee ? 'bg-gradient-to-br from-teal-400 to-blue-500' : 'bg-slate-300';
-        // hover 浮出 編輯 / 刪除 按鈕。title 用 JSON.stringify + &quot; 兩次跳脫,
-        // 確保使用者輸入單/雙引號也不會破掉 onclick 字串。
         const safeTitleJsLiteral = JSON.stringify(title).replace(/"/g, '&quot;');
         const actBtns = `
             <div class="absolute top-1 right-1 hidden group-hover:flex items-center gap-1">
-                <button type="button" title="編輯" onclick="event.stopPropagation(); _tkEditCard('${tcId}')"
+                <button type="button" title="編輯" onclick="event.stopPropagation(); openTodoDetail('${id}')"
                     class="w-6 h-6 rounded bg-white/95 hover:bg-blue-100 text-blue-600 border border-slate-200 shadow flex items-center justify-center text-[10px]">
                     <i class="fa-solid fa-pen"></i>
                 </button>
-                <button type="button" title="刪除" onclick="event.stopPropagation(); _tkDeleteCard('${tcId}', ${safeTitleJsLiteral})"
+                <button type="button" title="刪除" onclick="event.stopPropagation(); _tkDeleteCard('${id}', ${safeTitleJsLiteral})"
                     class="w-6 h-6 rounded bg-white/95 hover:bg-rose-100 text-rose-600 border border-slate-200 shadow flex items-center justify-center text-[10px]">
                     <i class="fa-solid fa-trash"></i>
                 </button>
             </div>`;
         return `
-            <div onclick="openTkCardDrawer('${tcId}')"
+            <div onclick="openTodoDetail('${id}')"
                  draggable="true"
-                 ondragstart="event.dataTransfer.setData('text/tk-tc-id', '${tcId}'); this.classList.add('opacity-50');"
+                 ondragstart="event.dataTransfer.setData('text/tk-todo-id', '${id}'); this.classList.add('opacity-50');"
                  ondragend="this.classList.remove('opacity-50');"
                  class="group relative bg-white border border-slate-200 rounded-md p-2.5 shadow-sm hover:shadow-md hover:border-teal-400 hover:ring-1 hover:ring-teal-100 cursor-grab active:cursor-grabbing transition">
                 ${actBtns}
-                <div class="flex items-start justify-between gap-2 mb-1.5 min-h-[1.5rem] pr-14">
-                    <span class="text-[10px] font-mono text-slate-400">${card.code}</span>
-                    ${defBadge}
-                </div>
+                <div class="flex items-center gap-1.5 mb-1.5 pr-14">${typePill}${priPill}</div>
                 <div class="text-sm text-slate-700 leading-tight mb-2 line-clamp-2 font-medium">${escapeHtml(title)}</div>
                 <div class="flex items-center justify-between gap-2 text-[10px]">
                     <div class="flex items-center gap-1.5 min-w-0">
                         <div class="w-5 h-5 rounded-full ${avatarBg} text-white text-[10px] font-bold flex items-center justify-center shrink-0">${escapeHtml(avatarChar)}</div>
                         <span class="text-slate-500 truncate">${escapeHtml(assignee || '未指派')}</span>
                     </div>
+                    ${dueLine}
                 </div>
             </div>`;
     }
 
-    // 拖拽 drop:把卡片的 work_status 改成目標 column
+    // 拖拽 drop → PUT /api/todos/{id} 帶 new status
     async function _tkOnDrop(ev, targetStatus) {
         ev.preventDefault();
-        ev.currentTarget.classList.remove('ring-2','ring-teal-300');
-        const tcId = ev.dataTransfer.getData('text/tk-tc-id');
-        if (!tcId) return;
+        ev.currentTarget.classList.remove('ring-2','ring-teal-400');
+        const id = ev.dataTransfer.getData('text/tk-todo-id');
+        if (!id) return;
         try {
-            await apiFetch(`/api/nodes/${tcId}`, {
-                method: 'PATCH',
-                body: { work_status: targetStatus },
+            await apiFetch(`/api/todos/${id}`, {
+                method: 'PUT',
+                body: { status: targetStatus },
             });
             await loadTestKanban();
             if (typeof showToast === 'function') showToast('已更新狀態', 'success');
         } catch (e) {
             if (typeof showToast === 'function') showToast('狀態更新失敗:' + (e.message||e), 'error');
-            await loadTestKanban();  // refresh 還原
+            await loadTestKanban();
         }
     }
 
-    // 編輯卡片 → 跳到 testcase editor
-    function _tkEditCard(tcId) {
-        if (typeof loadTestCase === 'function') {
-            loadTestCase(tcId);
-        }
-    }
-
-    // 刪除卡片 → DELETE tree node
-    async function _tkDeleteCard(tcId, title) {
-        if (!confirm(`確定刪除測試案例「${title}」?此操作會連帶刪掉案例內容跟相關紀錄,無法復原。`)) return;
+    async function _tkDeleteCard(id, title) {
+        if (!confirm(`確定刪除待辦「${title}」?此操作無法復原。`)) return;
         try {
-            await apiFetch(`/api/nodes/${tcId}`, { method: 'DELETE', raw: true });
+            await apiFetch(`/api/todos/${id}`, { method: 'DELETE', raw: true });
             if (typeof showToast === 'function') showToast('已刪除', 'success');
             await loadTestKanban();
         } catch (e) {
@@ -19373,12 +19465,273 @@ curl -X POST http://localhost:8000/api/defects \\
         }
     }
 
-    // 新增 testcase:跳到 testcase 分頁 + 開既有 modal(避免重複造輪子)
+    // ── 新增待辦 modal ────────────────────────────────────────────────
     function _tkOpenCreate() {
-        if (typeof showTestCasesView === 'function') showTestCasesView();
+        if (!currentProjectId) {
+            if (typeof showToast === 'function') showToast('請先選擇專案', 'error');
+            return;
+        }
+        document.getElementById('todoCreateTitle').value = '';
+        document.getElementById('todoCreateType').value = 'Task';
+        document.getElementById('todoCreatePriority').value = 'P2';
+        document.getElementById('todoCreateStatus').value = 'New';
+        document.getElementById('todoCreateDueDate').value = '';
+        document.getElementById('todoCreateAssignee').value = '';
+        document.getElementById('todoCreateDescription').value = '';
+        _todoLoadAssigneeOptions('todoCreateAssignee');
+        document.getElementById('todoCreateModal').classList.remove('hidden');
+        setTimeout(() => document.getElementById('todoCreateTitle').focus(), 50);
+    }
+
+    function closeTodoCreateModal() {
+        document.getElementById('todoCreateModal').classList.add('hidden');
+    }
+
+    async function _todoLoadAssigneeOptions(selectId) {
+        const sel = document.getElementById(selectId);
+        if (!sel || !currentProjectId) return;
+        try {
+            const members = await apiFetch(`/api/projects/${currentProjectId}/members`).catch(()=>[]);
+            const current = sel.value;
+            sel.innerHTML = '<option value="">(未指派)</option>' +
+                (members || []).map(m => `<option value="${escapeHtml(m.username||'')}">${escapeHtml(m.username || m.display_name || '')}</option>`).join('');
+            if (current) sel.value = current;
+        } catch (_) {}
+    }
+
+    async function submitTodoCreate() {
+        const title = document.getElementById('todoCreateTitle').value.trim();
+        if (!title) { showToast?.('標題必填', 'error'); return; }
+        const payload = {
+            project_id: currentProjectId,
+            title,
+            item_type: document.getElementById('todoCreateType').value,
+            priority: document.getElementById('todoCreatePriority').value,
+            status: document.getElementById('todoCreateStatus').value,
+            due_date: document.getElementById('todoCreateDueDate').value || null,
+            assigned_to: document.getElementById('todoCreateAssignee').value || null,
+            assigned_to_type: 'user',
+            description: document.getElementById('todoCreateDescription').value || null,
+        };
+        try {
+            const created = await apiFetch('/api/todos', { method: 'POST', body: payload });
+            closeTodoCreateModal();
+            if (typeof showToast === 'function') showToast('已建立待辦', 'success');
+            await loadTestKanban();
+            openTodoDetail(created.id);
+        } catch (e) {
+            showToast?.('建立失敗:' + (e.message||e), 'error');
+        }
+    }
+
+    // ── 待辦詳情 modal(可編輯 + 管理 linked 項目)──────────────────
+    let _todoCurrent = null;
+    let _todoCurrentLinks = [];
+
+    async function openTodoDetail(todoId) {
+        document.getElementById('todoDetailModal').classList.remove('hidden');
+        document.getElementById('todoDetailHeader').textContent = '載入中…';
+        document.getElementById('todoDetailBody').innerHTML = '<p class="text-slate-400">載入中…</p>';
+        document.getElementById('todoDetailFooter').innerHTML = '';
+        try {
+            const [todo, links] = await Promise.all([
+                apiFetch(`/api/todos/${todoId}`),
+                apiFetch(`/api/todos/${todoId}/links`).catch(()=>[]),
+            ]);
+            _todoCurrent = todo;
+            _todoCurrentLinks = links || [];
+            _renderTodoDetail();
+        } catch (e) {
+            document.getElementById('todoDetailBody').innerHTML =
+                `<p class="text-rose-500">載入失敗:${escapeHtml(String(e.message||e))}</p>`;
+        }
+    }
+
+    function closeTodoDetail() {
+        document.getElementById('todoDetailModal').classList.add('hidden');
+        _todoCurrent = null;
+        _todoCurrentLinks = [];
+    }
+
+    function _renderTodoDetail() {
+        const t = _todoCurrent;
+        if (!t) return;
+        document.getElementById('todoDetailHeader').textContent = t.title || '(無標題)';
+        const typeInfo = _TODO_TYPE_PILL[t.item_type] || _TODO_TYPE_PILL.Task;
+        const linksHtml = _todoCurrentLinks.length === 0
+            ? '<p class="text-xs text-slate-400 italic">(尚無連結項目)</p>'
+            : _todoCurrentLinks.map(l => `
+                <div class="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded px-2 py-1.5">
+                    <span class="text-[10px] px-1.5 py-0.5 bg-white border border-slate-200 rounded font-mono uppercase text-slate-600">${escapeHtml(l.target_type)}</span>
+                    <span class="text-sm text-slate-700 flex-1 truncate">${escapeHtml(l.target_code ? `${l.target_code} · ${l.target_title||''}` : (l.target_title || l.target_id.slice(0,8)))}</span>
+                    ${l.note ? `<span class="text-[10px] text-slate-500 italic">${escapeHtml(l.note)}</span>` : ''}
+                    <button type="button" title="移除連結" onclick="_todoRemoveLink('${l.id}')" class="text-rose-500 hover:text-rose-700 text-xs"><i class="fa-solid fa-xmark"></i></button>
+                </div>`).join('');
+        document.getElementById('todoDetailBody').innerHTML = `
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">標題</label>
+                <input type="text" id="todoEditTitle" maxlength="300" value="${escapeHtml(t.title||'')}"
+                    class="w-full border border-slate-300 rounded p-2 text-sm focus:ring-2 focus:ring-teal-100 focus:border-teal-400 outline-none">
+            </div>
+            <div class="grid grid-cols-4 gap-3">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">類型</label>
+                    <select id="todoEditType" class="w-full border border-slate-300 rounded p-2 text-sm bg-white">
+                        ${['Feature','Task','Bug','Spike'].map(v=>`<option value="${v}" ${t.item_type===v?'selected':''}>${v}</option>`).join('')}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">優先序</label>
+                    <select id="todoEditPriority" class="w-full border border-slate-300 rounded p-2 text-sm bg-white">
+                        ${['P0','P1','P2','P3'].map(v=>`<option value="${v}" ${t.priority===v?'selected':''}>${v}</option>`).join('')}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">狀態</label>
+                    <select id="todoEditStatus" class="w-full border border-slate-300 rounded p-2 text-sm bg-white">
+                        <option value="New" ${t.status==='New'?'selected':''}>待辦</option>
+                        <option value="Assigned" ${t.status==='Assigned'?'selected':''}>已指派</option>
+                        <option value="InProgress" ${t.status==='InProgress'?'selected':''}>進行中</option>
+                        <option value="InReview" ${t.status==='InReview'?'selected':''}>待驗證</option>
+                        <option value="ReworkRequired" ${t.status==='ReworkRequired'?'selected':''}>退回</option>
+                        <option value="Verified" ${t.status==='Verified'?'selected':''}>已完成</option>
+                        <option value="Closed" ${t.status==='Closed'?'selected':''}>關閉</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">到期日</label>
+                    <input type="date" id="todoEditDueDate" value="${t.due_date || ''}" class="w-full border border-slate-300 rounded p-2 text-sm">
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">指派</label>
+                <select id="todoEditAssignee" class="w-full border border-slate-300 rounded p-2 text-sm bg-white">
+                    <option value="">(未指派)</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">描述 / 每日進度</label>
+                <textarea id="todoEditDescription" rows="4" placeholder="可記錄每日進度與工作筆記..."
+                    class="w-full border border-slate-300 rounded p-2 text-sm resize-none">${escapeHtml(t.description||'')}</textarea>
+            </div>
+            <!-- 連結項目區 -->
+            <div>
+                <div class="flex items-center justify-between mb-2">
+                    <label class="block text-sm font-medium text-slate-700">連結項目 <span class="text-slate-400 text-xs">(${_todoCurrentLinks.length})</span></label>
+                </div>
+                <div class="space-y-2 mb-2">${linksHtml}</div>
+                <div class="flex gap-2 items-end bg-slate-50/70 border border-slate-200 rounded p-2">
+                    <div class="flex-1">
+                        <label class="block text-[11px] text-slate-500 mb-0.5">類型</label>
+                        <select id="todoLinkType" class="w-full border border-slate-300 rounded p-1.5 text-xs bg-white">
+                            <option value="testcase">測試案例</option>
+                            <option value="report">執行報告</option>
+                            <option value="defect">缺陷</option>
+                            <option value="test_round">TestRun</option>
+                            <option value="project">專案</option>
+                        </select>
+                    </div>
+                    <div class="flex-1">
+                        <label class="block text-[11px] text-slate-500 mb-0.5">ID</label>
+                        <input type="text" id="todoLinkTargetId" placeholder="貼上目標 id" class="w-full border border-slate-300 rounded p-1.5 text-xs font-mono">
+                    </div>
+                    <button type="button" onclick="_todoAddLink()" class="text-xs px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded font-medium">
+                        <i class="fa-solid fa-link"></i> 加入
+                    </button>
+                </div>
+            </div>
+            <!-- meta footer -->
+            <div class="text-[11px] text-slate-400 border-t border-slate-100 pt-2 font-mono">
+                建立 ${t.created_at ? new Date(t.created_at).toLocaleString('zh-TW') : '—'}
+                · 更新 ${t.updated_at ? new Date(t.updated_at).toLocaleString('zh-TW') : '—'}
+                ${t.completed_at ? ' · 完成 '+new Date(t.completed_at).toLocaleString('zh-TW') : ''}
+            </div>
+        `;
+        _todoLoadAssigneeOptions('todoEditAssignee');
         setTimeout(() => {
-            if (typeof openTcCreateModal === 'function') openTcCreateModal();
-        }, 100);
+            const sel = document.getElementById('todoEditAssignee');
+            if (sel) sel.value = t.assigned_to || '';
+        }, 50);
+
+        document.getElementById('todoDetailFooter').innerHTML = `
+            <button type="button" onclick="_todoConfirmDelete()"
+                class="px-3 py-2 text-sm font-medium bg-white hover:bg-rose-50 text-rose-600 border border-rose-300 rounded transition">
+                <i class="fa-solid fa-trash"></i> 刪除
+            </button>
+            <div class="flex-1"></div>
+            <button type="button" onclick="closeTodoDetail()" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 rounded">關閉</button>
+            <button type="button" onclick="_todoSaveEdit()" class="px-4 py-2 text-sm font-medium bg-teal-600 hover:bg-teal-700 text-white rounded shadow-sm">
+                <i class="fa-solid fa-floppy-disk"></i> 儲存
+            </button>
+        `;
+    }
+
+    async function _todoSaveEdit() {
+        if (!_todoCurrent) return;
+        const payload = {
+            title:        document.getElementById('todoEditTitle').value.trim(),
+            item_type:    document.getElementById('todoEditType').value,
+            priority:     document.getElementById('todoEditPriority').value,
+            status:       document.getElementById('todoEditStatus').value,
+            due_date:     document.getElementById('todoEditDueDate').value || null,
+            assigned_to:  document.getElementById('todoEditAssignee').value || null,
+            assigned_to_type: 'user',
+            description:  document.getElementById('todoEditDescription').value || null,
+        };
+        if (!payload.title) { showToast?.('標題必填','error'); return; }
+        try {
+            const updated = await apiFetch(`/api/todos/${_todoCurrent.id}`, { method: 'PUT', body: payload });
+            _todoCurrent = updated;
+            _renderTodoDetail();
+            if (typeof showToast === 'function') showToast('已儲存', 'success');
+            await loadTestKanban();
+        } catch (e) {
+            showToast?.('儲存失敗:' + (e.message||e), 'error');
+        }
+    }
+
+    async function _todoConfirmDelete() {
+        if (!_todoCurrent) return;
+        if (!confirm(`確定刪除待辦「${_todoCurrent.title}」?`)) return;
+        try {
+            await apiFetch(`/api/todos/${_todoCurrent.id}`, { method: 'DELETE', raw: true });
+            closeTodoDetail();
+            if (typeof showToast === 'function') showToast('已刪除', 'success');
+            await loadTestKanban();
+        } catch (e) {
+            showToast?.('刪除失敗:' + (e.message||e), 'error');
+        }
+    }
+
+    async function _todoAddLink() {
+        if (!_todoCurrent) return;
+        const target_type = document.getElementById('todoLinkType').value;
+        const target_id = document.getElementById('todoLinkTargetId').value.trim();
+        if (!target_id) { showToast?.('請輸入目標 id', 'error'); return; }
+        try {
+            await apiFetch(`/api/todos/${_todoCurrent.id}/links`, {
+                method: 'POST',
+                body: { target_type, target_id, link_kind: 'relates_to' },
+            });
+            // reload links
+            _todoCurrentLinks = await apiFetch(`/api/todos/${_todoCurrent.id}/links`).catch(()=>[]);
+            _renderTodoDetail();
+            if (typeof showToast === 'function') showToast('已加入連結', 'success');
+        } catch (e) {
+            showToast?.('加入連結失敗:' + (e.message || e?.detail || e), 'error');
+        }
+    }
+
+    async function _todoRemoveLink(linkId) {
+        if (!_todoCurrent || !confirm('移除這個連結?')) return;
+        try {
+            await apiFetch(`/api/todos/${_todoCurrent.id}/links/${linkId}`, { method: 'DELETE', raw: true });
+            _todoCurrentLinks = _todoCurrentLinks.filter(l => l.id !== linkId);
+            _renderTodoDetail();
+            if (typeof showToast === 'function') showToast('已移除連結', 'success');
+        } catch (e) {
+            showToast?.('移除失敗:' + (e.message||e), 'error');
+        }
     }
 
     function escapeHtml(s) {
@@ -19388,57 +19741,9 @@ curl -X POST http://localhost:8000/api/defects \\
         }[c]));
     }
 
-    async function openTkCardDrawer(testcaseId) {
-        document.getElementById('tkCardDrawer').classList.remove('hidden');
-        document.getElementById('tkDrawerHeader').innerHTML = '<i class="fa-solid fa-flask-vial text-teal-600"></i><span>載入中…</span>';
-        document.getElementById('tkDrawerBody').innerHTML = '<p class="text-slate-400">載入中…</p>';
-        try {
-            // 直接 fetch tree_node detail + 該 testcase 的最近 defects
-            const node = await apiFetch(`/api/tree-nodes/${testcaseId}`).catch(()=>null);
-            const defects = await apiFetch(`/api/defects?project_id=${encodeURIComponent(currentProjectId)}&search=&page_size=50`).catch(()=>[]);
-            const related = (defects || []).filter(d => d.linked_testcase_id === testcaseId);
-            document.getElementById('tkDrawerHeader').innerHTML =
-                `<i class="fa-solid fa-flask-vial text-teal-600"></i><span>${escapeHtml(node?.name || testcaseId.slice(0,8))}</span>`;
-            document.getElementById('tkDrawerBody').innerHTML = `
-                <div class="space-y-3">
-                    <div class="text-xs text-slate-500">
-                        <div class="font-medium text-slate-700 mb-1">testcase id</div>
-                        <code class="text-[11px]">${testcaseId}</code>
-                    </div>
-                    <div>
-                        <div class="font-medium text-slate-700 mb-2 flex items-center gap-2">
-                            <i class="fa-solid fa-bug text-rose-500"></i> 相關缺陷 (${related.length})
-                        </div>
-                        ${related.length === 0 ? '<p class="text-xs text-slate-400">(沒有 linked defect)</p>' :
-                          related.map(d => `
-                            <div class="border border-slate-200 rounded p-2 mb-2 hover:bg-rose-50/50 cursor-pointer"
-                                 onclick="openDefectDetail('${d.id}'); closeTkCardDrawer();">
-                                <div class="flex items-center gap-2">
-                                    <span class="font-mono text-xs text-rose-700">${d.code}</span>
-                                    <span class="text-[10px] px-1.5 py-0.5 ${_defStatusPillCls(d.status)} rounded">${_defStatusZh(d.status)}</span>
-                                    <span class="text-[10px] px-1.5 py-0.5 ${_PRIORITY_PILL[d.priority]||'bg-slate-100'} rounded">${d.priority}</span>
-                                </div>
-                                <div class="text-sm mt-1">${escapeHtml(d.title)}</div>
-                            </div>`).join('')}
-                    </div>
-                </div>`;
-            document.getElementById('tkDrawerFooter').innerHTML = `
-                <button type="button" onclick="openDefectCreateModal({linked_testcase_id:'${testcaseId}'}); closeTkCardDrawer();"
-                    class="text-xs px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded font-medium">
-                    <i class="fa-solid fa-bug"></i> 開新缺陷
-                </button>`;
-        } catch (e) {
-            document.getElementById('tkDrawerBody').innerHTML = `<p class="text-rose-500">載入失敗:${escapeHtml(String(e.message||e))}</p>`;
-        }
-    }
-
-    function closeTkCardDrawer() {
-        document.getElementById('tkCardDrawer').classList.add('hidden');
-    }
-
     // ════════════════════════════════════════════════════════════════════
     // 缺陷管理(Defect Management) — v1.1.9
-    // List 視圖(原本還有 kanban toggle,v1.1.9 移除,kanban 改放在「測試看板」)
+    // List 視圖(原本還有 kanban toggle,v1.1.9 移除,kanban 改放在「測試看版」)
     // ════════════════════════════════════════════════════════════════════
     let _defRows = [];
     let _defSearchTimer = null;

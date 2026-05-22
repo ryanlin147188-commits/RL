@@ -17,6 +17,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.dependencies import get_current_user
 from app.auth.project_membership import ensure_project_member
 from app.database import get_db
+from app.models.defect import Defect
+from app.models.execution_report import ExecutionReport
 from app.models.project import Project
 from app.models.test_round import TestRound
 from app.models.todo_item import TodoItem
@@ -38,6 +40,9 @@ _TARGET_REGISTRY = {
     "test_round": (TestRound, "name", None),
     "project": (Project, "name", None),
     # testcase 特殊:tree_nodes 有 level_type 約束
+    # v1.1.9 新增:測試看版 todo 可連 report / defect
+    "report":     (ExecutionReport, "task_id", None),  # report 沒 title,用 task_id 當顯示
+    "defect":     (Defect, "title", "code"),
 }
 
 

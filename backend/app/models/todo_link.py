@@ -21,10 +21,13 @@ from .base import Base
 
 
 # 後端驗證白名單;router 校驗 target_type 必須 in 此集合
+# v1.1.9 加 report / defect:測試看版 todo 可連結到失敗報告或缺陷追蹤
 ALLOWED_TARGET_TYPES = {
     "testcase",
     "test_round",
     "project",
+    "report",
+    "defect",
 }
 
 
