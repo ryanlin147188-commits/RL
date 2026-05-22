@@ -19859,7 +19859,7 @@ curl -X POST http://localhost:8000/api/defects \\
                             return `
                             <div class="group relative bg-white border border-slate-200 rounded overflow-hidden hover:border-rose-300 transition">
                                 ${isImg
-                                    ? `<a href="${escapeHtml(a.url)}" target="_blank" rel="noopener"><img src="${escapeHtml(a.url)}" alt="${escapeHtml(a.name)}" class="w-full h-16 object-cover"></a>`
+                                    ? `<img src="${escapeHtml(a.url)}" alt="${escapeHtml(a.name)}" class="w-full h-16 object-cover cursor-zoom-in" onclick="openImageLightbox(this.src)">`
                                     : `<a href="${escapeHtml(a.url)}" target="_blank" rel="noopener" class="block h-16 flex items-center justify-center text-slate-500 hover:text-rose-600"><i class="fa-solid fa-file"></i></a>`}
                                 <div class="px-1 py-0.5 text-[10px] text-slate-600 truncate" title="${escapeHtml(a.name)}">${escapeHtml(a.name)}</div>
                                 <button type="button" onclick="_defDetailRemoveAttachment('${escapeHtml(a.url).replace(/'/g, "\\'")}')"
