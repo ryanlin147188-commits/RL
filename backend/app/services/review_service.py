@@ -433,6 +433,7 @@ def _kwargs_for_review(obj: Any) -> Optional[dict]:
     """
     import uuid as _uuid
 
+    from app.models.defect import Defect
     from app.models.execution_report import ExecutionReport
     from app.models.recording import RecordingSession
     from app.models.tree_node import LevelType, TreeNode
@@ -452,6 +453,9 @@ def _kwargs_for_review(obj: Any) -> Optional[dict]:
         return {"entity_type": ReviewableEntityType.SCRIPT, "entity_id": _ensure_id(obj)}
     if isinstance(obj, ExecutionReport):
         return {"entity_type": ReviewableEntityType.REPORT, "entity_id": _ensure_id(obj)}
+    # v1.1.9:Defect 一建立就進審核 queue,不再要求使用者手動點「送審」
+    if isinstance(obj, Defect):
+        return {"entity_type": ReviewableEntityType.DEFECT, "entity_id": _ensure_id(obj)}
     return None
 
 

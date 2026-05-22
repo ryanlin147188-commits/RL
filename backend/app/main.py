@@ -436,6 +436,47 @@ async def _ensure_default_admin() -> None:
             )
 
 
+async def _backfill_defect_reviews() -> None:
+    """補做 v1.1.9 之前建立、還沒對應 ReviewRecord 的 Defect。
+
+    idempotent:用 LEFT JOIN 找缺少的,逐筆 INSERT。失敗單筆不擋其他;
+    review_service.submit 不適用(它依賴 current_username / current_org_id
+    context vars,lifespan 階段沒設),所以這裡直接構 ReviewRecord 寫 DB。
+    """
+    from datetime import datetime
+    from sqlalchemy import select
+    from app.database import AsyncSessionLocal
+    from app.models.defect import Defect
+    from app.models.review import ReviewRecord, ReviewableEntityType, ReviewStatus
+
+    async with AsyncSessionLocal() as session:
+        # 已存在的 defect review_record entity_id set
+        existing_ids = set(
+            (await session.execute(
+                select(ReviewRecord.entity_id).where(
+                    ReviewRecord.entity_type == ReviewableEntityType.DEFECT
+                )
+            )).scalars().all()
+        )
+        defects = (await session.execute(select(Defect))).scalars().all()
+        missing = [d for d in defects if d.id not in existing_ids]
+        if not missing:
+            return
+        for d in missing:
+            session.add(ReviewRecord(
+                entity_type=ReviewableEntityType.DEFECT,
+                entity_id=d.id,
+                status=ReviewStatus.PENDING,
+                submitted_by=d.reporter or "system",
+                submitted_at=d.created_at or datetime.utcnow(),
+                organization_id=d.organization_id,
+            ))
+        await session.commit()
+        logging.getLogger(__name__).info(
+            "[backfill] created %d defect review_record(s)", len(missing)
+        )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # uvicorn's own dictConfig (run during server bootstrap, after the import-
@@ -518,6 +559,14 @@ async def lifespan(app: FastAPI):
         logging.getLogger(__name__).exception(
             "default admin bootstrap failed: %s", e,
         )
+    # v1.1.9 backfill:既存 Defect 補上對應的 ReviewRecord。
+    # 新建的 defect 已由 install_review_autocreate before_flush hook 自動建,
+    # 但 v1.1.9 升版前已存在的 defect 沒對應 review_record,從審核頁看不到。
+    # idempotent:已存在 (entity_type=defect, entity_id=X) 的 review_record 跳過。
+    try:
+        await _backfill_defect_reviews()
+    except Exception:
+        logging.getLogger(__name__).exception("defect review backfill failed")
     # Casbin enforcer(opt-in via CASBIN_ENABLED=True)— 進程內單例,首個
     # request 進來前必須完成 init 否則 require_casbin 一律 deny。adapter 在
     # init 時會 auto-create ``casbin_rule`` 表,與既有 schema 共存。

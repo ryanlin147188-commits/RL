@@ -19883,19 +19883,9 @@ curl -X POST http://localhost:8000/api/defects \\
         // 載入 assignee / testcase / report 下拉(reuse create modal 的函式,但讀寫到 defEdit* id)
         _defLoadEditOptions(d);
 
-        // Footer action buttons:儲存 / 送審 / 刪除 / 關閉(沿用 testRoundModal 配色)
+        // Footer action buttons:只留「儲存」(刪除走 list 行內;送審改後端自動;
+        // 關閉走 header 的 X)。 v1.1.9 簡化:減少誤觸 / 視覺干擾。
         document.getElementById('defDetailFooter').innerHTML = `
-            <button type="button" onclick="_defConfirmDelete('${d.id}', '${d.code}')"
-                class="px-3 py-2 text-sm font-medium bg-white hover:bg-rose-50 text-rose-600 border border-rose-300 rounded transition">
-                <i class="fa-solid fa-trash"></i> 刪除
-            </button>
-            <button type="button" onclick="_defSubmitForReview('${d.id}')"
-                class="px-3 py-2 text-sm font-medium bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-300 rounded transition">
-                <i class="fa-solid fa-paper-plane"></i> 送審
-            </button>
-            <div class="flex-1"></div>
-            <button type="button" onclick="closeDefectDetail()"
-                class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 rounded transition">關閉</button>
             <button type="button" onclick="_defSaveEdit('${d.id}')"
                 class="px-4 py-2 text-sm font-medium bg-rose-600 text-white hover:bg-rose-700 rounded shadow-sm transition">
                 <i class="fa-solid fa-floppy-disk"></i> 儲存
