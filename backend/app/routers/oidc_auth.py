@@ -119,6 +119,11 @@ async def oidc_login(
     authorize_url = await _oidc.build_authorize_url(p, state)
 
     resp = RedirectResponse(authorize_url, status_code=302)
+    # Path 設成 "/" 而非 "/api/auth":部分瀏覽器(Chrome/Safari 對 path 沒結尾
+    # 斜線時的 prefix matching)會在 Zoho 302 回 ``/api/auth/zoho/callback`` 時
+    # 把 cookie 過濾掉,造成「缺少 state cookie」。state cookie 本身是 HS256
+    # 自簽 JWT + 10 分鐘 TTL + HttpOnly + typ=oidc_state 三重驗,放寬 path
+    # 不會多開攻擊面。
     resp.set_cookie(
         _STATE_COOKIE_NAME,
         _sign_state(state, provider, redirect_to),
@@ -126,7 +131,7 @@ async def oidc_login(
         httponly=True,
         samesite="lax",
         secure=request.url.scheme == "https",
-        path="/api/auth",
+        path="/",
     )
     return resp
 
@@ -158,17 +163,29 @@ async def oidc_callback(
             f"/?oidc_error=provider_disabled&desc={provider}", status_code=302,
         )
 
+    # callback 階段任何驗證失敗都 redirect 回 SPA 首頁帶 error,不要丟 JSON
+    # detail page 給使用者看(會 confuse non-tech user)。SPA 偵測 hash 顯示
+    # 友善訊息。
+    def _err(code: str, desc: str) -> RedirectResponse:
+        logger.warning("[oidc/%s/callback] %s: %s", provider, code, desc)
+        return RedirectResponse(f"/?oidc_error={code}&desc={desc[:200]}", status_code=302)
+
     if not code or not state:
-        raise HTTPException(400, "callback 缺少 code / state")
+        return _err("missing_code_state", "callback 缺少 code 或 state")
     if not state_cookie:
-        raise HTTPException(400, "缺少 state cookie;可能 cookie 過期或被瀏覽器擋下")
+        # v1.1.9 已改 path=/,若仍沒收到 → 通常是 cookie TTL(10 分鐘)過期、
+        # 使用者開了多個 tab 互蓋 state、或瀏覽器擋 cookie。請重新登入。
+        return _err(
+            "missing_state_cookie",
+            "缺少 state cookie;可能在 Zoho 登入頁停留超過 10 分鐘,或瀏覽器擋了 cookie。請重新點擊 Zoho 登入。",
+        )
     decoded = _verify_state(state_cookie)
     if not decoded:
-        raise HTTPException(400, "state cookie 無效或已過期")
+        return _err("invalid_state_cookie", "state cookie 無效或已過期,請重新登入")
     if decoded.get("state") != state:
-        raise HTTPException(400, "state 不符(可能是 CSRF)")
+        return _err("state_mismatch", "state 不符(可能多分頁互蓋),請重新登入")
     if decoded.get("provider") != provider:
-        raise HTTPException(400, "state cookie 的 provider 跟 callback URL 不一致")
+        return _err("provider_mismatch", "state cookie 的 provider 跟 callback URL 不一致")
 
     try:
         token = await _oidc.exchange_code_for_token(p, code)

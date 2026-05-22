@@ -9934,10 +9934,16 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             const desc = params.get('desc') || '';
             const ERROR_LABELS = {
                 provision: 'Zoho 登入失敗：帳號建立 / 綁定錯誤',
-                token_exchange: 'Zoho 登入失敗：token 交換錯誤',
-                userinfo: 'Zoho 登入失敗：讀取使用者資訊錯誤',
-                missing_sub: 'Zoho 登入失敗：未取得使用者識別',
-                provider_disabled: 'Zoho 登入失敗：SSO 未啟用',
+                token_exchange: 'Zoho 登入失敗:token 交換錯誤',
+                userinfo: 'Zoho 登入失敗:讀取使用者資訊錯誤',
+                missing_sub: 'Zoho 登入失敗:未取得使用者識別',
+                provider_disabled: 'Zoho 登入失敗:SSO 未啟用',
+                // v1.1.9 新增:OIDC state 驗證失敗類別
+                missing_state_cookie: 'Zoho 登入失敗:cookie 已過期',
+                invalid_state_cookie: 'Zoho 登入失敗:state cookie 無效',
+                state_mismatch:       'Zoho 登入失敗:state 不符,請重新登入',
+                provider_mismatch:    'Zoho 登入失敗:provider 不一致',
+                missing_code_state:   'Zoho 登入失敗:callback 參數不完整',
             };
             const label = ERROR_LABELS[err] || `Zoho 登入失敗 (${err})`;
             const detail = desc ? `:${decodeURIComponent(desc)}` : '';
