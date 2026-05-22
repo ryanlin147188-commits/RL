@@ -3808,16 +3808,14 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
 
     <!-- 圖片燈箱（點擊報告截圖放大；點背景或按 Esc 關閉） -->
     <div id="imgLightbox" class="fixed inset-0 bg-black/85 hidden items-center justify-center cursor-zoom-out"
-         style="z-index:99999" onclick="closeImageLightbox(event)">
-        <!-- wrapper inline-block 緊貼 img 邊界,X 按鈕 absolute 定位在右上角 -->
-        <div class="relative inline-block" onclick="event.stopPropagation()">
-            <img id="imgLightboxImg" src="" alt="" class="block max-w-[95vw] max-h-[95vh] object-contain shadow-2xl"
-                 onclick="closeImageLightbox(event)" />
-            <button type="button" onclick="closeImageLightbox(event)" aria-label="關閉圖片" title="關閉"
-                class="absolute top-2 right-2 w-9 h-9 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center shadow-lg backdrop-blur-sm transition">
-                <i class="fa-solid fa-xmark text-lg"></i>
-            </button>
-        </div>
+         style="z-index:2147483647" onclick="closeImageLightbox(event)">
+        <img id="imgLightboxImg" src="" alt="" class="block max-w-[95vw] max-h-[95vh] object-contain shadow-2xl" />
+        <!-- X 按鈕直接放 lightbox 容器右上,fixed/absolute 對 fixed inset-0 父元素效果相同 = 視窗右上 -->
+        <button type="button" onclick="closeImageLightbox(event)" aria-label="關閉圖片" title="關閉"
+            style="z-index:2147483647"
+            class="fixed top-4 right-4 w-10 h-10 rounded-full bg-black/70 hover:bg-black/90 text-white flex items-center justify-center shadow-lg transition">
+            <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
         <div class="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/70 text-xs tracking-wide pointer-events-none">點背景或按 Esc 關閉</div>
     </div>
 
@@ -6481,7 +6479,10 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             img.src = url;
             el.classList.remove('hidden');
             el.classList.add('flex');
-            // 防止背景滾動
+            // v1.1.9 fix:無論其他 modal z-index 多高,都要在 lightbox 上面贏。
+            // 把 lightbox 移到 body 末端 → DOM 後到 + z-index 2147483647(MAX_INT)
+            // 雙保險,等於 native top-layer 效果。
+            document.body.appendChild(el);
             document.body.style.overflow = 'hidden';
         }
         function closeImageLightbox(event) {
