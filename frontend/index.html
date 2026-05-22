@@ -3807,13 +3807,18 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
     </div>
 
     <!-- 圖片燈箱（點擊報告截圖放大；點背景或按 Esc 關閉） -->
-    <div id="imgLightbox" class="fixed inset-0 bg-black/85 hidden z-[9999] items-center justify-center cursor-zoom-out" onclick="closeImageLightbox(event)">
-        <img id="imgLightboxImg" src="" alt="" class="max-w-[95vw] max-h-[95vh] object-contain shadow-2xl" />
-        <button type="button" onclick="closeImageLightbox(event)" aria-label="關閉圖片" title="關閉"
-            class="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/15 hover:bg-white/30 text-white flex items-center justify-center shadow-lg backdrop-blur-sm transition">
-            <i class="fa-solid fa-xmark text-xl"></i>
-        </button>
-        <div class="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/70 text-xs tracking-wide">點背景或按 Esc 關閉</div>
+    <div id="imgLightbox" class="fixed inset-0 bg-black/85 hidden items-center justify-center cursor-zoom-out"
+         style="z-index:99999" onclick="closeImageLightbox(event)">
+        <!-- wrapper inline-block 緊貼 img 邊界,X 按鈕 absolute 定位在右上角 -->
+        <div class="relative inline-block" onclick="event.stopPropagation()">
+            <img id="imgLightboxImg" src="" alt="" class="block max-w-[95vw] max-h-[95vh] object-contain shadow-2xl"
+                 onclick="closeImageLightbox(event)" />
+            <button type="button" onclick="closeImageLightbox(event)" aria-label="關閉圖片" title="關閉"
+                class="absolute top-2 right-2 w-9 h-9 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center shadow-lg backdrop-blur-sm transition">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+        </div>
+        <div class="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/70 text-xs tracking-wide pointer-events-none">點背景或按 Esc 關閉</div>
     </div>
 
     <!-- ═════════════════════════════════════════════════════════════
