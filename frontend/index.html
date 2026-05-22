@@ -1209,21 +1209,19 @@
     </div>
 
     <!-- ════════════════════════════════════════════════════════════════════
-         缺陷管理 — 詳情 modal(置中彈窗,跟其他平台 modal 統一)
+         缺陷管理 — 詳情 modal(編輯式表單,沿用 testRoundModal 設計)
          ════════════════════════════════════════════════════════════════════ -->
-    <div id="defectDetailDrawer" class="hidden fixed inset-0 z-[290] bg-black/40 flex items-center justify-center p-4"
+    <div id="defectDetailDrawer" class="fixed inset-0 bg-slate-900/50 hidden z-[160] flex items-center justify-center"
          onclick="if(event.target===this) closeDefectDetail()">
-        <div class="bg-white w-full max-w-3xl max-h-[90vh] rounded-xl shadow-2xl ring-1 ring-rose-200 overflow-hidden flex flex-col"
+        <div class="bg-white rounded-lg shadow-xl w-[640px] max-w-[95vw] flex flex-col max-h-[90vh]"
              onclick="event.stopPropagation()">
-            <div class="px-5 py-3 border-b border-stone-200 bg-rose-50/70 flex items-center justify-between flex-shrink-0">
-                <h3 id="defDetailHeader" class="font-bold text-stone-800 text-base flex items-center gap-2 min-w-0">
-                    <i class="fa-solid fa-bug text-rose-600 shrink-0"></i>
-                    <span>—</span>
-                </h3>
-                <button type="button" onclick="closeDefectDetail()" aria-label="關閉" class="text-stone-400 hover:text-stone-700 shrink-0"><i class="fa-solid fa-xmark"></i></button>
+            <div class="p-4 border-b border-slate-200 flex items-center gap-2 flex-shrink-0">
+                <i class="fa-solid fa-bug text-rose-500"></i>
+                <h3 id="defDetailHeader" class="text-lg font-bold text-slate-800 truncate flex-1">—</h3>
+                <button type="button" onclick="closeDefectDetail()" aria-label="關閉" class="text-slate-400 hover:text-slate-700 shrink-0"><i class="fa-solid fa-xmark"></i></button>
             </div>
-            <div id="defDetailBody" class="p-5 text-sm overflow-y-auto flex-1"></div>
-            <div id="defDetailFooter" class="px-5 py-3 border-t border-stone-200 bg-stone-50 flex flex-wrap items-center gap-2 justify-end flex-shrink-0"></div>
+            <div id="defDetailBody" class="p-5 space-y-4 overflow-y-auto flex-1"></div>
+            <div id="defDetailFooter" class="p-4 border-t border-slate-200 flex flex-wrap items-center gap-2 justify-end bg-slate-50 rounded-b-lg flex-shrink-0"></div>
         </div>
     </div>
 
@@ -3355,6 +3353,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                                 <option value="" data-i18n="review.type.all">全部類型</option>
                                 <option value="testcase" data-i18n="review.type.testcase">測試案例</option>
                                 <option value="report" data-i18n="review.type.report">測試報告</option>
+                                <option value="defect" data-i18n="review.type.defect">缺陷管理</option>
                             </select>
                             <button type="button" onclick="reviewLoad()" class="px-3 py-1.5 border border-stone-300 rounded-md text-xs hover:bg-violet-50 transition">
                                 <i class="fa-solid fa-rotate"></i> <span data-i18n="common.refresh">重新整理</span>
@@ -3601,11 +3600,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                     <span class="text-slate-700">已選 <strong id="defBatchCount" class="text-rose-700">0</strong> 筆</span>
                     <button type="button" onclick="defBatchDelete()"
                         class="text-xs px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded font-medium">
-                        <i class="fa-solid fa-trash"></i> 批次刪除
-                    </button>
-                    <button type="button" onclick="defBatchClearSelection()"
-                        class="text-xs px-3 py-1 bg-white hover:bg-slate-50 text-slate-600 border border-slate-300 rounded font-medium">
-                        取消選取
+                        <i class="fa-solid fa-trash"></i> 刪除
                     </button>
                 </div>
 
@@ -19772,146 +19767,214 @@ curl -X POST http://localhost:8000/api/defects \\
 
     function _defRenderDetail(d) {
         _defCurrentDetail = d;
-        // Header:顯示 code 跟 title(可 truncate)
+        // Header:顯示 code 跟 title
         document.getElementById('defDetailHeader').innerHTML = `
-            <i class="fa-solid fa-bug text-rose-600 shrink-0"></i>
-            <span class="font-mono text-rose-700">${d.code}</span>
-            <span class="text-sm font-normal text-slate-700 ml-2 truncate" title="${escapeHtml(d.title)}">${escapeHtml(d.title)}</span>`;
+            <span class="font-mono text-rose-700 text-sm shrink-0">${d.code}</span>
+            <span class="text-sm font-normal text-slate-600 truncate" title="${escapeHtml(d.title)}">${escapeHtml(d.title)}</span>`;
         const attachments = d.attachments_json || [];
 
-        // Row helper(label / value)— 仿 reviewDetailModal 設計
-        const _row = (k, v) => `
-            <div class="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 py-1.5 border-b border-slate-100 last:border-b-0">
-                <div class="text-[11px] uppercase tracking-wide text-slate-500 sm:w-32 flex-shrink-0 pt-0.5">${k}</div>
-                <div class="text-sm text-slate-800 break-all">${v ?? '<span class="text-slate-400 italic">—</span>'}</div>
-            </div>`;
-        const sectionHeader = (icon, title) => `
-            <div class="text-[11px] uppercase tracking-wide text-slate-500 mb-2 flex items-center gap-2">
-                <i class="${icon} text-rose-400"></i>
-                <span>${title}</span>
-            </div>`;
-        const textBlock = txt => txt
-            ? `<div class="bg-slate-50/60 rounded-lg border border-slate-100 px-3 py-2 text-sm whitespace-pre-wrap leading-relaxed text-stone-800">${escapeHtml(txt)}</div>`
-            : `<div class="text-stone-400 italic text-xs px-3">(無內容)</div>`;
-
+        // Form-style body 仿 testRoundModal:label + form control
         document.getElementById('defDetailBody').innerHTML = `
-            <div class="space-y-5">
-                <!-- Hero:標題 + 嚴重度/優先/狀態 pill + 指派 -->
-                <div class="bg-rose-50/50 rounded-lg p-4 border border-rose-100">
-                    <div class="flex items-center gap-2 mb-2 flex-wrap">
-                        <span class="text-xs px-2.5 py-0.5 ${_defStatusPillCls(d.status)} rounded font-semibold">${_defStatusZh(d.status)}</span>
-                        <span class="text-xs px-2.5 py-0.5 ${_defSeverityPillCls(d.severity)} rounded font-semibold">嚴重度:${_defSeverityZh(d.severity)}</span>
-                        <span class="text-xs px-2.5 py-0.5 ${_PRIORITY_PILL[d.priority]||'bg-slate-100'} rounded font-semibold">優先:${d.priority}</span>
-                        ${d.assignee ? `<span class="text-xs px-2.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded"><i class="fa-regular fa-user mr-1"></i>${escapeHtml(d.assignee)}</span>`
-                                     : '<span class="text-xs px-2.5 py-0.5 bg-slate-100 text-slate-500 rounded">未指派</span>'}
-                    </div>
-                    <div class="text-base font-semibold text-stone-800 leading-snug">${escapeHtml(d.title)}</div>
-                    <div class="mt-1 font-mono text-[12px] text-stone-500">
-                        ${d.code}
-                        <button type="button" onclick="navigator.clipboard?.writeText('${d.code}');showToast?.('已複製','info')" class="ml-2 text-[10px] px-1.5 py-0.5 border border-stone-300 rounded hover:bg-stone-50 text-stone-500">
-                            <i class="fa-regular fa-copy"></i>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- 基本資訊(reviewDetailModal-style _row 排版)-->
+            <div>
+                <label for="defEditTitle" class="block text-sm font-medium text-slate-700 mb-1">標題</label>
+                <input type="text" id="defEditTitle" maxlength="300" value="${escapeHtml(d.title)}"
+                    class="w-full border border-slate-300 rounded p-2 text-sm focus:ring-2 focus:ring-rose-100 focus:border-rose-400 outline-none">
+            </div>
+            <div class="grid grid-cols-4 gap-3">
                 <div>
-                    ${sectionHeader('fa-solid fa-circle-info', '基本資訊')}
-                    <div class="bg-white rounded-lg border border-slate-200 px-3 py-1">
-                        ${_row('建立者', `${escapeHtml(d.reporter||'—')}`)}
-                        ${_row('建立時間', `<span class="text-[11px] font-mono text-slate-500">${new Date(d.created_at).toLocaleString('zh-TW')}</span>`)}
-                        ${_row('最後更新', `<span class="text-[11px] font-mono text-slate-500">${new Date(d.updated_at).toLocaleString('zh-TW')}</span>`)}
-                        ${d.closed_at ? _row('關閉時間', `<span class="text-[11px] font-mono text-slate-500">${new Date(d.closed_at).toLocaleString('zh-TW')}</span>`) : ''}
-                        ${_row('連結案例', d.linked_testcase ? `<span class="text-blue-700"><i class="fa-solid fa-flask-vial mr-1"></i>${escapeHtml(d.linked_testcase.name || d.linked_testcase.id.slice(0,8))}</span>` : null)}
-                        ${_row('連結報告', d.linked_report ? `<span class="text-emerald-700"><i class="fa-solid fa-chart-pie mr-1"></i>${escapeHtml(d.linked_report.name || d.linked_report.id.slice(0,8))}</span> <span class="text-stone-400 text-[11px]">[${d.linked_report.status||'—'}]</span>` : null)}
-                    </div>
+                    <label for="defEditSeverity" class="block text-sm font-medium text-slate-700 mb-1">嚴重度</label>
+                    <select id="defEditSeverity" class="w-full border border-slate-300 rounded p-2 text-sm bg-white focus:ring-2 focus:ring-rose-100 focus:border-rose-400 outline-none">
+                        <option value="Critical" ${d.severity==='Critical'?'selected':''}>嚴重</option>
+                        <option value="Major" ${d.severity==='Major'?'selected':''}>重大</option>
+                        <option value="Minor" ${d.severity==='Minor'?'selected':''}>次要</option>
+                        <option value="Trivial" ${d.severity==='Trivial'?'selected':''}>輕微</option>
+                    </select>
                 </div>
-
-                <!-- 描述 -->
-                <div>${sectionHeader('fa-solid fa-align-left', '描述')}${textBlock(d.description)}</div>
-
-                <!-- 重現步驟 -->
-                <div>${sectionHeader('fa-solid fa-list-ol', '重現步驟')}${textBlock(d.steps_to_reproduce)}</div>
-
-                <!-- 預期 / 實際 雙欄 -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>${sectionHeader('fa-solid fa-check text-emerald-400', '預期結果')}${textBlock(d.expected_result)}</div>
-                    <div>${sectionHeader('fa-solid fa-triangle-exclamation text-rose-400', '實際結果')}${textBlock(d.actual_result)}</div>
-                </div>
-
-                <!-- 附件 -->
                 <div>
-                    <div class="text-[11px] uppercase tracking-wide text-slate-500 mb-2 flex items-center justify-between">
-                        <span class="flex items-center gap-2">
-                            <i class="fa-solid fa-paperclip text-rose-400"></i>
-                            <span>附件 / 截圖</span>
-                            <span class="font-mono normal-case tracking-normal text-slate-400">(${attachments.length})</span>
-                        </span>
-                        <label class="text-xs px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded font-medium cursor-pointer inline-flex items-center gap-1">
-                            <i class="fa-solid fa-cloud-arrow-up"></i> 新增附件
-                            <input type="file" multiple class="hidden" onchange="_defDetailUpload(event)">
-                        </label>
-                    </div>
-                    ${attachments.length === 0
-                        ? '<p class="text-xs text-slate-400 italic px-3">(尚無附件,可從上方按鈕上傳)</p>'
-                        : `<div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                                ${attachments.map(a => {
-                                    const isImg = a.type && a.type.startsWith('image/');
-                                    return `
-                                    <div class="group relative bg-white border border-slate-200 rounded overflow-hidden hover:border-rose-300 hover:shadow-sm transition">
-                                        ${isImg
-                                            ? `<a href="${escapeHtml(a.url)}" target="_blank" rel="noopener">
-                                                <img src="${escapeHtml(a.url)}" alt="${escapeHtml(a.name)}" class="w-full h-20 object-cover">
-                                              </a>`
-                                            : `<a href="${escapeHtml(a.url)}" target="_blank" rel="noopener" class="block h-20 flex items-center justify-center text-slate-500 hover:text-rose-600">
-                                                <i class="fa-solid fa-file text-xl"></i>
-                                              </a>`
-                                        }
-                                        <div class="px-1.5 py-1 text-[10px] text-slate-600 truncate" title="${escapeHtml(a.name)}">${escapeHtml(a.name)}</div>
-                                        <button type="button" onclick="_defDetailRemoveAttachment('${escapeHtml(a.url).replace(/'/g, "\\'")}')"
-                                            class="absolute top-1 right-1 w-5 h-5 rounded-full bg-white/90 hover:bg-rose-100 text-rose-600 text-[10px] opacity-0 group-hover:opacity-100 transition shadow">
-                                            <i class="fa-solid fa-xmark"></i>
-                                        </button>
-                                    </div>`;
-                                }).join('')}
-                           </div>`}
+                    <label for="defEditPriority" class="block text-sm font-medium text-slate-700 mb-1">優先序</label>
+                    <select id="defEditPriority" class="w-full border border-slate-300 rounded p-2 text-sm bg-white focus:ring-2 focus:ring-rose-100 focus:border-rose-400 outline-none">
+                        <option value="P0" ${d.priority==='P0'?'selected':''}>P0 (最高)</option>
+                        <option value="P1" ${d.priority==='P1'?'selected':''}>P1 (高)</option>
+                        <option value="P2" ${d.priority==='P2'?'selected':''}>P2 (中)</option>
+                        <option value="P3" ${d.priority==='P3'?'selected':''}>P3 (低)</option>
+                    </select>
                 </div>
+                <div>
+                    <label for="defEditStatus" class="block text-sm font-medium text-slate-700 mb-1">狀態</label>
+                    <select id="defEditStatus" class="w-full border border-slate-300 rounded p-2 text-sm bg-white focus:ring-2 focus:ring-rose-100 focus:border-rose-400 outline-none">
+                        <option value="New" ${d.status==='New'?'selected':''}>新建立</option>
+                        <option value="InReview" ${d.status==='InReview'?'selected':''}>待驗證</option>
+                        <option value="InProgress" ${d.status==='InProgress'?'selected':''}>進行中</option>
+                        <option value="Verified" ${d.status==='Verified'?'selected':''}>驗證成功</option>
+                        <option value="ReworkRequired" ${d.status==='ReworkRequired'?'selected':''}>驗證失敗</option>
+                        <option value="Closed" ${d.status==='Closed'?'selected':''}>關閉</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="defEditAssignee" class="block text-sm font-medium text-slate-700 mb-1">指派</label>
+                    <select id="defEditAssignee" class="w-full border border-slate-300 rounded p-2 text-sm bg-white focus:ring-2 focus:ring-rose-100 focus:border-rose-400 outline-none">
+                        <option value="">(未指派)</option>
+                    </select>
+                </div>
+            </div>
+            <div>
+                <label for="defEditDescription" class="block text-sm font-medium text-slate-700 mb-1">描述</label>
+                <textarea id="defEditDescription" rows="2" class="w-full border border-slate-300 rounded p-2 text-sm focus:ring-2 focus:ring-rose-100 focus:border-rose-400 outline-none resize-none">${escapeHtml(d.description||'')}</textarea>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label for="defEditSteps" class="block text-sm font-medium text-slate-700 mb-1">重現步驟</label>
+                    <textarea id="defEditSteps" rows="3" class="w-full border border-slate-300 rounded p-2 text-sm focus:ring-2 focus:ring-rose-100 focus:border-rose-400 outline-none resize-none">${escapeHtml(d.steps_to_reproduce||'')}</textarea>
+                </div>
+                <div>
+                    <label for="defEditExpected" class="block text-sm font-medium text-slate-700 mb-1">預期結果</label>
+                    <textarea id="defEditExpected" rows="3" class="w-full border border-slate-300 rounded p-2 text-sm focus:ring-2 focus:ring-rose-100 focus:border-rose-400 outline-none resize-none">${escapeHtml(d.expected_result||'')}</textarea>
+                </div>
+            </div>
+            <div>
+                <label for="defEditActual" class="block text-sm font-medium text-slate-700 mb-1">實際結果</label>
+                <textarea id="defEditActual" rows="2" class="w-full border border-slate-300 rounded p-2 text-sm focus:ring-2 focus:ring-rose-100 focus:border-rose-400 outline-none resize-none">${escapeHtml(d.actual_result||'')}</textarea>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label for="defEditLinkedTc" class="block text-sm font-medium text-slate-700 mb-1">連結 testcase</label>
+                    <select id="defEditLinkedTc" class="w-full border border-slate-300 rounded p-2 text-sm bg-white focus:ring-2 focus:ring-rose-100 focus:border-rose-400 outline-none">
+                        <option value="">(不連結)</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="defEditLinkedReport" class="block text-sm font-medium text-slate-700 mb-1">連結 report</label>
+                    <select id="defEditLinkedReport" class="w-full border border-slate-300 rounded p-2 text-sm bg-white focus:ring-2 focus:ring-rose-100 focus:border-rose-400 outline-none">
+                        <option value="">(不連結)</option>
+                    </select>
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">附件 / 截圖 <span class="text-slate-400 font-normal text-xs">(${attachments.length})</span></label>
+                ${attachments.length === 0
+                    ? '<p class="text-xs text-slate-400 italic">(尚無附件,可從下方按鈕上傳)</p>'
+                    : `<div class="grid grid-cols-4 gap-2">
+                        ${attachments.map(a => {
+                            const isImg = a.type && a.type.startsWith('image/');
+                            return `
+                            <div class="group relative bg-white border border-slate-200 rounded overflow-hidden hover:border-rose-300 transition">
+                                ${isImg
+                                    ? `<a href="${escapeHtml(a.url)}" target="_blank" rel="noopener"><img src="${escapeHtml(a.url)}" alt="${escapeHtml(a.name)}" class="w-full h-16 object-cover"></a>`
+                                    : `<a href="${escapeHtml(a.url)}" target="_blank" rel="noopener" class="block h-16 flex items-center justify-center text-slate-500 hover:text-rose-600"><i class="fa-solid fa-file"></i></a>`}
+                                <div class="px-1 py-0.5 text-[10px] text-slate-600 truncate" title="${escapeHtml(a.name)}">${escapeHtml(a.name)}</div>
+                                <button type="button" onclick="_defDetailRemoveAttachment('${escapeHtml(a.url).replace(/'/g, "\\'")}')"
+                                    class="absolute top-1 right-1 w-5 h-5 rounded-full bg-white/90 hover:bg-rose-100 text-rose-600 text-[10px] opacity-0 group-hover:opacity-100 transition shadow"><i class="fa-solid fa-xmark"></i></button>
+                            </div>`;
+                        }).join('')}
+                    </div>`}
+                <label class="mt-2 text-xs px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded font-medium cursor-pointer inline-flex items-center gap-1">
+                    <i class="fa-solid fa-cloud-arrow-up"></i> 新增附件
+                    <input type="file" multiple class="hidden" onchange="_defDetailUpload(event)">
+                </label>
+            </div>
+            <!-- 唯讀元資訊 footer -->
+            <div class="text-[11px] text-slate-400 border-t border-slate-100 pt-2 flex flex-wrap gap-x-4 gap-y-1 font-mono">
+                <span>建立者 ${escapeHtml(d.reporter||'—')}</span>
+                <span>建立 ${new Date(d.created_at).toLocaleString('zh-TW')}</span>
+                <span>更新 ${new Date(d.updated_at).toLocaleString('zh-TW')}</span>
+                ${d.closed_at ? `<span>關閉 ${new Date(d.closed_at).toLocaleString('zh-TW')}</span>` : ''}
             </div>`;
 
-        // 狀態轉移:下拉選單(只列當前 status 允許的目標 state)
-        const transitions = ({
-            New:            ['Assigned','InProgress','Closed'],
-            Assigned:       ['InProgress','Closed'],
-            InProgress:     ['InReview','Closed'],
-            InReview:       ['ReworkRequired','Verified','Closed'],
-            ReworkRequired: ['InProgress','Closed'],
-            Verified:       ['Closed'],
-            Closed:         ['Assigned'],
-        })[d.status] || [];
-        const transitionOptions = transitions.length
-            ? transitions.map(t => `<option value="${t}">→ ${_defStatusZh(t)}</option>`).join('')
-            : '<option value="" disabled>(無可切換狀態)</option>';
+        // 載入 assignee / testcase / report 下拉(reuse create modal 的函式,但讀寫到 defEdit* id)
+        _defLoadEditOptions(d);
+
+        // Footer action buttons:儲存 / 送審 / 刪除 / 關閉(沿用 testRoundModal 配色)
         document.getElementById('defDetailFooter').innerHTML = `
-            <label class="text-xs text-slate-500 self-center">切換狀態:</label>
-            <select id="defDetailStatusSelect" class="text-xs px-2 py-1.5 border border-slate-300 rounded bg-white min-w-[140px]"
-                ${transitions.length ? '' : 'disabled'}>
-                <option value="" selected>— 選擇新狀態 —</option>
-                ${transitionOptions}
-            </select>
-            <button type="button" onclick="_defApplyStatusChange('${d.id}')"
-                class="text-xs px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded font-medium disabled:opacity-40"
-                ${transitions.length ? '' : 'disabled'}>
-                套用
+            <button type="button" onclick="_defConfirmDelete('${d.id}', '${d.code}')"
+                class="px-3 py-2 text-sm font-medium bg-white hover:bg-rose-50 text-rose-600 border border-rose-300 rounded transition">
+                <i class="fa-solid fa-trash"></i> 刪除
             </button>
-            <div class="flex-1"></div>
             <button type="button" onclick="_defSubmitForReview('${d.id}')"
-                class="text-xs px-2.5 py-1.5 bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-300 rounded font-medium">
+                class="px-3 py-2 text-sm font-medium bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-300 rounded transition">
                 <i class="fa-solid fa-paper-plane"></i> 送審
             </button>
-            <button type="button" onclick="_defConfirmDelete('${d.id}', '${d.code}')"
-                class="text-xs px-2.5 py-1.5 bg-white hover:bg-rose-50 text-rose-600 border border-rose-300 rounded font-medium">
-                <i class="fa-solid fa-trash"></i> 刪除
+            <div class="flex-1"></div>
+            <button type="button" onclick="closeDefectDetail()"
+                class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 rounded transition">關閉</button>
+            <button type="button" onclick="_defSaveEdit('${d.id}')"
+                class="px-4 py-2 text-sm font-medium bg-rose-600 text-white hover:bg-rose-700 rounded shadow-sm transition">
+                <i class="fa-solid fa-floppy-disk"></i> 儲存
             </button>`;
+    }
+
+    // 載入詳情頁的 assignee / testcase / report 下拉(reuse create modal 的 fetch)
+    async function _defLoadEditOptions(d) {
+        const assigneeSel = document.getElementById('defEditAssignee');
+        const tcSel = document.getElementById('defEditLinkedTc');
+        const rpSel = document.getElementById('defEditLinkedReport');
+        if (!assigneeSel || !tcSel || !rpSel || !currentProjectId) return;
+
+        // assignee
+        try {
+            const members = await apiFetch(`/api/projects/${currentProjectId}/members`).catch(()=>[]);
+            assigneeSel.innerHTML = '<option value="">(未指派)</option>' +
+                (members || []).map(m => `<option value="${escapeHtml(m.username || m.user_id || '')}" ${m.username===d.assignee?'selected':''}>${escapeHtml(m.username || m.display_name || '')}</option>`).join('');
+        } catch (_) {}
+
+        // testcase
+        try {
+            const tree = await apiFetch(`/api/projects/${currentProjectId}/tree`);
+            const testcases = [];
+            const walk = (node, parentName) => {
+                if (!node) return;
+                const path = parentName ? `${parentName} / ${node.name}` : node.name;
+                if ((node.level_type || node.levelType) === 'TESTCASE') testcases.push({ id: node.id, label: path });
+                (node.children || []).forEach(c => walk(c, path));
+            };
+            (Array.isArray(tree) ? tree : tree?.tree || []).forEach(n => walk(n, ''));
+            tcSel.innerHTML = '<option value="">(不連結)</option>' +
+                testcases.map(t => `<option value="${t.id}" ${t.id===d.linked_testcase_id?'selected':''}>${escapeHtml(t.label)}</option>`).join('');
+        } catch (_) {}
+
+        // report
+        try {
+            const r = await apiFetch(`/api/reports?project_id=${encodeURIComponent(currentProjectId)}&page=1&limit=50`);
+            const items = r?.items || r || [];
+            rpSel.innerHTML = '<option value="">(不連結)</option>' +
+                items.map(rep => {
+                    const ts = rep.created_at ? new Date(rep.created_at).toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
+                    const caseName = rep.source_title || (rep.id||'').slice(0,8);
+                    const label = `${ts} · ${rep.status || ''} · ${caseName}`;
+                    return `<option value="${rep.id}" ${rep.id===d.linked_report_id?'selected':''}>${escapeHtml(label)}</option>`;
+                }).join('');
+        } catch (_) {}
+    }
+
+    // 儲存所有可編輯欄位 → PATCH
+    async function _defSaveEdit(id) {
+        const payload = {
+            title:              document.getElementById('defEditTitle').value.trim(),
+            severity:           document.getElementById('defEditSeverity').value,
+            priority:           document.getElementById('defEditPriority').value,
+            status:             document.getElementById('defEditStatus').value,
+            assignee:           document.getElementById('defEditAssignee').value || null,
+            description:        document.getElementById('defEditDescription').value || null,
+            steps_to_reproduce: document.getElementById('defEditSteps').value || null,
+            expected_result:    document.getElementById('defEditExpected').value || null,
+            actual_result:      document.getElementById('defEditActual').value || null,
+            linked_testcase_id: document.getElementById('defEditLinkedTc').value || null,
+            linked_report_id:   document.getElementById('defEditLinkedReport').value || null,
+        };
+        if (!payload.title) {
+            if (typeof showToast === 'function') showToast('標題必填', 'error');
+            return;
+        }
+        try {
+            const updated = await apiFetch(`/api/defects/${id}`, { method: 'PATCH', body: payload });
+            _defRenderDetail(updated);
+            const idx = _defRows.findIndex(d => d.id === id);
+            if (idx >= 0) { _defRows[idx] = updated; _defRenderList(_defRows); }
+            if (typeof showToast === 'function') showToast('已儲存', 'success');
+        } catch (e) {
+            const detail = e?.detail || {};
+            const msg = detail.message || detail.detail || e.message || '儲存失敗';
+            if (typeof showToast === 'function') showToast('儲存失敗:' + msg, 'error');
+        }
     }
 
     // 送 defect 進審核流程(v1.1.9)— 後端 POST /api/reviews,entity_type=defect
