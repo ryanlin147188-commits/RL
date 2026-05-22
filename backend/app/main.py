@@ -17,7 +17,7 @@ logging.basicConfig(
 
 from app.config import settings
 from app.database import init_db
-from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings, local_runner, test_rounds, project_settings, screenshot_baselines, system, test_data_sets, settings as app_settings, todos, todo_links, auth, audit_logs, organizations, notifications, mock_endpoints, groups, reviews, artifacts, entity_versions, oidc_auth, project_role_permissions, shell_exec, schedules
+from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings, local_runner, test_rounds, project_settings, screenshot_baselines, system, test_data_sets, settings as app_settings, todos, todo_links, auth, audit_logs, organizations, notifications, mock_endpoints, groups, reviews, artifacts, entity_versions, oidc_auth, project_role_permissions, shell_exec, schedules, defects, test_kanban
 # v1.1.5:Casdoor sidecar 下架,OIDC 改 in-process(authlib + Zoho),由
 # ``oidc_auth`` router 承接。舊的 ``oidc`` / ``casdoor_*`` 模組已刪除。
 # 確保新增 model 在 init_db() 前已 import 註冊到 Base.metadata
@@ -632,6 +632,8 @@ app.include_router(project_role_permissions.router, prefix="/api", tags=["G · �
 app.include_router(mock_endpoints.router,  prefix="/api", tags=["Z · Mock 端點"])
 app.include_router(groups.router,          prefix="/api", tags=["S · 設定"])
 app.include_router(reviews.router,         prefix="/api", tags=["AB · 審核"])
+app.include_router(defects.router,         prefix="/api", tags=["AC · 缺陷管理"])
+app.include_router(test_kanban.router,     prefix="/api", tags=["AC · 測試看板"])
 app.include_router(entity_versions.router, prefix="/api", tags=["AC · 版本歷史"])
 app.include_router(schedules.router,       prefix="/api", tags=["F · 排程"])
 
