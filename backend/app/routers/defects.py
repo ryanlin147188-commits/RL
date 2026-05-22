@@ -117,6 +117,29 @@ async def _batch_resolve_links(
     return tc_map, rp_map
 
 
+def _sign_attachments(attachments: Optional[list[dict]]) -> Optional[list[dict]]:
+    """把 attachments_json 內每筆 ``/pics/...`` 或 ``/results/...`` URL 簽上
+    短期 artifact_token。``<img src>`` / ``<video src>`` 沒辦法帶 Authorization
+    header,只能靠 query string 內的 token 過 ``_authorize_artifact``。
+    參考 reports.py 對 ExecutionStepLog 的處理。
+    """
+    if not attachments:
+        return attachments
+    from app.services.artifact_urls import sign_artifact_url
+
+    out: list[dict] = []
+    for a in attachments:
+        if not isinstance(a, dict):
+            continue
+        new_a = dict(a)
+        if "url" in new_a:
+            signed = sign_artifact_url(new_a.get("url"))
+            if signed:
+                new_a["url"] = signed
+        out.append(new_a)
+    return out
+
+
 def _to_response(
     d: Defect,
     tc_map: Optional[dict[str, DefectLinkedRef]] = None,
@@ -127,6 +150,8 @@ def _to_response(
         resp.linked_testcase = tc_map.get(d.linked_testcase_id)
     if rp_map and d.linked_report_id:
         resp.linked_report = rp_map.get(d.linked_report_id)
+    # v1.1.9 fix:把 attachments 內的 url 簽過,讓前端 <img src> 載得起來
+    resp.attachments_json = _sign_attachments(resp.attachments_json)
     return resp
 
 
@@ -452,7 +477,7 @@ async def upload_attachments(
 )
 async def remove_attachment(
     defect_id: str,
-    url: str = Query(..., description="附件 URL(同 attachments_json[].url)"),
+    url: str = Query(..., description="附件 URL(可帶或不帶 ?artifact_token)"),
     user: User = Depends(require_permission(P.TESTCASE_WRITE)),
     db: AsyncSession = Depends(get_db),
 ):
@@ -461,7 +486,16 @@ async def remove_attachment(
     ).scalar_one_or_none()
     if defect is None:
         raise HTTPException(404, "Defect not found")
-    attachments = [a for a in (defect.attachments_json or []) if a.get("url") != url]
+    # 前端拿到的 url 已被 _sign_attachments 加上 ?artifact_token=...,
+    # 但 attachments_json 內存的是 raw URL。比對前先把 query string 去掉
+    # 再 match path。
+    from urllib.parse import urlsplit
+
+    target_path = urlsplit(url).path or url
+    attachments = [
+        a for a in (defect.attachments_json or [])
+        if (urlsplit(a.get("url") or "").path or a.get("url")) != target_path
+    ]
     if len(attachments) == len(defect.attachments_json or []):
         raise HTTPException(404, f"Attachment not found: {url}")
     defect.attachments_json = attachments
