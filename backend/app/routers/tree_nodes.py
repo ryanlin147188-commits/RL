@@ -85,6 +85,14 @@ async def update_node(
     if payload.sort_order is not None and payload.sort_order != node.sort_order:
         node.sort_order = payload.sort_order
         changed = True
+    if payload.work_status is not None and payload.work_status != node.work_status:
+        # 簡單範圍驗:看板上的 5 個合法狀態
+        from app.models.tree_node import WorkStatus
+        allowed = {s.value for s in WorkStatus}
+        if payload.work_status not in allowed:
+            raise HTTPException(422, f"work_status 必須是 {sorted(allowed)} 之一")
+        node.work_status = payload.work_status
+        changed = True
     await db.flush()
     # 任何 testcase 葉節點的更新都記一筆 pending_review snapshot(由人工編輯觸發)
     if changed and node.level_type == LevelType.TESTCASE:
@@ -96,7 +104,7 @@ async def update_node(
             status=evs.CONTENT_STATUS_PENDING,
             by=user.username,
         )
-    return {"id": node.id, "name": node.name, "sort_order": node.sort_order, "content_status": node.content_status}
+    return {"id": node.id, "name": node.name, "sort_order": node.sort_order, "content_status": node.content_status, "work_status": node.work_status}
 
 
 # 6. DELETE /api/v1/nodes/{id}

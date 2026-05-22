@@ -17,6 +17,20 @@ class LevelType(str, enum.Enum):
     TESTCASE = "TESTCASE"
 
 
+class WorkStatus(str, enum.Enum):
+    """v1.1.9 加:測試看板 Kanban 上 testcase 的工作流狀態。
+
+    跟 ExecutionReport / Defect 的狀態不一樣,這條是「人在追測試進度」的
+    狀態,可由 user 在看板上拖拽改變。FEATURE / PLATFORM / PAGE / SCENARIO
+    層級節點也有這欄位但不會顯示在看板上(看板只放 TESTCASE 級節點)。
+    """
+    NEW         = "NEW"          # 待測試
+    IN_PROGRESS = "IN_PROGRESS"  # 測試中
+    PASSED      = "PASSED"       # 已通過
+    FAILED      = "FAILED"       # 失敗
+    RETEST      = "RETEST"       # 複測中
+
+
 # 合法的父子層級映射：None = 根節點，值為 None 表示不可再有子節點
 LEVEL_HIERARCHY: dict[Optional[LevelType], Optional[LevelType]] = {
     None: LevelType.FEATURE,
@@ -49,6 +63,12 @@ class TreeNode(Assignable, TenantScoped, Base):
     # 預設 approved 是為了讓既有資料(舊版本沒這欄)直接視為已上線版,不會被審核 gate 擋住。
     content_status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="approved", server_default="approved", index=True,
+    )
+    # 測試看板上的工作流狀態(v1.1.9)— 預設 NEW(待測試)。
+    # 用 String + check constraint 簡化(避免新 enum 又要 migration);允許值
+    # 對應 WorkStatus enum 的 .value。
+    work_status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="NEW", server_default="NEW", index=True,
     )
 
     # ── Relationships ──────────────────────────────────────────────

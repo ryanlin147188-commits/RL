@@ -3532,6 +3532,10 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                         <option value="">所有指派人</option>
                         <option value="null">未指派</option>
                     </select>
+                    <button type="button" onclick="_tkOpenCreate()"
+                        class="text-xs px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded font-medium flex items-center gap-1">
+                        <i class="fa-solid fa-plus"></i> 新增測試案例
+                    </button>
                     <button type="button" onclick="loadTestKanban()" title="重新整理"
                         class="text-xs px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-300 rounded font-medium text-slate-600 flex items-center gap-1">
                         <i class="fa-solid fa-rotate"></i> 重整
@@ -19251,6 +19255,11 @@ curl -X POST http://localhost:8000/api/defects \\
         }
     }
 
+    // column key 反查回 backend work_status enum value(拖拽改狀態時要送)
+    const _TK_COLUMN_TO_STATUS = {
+        todo: 'NEW', in_progress: 'IN_PROGRESS', passed: 'PASSED', failed: 'FAILED', retest: 'RETEST',
+    };
+
     function _tkRenderBoard(data) {
         const total = Object.values(data.counts || {}).reduce((s, n) => s + n, 0);
         document.getElementById('tkEmptyState').classList.toggle('hidden', total > 0);
@@ -19258,11 +19267,14 @@ curl -X POST http://localhost:8000/api/defects \\
         board.innerHTML = _TK_COLUMNS.map(col => {
             const cards = (data.columns[col.key] || []);
             const count = data.counts[col.key] || 0;
+            const targetStatus = _TK_COLUMN_TO_STATUS[col.key] || 'NEW';
             return `
-                <div class="bg-white rounded-lg border border-slate-200 shadow-sm flex flex-col min-h-[400px] overflow-hidden">
-                    <!-- 頂端 accent bar -->
+                <div class="bg-white rounded-lg border border-slate-200 shadow-sm flex flex-col min-h-[400px] overflow-hidden"
+                     data-tk-status="${targetStatus}"
+                     ondragover="event.preventDefault(); this.classList.add('ring-2','ring-teal-300')"
+                     ondragleave="this.classList.remove('ring-2','ring-teal-300')"
+                     ondrop="_tkOnDrop(event, '${targetStatus}')">
                     <div class="${col.accent} h-1"></div>
-                    <!-- 欄位 header -->
                     <div class="px-3 py-2.5 ${col.headerCls} flex items-center justify-between font-semibold text-sm border-b border-slate-200">
                         <span class="flex items-center gap-2">
                             <i class="fa-solid ${col.icon} text-xs"></i>
@@ -19270,10 +19282,9 @@ curl -X POST http://localhost:8000/api/defects \\
                         </span>
                         <span class="text-xs font-mono px-2 py-0.5 bg-white/80 rounded-full font-bold">${count}</span>
                     </div>
-                    <!-- 卡片區 -->
                     <div class="p-2 space-y-2 flex-1 overflow-y-auto bg-slate-50/30" style="max-height:70vh">
                         ${cards.length ? cards.map(c => _tkRenderCard(c, col.key)).join('') :
-                            '<p class="text-xs text-slate-400 text-center py-10 italic">(本欄無 testcase)</p>'}
+                            '<p class="text-xs text-slate-400 text-center py-10 italic">(本欄無 testcase,可從其他欄拖入或新增)</p>'}
                     </div>
                 </div>`;
         }).join('');
@@ -19287,30 +19298,32 @@ curl -X POST http://localhost:8000/api/defects \\
             ? `<span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-rose-100 text-rose-700 text-[10px] font-bold rounded-full border border-rose-200">
                  <i class="fa-solid fa-bug text-[9px]"></i>${card.defect_count}
                </span>` : '';
-        const exec = card.latest_execution;
-        const execStatusCls = exec ? ({
-            PASSED: 'text-emerald-600 bg-emerald-50',
-            FAILED: 'text-rose-600 bg-rose-50',
-            RUNNING: 'text-blue-600 bg-blue-50',
-        })[exec.status] || 'text-slate-500 bg-slate-50' : '';
-        const execLine = exec ? `
-            <div class="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
-                <span class="px-1.5 py-0.5 ${execStatusCls} rounded font-mono font-bold">${exec.status || '—'}</span>
-                <span class="text-slate-400">${exec.ended_at ? new Date(exec.ended_at).toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : ''}</span>
-            </div>` : '';
-        const failBtn = (columnKey === 'failed' || columnKey === 'retest') && exec ?
-            `<button type="button" onclick="event.stopPropagation(); openDefectFromReport('${exec.id}', null, '${tcId}')"
-                title="從這次失敗執行建立缺陷"
-                class="opacity-0 group-hover:opacity-100 transition text-[10px] px-1.5 py-0.5 bg-rose-600 hover:bg-rose-700 text-white rounded inline-flex items-center gap-0.5">
-                <i class="fa-solid fa-bug"></i> 開缺陷
-             </button>` : '';
         const avatarChar = assignee ? assignee.charAt(0).toUpperCase() : '?';
         const avatarBg = assignee ? 'bg-gradient-to-br from-teal-400 to-blue-500' : 'bg-slate-300';
+        // hover 浮出 編輯 / 刪除 按鈕。title 用 JSON.stringify + &quot; 兩次跳脫,
+        // 確保使用者輸入單/雙引號也不會破掉 onclick 字串。
+        const safeTitleJsLiteral = JSON.stringify(title).replace(/"/g, '&quot;');
+        const actBtns = `
+            <div class="absolute top-1 right-1 hidden group-hover:flex items-center gap-1">
+                <button type="button" title="編輯" onclick="event.stopPropagation(); _tkEditCard('${tcId}')"
+                    class="w-6 h-6 rounded bg-white/95 hover:bg-blue-100 text-blue-600 border border-slate-200 shadow flex items-center justify-center text-[10px]">
+                    <i class="fa-solid fa-pen"></i>
+                </button>
+                <button type="button" title="刪除" onclick="event.stopPropagation(); _tkDeleteCard('${tcId}', ${safeTitleJsLiteral})"
+                    class="w-6 h-6 rounded bg-white/95 hover:bg-rose-100 text-rose-600 border border-slate-200 shadow flex items-center justify-center text-[10px]">
+                    <i class="fa-solid fa-trash"></i>
+                </button>
+            </div>`;
         return `
-            <div onclick="openTkCardDrawer('${tcId}')" class="group bg-white border border-slate-200 rounded-md p-2.5 shadow-sm hover:shadow-md hover:border-teal-400 hover:ring-1 hover:ring-teal-100 cursor-pointer transition">
-                <div class="flex items-start justify-between gap-2 mb-1.5 min-h-[1.5rem]">
+            <div onclick="openTkCardDrawer('${tcId}')"
+                 draggable="true"
+                 ondragstart="event.dataTransfer.setData('text/tk-tc-id', '${tcId}'); this.classList.add('opacity-50');"
+                 ondragend="this.classList.remove('opacity-50');"
+                 class="group relative bg-white border border-slate-200 rounded-md p-2.5 shadow-sm hover:shadow-md hover:border-teal-400 hover:ring-1 hover:ring-teal-100 cursor-grab active:cursor-grabbing transition">
+                ${actBtns}
+                <div class="flex items-start justify-between gap-2 mb-1.5 min-h-[1.5rem] pr-14">
                     <span class="text-[10px] font-mono text-slate-400">${card.code}</span>
-                    ${failBtn || defBadge}
+                    ${defBadge}
                 </div>
                 <div class="text-sm text-slate-700 leading-tight mb-2 line-clamp-2 font-medium">${escapeHtml(title)}</div>
                 <div class="flex items-center justify-between gap-2 text-[10px]">
@@ -19318,10 +19331,54 @@ curl -X POST http://localhost:8000/api/defects \\
                         <div class="w-5 h-5 rounded-full ${avatarBg} text-white text-[10px] font-bold flex items-center justify-center shrink-0">${escapeHtml(avatarChar)}</div>
                         <span class="text-slate-500 truncate">${escapeHtml(assignee || '未指派')}</span>
                     </div>
-                    ${failBtn ? defBadge : ''}
                 </div>
-                ${execLine}
             </div>`;
+    }
+
+    // 拖拽 drop:把卡片的 work_status 改成目標 column
+    async function _tkOnDrop(ev, targetStatus) {
+        ev.preventDefault();
+        ev.currentTarget.classList.remove('ring-2','ring-teal-300');
+        const tcId = ev.dataTransfer.getData('text/tk-tc-id');
+        if (!tcId) return;
+        try {
+            await apiFetch(`/api/nodes/${tcId}`, {
+                method: 'PATCH',
+                body: { work_status: targetStatus },
+            });
+            await loadTestKanban();
+            if (typeof showToast === 'function') showToast('已更新狀態', 'success');
+        } catch (e) {
+            if (typeof showToast === 'function') showToast('狀態更新失敗:' + (e.message||e), 'error');
+            await loadTestKanban();  // refresh 還原
+        }
+    }
+
+    // 編輯卡片 → 跳到 testcase editor
+    function _tkEditCard(tcId) {
+        if (typeof loadTestCase === 'function') {
+            loadTestCase(tcId);
+        }
+    }
+
+    // 刪除卡片 → DELETE tree node
+    async function _tkDeleteCard(tcId, title) {
+        if (!confirm(`確定刪除測試案例「${title}」?此操作會連帶刪掉案例內容跟相關紀錄,無法復原。`)) return;
+        try {
+            await apiFetch(`/api/nodes/${tcId}`, { method: 'DELETE', raw: true });
+            if (typeof showToast === 'function') showToast('已刪除', 'success');
+            await loadTestKanban();
+        } catch (e) {
+            if (typeof showToast === 'function') showToast('刪除失敗:' + (e.message||e), 'error');
+        }
+    }
+
+    // 新增 testcase:跳到 testcase 分頁 + 開既有 modal(避免重複造輪子)
+    function _tkOpenCreate() {
+        if (typeof showTestCasesView === 'function') showTestCasesView();
+        setTimeout(() => {
+            if (typeof openTcCreateModal === 'function') openTcCreateModal();
+        }, 100);
     }
 
     function escapeHtml(s) {

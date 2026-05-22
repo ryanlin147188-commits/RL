@@ -22,6 +22,8 @@ class TreeNodePartialUpdate(BaseModel):
     """PATCH 語意：所有欄位均可選。"""
     name: Optional[str] = None
     sort_order: Optional[int] = None
+    # v1.1.9 測試看板 Kanban 拖拽時更新 work_status
+    work_status: Optional[str] = None
 
 
 class TreeNodeResponse(BaseModel):
