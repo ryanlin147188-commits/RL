@@ -100,6 +100,27 @@ def _build_backend() -> _StorageBackend:
 _backend: _StorageBackend = _build_backend()
 
 
+def ensure_buckets() -> None:
+    """Idempotently create the canonical buckets (pic, results) on the S3 backend.
+
+    取代 v1.1.x 的獨立 ``seaweedfs-init`` compose service(原本只為了跑兩行
+    ``aws s3 mb`` 就拉一份 amazon/aws-cli image,~500MB)。backend 開機時用
+    既有的 boto3 client 自己建,seaweedfs healthcheck 通過後就能呼叫。
+    """
+    from botocore.exceptions import ClientError  # type: ignore[import-not-found]
+
+    if not isinstance(_backend, _S3Storage):
+        return
+    for bucket in ("pic", "results"):
+        try:
+            _backend._client.create_bucket(Bucket=bucket)
+        except ClientError as e:
+            code = (e.response.get("Error", {}) or {}).get("Code", "")
+            if code in ("BucketAlreadyOwnedByYou", "BucketAlreadyExists"):
+                continue
+            raise
+
+
 # ── Public API ────────────────────────────────────────────────────────
 
 

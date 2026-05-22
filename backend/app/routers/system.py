@@ -232,8 +232,6 @@ def _read_docker() -> tuple[dict[str, Any], dict[str, Any]]:
 _PROTECTED_IMAGE_REPOS = (
     "autotest-robot-runner",
     "autotest-recorder",
-    "autotest-recorder-api",
-    "autotest-mcp",
 )
 
 
@@ -260,7 +258,6 @@ def cleanup_storage(user: User = Depends(get_current_user)) -> dict[str, Any]:
 
     保護機制(以下 image 平台會動態 spawn,絕不能被砍):
         - autotest-robot-runner / autotest-recorder
-        - autotest-recorder-api / autotest-mcp
     這幾個 image 都是有 tag 的,而 ``images.prune(filters={'dangling': True})``
     只清沒 tag 的 image,所以天然安全;本函式額外在 prune 前後檢查它們
     是否還在,若被誤砍會以 critical log 警示。

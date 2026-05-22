@@ -31,9 +31,7 @@ mkdir -p "$OUT_DIR"
 IN_HOUSE=(
     "autotest-backend:${AUTOTEST_TAG}|./backend|Dockerfile"
     "autotest-celery:${AUTOTEST_TAG}|./backend|Dockerfile.celery"
-    "autotest-mcp:${AUTOTEST_TAG}|./backend|Dockerfile.mcp"
     "autotest-recorder:${AUTOTEST_TAG}|./backend|Dockerfile.recorder"
-    "autotest-recorder-api:${AUTOTEST_TAG}|./backend|Dockerfile.recorder-api"
     "autotest-robot-runner:${AUTOTEST_TAG}|./backend|Dockerfile.runner"
     "autotest-frontend:${AUTOTEST_TAG}|.|frontend/Dockerfile"
     "autotest-hermes:${HERMES_TAG}|./hermes|Dockerfile"
@@ -42,7 +40,6 @@ IN_HOUSE=(
 
 THIRD_PARTY=(
     "alpine:3.20"
-    "amazon/aws-cli:2.18.5"
     "apache/apisix:3.11.0-debian"
     "chrislusf/seaweedfs:3.80"
     "fluent/fluent-bit:3.2"

@@ -156,24 +156,9 @@ services:
       retries: 10
       start_period: 20s
 
-  # 一次性 bucket 建立（使用 aws-cli image 直接打 SeaweedFS S3 API）
-  seaweedfs-init:
-    image: amazon/aws-cli:2.18.5
-    container_name: autotest-seaweedfs-init
-    depends_on:
-      seaweedfs:
-        condition: service_healthy
-    environment:
-      AWS_ACCESS_KEY_ID: ${S3_ROOT_USER:-admin}
-      AWS_SECRET_ACCESS_KEY: ${S3_ROOT_PASSWORD:?S3_ROOT_PASSWORD is required - run docker compose --profile init run --rm bootstrap}
-      AWS_DEFAULT_REGION: us-east-1
-    entrypoint: >
-      /bin/sh -c "
-      aws --endpoint-url http://seaweedfs:8333 s3 mb s3://pic 2>/dev/null || true;
-      aws --endpoint-url http://seaweedfs:8333 s3 mb s3://results 2>/dev/null || true;
-      echo 'SeaweedFS buckets ready: pic, results';
-      "
-    restart: "no"
+  # v1.1.9 移除 seaweedfs-init service:backend lifespan 已用內建 boto3
+  # 直接 create_bucket(idempotent)。避免為了兩行 `aws s3 mb` 拉一份
+  # amazon/aws-cli image(~500MB)。
 
   backend:
     image: autotest-backend:${AUTOTEST_TAG:-1.1.1}
@@ -189,6 +174,11 @@ services:
         condition: service_healthy
       docker-proxy:
         condition: service_started
+      # v1.1.9:lifespan 自己用 boto3 建 bucket(取代 seaweedfs-init service),
+      # 所以 backend 必須等 seaweedfs healthy 才上;否則 startup 那行
+      # create_bucket 會 connect refused。
+      seaweedfs:
+        condition: service_healthy
     environment:
       TZ: Asia/Taipei
       DB_HOST: postgres
@@ -217,12 +207,11 @@ services:
       # 應用層 secret(必填):JWT 簽章 + Fernet 對稱加密金鑰
       AUTOTEST_JWT_SECRET: ${AUTOTEST_JWT_SECRET:?AUTOTEST_JWT_SECRET is required - run docker compose --profile init run --rm bootstrap}
       AUTOTEST_FERNET_KEY: ${AUTOTEST_FERNET_KEY:?AUTOTEST_FERNET_KEY is required - run docker compose --profile init run --rm bootstrap}
-      # ── Docker 模式錄製(Phase 1) ──
+      # ── Docker 模式錄製 ──
+      # v1.1.9 起 recorder / recorder-api / mcp 合併成單一 image,
+      # 靠 RECORDER_MODE env 切 entrypoint;RECORDER_API_IMAGE / MCP_IMAGE
+      # 已移除,backend Settings 的 ``extra="ignore"`` 保證 .env 殘留不會炸。
       RECORDER_IMAGE: ${RECORDER_IMAGE:-autotest-recorder:1.1.1}
-      # API 錄製(mitmweb)與 MCP(Playwright MCP server)的 image tag 直通,
-      # 讓 .env 可以覆蓋預設值;不設則 fallback 到 app.config.Settings 的預設。
-      RECORDER_API_IMAGE: ${RECORDER_API_IMAGE:-autotest-recorder-api:1.1.1}
-      MCP_IMAGE: ${MCP_IMAGE:-autotest-mcp:1.1.1}
       RECORDER_NETWORK: ${RECORDER_NETWORK:-autotest_default}
       RECORDER_INTERNAL_BASE_URL: http://backend:8000
       RECORDER_IDLE_TIMEOUT_MIN: 30
@@ -328,29 +317,14 @@ services:
     command: ["true"]   # never started; defensive no-op if profile is misused
     restart: "no"
 
+  # v1.1.9 起 recorder / recorder-api / mcp 三個 image 合併成一份
+  # autotest-recorder,由 dispatcher entrypoint 依 RECORDER_MODE env 切
+  # novnc / mitmweb / mcp 三種模式。backend spawn 時注入該 env。
   recorder:
     build:
       context: ./backend
       dockerfile: Dockerfile.recorder
     image: autotest-recorder:1.1.1
-    profiles: ["spawnable"]
-    command: ["true"]
-    restart: "no"
-
-  recorder-api:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile.recorder-api
-    image: autotest-recorder-api:1.1.1
-    profiles: ["spawnable"]
-    command: ["true"]
-    restart: "no"
-
-  mcp:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile.mcp
-    image: autotest-mcp:1.1.1
     profiles: ["spawnable"]
     command: ["true"]
     restart: "no"

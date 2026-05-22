@@ -1,13 +1,14 @@
-# 衍生 image：autotest-recorder
+# 衍生 image:autotest-recorder(v1.1.9 起合併三合一)
 #
-# 用於「Docker 模式錄製」(Phase 1 of 在伺服器內錄製):
-#   - 容器內跑 Xvfb + fluxbox + 有頭 Chromium + Playwright codegen
-#   - 暴露 noVNC(port 6080)讓使用者透過瀏覽器 iframe 看畫面 / 用滑鼠鍵盤操作
-#   - codegen 視窗關閉後自動 curl 上傳 recorded.py + trace.zip 到 backend
-#   - 容器隨後自然退出(--rm 會清掉)
+# 透過 dispatcher entrypoint 跑三種模式(用 RECORDER_MODE env 切):
+#   novnc   Xvfb + noVNC + Playwright codegen(原 autotest-recorder)
+#   mitmweb mitmweb 8080 proxy + 8081 web UI + HAR(原 autotest-recorder-api)
+#   mcp     @playwright/mcp SSE on 8931(原 autotest-mcp)
 #
 # Base:Microsoft 官方 Playwright Python image(v1.50.0-jammy)— 已內建
 # Python 3.10、Playwright(含 chromium/firefox/webkit)、Node.js、Ubuntu 22.04。
+# 三個 mode 都靠這個 base 的 Playwright + Node;mitmweb 用 pip 裝、MCP 用
+# npm 全域裝,合併後比三份獨立 image 在 VM 上省 ~2GB(動態 spawn 不可 prune)。
 
 FROM mcr.microsoft.com/playwright/python:v1.50.0-jammy
 
@@ -63,15 +64,33 @@ RUN pip install --no-cache-dir --break-system-packages playwright==1.50.0
 # 直接 symlink 讓 / 也能進入 vnc_lite
 RUN ln -sf /usr/share/novnc/vnc.html /usr/share/novnc/index.html
 
+# ── 合併 autotest-recorder-api:mitmproxy(pure Python 套件,base 已有 pip)──
+# 取代獨立的 autotest-recorder-api image(~250MB)。HAR 由 har_dump.py addon
+# 邊跑邊寫 /work/flows.har。
+RUN pip install --no-cache-dir --break-system-packages mitmproxy==12.2.2
+
+# ── 合併 autotest-mcp:@playwright/mcp(走 npm 全域裝;base 已含 Node)──
+# 取代獨立的 autotest-mcp image(~1.8GB)。預先裝起來避免 spawn 時 npx 才
+# 下載拖慢啟動。
+ENV PLAYWRIGHT_MCP_VERSION=0.0.69
+RUN npm install -g "@playwright/mcp@${PLAYWRIGHT_MCP_VERSION}" 2>&1 | tail -5
+
 WORKDIR /work
 
+# 三個 mode 的 entrypoint script,由 dispatcher 依 RECORDER_MODE 選擇 exec
 COPY tasks/recorder_entrypoint.sh /usr/local/bin/recorder-entrypoint.sh
-RUN chmod +x /usr/local/bin/recorder-entrypoint.sh
+COPY tasks/recorder_api_entrypoint.sh /usr/local/bin/recorder-api-entrypoint.sh
+COPY tasks/recorder_dispatch.sh /usr/local/bin/recorder-dispatch.sh
+# mitmweb mode 的 HAR addon(原本在 Dockerfile.recorder-api 裡 COPY)
+COPY tasks/har_dump.py /har_dump.py
+RUN chmod +x /usr/local/bin/recorder-entrypoint.sh \
+             /usr/local/bin/recorder-api-entrypoint.sh \
+             /usr/local/bin/recorder-dispatch.sh
 
-# 6080 = noVNC web(websockify),5900 = 純 VNC(內部用,不對外)
-EXPOSE 6080
+# 6080 noVNC web(websockify)、8080/8081 mitmweb proxy/UI、8931 MCP SSE
+EXPOSE 6080 8080 8081 8931
 
 ENV PYTHONUNBUFFERED=1 \
     DISPLAY=:99
 
-ENTRYPOINT ["/usr/local/bin/recorder-entrypoint.sh"]
+ENTRYPOINT ["/usr/local/bin/recorder-dispatch.sh"]

@@ -33,9 +33,7 @@ IMAGES=(
     autotest-celery
     autotest-frontend
     autotest-recorder
-    autotest-recorder-api
     autotest-robot-runner
-    autotest-mcp
 )
 
 mkdir -p "$BUNDLE_DIR/sbom" "$BUNDLE_DIR/signatures"

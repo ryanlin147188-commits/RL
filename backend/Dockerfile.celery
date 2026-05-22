@@ -1,8 +1,13 @@
 # Celery worker image — Robot Framework 執行引擎
-# 基底：Playwright 官方 Python image（含 Chromium + 系統依賴），
+# 基底:Playwright 官方 Python image(含 Chromium + 系統依賴),
 # 上層加裝 Node 與 robotframework-browser 所需的 node modules。
+#
+# v1.1.9 與 Dockerfile.recorder 對齊到 Playwright v1.50.0;原本是 v1.47.0,
+# 跟 recorder 不一致導致 VM 上各占一份 ~2GB 的 Playwright base layer。
+# 對齊後共用 base layer,部署 VM 省 ~600MB。rfbrowser init 在 build 階段
+# 會 npm install Playwright JS,確認跟 robotframework-browser==18.8.1 相容。
 
-FROM mcr.microsoft.com/playwright/python:v1.47.0-jammy
+FROM mcr.microsoft.com/playwright/python:v1.50.0-jammy
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \

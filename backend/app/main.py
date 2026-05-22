@@ -463,6 +463,19 @@ async def lifespan(app: FastAPI):
             f"available; the 'local' / 'minio' values from earlier versions "
             f"have been removed)."
         )
+    # Bucket bootstrap:取代原 seaweedfs-init compose service(那個只跑兩行
+    # `aws s3 mb` 就拉一份 amazon/aws-cli image)。backend 已內建 boto3,直接
+    # 在 lifespan 用同一個 S3 client 建 bucket 即可。idempotent;失敗不擋
+    # startup(seaweedfs 可能還在 race;真正用到 bucket 時 storage_service
+    # 自己會 propagate 錯誤)。
+    try:
+        from app.services.storage_service import ensure_buckets
+
+        await asyncio.to_thread(ensure_buckets)
+    except Exception:
+        logging.getLogger(__name__).exception(
+            "ensure_buckets failed during startup; S3 backend may not be ready yet"
+        )
     await init_db()
     try:
         await _seed_default_roles()

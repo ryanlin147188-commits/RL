@@ -1300,6 +1300,7 @@ async def docker_start(
             network=settings.RECORDER_NETWORK,
             ports={"6080/tcp": None},  # auto-assign host port
             environment={
+                "RECORDER_MODE": "novnc",
                 "TARGET_URL": session.target_url,
                 "SESSION_ID": session_id,
                 "UPLOAD_URL": upload_url,
@@ -1545,19 +1546,19 @@ async def api_docker_start(
 
     docker_client = _get_docker_client()
 
-    # Image 預檢:autotest-recorder-api 不存在 → 回 425(前端去 polling 直到 build 完)
+    # Image 預檢:v1.1.9 起 recorder-api / mcp 都合併進 RECORDER_IMAGE,
+    # 同一份 image 靠 RECORDER_MODE env 切 entrypoint。
     try:
-        docker_client.images.get(settings.RECORDER_API_IMAGE)
+        docker_client.images.get(settings.RECORDER_IMAGE)
     except Exception:
         raise HTTPException(
             status_code=425,
             detail={
-                "code": "recorder_api_image_missing",
+                "code": "recorder_image_missing",
                 "message": (
-                    f"找不到 image `{settings.RECORDER_API_IMAGE}`;"
-                    "請執行 `docker compose --profile spawnable build recorder-api` "
-                    "預先 build,或一次 build 全部 spawn-time image:"
-                    "`docker compose --profile spawnable build`"
+                    f"找不到 image `{settings.RECORDER_IMAGE}`;"
+                    "請執行 `docker compose --profile spawnable build recorder` "
+                    "預先 build。"
                 ),
             },
         )
@@ -1583,7 +1584,7 @@ async def api_docker_start(
 
     try:
         container = docker_client.containers.run(
-            image=settings.RECORDER_API_IMAGE,
+            image=settings.RECORDER_IMAGE,
             name=container_name,
             detach=True,
             # See WEB-mode docker_start: auto_remove=False so api_docker_stop
@@ -1595,6 +1596,7 @@ async def api_docker_start(
                 "8081/tcp": None,  # web UI
             },
             environment={
+                "RECORDER_MODE": "mitmweb",
                 "SESSION_ID": session_id,
                 "UPLOAD_URL": upload_url,
             },
