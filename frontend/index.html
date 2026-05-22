@@ -3527,15 +3527,16 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                         <h2 class="font-bold text-slate-700">測試看板</h2>
                         <span class="text-xs text-slate-500">— testcase 工作流</span>
                     </div>
+                    <!-- 主動作按鈕直接放在 title 後,跟測試案例分頁的 + 按鈕同位置邏輯 -->
+                    <button type="button" onclick="_tkOpenCreate()"
+                        class="ml-2 px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-md text-sm font-semibold shadow-sm transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-plus"></i> 新增測試案例
+                    </button>
                     <div class="flex-1"></div>
                     <select id="tkAssigneeFilter" onchange="loadTestKanban()" class="text-xs px-2 py-1.5 border border-slate-300 rounded bg-white">
                         <option value="">所有指派人</option>
                         <option value="null">未指派</option>
                     </select>
-                    <button type="button" onclick="_tkOpenCreate()"
-                        class="text-xs px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded font-medium flex items-center gap-1">
-                        <i class="fa-solid fa-plus"></i> 新增測試案例
-                    </button>
                     <button type="button" onclick="loadTestKanban()" title="重新整理"
                         class="text-xs px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-300 rounded font-medium text-slate-600 flex items-center gap-1">
                         <i class="fa-solid fa-rotate"></i> 重整
