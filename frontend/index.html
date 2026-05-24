@@ -935,6 +935,7 @@
             <div class="flex-1"></div>
             <nav id="topNavRow" class="overflow-x-auto flex items-center gap-1 whitespace-nowrap min-w-0" style="-ms-overflow-style:none;scrollbar-width:none;">
                 <button type="button" data-nav-hash="#testcases"    onclick="showTestCasesView()"    title="測試案例" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-list-check text-blue-600"></i><span class="nav-label" data-i18n="nav.testCases">測試案例</span></button>
+                <button type="button" data-nav-hash="#testschedule" onclick="showTestScheduleView()" title="測試時程" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-calendar-week text-amber-600"></i><span class="nav-label" data-i18n="nav.testSchedule">測試時程</span></button>
                 <button type="button" data-nav-hash="#testdatasets" onclick="showTestDataSetsView()" title="測試資料" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-table text-violet-600"></i><span class="nav-label" data-i18n="nav.dataSets">測試資料</span></button>
                 <button type="button" data-nav-hash="#envvars"      onclick="showEnvVarsView()"      title="環境變數" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-key text-emerald-600"></i><span class="nav-label" data-i18n="nav.envVars">環境變數</span></button>
                 <button type="button" data-nav-hash="#testround"    onclick="showTestRoundView()"    title="TestRun" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-layer-group text-purple-600"></i><span class="nav-label" data-i18n="nav.testRound">TestRun</span></button>
@@ -1312,6 +1313,88 @@
             </div>
             <div id="todoDetailBody" class="p-5 space-y-4 overflow-y-auto flex-1 text-sm"></div>
             <div id="todoDetailFooter" class="p-4 border-t border-slate-200 flex flex-wrap items-center gap-2 justify-end bg-slate-50 rounded-b-lg flex-shrink-0"></div>
+        </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════════════════════════════
+         測試時程 — 新增 / 編輯時程 modal(置中彈窗,沿用 testRoundModal 樣式)
+         ════════════════════════════════════════════════════════════════════ -->
+    <div id="testScheduleModal" class="fixed inset-0 bg-slate-900/50 hidden z-[160] flex items-center justify-center"
+         onclick="if(event.target===this) closeTsModal()">
+        <div class="bg-white rounded-lg shadow-xl w-[600px] max-w-[95vw] flex flex-col max-h-[90vh]"
+             onclick="event.stopPropagation()">
+            <div class="p-4 border-b border-slate-200 flex items-center gap-2 flex-shrink-0">
+                <i class="fa-solid fa-calendar-week text-amber-500"></i>
+                <h3 id="tsModalTitle" class="text-lg font-bold text-slate-800 flex-1">新增時程</h3>
+                <button type="button" onclick="closeTsModal()" aria-label="關閉" class="text-slate-400 hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="tsModalForm" onsubmit="event.preventDefault(); submitTsModal();"
+                  class="p-5 space-y-4 overflow-y-auto flex-1 text-sm">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">名稱 <span class="text-rose-500">*</span></label>
+                    <input type="text" id="tsEditName" required maxlength="200" placeholder="例:Sprint 1 / UAT / 上線前回歸"
+                        class="w-full border border-slate-300 rounded p-2 text-sm focus:ring-2 focus:ring-amber-100 focus:border-amber-400 outline-none">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">開始日期 <span class="text-rose-500">*</span></label>
+                        <input type="date" id="tsEditStartDate" required class="w-full border border-slate-300 rounded p-2 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">結束日期 <span class="text-rose-500">*</span></label>
+                        <input type="date" id="tsEditEndDate" required class="w-full border border-slate-300 rounded p-2 text-sm">
+                    </div>
+                </div>
+                <div class="grid grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">狀態</label>
+                        <select id="tsEditStatus" class="w-full border border-slate-300 rounded p-2 text-sm bg-white">
+                            <option value="Planned" selected>規劃中</option>
+                            <option value="InProgress">進行中</option>
+                            <option value="Done">已完成</option>
+                            <option value="Delayed">延期</option>
+                            <option value="Cancelled">取消</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">顏色</label>
+                        <select id="tsEditColor" class="w-full border border-slate-300 rounded p-2 text-sm bg-white">
+                            <option value="blue">藍</option>
+                            <option value="amber" selected>琥珀</option>
+                            <option value="emerald">綠</option>
+                            <option value="rose">紅</option>
+                            <option value="violet">紫</option>
+                            <option value="indigo">靛</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">負責人</label>
+                        <select id="tsEditAssignee" class="w-full border border-slate-300 rounded p-2 text-sm bg-white">
+                            <option value="">(未指派)</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">說明</label>
+                    <textarea id="tsEditDescription" rows="3" placeholder="這個階段要涵蓋什麼測試 / 範圍 / 完成標準..."
+                        class="w-full border border-slate-300 rounded p-2 text-sm resize-none"></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">連結 TestRun</label>
+                    <select id="tsEditLinkedRound" class="w-full border border-slate-300 rounded p-2 text-sm bg-white">
+                        <option value="">(不連結)</option>
+                    </select>
+                </div>
+            </form>
+            <div class="p-4 border-t border-slate-200 flex justify-between items-center gap-2 bg-slate-50 rounded-b-lg flex-shrink-0">
+                <button type="button" id="tsModalDeleteBtn" onclick="_tsConfirmDelete()"
+                    class="hidden px-3 py-2 text-sm font-medium bg-white hover:bg-rose-50 text-rose-600 border border-rose-300 rounded transition">
+                    <i class="fa-solid fa-trash"></i> 刪除
+                </button>
+                <div class="flex-1"></div>
+                <button type="button" onclick="closeTsModal()" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 rounded transition">取消</button>
+                <button type="button" onclick="submitTsModal()" class="px-4 py-2 text-sm font-medium bg-amber-600 hover:bg-amber-700 text-white rounded shadow-sm transition">儲存</button>
+            </div>
         </div>
     </div>
 
@@ -3716,6 +3799,52 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
 
             </div>
 
+            <!-- ════════════════════════════════════════════════════════════
+                 視圖:測試時程(Test Schedule)— v1.1.9 新增
+                 Gantt 風格時間軸 + 階段/里程碑 CRUD,讓 user 規劃 Sprint /
+                 階段 / UAT / Release 等時程。
+                 ════════════════════════════════════════════════════════════ -->
+            <div id="testScheduleWorkspace" class="flex-1 overflow-y-auto p-4 sm:p-6 bg-amber-50/20 hidden">
+                <div class="flex flex-wrap items-center gap-2 mb-4">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-calendar-week text-amber-600"></i>
+                        <h2 class="font-bold text-slate-700">測試時程</h2>
+                    </div>
+                    <div class="flex-1"></div>
+                    <select id="tsRangeSelect" onchange="loadTestSchedules()" class="text-xs px-2 py-1.5 border border-slate-300 rounded bg-white">
+                        <option value="1m">未來 1 個月</option>
+                        <option value="3m" selected>未來 3 個月</option>
+                        <option value="6m">未來 6 個月</option>
+                        <option value="12m">未來 1 年</option>
+                        <option value="all">全部</option>
+                    </select>
+                    <select id="tsStatusFilter" onchange="loadTestSchedules()" class="text-xs px-2 py-1.5 border border-slate-300 rounded bg-white">
+                        <option value="">所有狀態</option>
+                        <option value="Planned">規劃中</option>
+                        <option value="InProgress">進行中</option>
+                        <option value="Done">已完成</option>
+                        <option value="Delayed">延期</option>
+                        <option value="Cancelled">取消</option>
+                    </select>
+                    <button type="button" onclick="openTsCreateModal()"
+                        class="text-xs px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded font-medium flex items-center gap-1 shadow-sm">
+                        <i class="fa-solid fa-plus"></i> 新增時程
+                    </button>
+                    <button type="button" onclick="loadTestSchedules()" title="重新整理"
+                        class="text-xs px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-300 rounded font-medium text-slate-600 flex items-center gap-1">
+                        <i class="fa-solid fa-rotate"></i>
+                    </button>
+                </div>
+                <div id="tsEmptyState" class="hidden text-center py-20 text-slate-400">
+                    <i class="fa-solid fa-calendar-plus text-4xl mb-3 block"></i>
+                    <p>還沒有時程規劃。點右上「新增時程」開始安排 Sprint / 階段 / 里程碑。</p>
+                </div>
+                <!-- Gantt-style timeline -->
+                <div id="tsGantt" class="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+                    <!-- header (date axis) + rows by JS render -->
+                </div>
+            </div>
+
             <!-- 執行 Console 底部抽屜 -->
             <div id="terminalPanel"
                  class="shrink-0 bg-slate-900 border-t-0 border-slate-700 overflow-hidden transition-all duration-300 h-0 flex flex-col">
@@ -3932,6 +4061,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                     '#filecompare':     'fileCompareWorkspace',
                     '#testkanban':      'testKanbanWorkspace',
                     '#defects':         'defectsWorkspace',
+                    '#testschedule':    'testScheduleWorkspace',
                 };
                 var hash = (window.location.hash || '#home').toLowerCase();
                 var wsId = HASH_TO_WORKSPACE[hash] || 'homeWorkspace';
@@ -3972,6 +4102,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             fileCompareWorkspace:  '檔案比對',
             testKanbanWorkspace:   '測試看版',
             defectsWorkspace:      '缺陷管理',
+            testScheduleWorkspace: '測試時程',
         };
 
         const _ALL_WS_IDS = [
@@ -3980,7 +4111,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             'scheduleWorkspace','envVarsWorkspace','homeWorkspace',
             'testcasesWorkspace','userSettingsWorkspace','testDataSetsWorkspace',
             'backlogWorkspace','reviewWorkspace','fileCompareWorkspace',
-            'testKanbanWorkspace','defectsWorkspace',
+            'testKanbanWorkspace','defectsWorkspace','testScheduleWorkspace',
         ];
 
         function _navCurrentWsId() {
@@ -4034,6 +4165,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                     case 'fileCompareWorkspace':  if (typeof showFileCompareView === 'function') showFileCompareView(); break;
                     case 'testKanbanWorkspace':   if (typeof showTestKanbanView === 'function') showTestKanbanView(); break;
                     case 'defectsWorkspace':      if (typeof showDefectsView === 'function') showDefectsView(); break;
+                    case 'testScheduleWorkspace': if (typeof showTestScheduleView === 'function') showTestScheduleView(); break;
                     default:
                         _hideAllWorkspaces();
                         document.getElementById(prev.workspaceId)?.classList.remove('hidden');
@@ -7447,6 +7579,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             'nav.recorder': { 'zh-TW': '測試錄製', 'en': 'Recorder' },
             'nav.reports': { 'zh-TW': '測試報告', 'en': 'Reports' },
             'nav.testKanban': { 'zh-TW': '測試看版', 'en': 'Task Board' },
+            'nav.testSchedule': { 'zh-TW': '測試時程', 'en': 'Schedule' },
             'nav.defects': { 'zh-TW': '缺陷管理', 'en': 'Defects' },
             'nav.review': { 'zh-TW': '審核', 'en': 'Review' },
             // 環境切換
@@ -10202,7 +10335,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 'showTestDataSetsView', 'showBacklogView', 'showScheduleView',
                 'showFileCompareView',
                 // v1.1.9 新增:讓 hash routing + nav active highlight 認得
-                'showTestKanbanView', 'showDefectsView',
+                'showTestKanbanView', 'showDefectsView', 'showTestScheduleView',
             ];
             const _hashToFn = {};   // '#defects' → 'showDefectsView'
             let _suppressHashChange = false;
@@ -11553,9 +11686,10 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             document.getElementById('backlogWorkspace')?.classList.add('hidden');
             document.getElementById('reviewWorkspace')?.classList.add('hidden');
             document.getElementById('fileCompareWorkspace')?.classList.add('hidden');
-            // 測試看版 / 缺陷管理(v1.1.9 新增)
+            // 測試看版 / 缺陷管理 / 測試時程(v1.1.9 新增)
             document.getElementById('testKanbanWorkspace')?.classList.add('hidden');
             document.getElementById('defectsWorkspace')?.classList.add('hidden');
+            document.getElementById('testScheduleWorkspace')?.classList.add('hidden');
         }
 
         // ================== 審核 (Review Center) =====================
@@ -20477,6 +20611,288 @@ curl -X POST http://localhost:8000/api/defects \\
     document.addEventListener('autotest:project-changed', () => { refreshDefectsBadge().catch(()=>{}); });
     // 啟動後跑一次
     setTimeout(() => { refreshDefectsBadge().catch(()=>{}); }, 1500);
+
+    // ════════════════════════════════════════════════════════════════════
+    // 測試時程(Test Schedule)— v1.1.9 加
+    // Gantt-style 時間軸 + 階段/里程碑 CRUD,讓 user 規劃 Sprint / UAT /
+    // Release 等時程。每筆 schedule 有 start_date / end_date / status / color。
+    // ════════════════════════════════════════════════════════════════════
+
+    const _TS_STATUS_PILL = {
+        Planned:    'bg-slate-100   text-slate-700',
+        InProgress: 'bg-blue-100    text-blue-700',
+        Done:       'bg-emerald-100 text-emerald-700',
+        Delayed:    'bg-amber-100   text-amber-700',
+        Cancelled:  'bg-stone-200   text-stone-600',
+    };
+    const _TS_STATUS_ZH = {
+        Planned: '規劃中', InProgress: '進行中', Done: '已完成', Delayed: '延期', Cancelled: '取消',
+    };
+    // bar 顏色 mapping:color name → Tailwind bg class(全是已編譯顏色)
+    const _TS_BAR_BG = {
+        blue:    'bg-blue-500',
+        amber:   'bg-amber-500',
+        emerald: 'bg-emerald-500',
+        rose:    'bg-rose-500',
+        violet:  'bg-violet-500',
+        indigo:  'bg-indigo-500',
+    };
+
+    let _tsRows = [];
+    let _tsEditingId = null;  // null = 新增,有值 = 編輯
+
+    async function showTestScheduleView() {
+        if (typeof confirmDiscardIfDirty === 'function' && !confirmDiscardIfDirty()) return false;
+        _navPush();
+        _hideAllWorkspaces();
+        _setViewMeta && _setViewMeta('nav.testSchedule','nav.testSchedule',
+            '<i class="fa-solid fa-calendar-week text-amber-600"></i>',
+            'Schedule','bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium');
+        document.getElementById('testScheduleWorkspace').classList.remove('hidden');
+        document.getElementById('mainHeader').classList.remove('hidden');
+        document.getElementById('mainActions')?.classList.add('hidden');
+        await loadTestSchedules();
+    }
+
+    async function loadTestSchedules() {
+        if (!currentProjectId) {
+            document.getElementById('tsEmptyState').classList.remove('hidden');
+            document.getElementById('tsGantt').innerHTML = '';
+            return;
+        }
+        const params = new URLSearchParams({ project_id: currentProjectId });
+        const status = document.getElementById('tsStatusFilter')?.value || '';
+        if (status) params.set('status', status);
+        try {
+            _tsRows = await apiFetch(`/api/test-schedules?${params}`);
+            _tsRenderGantt();
+        } catch (e) {
+            console.error('[testSchedule] load failed', e);
+            if (typeof showToast === 'function') showToast('載入時程失敗:' + (e.message||e), 'error');
+        }
+    }
+
+    // 依當前 range 算 viewport 起訖日期
+    function _tsViewportRange() {
+        const range = document.getElementById('tsRangeSelect')?.value || '3m';
+        const today = new Date();
+        const start = new Date(today);
+        start.setDate(1);  // 從本月 1 號開始
+        const end = new Date(start);
+        if (range === '1m') end.setMonth(end.getMonth() + 1);
+        else if (range === '3m') end.setMonth(end.getMonth() + 3);
+        else if (range === '6m') end.setMonth(end.getMonth() + 6);
+        else if (range === '12m') end.setMonth(end.getMonth() + 12);
+        else {
+            // all:抓所有 schedule 涵蓋的最早最晚
+            if (_tsRows.length) {
+                const ds = _tsRows.map(r => new Date(r.start_date));
+                const de = _tsRows.map(r => new Date(r.end_date));
+                start.setTime(Math.min(...ds.map(d=>d.getTime())));
+                end.setTime(Math.max(...de.map(d=>d.getTime())));
+                end.setDate(end.getDate() + 7);  // 多預留一週
+            } else {
+                end.setMonth(end.getMonth() + 3);
+            }
+        }
+        return { start, end };
+    }
+
+    function _tsRenderGantt() {
+        const total = _tsRows.length;
+        document.getElementById('tsEmptyState').classList.toggle('hidden', total > 0);
+        const gantt = document.getElementById('tsGantt');
+        if (!total) { gantt.innerHTML = ''; return; }
+
+        const { start: vStart, end: vEnd } = _tsViewportRange();
+        const msPerDay = 86400000;
+        const totalDays = Math.max(1, Math.round((vEnd - vStart) / msPerDay));
+
+        // 月份格子 header — 動態算 viewport 內每個月佔的 day 數
+        const months = [];
+        let cur = new Date(vStart.getFullYear(), vStart.getMonth(), 1);
+        while (cur < vEnd) {
+            const monthEnd = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
+            const segStart = cur < vStart ? vStart : cur;
+            const segEnd = monthEnd > vEnd ? vEnd : monthEnd;
+            const days = Math.max(1, Math.round((segEnd - segStart) / msPerDay));
+            months.push({ label: `${cur.getFullYear()}/${String(cur.getMonth()+1).padStart(2,'0')}`, days });
+            cur = monthEnd;
+        }
+        const headerCells = months.map(m =>
+            `<div class="text-xs font-mono text-slate-600 text-center py-2 border-r border-slate-200 last:border-r-0"
+                  style="flex:${m.days};min-width:60px">${m.label}</div>`
+        ).join('');
+
+        // 排序:by start_date asc
+        const sorted = [..._tsRows].sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
+        const rows = sorted.map(s => {
+            const sStart = new Date(s.start_date);
+            const sEnd = new Date(s.end_date);
+            // 截到 viewport 範圍內
+            const clipStart = sStart < vStart ? vStart : sStart;
+            const clipEnd = sEnd > vEnd ? vEnd : sEnd;
+            const visible = clipEnd >= vStart && clipStart <= vEnd;
+            const offsetDays = Math.max(0, Math.round((clipStart - vStart) / msPerDay));
+            const durationDays = Math.max(1, Math.round((clipEnd - clipStart) / msPerDay) + 1);
+            const offsetPct = (offsetDays / totalDays) * 100;
+            const widthPct = (durationDays / totalDays) * 100;
+            const barBg = _TS_BAR_BG[s.color] || 'bg-blue-500';
+            const statusPill = _TS_STATUS_PILL[s.status] || 'bg-slate-100 text-slate-700';
+            const statusZh = _TS_STATUS_ZH[s.status] || s.status;
+            const assignee = s.assigned_to || '未指派';
+            return `
+                <div class="flex items-stretch border-b border-slate-100 hover:bg-amber-50/30 cursor-pointer"
+                     onclick="openTsEditModal('${s.id}')">
+                    <!-- 左側 label 區 -->
+                    <div class="w-56 shrink-0 border-r border-slate-200 p-2.5 flex flex-col gap-1">
+                        <div class="text-sm font-semibold text-slate-800 line-clamp-1" title="${escapeHtml(s.name)}">${escapeHtml(s.name)}</div>
+                        <div class="flex items-center gap-2 text-[10px]">
+                            <span class="px-1.5 py-0.5 ${statusPill} rounded font-medium">${statusZh}</span>
+                            <span class="text-slate-500"><i class="fa-regular fa-user mr-0.5"></i>${escapeHtml(assignee)}</span>
+                        </div>
+                        <div class="text-[10px] text-slate-400 font-mono">${s.start_date} → ${s.end_date}</div>
+                    </div>
+                    <!-- 右側 timeline 區 -->
+                    <div class="flex-1 relative" style="min-height:60px">
+                        ${visible ? `
+                            <div class="absolute top-3 ${barBg} rounded shadow-sm flex items-center px-2 text-white text-[11px] font-medium overflow-hidden"
+                                 style="left:${offsetPct}%;width:${widthPct}%;min-width:8px;height:24px"
+                                 title="${escapeHtml(s.name)} (${s.start_date} → ${s.end_date})">
+                                <span class="truncate">${escapeHtml(s.name)}</span>
+                            </div>` : `
+                            <div class="absolute top-3 left-2 text-[10px] text-slate-400 italic">不在當前範圍 (${s.start_date} → ${s.end_date})</div>`}
+                    </div>
+                </div>`;
+        }).join('');
+
+        gantt.innerHTML = `
+            <!-- header: 左側固定 label 區 + 右側月份格子 -->
+            <div class="flex border-b border-slate-200 bg-slate-50/70 sticky top-0">
+                <div class="w-56 shrink-0 border-r border-slate-200 p-2.5 text-xs font-semibold text-slate-600">
+                    時程項目
+                </div>
+                <div class="flex-1 flex">${headerCells}</div>
+            </div>
+            ${rows}`;
+    }
+
+    // 新增/編輯 modal handlers
+    function openTsCreateModal() {
+        if (!currentProjectId) {
+            if (typeof showToast === 'function') showToast('請先選擇專案', 'error');
+            return;
+        }
+        _tsEditingId = null;
+        document.getElementById('tsModalTitle').textContent = '新增時程';
+        document.getElementById('tsModalDeleteBtn').classList.add('hidden');
+        document.getElementById('tsEditName').value = '';
+        // default: 今天 → 兩週後
+        const today = new Date();
+        const twoWeeks = new Date(today);
+        twoWeeks.setDate(today.getDate() + 14);
+        document.getElementById('tsEditStartDate').value = today.toISOString().slice(0,10);
+        document.getElementById('tsEditEndDate').value = twoWeeks.toISOString().slice(0,10);
+        document.getElementById('tsEditStatus').value = 'Planned';
+        document.getElementById('tsEditColor').value = 'amber';
+        document.getElementById('tsEditAssignee').value = '';
+        document.getElementById('tsEditDescription').value = '';
+        document.getElementById('tsEditLinkedRound').value = '';
+        _tsLoadOptions();
+        document.getElementById('testScheduleModal').classList.remove('hidden');
+        setTimeout(() => document.getElementById('tsEditName').focus(), 50);
+    }
+
+    async function openTsEditModal(id) {
+        const sched = _tsRows.find(s => s.id === id);
+        if (!sched) return;
+        _tsEditingId = id;
+        document.getElementById('tsModalTitle').textContent = '編輯時程';
+        document.getElementById('tsModalDeleteBtn').classList.remove('hidden');
+        document.getElementById('tsEditName').value = sched.name || '';
+        document.getElementById('tsEditStartDate').value = sched.start_date || '';
+        document.getElementById('tsEditEndDate').value = sched.end_date || '';
+        document.getElementById('tsEditStatus').value = sched.status || 'Planned';
+        document.getElementById('tsEditColor').value = sched.color || 'amber';
+        document.getElementById('tsEditDescription').value = sched.description || '';
+        document.getElementById('testScheduleModal').classList.remove('hidden');
+        await _tsLoadOptions();
+        document.getElementById('tsEditAssignee').value = sched.assigned_to || '';
+        document.getElementById('tsEditLinkedRound').value = sched.linked_test_round_id || '';
+    }
+
+    function closeTsModal() {
+        document.getElementById('testScheduleModal').classList.add('hidden');
+        _tsEditingId = null;
+    }
+
+    async function _tsLoadOptions() {
+        if (!currentProjectId) return;
+        // assignee
+        try {
+            const members = await apiFetch(`/api/projects/${currentProjectId}/members`).catch(()=>[]);
+            const aSel = document.getElementById('tsEditAssignee');
+            aSel.innerHTML = '<option value="">(未指派)</option>' +
+                (members || []).map(m => `<option value="${escapeHtml(m.username||'')}">${escapeHtml(m.username||m.display_name||'')}</option>`).join('');
+        } catch (_) {}
+        // test rounds
+        try {
+            const rounds = await apiFetch(`/api/rounds?project_id=${encodeURIComponent(currentProjectId)}`).catch(()=>[]);
+            const rSel = document.getElementById('tsEditLinkedRound');
+            rSel.innerHTML = '<option value="">(不連結)</option>' +
+                (rounds || []).map(r => `<option value="${r.id}">${escapeHtml(r.name||r.id.slice(0,8))}</option>`).join('');
+        } catch (_) {}
+    }
+
+    async function submitTsModal() {
+        const name = document.getElementById('tsEditName').value.trim();
+        const start = document.getElementById('tsEditStartDate').value;
+        const end = document.getElementById('tsEditEndDate').value;
+        if (!name) { showToast?.('名稱必填', 'error'); return; }
+        if (!start || !end) { showToast?.('開始 / 結束日期必填', 'error'); return; }
+        if (end < start) { showToast?.('結束日期必須晚於開始日期', 'error'); return; }
+        const payload = {
+            name,
+            start_date: start,
+            end_date: end,
+            status: document.getElementById('tsEditStatus').value,
+            color: document.getElementById('tsEditColor').value,
+            description: document.getElementById('tsEditDescription').value || null,
+            assigned_to: document.getElementById('tsEditAssignee').value || null,
+            linked_test_round_id: document.getElementById('tsEditLinkedRound').value || null,
+        };
+        try {
+            if (_tsEditingId) {
+                await apiFetch(`/api/test-schedules/${_tsEditingId}`, { method: 'PATCH', body: payload });
+                showToast?.('已更新', 'success');
+            } else {
+                payload.project_id = currentProjectId;
+                await apiFetch('/api/test-schedules', { method: 'POST', body: payload });
+                showToast?.('已建立', 'success');
+            }
+            closeTsModal();
+            await loadTestSchedules();
+        } catch (e) {
+            const detail = e?.detail || {};
+            const msg = detail.detail || detail.message || e.message || '儲存失敗';
+            showToast?.('儲存失敗:' + msg, 'error');
+        }
+    }
+
+    async function _tsConfirmDelete() {
+        if (!_tsEditingId) return;
+        const sched = _tsRows.find(s => s.id === _tsEditingId);
+        if (!confirm(`確定刪除時程「${sched?.name || _tsEditingId}」?此操作無法復原。`)) return;
+        try {
+            await apiFetch(`/api/test-schedules/${_tsEditingId}`, { method: 'DELETE', raw: true });
+            closeTsModal();
+            showToast?.('已刪除', 'success');
+            await loadTestSchedules();
+        } catch (e) {
+            showToast?.('刪除失敗:' + (e.message||e), 'error');
+        }
+    }
+
 
     </script>
 </body>

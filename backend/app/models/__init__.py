@@ -37,6 +37,7 @@ from .review import (
 from .step_screenshot_baseline import StepScreenshotBaseline
 from .test_data_set import DataSetCategory, TestDataSet
 from .test_round import TestRound
+from .test_schedule import TestSchedule, TestScheduleStatus
 from .test_version import TestVersion, VersionPlatform, VersionStatus
 from .testcase_content import TestcaseContent
 from .testcase_env_binding import TestcaseEnvBinding
@@ -87,6 +88,7 @@ __all__ = [
     "ProjectEnvVar",
     "StepScreenshotBaseline",
     "TestRound",
+    "TestSchedule", "TestScheduleStatus",
     # Review / approval workflow
     "ReviewRecord", "ReviewHistory",
     "ReviewableEntityType", "ReviewStatus", "ReviewAction",
