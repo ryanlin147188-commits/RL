@@ -938,6 +938,7 @@
                 <button type="button" data-nav-hash="#testschedule" onclick="showTestScheduleView()" title="測試時程" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-calendar-week text-amber-600"></i><span class="nav-label" data-i18n="nav.testSchedule">測試時程</span></button>
                 <button type="button" data-nav-hash="#testdatasets" onclick="showTestDataSetsView()" title="測試資料" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-table text-violet-600"></i><span class="nav-label" data-i18n="nav.dataSets">測試資料</span></button>
                 <button type="button" data-nav-hash="#envvars"      onclick="showEnvVarsView()"      title="環境變數" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-key text-emerald-600"></i><span class="nav-label" data-i18n="nav.envVars">環境變數</span></button>
+                <button type="button" data-nav-hash="#mock"         onclick="showMockView()"         title="Mock" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-plug text-indigo-600"></i><span class="nav-label" data-i18n="nav.mock">Mock</span></button>
                 <button type="button" data-nav-hash="#testround"    onclick="showTestRoundView()"    title="TestRun" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-layer-group text-purple-600"></i><span class="nav-label" data-i18n="nav.testRound">TestRun</span></button>
                 <button type="button" data-nav-hash="#schedule"     onclick="showScheduleView()"     title="測試排程" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-calendar-days text-emerald-600"></i><span class="nav-label" data-i18n="nav.schedule">測試排程</span></button>
                 <button type="button" data-nav-hash="#recorder"     onclick="showRecorderView()"     title="測試錄製" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-video text-rose-600"></i><span class="nav-label" data-i18n="nav.recorder">測試錄製</span></button>
@@ -1394,6 +1395,89 @@
                 <div class="flex-1"></div>
                 <button type="button" onclick="closeTsModal()" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 rounded transition">取消</button>
                 <button type="button" onclick="submitTsModal()" class="px-4 py-2 text-sm font-medium bg-amber-600 hover:bg-amber-700 text-white rounded shadow-sm transition">儲存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════════════════════════════
+         Mock 端點 — 新增 / 編輯 modal
+         ════════════════════════════════════════════════════════════════════ -->
+    <div id="mockModal" class="fixed inset-0 bg-slate-900/50 hidden z-[160] flex items-center justify-center"
+         onclick="if(event.target===this) closeMockModal()">
+        <div class="bg-white rounded-lg shadow-xl w-[640px] max-w-[95vw] flex flex-col max-h-[90vh]"
+             onclick="event.stopPropagation()">
+            <div class="p-4 border-b border-slate-200 flex items-center gap-2 flex-shrink-0">
+                <i class="fa-solid fa-plug text-indigo-500"></i>
+                <h3 id="mockModalTitle" class="text-lg font-bold text-slate-800 flex-1">新增 Mock</h3>
+                <button type="button" onclick="closeMockModal()" aria-label="關閉" class="text-slate-400 hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="mockModalForm" onsubmit="event.preventDefault(); submitMockModal();"
+                  class="p-5 space-y-4 overflow-y-auto flex-1 text-sm">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">名稱 <span class="text-rose-500">*</span></label>
+                    <input type="text" id="mockEditName" required maxlength="160" placeholder="例:取得使用者列表"
+                        class="w-full border border-slate-300 rounded p-2 text-sm focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 outline-none">
+                </div>
+                <div class="grid grid-cols-12 gap-3">
+                    <div class="col-span-3">
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Method</label>
+                        <select id="mockEditMethod" class="w-full border border-slate-300 rounded p-2 text-sm bg-white font-mono">
+                            <option value="GET">GET</option>
+                            <option value="POST">POST</option>
+                            <option value="PUT">PUT</option>
+                            <option value="PATCH">PATCH</option>
+                            <option value="DELETE">DELETE</option>
+                        </select>
+                    </div>
+                    <div class="col-span-9">
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Path <span class="text-rose-500">*</span></label>
+                        <input type="text" id="mockEditPath" required maxlength="500" placeholder="/api/users 或 /v1/products/:id"
+                            class="w-full border border-slate-300 rounded p-2 text-sm font-mono focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 outline-none">
+                    </div>
+                </div>
+                <div class="grid grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">狀態碼</label>
+                        <input type="number" id="mockEditStatusCode" min="100" max="599" value="200"
+                            class="w-full border border-slate-300 rounded p-2 text-sm font-mono">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">延遲 (ms)</label>
+                        <input type="number" id="mockEditDelayMs" min="0" max="60000" value="0"
+                            class="w-full border border-slate-300 rounded p-2 text-sm font-mono">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">啟用</label>
+                        <label class="flex items-center gap-2 px-2 py-2 border border-slate-300 rounded bg-white cursor-pointer hover:bg-slate-50">
+                            <input type="checkbox" id="mockEditEnabled" checked class="h-4 w-4 rounded border-slate-300 text-indigo-500">
+                            <span class="text-sm text-slate-700">啟用此 mock</span>
+                        </label>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">說明</label>
+                    <textarea id="mockEditDescription" rows="2" placeholder="這個 mock 的用途 / 預期行為"
+                        class="w-full border border-slate-300 rounded p-2 text-sm resize-none"></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Response Headers (JSON,可空)</label>
+                    <textarea id="mockEditRespHeaders" rows="2" placeholder='{"Content-Type": "application/json"}'
+                        class="w-full border border-slate-300 rounded p-2 text-xs font-mono resize-none"></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Response Body</label>
+                    <textarea id="mockEditRespBody" rows="6" placeholder='可用 Faker 佔位符:{{name}} / {{uuid}} / {{int:1,100}}'
+                        class="w-full border border-slate-300 rounded p-2 text-xs font-mono resize-none"></textarea>
+                </div>
+            </form>
+            <div class="p-4 border-t border-slate-200 flex justify-between items-center gap-2 bg-slate-50 rounded-b-lg flex-shrink-0">
+                <button type="button" id="mockModalDeleteBtn" onclick="_mockConfirmDelete()"
+                    class="hidden px-3 py-2 text-sm font-medium bg-white hover:bg-rose-50 text-rose-600 border border-rose-300 rounded transition">
+                    <i class="fa-solid fa-trash"></i> 刪除
+                </button>
+                <div class="flex-1"></div>
+                <button type="button" onclick="closeMockModal()" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 rounded transition">取消</button>
+                <button type="button" onclick="submitMockModal()" class="px-4 py-2 text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white rounded shadow-sm transition">儲存</button>
             </div>
         </div>
     </div>
@@ -3845,6 +3929,64 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 </div>
             </div>
 
+            <!-- ════════════════════════════════════════════════════════════
+                 視圖:Mock 端點(Mock Endpoints)— v1.1.9 新增
+                 規劃 mock API 設定:method + path → status_code + response body。
+                 列表 + CRUD 模式。
+                 ════════════════════════════════════════════════════════════ -->
+            <div id="mockWorkspace" class="flex-1 overflow-y-auto p-4 sm:p-6 bg-indigo-50/20 hidden">
+                <div class="flex flex-wrap items-center gap-2 mb-4">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-plug text-indigo-600"></i>
+                        <h2 class="font-bold text-slate-700">Mock 端點</h2>
+                    </div>
+                    <div class="flex-1"></div>
+                    <select id="mockMethodFilter" onchange="loadMockEndpoints()" class="text-xs px-2 py-1.5 border border-slate-300 rounded bg-white">
+                        <option value="">所有 method</option>
+                        <option value="GET">GET</option>
+                        <option value="POST">POST</option>
+                        <option value="PUT">PUT</option>
+                        <option value="PATCH">PATCH</option>
+                        <option value="DELETE">DELETE</option>
+                    </select>
+                    <input type="text" id="mockSearch" placeholder="搜尋 name / path"
+                        oninput="_mockSearchDebounce()" class="text-xs px-2 py-1.5 border border-slate-300 rounded bg-white w-48">
+                    <button type="button" onclick="openMockCreateModal()"
+                        class="text-xs px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded font-medium flex items-center gap-1 shadow-sm">
+                        <i class="fa-solid fa-plus"></i> 新增 Mock
+                    </button>
+                    <button type="button" onclick="loadMockEndpoints()" title="重新整理"
+                        class="text-xs px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-300 rounded font-medium text-slate-600 flex items-center gap-1">
+                        <i class="fa-solid fa-rotate"></i>
+                    </button>
+                </div>
+                <div id="mockEmptyState" class="hidden text-center py-20 text-slate-400">
+                    <i class="fa-solid fa-plug-circle-bolt text-4xl mb-3 block"></i>
+                    <p>還沒有 Mock 端點。點右上「新增 Mock」開始設定。</p>
+                </div>
+                <div id="mockListPanel" class="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead class="bg-slate-50 border-b border-slate-200 text-xs text-slate-500">
+                                <tr>
+                                    <th class="px-3 py-2 text-left font-medium">啟用</th>
+                                    <th class="px-3 py-2 text-left font-medium w-20">Method</th>
+                                    <th class="px-3 py-2 text-left font-medium">名稱</th>
+                                    <th class="px-3 py-2 text-left font-medium">Path</th>
+                                    <th class="px-3 py-2 text-left font-medium">狀態碼</th>
+                                    <th class="px-3 py-2 text-left font-medium">延遲</th>
+                                    <th class="px-3 py-2 text-left font-medium">更新時間</th>
+                                    <th class="px-3 py-2 text-right font-medium w-24">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="mockListBody" class="divide-y divide-slate-100">
+                                <tr><td colspan="8" class="text-center py-10 text-slate-400">載入中…</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
             <!-- 執行 Console 底部抽屜 -->
             <div id="terminalPanel"
                  class="shrink-0 bg-slate-900 border-t-0 border-slate-700 overflow-hidden transition-all duration-300 h-0 flex flex-col">
@@ -4062,6 +4204,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                     '#testkanban':      'testKanbanWorkspace',
                     '#defects':         'defectsWorkspace',
                     '#testschedule':    'testScheduleWorkspace',
+                    '#mock':            'mockWorkspace',
                 };
                 var hash = (window.location.hash || '#home').toLowerCase();
                 var wsId = HASH_TO_WORKSPACE[hash] || 'homeWorkspace';
@@ -4103,6 +4246,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             testKanbanWorkspace:   '測試看版',
             defectsWorkspace:      '缺陷管理',
             testScheduleWorkspace: '測試時程',
+            mockWorkspace:         'Mock',
         };
 
         const _ALL_WS_IDS = [
@@ -4111,7 +4255,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             'scheduleWorkspace','envVarsWorkspace','homeWorkspace',
             'testcasesWorkspace','userSettingsWorkspace','testDataSetsWorkspace',
             'backlogWorkspace','reviewWorkspace','fileCompareWorkspace',
-            'testKanbanWorkspace','defectsWorkspace','testScheduleWorkspace',
+            'testKanbanWorkspace','defectsWorkspace','testScheduleWorkspace','mockWorkspace',
         ];
 
         function _navCurrentWsId() {
@@ -4166,6 +4310,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                     case 'testKanbanWorkspace':   if (typeof showTestKanbanView === 'function') showTestKanbanView(); break;
                     case 'defectsWorkspace':      if (typeof showDefectsView === 'function') showDefectsView(); break;
                     case 'testScheduleWorkspace': if (typeof showTestScheduleView === 'function') showTestScheduleView(); break;
+                    case 'mockWorkspace':         if (typeof showMockView === 'function') showMockView(); break;
                     default:
                         _hideAllWorkspaces();
                         document.getElementById(prev.workspaceId)?.classList.remove('hidden');
@@ -10335,7 +10480,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 'showTestDataSetsView', 'showBacklogView', 'showScheduleView',
                 'showFileCompareView',
                 // v1.1.9 新增:讓 hash routing + nav active highlight 認得
-                'showTestKanbanView', 'showDefectsView', 'showTestScheduleView',
+                'showTestKanbanView', 'showDefectsView', 'showTestScheduleView', 'showMockView',
             ];
             const _hashToFn = {};   // '#defects' → 'showDefectsView'
             let _suppressHashChange = false;
@@ -11690,6 +11835,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             document.getElementById('testKanbanWorkspace')?.classList.add('hidden');
             document.getElementById('defectsWorkspace')?.classList.add('hidden');
             document.getElementById('testScheduleWorkspace')?.classList.add('hidden');
+            document.getElementById('mockWorkspace')?.classList.add('hidden');
         }
 
         // ================== 審核 (Review Center) =====================
@@ -20888,6 +21034,243 @@ curl -X POST http://localhost:8000/api/defects \\
             closeTsModal();
             showToast?.('已刪除', 'success');
             await loadTestSchedules();
+        } catch (e) {
+            showToast?.('刪除失敗:' + (e.message||e), 'error');
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // Mock 端點(Mock Endpoints)— v1.1.9 加
+    // 列表 + create/edit modal + DELETE。Backend POST/PUT/DELETE/GET 都有,
+    // 直接打 /api/mock-endpoints。
+    // ════════════════════════════════════════════════════════════════════
+
+    const _MOCK_METHOD_PILL = {
+        GET:    'bg-emerald-100 text-emerald-700 border-emerald-200',
+        POST:   'bg-blue-100    text-blue-700    border-blue-200',
+        PUT:    'bg-amber-100   text-amber-700   border-amber-200',
+        PATCH:  'bg-violet-100  text-violet-700  border-violet-200',
+        DELETE: 'bg-rose-100    text-rose-700    border-rose-200',
+    };
+
+    let _mockRows = [];
+    let _mockEditingId = null;
+    let _mockSearchTimer = null;
+
+    async function showMockView() {
+        if (typeof confirmDiscardIfDirty === 'function' && !confirmDiscardIfDirty()) return false;
+        _navPush();
+        _hideAllWorkspaces();
+        _setViewMeta && _setViewMeta('nav.mock','nav.mock',
+            '<i class="fa-solid fa-plug text-indigo-600"></i>',
+            'Mock','bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-medium');
+        document.getElementById('mockWorkspace').classList.remove('hidden');
+        document.getElementById('mainHeader').classList.remove('hidden');
+        document.getElementById('mainActions')?.classList.add('hidden');
+        await loadMockEndpoints();
+    }
+
+    function _mockSearchDebounce() {
+        clearTimeout(_mockSearchTimer);
+        _mockSearchTimer = setTimeout(loadMockEndpoints, 250);
+    }
+
+    async function loadMockEndpoints() {
+        if (!currentProjectId) {
+            document.getElementById('mockEmptyState').classList.remove('hidden');
+            document.getElementById('mockListBody').innerHTML =
+                '<tr><td colspan="8" class="text-center py-10 text-slate-400">請先選擇專案</td></tr>';
+            return;
+        }
+        const params = new URLSearchParams({ project_id: currentProjectId });
+        try {
+            const rows = await apiFetch(`/api/mock-endpoints?${params}`);
+            // 前端 filter:method + search(後端 GET 沒這兩個 query)
+            const method = document.getElementById('mockMethodFilter')?.value || '';
+            const q = (document.getElementById('mockSearch')?.value || '').trim().toLowerCase();
+            _mockRows = (rows || []).filter(r => {
+                if (method && r.method !== method) return false;
+                if (q) {
+                    const hay = (r.name||'').toLowerCase() + ' ' + (r.path||'').toLowerCase();
+                    if (!hay.includes(q)) return false;
+                }
+                return true;
+            });
+            _mockRenderList();
+        } catch (e) {
+            console.error('[mock] load failed', e);
+            document.getElementById('mockListBody').innerHTML =
+                `<tr><td colspan="8" class="text-center py-10 text-rose-500">載入失敗:${escapeHtml(e.message||String(e))}</td></tr>`;
+        }
+    }
+
+    function _mockRenderList() {
+        const body = document.getElementById('mockListBody');
+        const total = _mockRows.length;
+        document.getElementById('mockEmptyState').classList.toggle('hidden', total > 0);
+        if (!total) {
+            body.innerHTML = '<tr><td colspan="8" class="text-center py-10 text-slate-400">沒有符合條件的 mock</td></tr>';
+            return;
+        }
+        body.innerHTML = _mockRows.map(m => {
+            const methodPill = _MOCK_METHOD_PILL[m.method] || 'bg-slate-100 text-slate-700';
+            const updatedAt = m.updated_at ? new Date(m.updated_at).toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—';
+            return `
+            <tr class="hover:bg-indigo-50/30">
+                <td class="px-3 py-2" onclick="event.stopPropagation()">
+                    <label class="inline-flex items-center cursor-pointer">
+                        <input type="checkbox" ${m.enabled?'checked':''} onchange="_mockToggleEnabled('${m.id}', this.checked)"
+                            class="h-4 w-4 rounded border-slate-300 text-indigo-500 focus:ring-1 focus:ring-indigo-400">
+                    </label>
+                </td>
+                <td class="px-3 py-2 cursor-pointer" onclick="openMockEditModal('${m.id}')">
+                    <span class="text-[10px] px-1.5 py-0.5 ${methodPill} rounded font-mono font-bold border">${m.method}</span>
+                </td>
+                <td class="px-3 py-2 cursor-pointer" onclick="openMockEditModal('${m.id}')">
+                    <div class="text-sm text-slate-700 font-medium">${escapeHtml(m.name)}</div>
+                    ${m.description ? `<div class="text-[11px] text-slate-500 line-clamp-1">${escapeHtml(m.description)}</div>` : ''}
+                </td>
+                <td class="px-3 py-2 cursor-pointer font-mono text-xs text-slate-600" onclick="openMockEditModal('${m.id}')">${escapeHtml(m.path)}</td>
+                <td class="px-3 py-2 font-mono text-xs"><span class="${m.status_code>=400?'text-rose-600':'text-emerald-600'}">${m.status_code}</span></td>
+                <td class="px-3 py-2 font-mono text-xs text-slate-500">${m.delay_ms}ms</td>
+                <td class="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">${updatedAt}</td>
+                <td class="px-3 py-2 text-right whitespace-nowrap">
+                    <button type="button" onclick="event.stopPropagation(); openMockEditModal('${m.id}')"
+                        title="編輯" class="text-xs px-2 py-1 border border-slate-300 text-slate-600 rounded hover:bg-slate-50">
+                        <i class="fa-solid fa-pen"></i>
+                    </button>
+                    <button type="button" onclick="event.stopPropagation(); _mockRowDelete('${m.id}', ${JSON.stringify(m.name).replace(/"/g,'&quot;')})"
+                        title="刪除" class="text-xs px-2 py-1 border border-rose-300 text-rose-600 rounded hover:bg-rose-50 ml-1">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </td>
+            </tr>`;
+        }).join('');
+    }
+
+    async function _mockToggleEnabled(id, enabled) {
+        const m = _mockRows.find(r => r.id === id);
+        if (!m) return;
+        try {
+            // 後端 PUT 是 partial-ish,送整筆當前 row + 改 enabled
+            await apiFetch(`/api/mock-endpoints/${id}`, {
+                method: 'PUT',
+                body: { ...m, enabled },
+            });
+            m.enabled = enabled;
+            if (typeof showToast === 'function') showToast(enabled ? '已啟用' : '已停用', 'success');
+        } catch (e) {
+            showToast?.('狀態切換失敗:' + (e.message||e), 'error');
+            await loadMockEndpoints();
+        }
+    }
+
+    function openMockCreateModal() {
+        if (!currentProjectId) {
+            if (typeof showToast === 'function') showToast('請先選擇專案', 'error');
+            return;
+        }
+        _mockEditingId = null;
+        document.getElementById('mockModalTitle').textContent = '新增 Mock';
+        document.getElementById('mockModalDeleteBtn').classList.add('hidden');
+        document.getElementById('mockEditName').value = '';
+        document.getElementById('mockEditMethod').value = 'GET';
+        document.getElementById('mockEditPath').value = '/';
+        document.getElementById('mockEditStatusCode').value = '200';
+        document.getElementById('mockEditDelayMs').value = '0';
+        document.getElementById('mockEditEnabled').checked = true;
+        document.getElementById('mockEditDescription').value = '';
+        document.getElementById('mockEditRespHeaders').value = '';
+        document.getElementById('mockEditRespBody').value = '';
+        document.getElementById('mockModal').classList.remove('hidden');
+        setTimeout(() => document.getElementById('mockEditName').focus(), 50);
+    }
+
+    function openMockEditModal(id) {
+        const m = _mockRows.find(r => r.id === id);
+        if (!m) return;
+        _mockEditingId = id;
+        document.getElementById('mockModalTitle').textContent = '編輯 Mock';
+        document.getElementById('mockModalDeleteBtn').classList.remove('hidden');
+        document.getElementById('mockEditName').value = m.name || '';
+        document.getElementById('mockEditMethod').value = m.method || 'GET';
+        document.getElementById('mockEditPath').value = m.path || '/';
+        document.getElementById('mockEditStatusCode').value = m.status_code || 200;
+        document.getElementById('mockEditDelayMs').value = m.delay_ms || 0;
+        document.getElementById('mockEditEnabled').checked = !!m.enabled;
+        document.getElementById('mockEditDescription').value = m.description || '';
+        document.getElementById('mockEditRespHeaders').value = m.response_headers_json
+            ? JSON.stringify(m.response_headers_json, null, 2) : '';
+        document.getElementById('mockEditRespBody').value = m.response_body_text || '';
+        document.getElementById('mockModal').classList.remove('hidden');
+    }
+
+    function closeMockModal() {
+        document.getElementById('mockModal').classList.add('hidden');
+        _mockEditingId = null;
+    }
+
+    async function submitMockModal() {
+        const name = document.getElementById('mockEditName').value.trim();
+        const path = document.getElementById('mockEditPath').value.trim();
+        if (!name) { showToast?.('名稱必填','error'); return; }
+        if (!path.startsWith('/')) { showToast?.('Path 必須以 / 開頭','error'); return; }
+        // headers JSON 驗證
+        let respHeaders = null;
+        const hdrText = document.getElementById('mockEditRespHeaders').value.trim();
+        if (hdrText) {
+            try { respHeaders = JSON.parse(hdrText); }
+            catch (_) { showToast?.('Response Headers 不是合法 JSON','error'); return; }
+        }
+        const payload = {
+            project_id: currentProjectId,
+            name,
+            method: document.getElementById('mockEditMethod').value,
+            path,
+            description: document.getElementById('mockEditDescription').value || null,
+            enabled: document.getElementById('mockEditEnabled').checked,
+            status_code: parseInt(document.getElementById('mockEditStatusCode').value) || 200,
+            delay_ms: parseInt(document.getElementById('mockEditDelayMs').value) || 0,
+            response_headers_json: respHeaders,
+            response_body_text: document.getElementById('mockEditRespBody').value || null,
+        };
+        try {
+            if (_mockEditingId) {
+                await apiFetch(`/api/mock-endpoints/${_mockEditingId}`, { method: 'PUT', body: payload });
+                showToast?.('已更新', 'success');
+            } else {
+                await apiFetch('/api/mock-endpoints', { method: 'POST', body: payload });
+                showToast?.('已建立', 'success');
+            }
+            closeMockModal();
+            await loadMockEndpoints();
+        } catch (e) {
+            const detail = e?.detail || {};
+            const msg = detail.detail || detail.message || e.message || '儲存失敗';
+            showToast?.('儲存失敗:' + msg, 'error');
+        }
+    }
+
+    async function _mockRowDelete(id, name) {
+        if (!confirm(`確定刪除 Mock「${name}」?此操作無法復原。`)) return;
+        try {
+            await apiFetch(`/api/mock-endpoints/${id}`, { method: 'DELETE', raw: true });
+            showToast?.('已刪除', 'success');
+            await loadMockEndpoints();
+        } catch (e) {
+            showToast?.('刪除失敗:' + (e.message||e), 'error');
+        }
+    }
+
+    async function _mockConfirmDelete() {
+        if (!_mockEditingId) return;
+        const m = _mockRows.find(r => r.id === _mockEditingId);
+        if (!confirm(`確定刪除 Mock「${m?.name || _mockEditingId}」?`)) return;
+        try {
+            await apiFetch(`/api/mock-endpoints/${_mockEditingId}`, { method: 'DELETE', raw: true });
+            closeMockModal();
+            showToast?.('已刪除', 'success');
+            await loadMockEndpoints();
         } catch (e) {
             showToast?.('刪除失敗:' + (e.message||e), 'error');
         }
