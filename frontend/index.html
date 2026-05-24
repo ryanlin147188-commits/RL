@@ -3741,6 +3741,148 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                         </div>
 
                     </section>
+
+                    <!-- ════════════════════════════════════════════════════════════
+                         畫面比對(Picture Diff)v1.1.9 新增 — 兩張截圖 pixel diff
+                         100% 客戶端跑(Canvas ImageData + 內嵌 simplified pixelmatch),
+                         無 backend / 外部 CDN 依賴,辦公網斷網也能用。
+                         ════════════════════════════════════════════════════════════ -->
+                    <section class="bg-white rounded-lg border border-slate-200 shadow-sm mt-6">
+                        <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between flex-wrap gap-3">
+                            <div>
+                                <h3 class="font-bold text-slate-700 flex items-center gap-2">
+                                    <i class="fa-solid fa-image text-indigo-500"></i> 畫面比對
+                                    <span class="text-xs font-normal text-slate-400 ml-1">支援 .png / .jpg / .webp</span>
+                                </h3>
+                                <p class="text-[11px] text-slate-500 mt-1">上傳基準圖 + 比對圖,自動算 pixel 差異;3 種視圖(並排 / 滑桿疊加 / 差異圖)+ 匯出 diff PNG。100% 在瀏覽器跑,不上傳。</p>
+                            </div>
+                            <div class="flex gap-2">
+                                <button type="button" onclick="_pdReset()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-300 rounded text-sm font-medium flex items-center gap-1">
+                                    <i class="fa-solid fa-rotate-left"></i> 重置
+                                </button>
+                                <button type="button" id="pdExportBtn" onclick="_pdExportDiff()" disabled
+                                    class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded text-sm font-medium flex items-center gap-1">
+                                    <i class="fa-solid fa-file-arrow-down"></i> 匯出 Diff PNG
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 兩張圖上傳 -->
+                        <div class="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div id="pdDropA"
+                                class="border-2 border-dashed border-indigo-200 rounded-lg p-6 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/40 transition group"
+                                ondragover="event.preventDefault()" ondrop="_pdHandleDrop(event,'A')"
+                                onclick="document.getElementById('pdInputA').click()">
+                                <div id="pdDropALabel">
+                                    <i class="fa-solid fa-image text-3xl text-indigo-300 group-hover:text-indigo-400 mb-2 block"></i>
+                                    <div class="font-medium text-slate-600 text-sm">基準圖</div>
+                                    <div class="text-xs text-slate-400 mt-1">點擊或拖曳 .png / .jpg / .webp</div>
+                                </div>
+                                <input type="file" id="pdInputA" accept="image/png,image/jpeg,image/webp" class="hidden" onchange="_pdHandleInput(event,'A')">
+                            </div>
+                            <div id="pdDropB"
+                                class="border-2 border-dashed border-amber-200 rounded-lg p-6 text-center cursor-pointer hover:border-amber-400 hover:bg-amber-50/40 transition group"
+                                ondragover="event.preventDefault()" ondrop="_pdHandleDrop(event,'B')"
+                                onclick="document.getElementById('pdInputB').click()">
+                                <div id="pdDropBLabel">
+                                    <i class="fa-solid fa-image text-3xl text-amber-300 group-hover:text-amber-400 mb-2 block"></i>
+                                    <div class="font-medium text-slate-600 text-sm">比對圖</div>
+                                    <div class="text-xs text-slate-400 mt-1">點擊或拖曳 .png / .jpg / .webp</div>
+                                </div>
+                                <input type="file" id="pdInputB" accept="image/png,image/jpeg,image/webp" class="hidden" onchange="_pdHandleInput(event,'B')">
+                            </div>
+                        </div>
+
+                        <!-- Settings bar(兩張圖都有才顯示)-->
+                        <div id="pdSettingsBar" class="px-5 pb-4 hidden">
+                            <div class="bg-slate-50 border border-slate-200 rounded p-3 flex flex-wrap items-center gap-4 text-sm">
+                                <div class="flex items-center gap-2">
+                                    <label class="text-slate-600 text-xs">差異容忍度</label>
+                                    <input type="range" id="pdThreshold" min="0" max="100" value="10" oninput="document.getElementById('pdThresholdLabel').textContent = this.value + '%'" class="w-32">
+                                    <span id="pdThresholdLabel" class="text-xs font-mono text-indigo-600 w-10">10%</span>
+                                </div>
+                                <label class="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
+                                    <input type="checkbox" id="pdIncludeAA" class="h-4 w-4 rounded border-slate-300 text-indigo-500">
+                                    包含 anti-aliasing
+                                </label>
+                                <div class="flex items-center gap-2">
+                                    <label class="text-slate-600 text-xs">差異標色</label>
+                                    <select id="pdDiffColor" class="text-xs px-2 py-1 border border-slate-300 rounded bg-white">
+                                        <option value="rose" selected>紅</option>
+                                        <option value="amber">橘</option>
+                                        <option value="blue">藍</option>
+                                        <option value="emerald">綠</option>
+                                    </select>
+                                </div>
+                                <div class="flex-1"></div>
+                                <button type="button" onclick="_pdRunCompare()"
+                                    class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-sm font-medium flex items-center gap-1">
+                                    <i class="fa-solid fa-play"></i> 開始比對
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 結果 stats + 視圖切換 -->
+                        <div id="pdResultArea" class="hidden px-5 pb-5">
+                            <div class="flex flex-wrap items-center gap-2 mb-3">
+                                <span class="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 text-slate-600 rounded-full text-xs font-medium">
+                                    總像素 <strong id="pdStatTotal" class="text-slate-800">0</strong>
+                                </span>
+                                <span class="inline-flex items-center gap-1 px-2.5 py-1 bg-rose-100 text-rose-700 rounded-full text-xs font-medium">
+                                    差異像素 <strong id="pdStatDiff">0</strong>
+                                </span>
+                                <span class="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-medium">
+                                    差異率 <strong id="pdStatDiffPct">0%</strong>
+                                </span>
+                                <span id="pdStatVerdict" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold">—</span>
+                                <span id="pdSizeWarn" class="hidden inline-flex items-center gap-1 px-2.5 py-1 bg-rose-50 text-rose-700 border border-rose-200 rounded-full text-xs">
+                                    <i class="fa-solid fa-triangle-exclamation"></i> 兩張圖尺寸不同,比較圖已自動縮放對齊
+                                </span>
+                                <div class="flex-1"></div>
+                                <!-- 視圖切換 -->
+                                <div class="inline-flex rounded border border-slate-300 bg-white text-xs overflow-hidden">
+                                    <button type="button" id="pdViewSideBtn"   onclick="_pdSetView('side')"    class="px-3 py-1.5 font-medium bg-indigo-600 text-white">並排</button>
+                                    <button type="button" id="pdViewSliderBtn" onclick="_pdSetView('slider')" class="px-3 py-1.5 font-medium text-slate-600 hover:bg-slate-50">滑桿疊加</button>
+                                    <button type="button" id="pdViewDiffBtn"   onclick="_pdSetView('diff')"   class="px-3 py-1.5 font-medium text-slate-600 hover:bg-slate-50">差異圖</button>
+                                </div>
+                            </div>
+
+                            <!-- View: side-by-side -->
+                            <div id="pdViewSide" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div class="bg-slate-50 border border-slate-200 rounded p-2">
+                                    <div class="text-[11px] text-slate-500 mb-1.5">基準圖</div>
+                                    <img id="pdImgA" class="w-full border border-slate-200 rounded" alt="baseline">
+                                </div>
+                                <div class="bg-slate-50 border border-slate-200 rounded p-2">
+                                    <div class="text-[11px] text-slate-500 mb-1.5">比對圖</div>
+                                    <img id="pdImgB" class="w-full border border-slate-200 rounded" alt="compare">
+                                </div>
+                            </div>
+
+                            <!-- View: slider overlay(before/after slider)-->
+                            <div id="pdViewSlider" class="hidden">
+                                <div class="text-[11px] text-slate-500 mb-1.5">拖滑桿:左邊看基準圖,右邊看比對圖</div>
+                                <div id="pdSliderContainer" class="relative inline-block max-w-full select-none cursor-ew-resize bg-slate-100 border border-slate-200 rounded overflow-hidden">
+                                    <!-- baseline 在底層 -->
+                                    <img id="pdSliderImgA" class="block max-w-full" alt="baseline">
+                                    <!-- compare 在上層,用 clip-path 切割顯示 -->
+                                    <img id="pdSliderImgB" class="absolute top-0 left-0 max-w-full" alt="compare" style="clip-path: inset(0 0 0 50%);">
+                                    <!-- handle -->
+                                    <div id="pdSliderHandle" class="absolute top-0 bottom-0 w-0.5 bg-white shadow-lg" style="left:50%">
+                                        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-white rounded-full shadow-lg flex items-center justify-center text-slate-600">
+                                            <i class="fa-solid fa-left-right text-xs"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- View: diff map -->
+                            <div id="pdViewDiff" class="hidden">
+                                <div class="text-[11px] text-slate-500 mb-1.5">差異區域以選定顏色覆蓋顯示(原圖灰階)</div>
+                                <canvas id="pdDiffCanvas" class="w-full border border-slate-200 rounded bg-slate-50"></canvas>
+                            </div>
+                        </div>
+                    </section>
                 </div>
             </div>
 
@@ -19551,6 +19693,288 @@ curl -X POST http://localhost:8000/api/defects \\
         document.getElementById('fcResultArea').classList.add('hidden');
         document.getElementById('fcExportBtn').disabled = true;
         // fcKeyCol 已移除
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // 畫面比對(Picture Diff)— v1.1.9 加。100% 客戶端跑,inline 寫一個
+    // simplified pixelmatch(YIQ delta + threshold + AA detect),不依賴
+    // 外部 CDN,辦公網斷網也可用。
+    // ════════════════════════════════════════════════════════════════════
+
+    let _pdImageA = null;        // HTMLImageElement
+    let _pdImageB = null;
+    let _pdLastResult = null;    // {total, diffCount, diffPct, diffCanvas, scaled: bool}
+    let _pdSliderListener = null;
+
+    // ── 上傳 handlers ───────────────────────────────────────────────
+    function _pdHandleDrop(ev, side) {
+        ev.preventDefault();
+        const f = ev.dataTransfer?.files?.[0];
+        if (f) _pdLoadImage(f, side);
+    }
+    function _pdHandleInput(ev, side) {
+        const f = ev.target?.files?.[0];
+        if (f) _pdLoadImage(f, side);
+    }
+
+    function _pdLoadImage(file, side) {
+        if (!file.type.startsWith('image/')) {
+            showToast?.('請選擇圖片檔(png/jpg/webp)', 'error');
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = e => {
+            const img = new Image();
+            img.onload = () => {
+                if (side === 'A') _pdImageA = img;
+                else _pdImageB = img;
+                _pdUpdateDropLabel(side, file.name, img);
+                _pdMaybeShowSettings();
+            };
+            img.onerror = () => showToast?.('圖片讀取失敗', 'error');
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function _pdUpdateDropLabel(side, filename, img) {
+        const lblEl = document.getElementById(side === 'A' ? 'pdDropALabel' : 'pdDropBLabel');
+        if (!lblEl) return;
+        const accent = side === 'A' ? 'text-indigo-500' : 'text-amber-500';
+        lblEl.innerHTML = `
+            <i class="fa-solid fa-circle-check text-2xl ${accent} mb-1 block"></i>
+            <div class="font-medium text-slate-700 text-sm truncate" title="${escapeHtml(filename)}">${escapeHtml(filename)}</div>
+            <div class="text-[10px] text-slate-400 mt-0.5 font-mono">${img.naturalWidth} × ${img.naturalHeight}</div>`;
+    }
+
+    function _pdMaybeShowSettings() {
+        document.getElementById('pdSettingsBar').classList.toggle('hidden', !(_pdImageA && _pdImageB));
+    }
+
+    // ── 核心:pixel diff(simplified pixelmatch)──────────────────
+    // 把 imgB 跟 imgA 比,寫差異 highlight 到 diffCtx;回傳 diff 像素數
+    function _pdPixelDiff(dataA, dataB, diffData, width, height, threshold, includeAA, highlightRGB) {
+        // threshold 0~1,內部轉到 max delta;pixelmatch 用 35215(255^2 * 0.5)當基準
+        const maxDelta = 35215 * threshold * threshold;
+        let diff = 0;
+        const w = width, h = height;
+
+        // 兩張圖第 (x,y) pixel 的 YIQ delta
+        function delta(idx) {
+            const r1 = dataA[idx], g1 = dataA[idx+1], b1 = dataA[idx+2], a1 = dataA[idx+3];
+            const r2 = dataB[idx], g2 = dataB[idx+1], b2 = dataB[idx+2], a2 = dataB[idx+3];
+            // RGB → Y(luma)/I/Q
+            const y1 = 0.29889531*r1 + 0.58662247*g1 + 0.11448223*b1;
+            const y2 = 0.29889531*r2 + 0.58662247*g2 + 0.11448223*b2;
+            const i1 = 0.59597799*r1 - 0.27417610*g1 - 0.32180189*b1;
+            const i2 = 0.59597799*r2 - 0.27417610*g2 - 0.32180189*b2;
+            const q1 = 0.21147017*r1 - 0.52261711*g1 + 0.31114694*b1;
+            const q2 = 0.21147017*r2 - 0.52261711*g2 + 0.31114694*b2;
+            const aFactor = ((a1 + a2) / 2) / 255;
+            const dy = (y1 - y2) * aFactor;
+            const di = (i1 - i2) * aFactor;
+            const dq = (q1 - q2) * aFactor;
+            return 0.5053 * dy * dy + 0.299 * di * di + 0.1957 * dq * dq;
+        }
+
+        // anti-aliasing detection(簡化:若 pixel 跟周邊 4 連通像素都不同,當 AA)
+        function isAA(data, x, y) {
+            if (x <= 0 || y <= 0 || x >= w-1 || y >= h-1) return false;
+            const idx = (y*w + x) * 4;
+            const idxLeft  = idx - 4;
+            const idxRight = idx + 4;
+            const idxUp    = idx - w*4;
+            const idxDown  = idx + w*4;
+            // 如果中心點跟左右上下都差異大,但跟對角線像素相近,通常是 AA
+            const c = data[idx]+data[idx+1]+data[idx+2];
+            const l = data[idxLeft]+data[idxLeft+1]+data[idxLeft+2];
+            const r = data[idxRight]+data[idxRight+1]+data[idxRight+2];
+            const u = data[idxUp]+data[idxUp+1]+data[idxUp+2];
+            const d = data[idxDown]+data[idxDown+1]+data[idxDown+2];
+            // 跟至少 3 個鄰居有顯著差異 = 可能是 AA
+            const distinct = [l,r,u,d].filter(v => Math.abs(v - c) > 30).length;
+            return distinct >= 3;
+        }
+
+        for (let y = 0; y < h; y++) {
+            for (let x = 0; x < w; x++) {
+                const idx = (y * w + x) * 4;
+                const d = delta(idx);
+                if (d > maxDelta) {
+                    // 若不包含 AA 且兩張都判定為 AA pixel,跳過
+                    if (!includeAA && isAA(dataA, x, y) && isAA(dataB, x, y)) {
+                        // 灰階寫進 diffData,不算 diff
+                        const v = Math.round(0.299 * dataA[idx] + 0.587 * dataA[idx+1] + 0.114 * dataA[idx+2]);
+                        diffData[idx] = diffData[idx+1] = diffData[idx+2] = v;
+                        diffData[idx+3] = 255;
+                        continue;
+                    }
+                    // 標 highlight
+                    diffData[idx]   = highlightRGB[0];
+                    diffData[idx+1] = highlightRGB[1];
+                    diffData[idx+2] = highlightRGB[2];
+                    diffData[idx+3] = 255;
+                    diff++;
+                } else {
+                    // 灰階原圖
+                    const v = Math.round(0.299 * dataA[idx] + 0.587 * dataA[idx+1] + 0.114 * dataA[idx+2]);
+                    diffData[idx] = diffData[idx+1] = diffData[idx+2] = v;
+                    diffData[idx+3] = 255;
+                }
+            }
+        }
+        return diff;
+    }
+
+    // 顏色 name → RGB
+    const _PD_HIGHLIGHT_RGB = {
+        rose:    [225,  29,  72],
+        amber:   [217, 119,   6],
+        blue:    [ 37,  99, 235],
+        emerald: [ 16, 185, 129],
+    };
+
+    // ── 跑比對 ─────────────────────────────────────────────────────
+    function _pdRunCompare() {
+        if (!_pdImageA || !_pdImageB) return;
+        const threshold = parseInt(document.getElementById('pdThreshold').value) / 100;
+        const includeAA = document.getElementById('pdIncludeAA').checked;
+        const colorName = document.getElementById('pdDiffColor').value;
+        const rgb = _PD_HIGHLIGHT_RGB[colorName] || _PD_HIGHLIGHT_RGB.rose;
+
+        // 兩張圖尺寸不同 → 自動把 B 縮到 A 尺寸(基準對齊),warn 用戶
+        const wA = _pdImageA.naturalWidth, hA = _pdImageA.naturalHeight;
+        const wB = _pdImageB.naturalWidth, hB = _pdImageB.naturalHeight;
+        const scaled = (wA !== wB || hA !== hB);
+        document.getElementById('pdSizeWarn').classList.toggle('hidden', !scaled);
+
+        // 統一畫到同尺寸的 canvas
+        const w = wA, h = hA;
+        const canvasA = document.createElement('canvas');
+        const canvasB = document.createElement('canvas');
+        canvasA.width = canvasB.width = w;
+        canvasA.height = canvasB.height = h;
+        const ctxA = canvasA.getContext('2d');
+        const ctxB = canvasB.getContext('2d');
+        ctxA.drawImage(_pdImageA, 0, 0);
+        ctxB.drawImage(_pdImageB, 0, 0, w, h);  // 縮放對齊
+        const dataA = ctxA.getImageData(0, 0, w, h);
+        const dataB = ctxB.getImageData(0, 0, w, h);
+        const diffData = ctxA.createImageData(w, h);
+        const diffCount = _pdPixelDiff(dataA.data, dataB.data, diffData.data, w, h, threshold, includeAA, rgb);
+        const diffCanvas = document.createElement('canvas');
+        diffCanvas.width = w; diffCanvas.height = h;
+        diffCanvas.getContext('2d').putImageData(diffData, 0, 0);
+
+        const total = w * h;
+        const diffPct = total > 0 ? (diffCount / total * 100) : 0;
+        _pdLastResult = { total, diffCount, diffPct, diffCanvas, scaled };
+
+        // stats
+        document.getElementById('pdStatTotal').textContent = total.toLocaleString();
+        document.getElementById('pdStatDiff').textContent = diffCount.toLocaleString();
+        document.getElementById('pdStatDiffPct').textContent = diffPct.toFixed(2) + '%';
+        const verdict = document.getElementById('pdStatVerdict');
+        if (diffPct < 1) {
+            verdict.textContent = '✓ 相似度高';
+            verdict.className = 'inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700';
+        } else if (diffPct < 5) {
+            verdict.textContent = '◯ 少量差異';
+            verdict.className = 'inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700';
+        } else {
+            verdict.textContent = '✗ 差異明顯';
+            verdict.className = 'inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-700';
+        }
+
+        // render 3 views
+        document.getElementById('pdImgA').src = _pdImageA.src;
+        document.getElementById('pdImgB').src = _pdImageB.src;
+        document.getElementById('pdSliderImgA').src = _pdImageA.src;
+        document.getElementById('pdSliderImgB').src = _pdImageB.src;
+        _pdAttachSliderListener();
+
+        const diffCanvasEl = document.getElementById('pdDiffCanvas');
+        diffCanvasEl.width = w;
+        diffCanvasEl.height = h;
+        diffCanvasEl.getContext('2d').putImageData(diffData, 0, 0);
+
+        document.getElementById('pdResultArea').classList.remove('hidden');
+        document.getElementById('pdExportBtn').disabled = false;
+        _pdSetView('side');
+    }
+
+    function _pdSetView(view) {
+        ['Side','Slider','Diff'].forEach(v => {
+            const btn = document.getElementById('pdView' + v + 'Btn');
+            const pane = document.getElementById('pdView' + v);
+            const isActive = v.toLowerCase() === view;
+            if (btn) {
+                btn.classList.toggle('bg-indigo-600', isActive);
+                btn.classList.toggle('text-white', isActive);
+                btn.classList.toggle('text-slate-600', !isActive);
+            }
+            if (pane) pane.classList.toggle('hidden', !isActive);
+        });
+    }
+
+    function _pdAttachSliderListener() {
+        const container = document.getElementById('pdSliderContainer');
+        const imgB = document.getElementById('pdSliderImgB');
+        const handle = document.getElementById('pdSliderHandle');
+        if (!container) return;
+        if (_pdSliderListener) container.removeEventListener('pointerdown', _pdSliderListener);
+
+        let dragging = false;
+        function move(e) {
+            const rect = container.getBoundingClientRect();
+            const x = Math.max(0, Math.min(rect.width, (e.clientX || e.touches?.[0]?.clientX || 0) - rect.left));
+            const pct = (x / rect.width) * 100;
+            imgB.style.clipPath = `inset(0 0 0 ${pct}%)`;
+            handle.style.left = pct + '%';
+        }
+        _pdSliderListener = (e) => {
+            dragging = true;
+            move(e);
+            const onMove = (ev) => { if (dragging) move(ev); };
+            const onUp = () => { dragging = false; window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
+            window.addEventListener('pointermove', onMove);
+            window.addEventListener('pointerup', onUp);
+        };
+        container.addEventListener('pointerdown', _pdSliderListener);
+    }
+
+    function _pdExportDiff() {
+        if (!_pdLastResult) return;
+        _pdLastResult.diffCanvas.toBlob(blob => {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `picture-diff-${new Date().toISOString().slice(0,10)}.png`;
+            document.body.appendChild(a); a.click(); a.remove();
+            URL.revokeObjectURL(url);
+            showToast?.('已匯出 Diff PNG', 'success');
+        }, 'image/png');
+    }
+
+    function _pdReset() {
+        _pdImageA = _pdImageB = _pdLastResult = null;
+        ['A','B'].forEach(side => {
+            const lblEl = document.getElementById(side === 'A' ? 'pdDropALabel' : 'pdDropBLabel');
+            const accent = side === 'A' ? 'indigo' : 'amber';
+            const title = side === 'A' ? '基準圖' : '比對圖';
+            if (lblEl) {
+                lblEl.innerHTML = `
+                    <i class="fa-solid fa-image text-3xl text-${accent}-300 group-hover:text-${accent}-400 mb-2 block"></i>
+                    <div class="font-medium text-slate-600 text-sm">${title}</div>
+                    <div class="text-xs text-slate-400 mt-1">點擊或拖曳 .png / .jpg / .webp</div>`;
+            }
+            const inp = document.getElementById(side === 'A' ? 'pdInputA' : 'pdInputB');
+            if (inp) inp.value = '';
+        });
+        document.getElementById('pdSettingsBar').classList.add('hidden');
+        document.getElementById('pdResultArea').classList.add('hidden');
+        document.getElementById('pdExportBtn').disabled = true;
+        document.getElementById('pdSizeWarn').classList.add('hidden');
     }
 
     // ════════════════════════════════════════════════════════════════════
