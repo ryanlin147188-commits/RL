@@ -941,7 +941,7 @@
                 <button type="button" data-nav-hash="#schedule"     onclick="showScheduleView()"     title="測試排程" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-calendar-days text-emerald-600"></i><span class="nav-label" data-i18n="nav.schedule">測試排程</span></button>
                 <button type="button" data-nav-hash="#recorder"     onclick="showRecorderView()"     title="測試錄製" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-video text-rose-600"></i><span class="nav-label" data-i18n="nav.recorder">測試錄製</span></button>
                 <button type="button" data-nav-hash="#report"       onclick="showReportView()"       title="測試報告" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-chart-pie text-blue-600"></i><span class="nav-label" data-i18n="nav.reports">測試報告</span></button>
-                <button type="button" data-nav-hash="#testkanban"   onclick="showTestKanbanView()"   title="測試看版" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-columns text-sky-600"></i><span class="nav-label" data-i18n="nav.testKanban">測試看版</span></button>
+                <button type="button" data-nav-hash="#testkanban"   onclick="showTestKanbanView()"   title="測試看版" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-columns text-blue-600"></i><span class="nav-label" data-i18n="nav.testKanban">測試看版</span></button>
                 <button type="button" data-nav-hash="#defects"      onclick="showDefectsView()"      title="缺陷管理" class="topnav-pill hover:bg-stone-100">
                     <i class="fa-solid fa-bug text-rose-700"></i>
                     <span class="nav-label" data-i18n="nav.defects">缺陷管理</span>
@@ -1233,7 +1233,7 @@
         <div class="bg-white rounded-lg shadow-xl w-[600px] max-w-[95vw] flex flex-col max-h-[90vh]"
              onclick="event.stopPropagation()">
             <div class="p-4 border-b border-slate-200 flex items-center gap-2">
-                <i class="fa-solid fa-clipboard-list text-sky-500"></i>
+                <i class="fa-solid fa-clipboard-list text-blue-500"></i>
                 <h3 class="text-lg font-bold text-slate-800 flex-1">新增待辦</h3>
                 <button type="button" onclick="closeTodoCreateModal()" aria-label="關閉" class="text-slate-400 hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button>
             </div>
@@ -1242,7 +1242,7 @@
                 <div>
                     <label class="block text-sm font-medium text-slate-700 mb-1">標題 <span class="text-rose-500">*</span></label>
                     <input type="text" id="todoCreateTitle" required maxlength="300"
-                        class="w-full border border-slate-300 rounded p-2 text-sm focus:ring-2 focus:ring-sky-100 focus:border-sky-400 outline-none">
+                        class="w-full border border-slate-300 rounded p-2 text-sm focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none">
                 </div>
                 <div class="grid grid-cols-4 gap-3">
                     <div>
@@ -1293,7 +1293,7 @@
             </form>
             <div class="p-4 border-t border-slate-200 flex justify-end gap-2 bg-slate-50 rounded-b-lg">
                 <button type="button" onclick="closeTodoCreateModal()" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 rounded transition">取消</button>
-                <button type="button" onclick="submitTodoCreate()" class="px-4 py-2 text-sm font-medium bg-sky-600 hover:bg-sky-700 text-white rounded shadow-sm transition">建立</button>
+                <button type="button" onclick="submitTodoCreate()" class="px-4 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white rounded shadow-sm transition">建立</button>
             </div>
         </div>
     </div>
@@ -1306,7 +1306,7 @@
         <div class="bg-white rounded-lg shadow-xl w-[680px] max-w-[95vw] flex flex-col max-h-[90vh]"
              onclick="event.stopPropagation()">
             <div class="p-4 border-b border-slate-200 flex items-center gap-2 flex-shrink-0">
-                <i class="fa-solid fa-clipboard-list text-sky-500 shrink-0"></i>
+                <i class="fa-solid fa-clipboard-list text-blue-500 shrink-0"></i>
                 <h3 id="todoDetailHeader" class="text-lg font-bold text-slate-800 truncate flex-1">—</h3>
                 <button type="button" onclick="closeTodoDetail()" aria-label="關閉" class="text-slate-400 hover:text-slate-700 shrink-0"><i class="fa-solid fa-xmark"></i></button>
             </div>
@@ -2306,7 +2306,7 @@
                         </div>
                         <!-- Network -->
                         <div class="bg-white rounded-xl p-4 border border-amber-100 shadow-sm">
-                            <div class="text-xs text-stone-500 mb-1"><i class="fa-solid fa-network-wired text-sky-500"></i> <span data-i18n="home.sys.net">網路流量</span></div>
+                            <div class="text-xs text-stone-500 mb-1"><i class="fa-solid fa-network-wired text-blue-500"></i> <span data-i18n="home.sys.net">網路流量</span></div>
                             <div class="text-xs text-stone-700 flex items-center gap-1"><i class="fa-solid fa-arrow-down text-emerald-500 text-[10px]"></i><span id="sysNetRx" class="font-mono font-bold">—</span> KB/s</div>
                             <div class="text-xs text-stone-700 flex items-center gap-1"><i class="fa-solid fa-arrow-up text-indigo-500 text-[10px]"></i><span id="sysNetTx" class="font-mono font-bold">—</span> KB/s</div>
                             <div class="text-[11px] text-stone-500 mt-1"><span data-i18n="home.sys.netTotal">累計：</span><span id="sysNetTotal" class="font-mono">—</span></div>
@@ -3592,10 +3592,10 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                  每筆 todo 可連結到 testcase / report / defect / test_round / project
                  用以追蹤項目狀態跟每日進度。
                  ════════════════════════════════════════════════════════════ -->
-            <div id="testKanbanWorkspace" class="flex-1 overflow-y-auto p-4 sm:p-6 bg-sky-50/20 hidden">
+            <div id="testKanbanWorkspace" class="flex-1 overflow-y-auto p-4 sm:p-6 bg-blue-50/20 hidden">
                 <div class="flex flex-wrap items-center gap-2 mb-4">
                     <div class="flex items-center gap-2">
-                        <i class="fa-solid fa-columns text-sky-600"></i>
+                        <i class="fa-solid fa-columns text-blue-600"></i>
                         <h2 class="font-bold text-slate-700">測試看版</h2>
                     </div>
                     <div class="flex-1"></div>
@@ -3611,7 +3611,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                         <option value="Spike">Spike</option>
                     </select>
                     <button type="button" onclick="_tkOpenCreate()"
-                        class="text-xs px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded font-medium flex items-center gap-1 shadow-sm">
+                        class="text-xs px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium flex items-center gap-1 shadow-sm">
                         <i class="fa-solid fa-plus"></i> 新增待辦
                     </button>
                     <button type="button" onclick="loadTestKanban()" title="重新整理"
@@ -6004,7 +6004,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                     API: 'bg-amber-100 text-amber-700 border-amber-200',
                     APP: 'bg-emerald-100 text-emerald-700 border-emerald-200',
                     DB: 'bg-indigo-100 text-indigo-700 border-indigo-200',
-                    UI: 'bg-sky-100 text-sky-700 border-sky-200',
+                    UI: 'bg-blue-100 text-blue-700 border-blue-200',
                     E2E: 'bg-purple-100 text-purple-700 border-purple-200',
                 };
                 const _platClass = _platColor[(platform || '').toUpperCase()] || 'bg-slate-100 text-slate-700 border-slate-200';
@@ -12573,7 +12573,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 API: 'bg-amber-100 text-amber-700',
                 APP: 'bg-emerald-100 text-emerald-700',
                 DB: 'bg-indigo-100 text-indigo-700',
-                UI: 'bg-sky-100 text-sky-700',
+                UI: 'bg-blue-100 text-blue-700',
                 E2E: 'bg-purple-100 text-purple-700'
             };
             // 分頁切片
@@ -13911,7 +13911,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         }
         const _METHOD_COLOR = {
             GET:    'bg-green-100 text-green-700',
-            POST:   'bg-sky-100 text-sky-700',
+            POST:   'bg-blue-100 text-blue-700',
             PUT:    'bg-amber-100 text-amber-700',
             PATCH:  'bg-purple-100 text-purple-700',
             DELETE: 'bg-red-100 text-red-700',
@@ -19325,8 +19325,8 @@ curl -X POST http://localhost:8000/api/defects \\
         _navPush();
         _hideAllWorkspaces();
         _setViewMeta && _setViewMeta('nav.testKanban','nav.testKanban',
-            '<i class="fa-solid fa-columns text-sky-600"></i>',
-            'Board','bg-sky-100 text-sky-700 px-1.5 py-0.5 rounded font-medium');
+            '<i class="fa-solid fa-columns text-blue-600"></i>',
+            'Board','bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium');
         document.getElementById('testKanbanWorkspace').classList.remove('hidden');
         document.getElementById('mainHeader').classList.remove('hidden');
         document.getElementById('mainActions')?.classList.add('hidden');
@@ -19374,8 +19374,8 @@ curl -X POST http://localhost:8000/api/defects \\
             return `
                 <div class="rounded-lg border ${col.border} shadow-sm flex flex-col min-h-[400px] overflow-hidden bg-white"
                      data-tk-status="${targetStatus}"
-                     ondragover="event.preventDefault(); this.classList.add('ring-2','ring-sky-400')"
-                     ondragleave="this.classList.remove('ring-2','ring-sky-400')"
+                     ondragover="event.preventDefault(); this.classList.add('ring-2','ring-blue-400')"
+                     ondragleave="this.classList.remove('ring-2','ring-blue-400')"
                      ondrop="_tkOnDrop(event, '${targetStatus}')">
                     <div class="${col.accent} h-1"></div>
                     <div class="px-3 py-2.5 ${col.headerCls} flex items-center justify-between font-semibold text-sm border-b ${col.border}">
@@ -19403,7 +19403,7 @@ curl -X POST http://localhost:8000/api/defects \\
         const dueLine = todo.due_date
             ? `<span class="text-[10px] text-amber-700"><i class="fa-regular fa-calendar mr-0.5"></i>${todo.due_date}</span>` : '';
         const avatarChar = assignee ? assignee.charAt(0).toUpperCase() : '?';
-        const avatarBg = assignee ? 'bg-gradient-to-br from-sky-400 to-blue-500' : 'bg-slate-300';
+        const avatarBg = assignee ? 'bg-gradient-to-br from-blue-400 to-blue-500' : 'bg-slate-300';
         const safeTitleJsLiteral = JSON.stringify(title).replace(/"/g, '&quot;');
         const actBtns = `
             <div class="absolute top-1 right-1 hidden group-hover:flex items-center gap-1">
@@ -19421,7 +19421,7 @@ curl -X POST http://localhost:8000/api/defects \\
                  draggable="true"
                  ondragstart="event.dataTransfer.setData('text/tk-todo-id', '${id}'); this.classList.add('opacity-50');"
                  ondragend="this.classList.remove('opacity-50');"
-                 class="group relative bg-white border border-slate-200 rounded-md p-2.5 shadow-sm hover:shadow-md hover:border-sky-400 hover:ring-1 hover:ring-sky-100 cursor-grab active:cursor-grabbing transition">
+                 class="group relative bg-white border border-slate-200 rounded-md p-2.5 shadow-sm hover:shadow-md hover:border-blue-400 hover:ring-1 hover:ring-blue-100 cursor-grab active:cursor-grabbing transition">
                 ${actBtns}
                 <div class="flex items-center gap-1.5 mb-1.5 pr-14">${typePill}${priPill}</div>
                 <div class="text-sm text-slate-700 leading-tight mb-2 line-clamp-2 font-medium">${escapeHtml(title)}</div>
@@ -19438,7 +19438,7 @@ curl -X POST http://localhost:8000/api/defects \\
     // 拖拽 drop → PUT /api/todos/{id} 帶 new status
     async function _tkOnDrop(ev, targetStatus) {
         ev.preventDefault();
-        ev.currentTarget.classList.remove('ring-2','ring-sky-400');
+        ev.currentTarget.classList.remove('ring-2','ring-blue-400');
         const id = ev.dataTransfer.getData('text/tk-todo-id');
         if (!id) return;
         try {
@@ -19571,7 +19571,7 @@ curl -X POST http://localhost:8000/api/defects \\
             <div>
                 <label class="block text-sm font-medium text-slate-700 mb-1">標題</label>
                 <input type="text" id="todoEditTitle" maxlength="300" value="${escapeHtml(t.title||'')}"
-                    class="w-full border border-slate-300 rounded p-2 text-sm focus:ring-2 focus:ring-sky-100 focus:border-sky-400 outline-none">
+                    class="w-full border border-slate-300 rounded p-2 text-sm focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none">
             </div>
             <div class="grid grid-cols-4 gap-3">
                 <div>
@@ -19635,7 +19635,7 @@ curl -X POST http://localhost:8000/api/defects \\
                         <label class="block text-[11px] text-slate-500 mb-0.5">ID</label>
                         <input type="text" id="todoLinkTargetId" placeholder="貼上目標 id" class="w-full border border-slate-300 rounded p-1.5 text-xs font-mono">
                     </div>
-                    <button type="button" onclick="_todoAddLink()" class="text-xs px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded font-medium">
+                    <button type="button" onclick="_todoAddLink()" class="text-xs px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">
                         <i class="fa-solid fa-link"></i> 加入
                     </button>
                 </div>
@@ -19660,7 +19660,7 @@ curl -X POST http://localhost:8000/api/defects \\
             </button>
             <div class="flex-1"></div>
             <button type="button" onclick="closeTodoDetail()" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 rounded">關閉</button>
-            <button type="button" onclick="_todoSaveEdit()" class="px-4 py-2 text-sm font-medium bg-sky-600 hover:bg-sky-700 text-white rounded shadow-sm">
+            <button type="button" onclick="_todoSaveEdit()" class="px-4 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white rounded shadow-sm">
                 <i class="fa-solid fa-floppy-disk"></i> 儲存
             </button>
         `;
