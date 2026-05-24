@@ -15,9 +15,11 @@ class MockEndpointBase(BaseModel):
     enabled: bool = True
     status_code: int = 200
     delay_ms: int = 0
-    response_headers_json: Optional[dict[str, Any]] = None
+    # headers 用 Any 收(原本 dict[str, Any] 太嚴格;user 若送 array / null /
+    # 字串都直接 422 — 拒絕得太兇,改成寬鬆收下儲存 raw,前端讀回再決定怎麼用)
+    response_headers_json: Optional[Any] = None
     response_body_text: Optional[str] = None
-    request_headers_json: Optional[dict[str, Any]] = None
+    request_headers_json: Optional[Any] = None
     request_body_text: Optional[str] = None
 
 
@@ -33,9 +35,9 @@ class MockEndpointUpdate(BaseModel):
     enabled: Optional[bool] = None
     status_code: Optional[int] = None
     delay_ms: Optional[int] = None
-    response_headers_json: Optional[dict[str, Any]] = None
+    response_headers_json: Optional[Any] = None
     response_body_text: Optional[str] = None
-    request_headers_json: Optional[dict[str, Any]] = None
+    request_headers_json: Optional[Any] = None
     request_body_text: Optional[str] = None
 
 
