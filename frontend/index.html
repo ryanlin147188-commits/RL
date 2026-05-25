@@ -4185,45 +4185,32 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                         <i class="fa-solid fa-rotate"></i>
                     </button>
                 </div>
-                <!-- 新版 toolbar:搜尋 + 過濾 + 天週月 view tabs -->
+                <!-- 新版 toolbar:搜尋 + 狀態 + 時間範圍 + 天週月 view tabs(inline,無漏斗 popover)-->
                 <div class="bg-white border border-slate-200 rounded-lg shadow-sm mb-3 p-3 flex flex-wrap items-center gap-3">
-                    <div class="relative flex-1 min-w-[240px] max-w-md">
+                    <div class="relative flex-1 min-w-[200px] max-w-sm">
                         <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
                         <input id="tsSearch" type="search" oninput="_tsRenderGantt()"
-                               placeholder="搜尋任務或負責人…"
+                               placeholder="搜尋任務或指派人…"
                                class="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400 bg-slate-50/50">
                     </div>
-                    <div class="relative">
-                        <button type="button" id="tsFilterBtn" onclick="_tsToggleFilterPopover()"
-                                class="w-9 h-9 flex items-center justify-center border border-slate-200 hover:bg-slate-50 rounded-lg text-slate-500 hover:text-slate-700"
-                                title="篩選">
-                            <i class="fa-solid fa-filter text-sm"></i>
-                        </button>
-                        <div id="tsFilterPopover" class="hidden absolute left-0 mt-2 w-56 bg-white border border-slate-200 rounded-lg shadow-lg z-20 p-3 space-y-2">
-                            <div>
-                                <label class="block text-xs font-medium text-slate-600 mb-1">狀態</label>
-                                <select id="tsStatusFilter" onchange="_tsRenderGantt()" class="w-full text-xs px-2 py-1.5 border border-slate-300 rounded bg-white">
-                                    <option value="">所有狀態</option>
-                                    <option value="Todo">未開始</option>
-                                    <option value="InProgress">進行中</option>
-                                    <option value="InReview">待驗證</option>
-                                    <option value="Verified">已完成</option>
-                                    <option value="Closed">已結案</option>
-                                    <option value="__overdue">卡關 / 延遲</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-xs font-medium text-slate-600 mb-1">時間範圍</label>
-                                <select id="tsRangeSelect" onchange="loadTestSchedules()" class="w-full text-xs px-2 py-1.5 border border-slate-300 rounded bg-white">
-                                    <option value="1m">未來 1 個月</option>
-                                    <option value="3m" selected>未來 3 個月</option>
-                                    <option value="6m">未來 6 個月</option>
-                                    <option value="12m">未來 1 年</option>
-                                    <option value="all">全部</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
+                    <select id="tsStatusFilter" onchange="_tsRenderGantt()"
+                            class="text-xs px-2 py-1.5 border border-slate-300 rounded bg-white">
+                        <option value="">所有狀態</option>
+                        <option value="Todo">待辦</option>
+                        <option value="InProgress">進行中</option>
+                        <option value="InReview">待驗證</option>
+                        <option value="Verified">已完成</option>
+                        <option value="Closed">關閉</option>
+                        <option value="__overdue">卡關 / 延遲</option>
+                    </select>
+                    <select id="tsRangeSelect" onchange="loadTestSchedules()"
+                            class="text-xs px-2 py-1.5 border border-slate-300 rounded bg-white">
+                        <option value="1m">未來 1 個月</option>
+                        <option value="3m" selected>未來 3 個月</option>
+                        <option value="6m">未來 6 個月</option>
+                        <option value="12m">未來 1 年</option>
+                        <option value="all">全部</option>
+                    </select>
                     <div class="flex-1"></div>
                     <!-- View mode tabs:天 / 週 / 月 -->
                     <div class="inline-flex rounded-lg bg-slate-100 p-1 text-sm">
@@ -22027,20 +22014,22 @@ curl -X POST http://localhost:8000/api/defects \\
         Assigned: 'fa-circle text-slate-400',
     };
     // Bar 底色 — 一律依 (effective) status 推,無視 record.color
+    // Todo:藍色(顯眼但偏 cool tone,代表「規劃中」)
+    // Closed:灰色(「已歸檔/完成」中性色)
     const _TS_BAR_BG = {
-        Todo:       'bg-slate-400',
+        Todo:       'bg-blue-400',
         InProgress: 'bg-blue-500',
         InReview:   'bg-violet-500',
         ReworkRequired: 'bg-violet-500',
         Verified:   'bg-emerald-500',
-        Closed:     'bg-emerald-600',
+        Closed:     'bg-stone-400',
         Overdue:    'bg-rose-500',
-        Planned:    'bg-slate-400',
+        Planned:    'bg-blue-400',
         Done:       'bg-emerald-500',
         Delayed:    'bg-rose-500',
         Cancelled:  'bg-stone-400',
-        New:        'bg-slate-400',
-        Assigned:   'bg-slate-400',
+        New:        'bg-blue-400',
+        Assigned:   'bg-blue-400',
     };
 
     // 視圖模式:day / week / month。預設 day。
@@ -22062,19 +22051,6 @@ curl -X POST http://localhost:8000/api/defects \\
         });
         _tsRenderGantt();
     }
-    function _tsToggleFilterPopover() {
-        const p = document.getElementById('tsFilterPopover');
-        if (p) p.classList.toggle('hidden');
-    }
-    // 點外面關 filter popover
-    document.addEventListener('click', (ev) => {
-        const p = document.getElementById('tsFilterPopover');
-        const b = document.getElementById('tsFilterBtn');
-        if (!p || !b || p.classList.contains('hidden')) return;
-        if (ev.target === b || b.contains(ev.target) || p.contains(ev.target)) return;
-        p.classList.add('hidden');
-    });
-
     // 依 row 算「實際狀態」:已逾期且未驗證/未結案 → Overdue
     function _tsEffectiveStatus(s) {
         const today = new Date(); today.setHours(0,0,0,0);
@@ -22247,8 +22223,9 @@ curl -X POST http://localhost:8000/api/defects \\
 
         // 視圖各自的最小欄寬
         const MIN_COL_PX = _tsView === 'day' ? 64 : (_tsView === 'week' ? 160 : 240);
-        const LEFT_W_NAME = 224, LEFT_W_STATUS = 110, LEFT_W_OWNER = 110, LEFT_W_PROGRESS = 80;
-        const LEFT_PANEL_PX = LEFT_W_NAME + LEFT_W_STATUS + LEFT_W_OWNER + LEFT_W_PROGRESS;
+        // v1.1.9+:拿掉進度 column,只留 任務名稱 / 狀態 / 指派人 三欄
+        const LEFT_W_NAME = 240, LEFT_W_STATUS = 110, LEFT_W_OWNER = 130;
+        const LEFT_PANEL_PX = LEFT_W_NAME + LEFT_W_STATUS + LEFT_W_OWNER;
 
         const cols = _tsBuildColumns(vStart, vEnd);
         const totalCols = cols.length;
@@ -22298,14 +22275,8 @@ curl -X POST http://localhost:8000/api/defects \\
             const statusIcon = _TS_STATUS_ICON[eff] || _TS_STATUS_ICON.Todo;
             const statusZh = _TS_STATUS_ZH[eff] || eff;
             const assignee = s.assigned_to || '未指派';
-            const progress = (s.progress != null) ? Math.max(0, Math.min(100, s.progress)) : 0;
             const isTodo = s._src === 'todo';
             const clickHandler = isTodo ? `openTodoDetail('${s._todoId}')` : `openTsEditModal('${s.id}')`;
-            const progressColor =
-                progress >= 100 ? 'text-emerald-600' :
-                progress >= 50 ? 'text-blue-600' :
-                progress > 0 ? 'text-amber-600' : 'text-slate-400';
-            const barLabel = `${s.name}${progress > 0 ? ` (${progress}%)` : ''}`;
             const srcBadge = isTodo ? '<span class="text-[8px] px-1 py-0 bg-white/30 rounded mr-1 font-mono">TODO</span>' : '';
 
             return `
@@ -22324,15 +22295,12 @@ curl -X POST http://localhost:8000/api/defects \\
                         <i class="fa-regular fa-user text-slate-400 mr-1 text-xs"></i>
                         <span class="truncate" title="${escapeHtml(assignee)}">${escapeHtml(assignee)}</span>
                     </div>
-                    <div class="shrink-0 border-r border-slate-200 px-3 py-3 flex items-center font-mono ${progressColor} font-semibold text-sm" style="width:${LEFT_W_PROGRESS}px">
-                        ${progress}%
-                    </div>
                     <div class="flex-1 relative" style="min-height:64px">
                         ${visible ? `
                             <div class="absolute top-1/2 -translate-y-1/2 ${barBg} rounded-md shadow-sm flex items-center px-2 text-white text-xs font-medium overflow-hidden"
                                  style="left:${offsetPct}%;width:${widthPct}%;min-width:24px;height:26px"
-                                 title="${escapeHtml(s.name)} (${s.start_date} → ${s.end_date}) ${progress}%">
-                                ${srcBadge}<span class="truncate">${escapeHtml(barLabel)}</span>
+                                 title="${escapeHtml(s.name)} (${s.start_date} → ${s.end_date})">
+                                ${srcBadge}<span class="truncate">${escapeHtml(s.name)}</span>
                             </div>` : ''}
                     </div>
                 </div>`;
@@ -22354,7 +22322,6 @@ curl -X POST http://localhost:8000/api/defects \\
                     <div class="shrink-0 border-r border-slate-200 px-3 py-3 text-xs font-semibold text-slate-600 flex items-center" style="width:${LEFT_W_NAME}px">測試任務名稱</div>
                     <div class="shrink-0 border-r border-slate-200 px-3 py-3 text-xs font-semibold text-slate-600 flex items-center" style="width:${LEFT_W_STATUS}px">狀態</div>
                     <div class="shrink-0 border-r border-slate-200 px-3 py-3 text-xs font-semibold text-slate-600 flex items-center" style="width:${LEFT_W_OWNER}px">指派人</div>
-                    <div class="shrink-0 border-r border-slate-200 px-3 py-3 text-xs font-semibold text-slate-600 flex items-center" style="width:${LEFT_W_PROGRESS}px">進度</div>
                     <div class="flex-1" style="${gridCols}">${headerCells}</div>
                 </div>
                 <div class="relative">
