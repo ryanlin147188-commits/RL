@@ -1,7 +1,7 @@
-# 第三方授權與商業使用稽核 — AutoTest v1.1
+# 第三方授權與商業使用稽核 — AutoTest v1.1.9
 
 > **部署情境：對外提供 SaaS / 雲服務**
-> 本文件為 AutoTest v1.1 所有第三方相依元件的授權整理，協助評估商業使用合規性。
+> 本文件為 AutoTest v1.1.9 所有第三方相依元件的授權整理，協助評估商業使用合規性。
 > ⚠️ **這份文件是技術層面的整理，不是法律意見。實際商業部署前，建議由貴公司法務或熟悉開源授權的顧問進行最終 review。**
 
 > 🟢 **本版本已將具有 Copyleft 風險的元件全部替換**：
@@ -13,9 +13,10 @@
 
 ---
 
-## ✅ 結論摘要(v1.1)
+## ✅ 結論摘要(v1.1.9)
 
 **所有 60+ 元件都是開源、可在 SaaS 情境商業使用**,**無任何 AGPL / SSPL / GPL 風險**。
+此外 v1.1.9 從原本 4 個動態 spawn image(`robot-runner` / `recorder` / `recorder-api` / `mcp`)合併為 2 個(`robot-runner` + 統一 `recorder`),並移除 `seaweedfs-init`(bucket 改由 backend lifespan boto3 建立)——磁碟用量與授權盤點同步精簡。
 
 | 元件 | 處理 |
 |---|---|
@@ -136,18 +137,19 @@
 | backup-cron | `postgres:16-alpine`（內建 crond） | **PostgreSQL License**(類 MIT) | ✅ |
 | valkey | `valkey/valkey:8-alpine` | **BSD-3-Clause** | ✅ |
 | seaweedfs | `chrislusf/seaweedfs:3.80` | **Apache 2.0** | ✅ |
-| seaweedfs-init | `amazon/aws-cli:2.18.5` | Apache 2.0 | ✅ |
 | docker-proxy | `tecnativa/docker-socket-proxy:0.3.0` | Apache 2.0 | ✅ |
 | frontend | `nginx:1.27-alpine` | BSD-2-Clause(nginx)+ MIT(Alpine 套件群) | ✅ |
+
+> v1.1.9 移除 `seaweedfs-init` one-shot container,bucket(`pic` / `results`)改由 backend lifespan 直接以 boto3 建立——少一個 image、少一條 docker compose 依賴關係。
 
 #### Spawnable profile(按需建置,不常駐)
 
 | Service | Image / 版本 | 授權 | SaaS 商用 |
 |---|---|---|---|
-| robot-runner | `autotest-robot-runner`(自建) | — | ✅ |
-| recorder | `autotest-recorder`(自建) | — | ✅ |
-| recorder-api | `autotest-recorder-api`(自建) | — | ✅ |
-| mcp | `autotest-mcp`(自建) | — | ✅ |
+| robot-runner | `autotest-robot-runner:1.1.1`(自建) | — | ✅ |
+| recorder | `autotest-recorder:1.1.1`(自建,**統一三模式**) | — | ✅ |
+
+> v1.1.9 將原本三個獨立 image(`autotest-recorder` / `autotest-recorder-api` / `autotest-mcp`)合併為單一 `autotest-recorder` image,由 dispatcher entrypoint 依 `RECORDER_MODE` env 切換(`novnc` / `mitmweb` / `mcp`)——節省約 6 GB disk + 約 5 分鐘建置時間。原有 base layer(Playwright / Python / Node.js)100% 共用。
 
 > v1.1.9 已將 **APISIX / Casdoor / VictoriaLogs / Fluent Bit / Prometheus / Jaeger** 自 stack 中移除，改由 FastAPI 直接服務全部 API（slowapi 限速、CORSMiddleware），可觀測性改由外部工具自行接入。
 

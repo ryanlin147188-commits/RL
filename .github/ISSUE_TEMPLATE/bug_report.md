@@ -27,8 +27,9 @@ assignees: ''
 
 - 作業系統：（例如 macOS 15 / Ubuntu 24.04 / Windows 11）
 - 瀏覽器：（例如 Chrome 124 / Firefox 125 / Safari 17）
-- AutoTest 版本：（例如 v1.1.8）
+- AutoTest 版本：（例如 v1.1.9）
 - 部署方式：（Docker Compose / Kubernetes）
+- 影響模組：（例如：測試案例 / 測試時程 / 測試看版 / 缺陷管理 / Mock / 檔案比對 / 畫面比對 / 錄製 / 執行 / 報告 / 審核 / 通知）
 
 **錯誤日誌**
 如果適用，請貼上相關的容器 log（`docker compose logs --tail=50 backend`）：

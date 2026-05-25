@@ -1,18 +1,25 @@
 # 資料安全：備份機制與安全 Rebuild 指南
 
+> 適用版本：v1.1.9+
+
 ## 速查表：哪些操作安全、哪些危險
 
-| 操作 | 指令 | 資料是否保留 |
-|---|---|---|
-| 重建 image | `docker compose up -d --build` | ✅ 保留 |
-| 停止服務 | `docker compose down` | ✅ 保留 |
-| 重啟單一容器 | `docker compose restart backend` | ✅ 保留 |
-| **清除全部資料** | `docker compose down -v` | ❌ 刪除所有 volume |
-| **刪除 volume** | `docker volume rm <專案名>_postgres_data` | ❌ 資料消失 |
+| 操作 | 指令 | 資料是否保留 | spawn image 是否保留 |
+|---|---|---|---|
+| 重建 image | `docker compose up -d --build` | ✅ 保留 | ✅ 保留 |
+| 停止服務 | `docker compose down` | ✅ 保留 | ✅ 保留 |
+| 重啟單一容器 | `docker compose restart backend` | ✅ 保留 | ✅ 保留 |
+| 安全孤兒清理 | `docker volume prune -f && docker image prune -f` | ✅ 保留 | ✅ 保留 |
+| 清 build cache | `docker builder prune -af` | ✅ 保留 | ✅ 保留 |
+| **清除全部資料** | `docker compose down -v` | ❌ 刪除所有 volume | ✅ 保留 |
+| **刪除 volume** | `docker volume rm <專案名>_postgres_data` | ❌ 資料消失 | ✅ 保留 |
+| **❌ 危險：全 image 清** | `docker image prune -a` | ✅ 保留 | ❌ **`autotest-robot-runner` / `autotest-recorder` 被刪** |
 
 > **重點**：Named volume（`postgres_data`、`seaweedfs_data` 等）只要沒有 `-v` 旗標，任何 rebuild 或重啟都不會影響資料。
 >
 > **volume 名稱的實際前綴**：docker compose 會自動把 named volume 加上「專案名前綴」（compose 預設取 working dir 名稱小寫，例如 `RL_TMP/` → `rl_tmp_postgres_data`；本機若是 `rl-for-kapito-main/` 則變 `rl-for-kapito-main_postgres_data`）。可用 `docker volume ls` 確認實際名稱，或用 `COMPOSE_PROJECT_NAME` 環境變數固定前綴。
+>
+> **動態 spawn image**：v1.1.9 起，每次測試執行 / 錄製由 backend 動態 `docker run --rm autotest-robot-runner` 或 `autotest-recorder`，**這些 image 沒寫進 docker compose `services:`**，因此 `docker image prune -a`（會清「沒在 running 容器使用的 image」）會把它們砍掉。釋放磁碟時請使用 `docker image prune -f`（不加 `-a`，只清 dangling）+ `docker builder prune -af`（清 build cache）。
 
 ---
 

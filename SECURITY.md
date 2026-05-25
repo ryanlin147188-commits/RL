@@ -6,8 +6,9 @@
 
 | 版本 | 支援狀態 |
 |---|---|
+| 1.1.9（最新） | ✅ 支援 |
 | 1.1.x | ✅ 支援 |
-| 1.0.x | ✅ 支援 |
+| 1.0.x | ⚠️ 僅修補 CVE-9.0+ |
 | < 1.0 | ❌ 不支援 |
 
 ---
@@ -62,9 +63,10 @@
 - `ALLOWED_ORIGINS` 設為你的實際前端 origin，**絕對不要**使用 `*`。
 - 資料庫、S3 和管理員帳號憑證已從預設值輪替。
 - 服務部署在 HTTPS 後方（例如搭配有效 TLS 憑證的 reverse proxy）。
-- 容器 image 釘定為特定版本或 digest，**不使用** `latest`。
-- PostgreSQL volume 和 SeaweedFS volume 有定期備份排程。
+- 容器 image 釘定為特定版本或 digest（含動態 spawn 的 `RECORDER_IMAGE` / `ROBOT_RUNNER_IMAGE`），**不使用** `latest`。
+- PostgreSQL volume 和 SeaweedFS volume 有定期備份排程（內建 `backup-cron` 容器已負責每日 03:00 自動備份）。
 - 正式環境使用 **Docker Engine**（免費，Apache 2.0），而非 Docker Desktop（超過 250 人或年營收 > $10M USD 的企業需付費訂閱）。
+- **不要執行 `docker image prune -a`** — 會把目前沒 running 的 `autotest-robot-runner` / `autotest-recorder` 砍掉，下次執行 / 錄製會失敗，必須重新 build。安全清理改用 `docker container/volume/image prune -f` + `docker builder prune -af`。
 
 **Docker Log 輪替（一次性設定）：**
 

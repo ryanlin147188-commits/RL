@@ -1,12 +1,14 @@
 # 後端領域驅動架構（RFC-10）— 延遲實施
 
+> 版本狀態：v1.1.9 仍維持 flat `app/{models,routers,services,schemas}/` 結構。
+
 本目錄保留給 RFC-10 所規劃的 per-domain 重構。**目前刻意保持空白。**
 
 ---
 
 ## 延遲原因
 
-RFC-10 計劃將約 37 個 model 檔、20 個 router 檔，以及 services / schemas 目錄整體遷移到 per-domain 資料夾（`domains/projects/`、`domains/testcases/` 等）。這是一個機械性的 8–12 天重構工程，但有以下障礙：
+RFC-10 計劃將約 40+ 個 model 檔、30+ 個 router 檔（v1.1.9 新增 defects / test_schedules / mock_endpoints / todo_links），以及 services / schemas 目錄整體遷移到 per-domain 資料夾（`domains/projects/`、`domains/testcases/`、`domains/defects/`、`domains/scheduling/` 等）。這是一個機械性的 8–12 天重構工程，但有以下障礙：
 
 1. **與進行中的 RFC-1 前端拆分衝突**：大量 diff 同時存在會讓 review 難度倍增。
 2. **破壞所有現有 import 路徑**：其他所有 RFC 都刻意設計為不強迫同時產生大量變動，而 RFC-10 無法做到這一點。
@@ -18,7 +20,7 @@ RFC-10 計劃將約 37 個 model 檔、20 個 router 檔，以及 services / sch
 
 符合以下任一條件時啟動：
 
-- Backend `routers/` 超過約 30 個檔案
+- Backend `routers/` 超過約 40 個檔案（v1.1.9 約 33 個，接近門檻）
 - 同一週內有兩位貢獻者在同一個 router 發生 merge conflict
 - 新貢獻者花費超過 2 天才能搞清楚「X 在哪裡」
 - RFC-1 前端拆分已完整落地（避免同時產生大量 churn）

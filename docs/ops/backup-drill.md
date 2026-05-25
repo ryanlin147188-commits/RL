@@ -1,5 +1,7 @@
 # 備份還原演習 SOP
 
+> 適用版本：v1.1.9+
+
 定期驗證備份流程確實能產出可還原的快照。略過演習是讓團隊在六個月後——通常是最需要備份的時候——才發現備份早已損壞的最常見原因。
 
 ---
@@ -52,6 +54,8 @@ docker compose up -d postgres valkey seaweedfs
 ```
 
 等待 healthcheck 全部變綠。
+
+> v1.1.9 起 bucket 由 backend lifespan 自動建立（boto3），不再需要 `seaweedfs-init` step。完整啟動順序見 [bootstrap.md](bootstrap.md)。
 
 ### 步驟四：對快照執行還原
 

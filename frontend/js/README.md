@@ -1,8 +1,10 @@
 # 前端模組化架構（RFC-1）
 
-本目錄是 AutoTest SPA 模組化的新家，從原本超過 19,000 行的單一 `index.html` 逐步拆分而來。
+> 適用版本：v1.1.9+ · `index.html` 目前約 21,000+ 行
 
-第一階段（目前狀態）只提供每個 view 都需要的**核心工具**；各 view 本身暫時仍以 inline script 形式保留在 `index.html` 中。
+本目錄是 AutoTest SPA 模組化的新家，從原本超過 21,000 行的單一 `index.html` 逐步拆分而來。
+
+第一階段（目前狀態）只提供每個 view 都需要的**核心工具**；各 view 本身（含 v1.1.9 新增的測試看版、缺陷管理、測試時程、Mock、畫面比對）暫時仍以 inline script 形式保留在 `index.html` 中。
 
 ---
 
@@ -10,8 +12,8 @@
 
 現有 `index.html` 存在以下問題：
 
-- **400+ 個全域函式**：IDE 搜尋與 diff 的負擔隨著規模線性成長
-- **16+ 個重複的 CRUD modal 區塊**：每次修改都要改 10 個地方
+- **500+ 個全域函式**（v1.1.9 後新增 testkanban / defects / testschedule / mock / pictureDiff 各 view 約 100+ 個）：IDE 搜尋與 diff 的負擔隨著規模線性成長
+- **20+ 個重複的 CRUD modal 區塊**：每次修改都要改 10+ 地方（待辦 / 缺陷 / 時程 modal 結構幾乎相同）
 - **全域變數**（`window.currentProjectId`、`_caches`）：競態條件風險
 - **無型別提示、無錯誤邊界、無 code splitting**
 
@@ -75,10 +77,22 @@ async function loadCases(pid) {
 |---|---|---|---|
 | **1** | `core/` 工具 + `window.AutoTest` shim | 2 天 | ✅ 已完成（`core/api.js`、`core/auth.js`、`core/store.js`）|
 | 2 | `components/`（Modal / Form / Table / Toast）+ login view 作為試點 | 3 天 | ⏳ 尚未啟動 |
-| 3 | 將 18 個 view 從 `index.html` 移出，每天 2–3 個 | 5–7 天 | ⏳ 尚未啟動 |
+| 3 | 將 22 個 view 從 `index.html` 移出（含 v1.1.9 新增的 testkanban / defects / testschedule / mock / pictureDiff），每天 2–3 個 | 6–8 天 | ⏳ 尚未啟動 |
 | 4 | 將全域變數替換為 `store.subscribe` | 2–3 天 | ⏳ 尚未啟動 |
 | 5 | 選用：加入 ESLint + Prettier（無需建置步驟） | 1–2 天 | ⏳ 尚未啟動 |
 
 每個階段結束時 `index.html` 仍可正常運作——不做大爆炸式重寫。
 
 **啟動下一階段的條件**：當主分支累積了 3 個以上需要修改同一個 inline view 的 PR，且 PR 之間互相衝突嚴重時，就是該推進階段 2 的訊號。
+
+---
+
+## 部署前必跑語法檢查
+
+由於 `index.html` 內含 21,000+ 行 inline JS，純文字編輯容易留下未閉合的括號 / template literal。每次改完 `index.html` **必須**在部署前跑：
+
+```bash
+node --check frontend/index.html
+```
+
+若有語法錯誤會印出行號，CI 也會在 PR 階段擋下。

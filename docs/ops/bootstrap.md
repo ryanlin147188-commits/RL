@@ -1,10 +1,12 @@
 # 首次部署操作手冊
 
-全新部署的 AutoTest 會在 backend 第一次啟動時**自動建立預設管理員帳號**。系統沒有自助註冊路徑——系統中的每個帳號都由管理員建立。
+> 適用版本：v1.1.9+
+
+全新部署的 AutoTest 會在 backend 第一次啟動時**自動建立預設管理員帳號**並**自動建立 SeaweedFS bucket**（`pic` / `results`，由 backend lifespan 以 boto3 處理，不再需要 `seaweedfs-init` one-shot container）。系統沒有自助註冊路徑——系統中的每個帳號都由管理員建立。
 
 ---
 
-## 快速開始（v1.1.5+）
+## 快速開始
 
 ```
 帳號：admin
@@ -12,6 +14,19 @@
 ```
 
 `admin` 第一次登入時，backend 會強制執行密碼輪替：`/auth/login` 回傳 `must_change_password=true`，在密碼輪替完成之前，所有非 `/auth/me` / `/auth/change-password` 的端點都會回傳 `403`。前端會彈出強制修改視窗，鎖定所有其他 UI 操作。
+
+### 部署順序（首次）
+
+```bash
+# 1. 產生 .env(隨機密鑰)
+docker compose --profile init run --rm bootstrap
+
+# 2. 預先建置動態 spawn image(2 個:robot-runner + 統一 recorder)
+docker compose --profile spawnable build
+
+# 3. 啟動主服務(backend lifespan 會自動建立 SeaweedFS bucket)
+docker compose up -d --build
+```
 
 ---
 
