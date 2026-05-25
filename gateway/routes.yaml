@@ -1,14 +1,42 @@
 # AutoTest Gateway routes configuration
 #
-# Commit 1:placeholder。Commit 3 才接動態路由 / 限速 override / 熔斷器分組。
-# 目前 gateway 用內建 hard-coded 白名單(app/auth.py:_PUBLIC_PATTERNS),
-# 沒讀這個檔。預留路徑讓 docker COPY 不會炸。
+# Commit 3 啟用:gateway 啟動時讀這份 yaml,動態套用「per-route 限速 + 熔斷
+# 分組」。設定改完 docker compose restart gateway 重載(不需 rebuild image)。
 
 version: 1
 upstream:
   backend: http://backend:8000
 
-# Commit 3 才生效:
-# default_rate_limit: 600/minute
-# routes: []
-# circuit_breakers: {}
+# 預設限速(沒 match 到 per-route override 都吃這條)
+default_rate_limit: 600/minute
+
+# Per-route 限速 + 熔斷分組
+# match.path:exact 或 prefix(後綴 / 結尾代表 prefix)
+# methods:限定 HTTP method;留空 = 所有 method
+routes:
+  - match: { path: /api/auth/login, methods: [POST] }
+    rate_limit: 10/minute       # 防暴力破解
+    circuit_group: auth
+  - match: { path: /api/auth/forgot-password, methods: [POST] }
+    rate_limit: 3/hour          # 防被當寄信跳板
+    circuit_group: auth
+  - match: { path: /api/auth/reset-password, methods: [POST] }
+    rate_limit: 10/hour
+    circuit_group: auth
+  - match: { path: /api/auth/refresh, methods: [POST] }
+    rate_limit: 100/minute      # SPA 自動 refresh 不能被卡
+    circuit_group: auth
+  - match: { path: /api/executions, methods: [POST] }
+    rate_limit: 60/minute       # 觸發測試執行
+    circuit_group: executions
+  - match: { path: /api/, methods: [] }
+    rate_limit: 600/minute
+    circuit_group: default
+
+# 熔斷器 — 每個 group 一個獨立 breaker
+# threshold:連續失敗(5xx 或 connect failure)幾次後 open
+# ttl_seconds:open 多久後 half-open 試一次
+circuit_breakers:
+  auth:        { threshold: 5,  ttl_seconds: 30 }
+  executions:  { threshold: 3,  ttl_seconds: 60 }
+  default:     { threshold: 10, ttl_seconds: 30 }

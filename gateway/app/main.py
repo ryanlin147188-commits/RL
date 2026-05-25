@@ -22,10 +22,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse, PlainTextResponse
 
 from .auth import AuthError, is_public_path, verify_jwt
+from .circuit_breaker import all_status, init_breakers
 from .config import settings
 from .http_proxy import close_client, forward_request, get_client
 from .middleware import AccessLogMiddleware, RequestIdMiddleware
+from .rate_limit import enforce_rate_limit
+from .routes_config import RoutesConfig, load_routes
 from .ws_proxy import proxy_websocket
+
+# 啟動時讀一次 routes.yaml(Commit 3 加),routes_cfg 全域可變(reload 用)
+routes_cfg: RoutesConfig = RoutesConfig()
 
 # Logging 先 stdlib 撐著;Commit 4 換 structlog
 logging.basicConfig(
@@ -38,6 +44,10 @@ _log = logging.getLogger("gateway")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     _log.info("gateway starting up: backend=%s", settings.backend_url)
+    # 讀 routes.yaml + init circuit breakers
+    global routes_cfg
+    routes_cfg = load_routes(settings.routes_yaml_path)
+    init_breakers(routes_cfg.circuit_breakers)
     # Warm up httpx client
     await get_client()
     yield
@@ -105,12 +115,15 @@ async def metrics():
 
 @app.get("/gateway/status", include_in_schema=False)
 async def gateway_status():
-    """Ops 看的 internal status;Commit 3 會擴熔斷器 state。"""
+    """Ops 看的 internal status — 含熔斷器當前狀態(Commit 3 加)。"""
     return {
         "backend_url": settings.backend_url,
         "shared_secret_configured": bool(settings.gateway_backend_shared_secret),
         "cors_origins": settings.allowed_origins_list,
         "version": "1.1.10",
+        "default_rate_limit": routes_cfg.default_rate_limit,
+        "rule_count": len(routes_cfg.routes),
+        "circuit_breakers": all_status(),
     }
 
 
@@ -139,6 +152,14 @@ async def _check_auth(request: Request) -> dict | None:
 )
 async def proxy_api(request: Request, path: str):
     # CORS OPTIONS 預檢 CORSMiddleware 已經攔,不會到這
+    # 1) 找 route rule(rate_limit + circuit_group)
+    rule = routes_cfg.match(request.method, request.url.path)
+    rate = rule.rate_limit or routes_cfg.default_rate_limit
+    # 2) 限速先擋(連 JWT 都不用看,擋掉就省 backend 一次)
+    rl_resp = await enforce_rate_limit(request, rate)
+    if rl_resp is not None:
+        return rl_resp
+    # 3) JWT auth
     try:
         payload = await _check_auth(request)
     except AuthError as e:
@@ -146,7 +167,10 @@ async def proxy_api(request: Request, path: str):
             {"detail": e.detail, "code": e.code},
             status_code=401,
         )
-    return await forward_request(request, payload=payload, stream=False)
+    # 4) forward + circuit breaker
+    return await forward_request(
+        request, payload=payload, stream=False, circuit_group=rule.circuit_group,
+    )
 
 
 @app.api_route(

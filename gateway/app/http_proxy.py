@@ -24,6 +24,7 @@ from starlette.background import BackgroundTask
 from starlette.responses import Response, StreamingResponse
 
 from .auth import sign_gateway_request
+from .circuit_breaker import get_breaker
 from .config import settings
 
 
@@ -117,8 +118,26 @@ async def forward_request(
     *,
     payload: Optional[dict[str, Any]] = None,
     stream: bool = False,
+    circuit_group: str = "default",
 ) -> Response:
-    """把 incoming request forward 給 backend,回 starlette Response。"""
+    """把 incoming request forward 給 backend,回 starlette Response。
+
+    熔斷器:OPEN 狀態直接回 503,不打 backend;CLOSED / HALF_OPEN 才 forward。
+    上游 5xx / connection error → record_failure;2xx-4xx → record_success。
+    """
+    breaker = get_breaker(circuit_group)
+    if not breaker.allow_request():
+        from starlette.responses import JSONResponse
+        return JSONResponse(
+            {
+                "detail": "Service temporarily unavailable",
+                "code": "circuit_open",
+                "circuit_group": circuit_group,
+            },
+            status_code=503,
+            headers={"Retry-After": "30"},
+        )
+
     client = await get_client()
     method = request.method
     path = request.url.path
@@ -141,31 +160,46 @@ async def forward_request(
     if method not in ("GET", "HEAD"):
         body_iter = request.stream()
 
-    if stream:
-        # /pics/ /results/ — streaming response
-        req = client.build_request(
+    try:
+        if stream:
+            # /pics/ /results/ — streaming response
+            req = client.build_request(
+                method, upstream_path, headers=fwd_headers, content=body_iter,
+            )
+            upstream = await client.send(req, stream=True)
+            resp_headers = _build_response_raw_headers(upstream)
+
+            async def _close():
+                await upstream.aclose()
+
+            sr = StreamingResponse(
+                upstream.aiter_raw(),
+                status_code=upstream.status_code,
+                background=BackgroundTask(_close),
+            )
+            sr.raw_headers = resp_headers
+            # streaming response 的 status code 在 header 就能判斷;5xx 視為失敗
+            if upstream.status_code >= 500:
+                breaker.record_failure()
+            else:
+                breaker.record_success()
+            return sr
+
+        upstream = await client.request(
             method, upstream_path, headers=fwd_headers, content=body_iter,
         )
-        upstream = await client.send(req, stream=True)
-        resp_headers = _build_response_raw_headers(upstream)
-
-        async def _close():
-            await upstream.aclose()
-
-        # StreamingResponse 用 headers=None 跳過 init_headers 的 content-length 邏輯,
-        # 我們手動覆寫 raw_headers 保留 Set-Cookie 多條
-        sr = StreamingResponse(
-            upstream.aiter_raw(),
-            status_code=upstream.status_code,
-            background=BackgroundTask(_close),
+        if upstream.status_code >= 500:
+            breaker.record_failure()
+        else:
+            breaker.record_success()
+        resp = Response(content=upstream.content, status_code=upstream.status_code)
+        resp.raw_headers = _build_response_raw_headers(upstream)
+        return resp
+    except (httpx.ConnectError, httpx.ReadError, httpx.TimeoutException) as e:
+        # 連線錯誤 / timeout 也算失敗(connection refused / DNS failure 等)
+        breaker.record_failure()
+        from starlette.responses import JSONResponse
+        return JSONResponse(
+            {"detail": f"Backend unreachable: {e.__class__.__name__}", "code": "upstream_error"},
+            status_code=502,
         )
-        sr.raw_headers = resp_headers
-        return sr
-
-    # 一般 JSON / 小 response — 一次讀完
-    upstream = await client.request(
-        method, upstream_path, headers=fwd_headers, content=body_iter,
-    )
-    resp = Response(content=upstream.content, status_code=upstream.status_code)
-    resp.raw_headers = _build_response_raw_headers(upstream)
-    return resp
