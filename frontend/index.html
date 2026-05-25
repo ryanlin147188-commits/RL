@@ -22014,22 +22014,23 @@ curl -X POST http://localhost:8000/api/defects \\
         Assigned: 'fa-circle text-slate-400',
     };
     // Bar 底色 — 一律依 (effective) status 推,無視 record.color
-    // Todo:藍色(顯眼但偏 cool tone,代表「規劃中」)
-    // Closed:灰色(「已歸檔/完成」中性色)
+    // ⚠ 預編譯 Tailwind 沒包 -400 / slate-500 / stone-400/500,直接用 inline
+    // 寫死 hex 才不會被 purge 掉變透明。每個狀態挑明顯不同的色相,
+    // 6 hue 全色相分散(blue / amber / violet / emerald / slate / rose):
     const _TS_BAR_BG = {
-        Todo:       'bg-blue-400',
-        InProgress: 'bg-blue-500',
-        InReview:   'bg-violet-500',
-        ReworkRequired: 'bg-violet-500',
-        Verified:   'bg-emerald-500',
-        Closed:     'bg-stone-400',
-        Overdue:    'bg-rose-500',
-        Planned:    'bg-blue-400',
-        Done:       'bg-emerald-500',
-        Delayed:    'bg-rose-500',
-        Cancelled:  'bg-stone-400',
-        New:        'bg-blue-400',
-        Assigned:   'bg-blue-400',
+        Todo:       '#3b82f6',   // blue-500   待辦 / 規劃中
+        InProgress: '#f59e0b',   // amber-500  進行中
+        InReview:   '#8b5cf6',   // violet-500 待驗證
+        ReworkRequired: '#8b5cf6',
+        Verified:   '#10b981',   // emerald-500 已完成
+        Closed:     '#64748b',   // slate-500   關閉 / 歸檔
+        Overdue:    '#e11d48',   // rose-600    卡關 / 延遲
+        Planned:    '#3b82f6',
+        Done:       '#10b981',
+        Delayed:    '#e11d48',
+        Cancelled:  '#64748b',
+        New:        '#3b82f6',
+        Assigned:   '#3b82f6',
     };
 
     // 視圖模式:day / week / month。預設 day。
@@ -22270,7 +22271,7 @@ curl -X POST http://localhost:8000/api/defects \\
             const offsetPct = visible ? Math.max(0, (clipStart - vStart) / totalMs * 100) : 0;
             const widthPct  = visible ? Math.max(0, (clipEnd - clipStart) / totalMs * 100) : 0;
             const eff = s._eff;
-            const barBg = _TS_BAR_BG[eff] || 'bg-blue-500';
+            const barColor = _TS_BAR_BG[eff] || '#3b82f6';
             const statusPill = _TS_STATUS_PILL[eff] || _TS_STATUS_PILL.Todo;
             const statusIcon = _TS_STATUS_ICON[eff] || _TS_STATUS_ICON.Todo;
             const statusZh = _TS_STATUS_ZH[eff] || eff;
@@ -22297,8 +22298,8 @@ curl -X POST http://localhost:8000/api/defects \\
                     </div>
                     <div class="flex-1 relative" style="min-height:64px">
                         ${visible ? `
-                            <div class="absolute top-1/2 -translate-y-1/2 ${barBg} rounded-md shadow-sm flex items-center px-2 text-white text-xs font-medium overflow-hidden"
-                                 style="left:${offsetPct}%;width:${widthPct}%;min-width:24px;height:26px"
+                            <div class="absolute top-1/2 -translate-y-1/2 rounded-md shadow flex items-center px-2 text-white text-xs font-semibold overflow-hidden"
+                                 style="left:${offsetPct}%;width:${widthPct}%;min-width:28px;height:28px;background-color:${barColor};box-shadow:0 1px 3px rgba(0,0,0,0.18)"
                                  title="${escapeHtml(s.name)} (${s.start_date} → ${s.end_date})">
                                 ${srcBadge}<span class="truncate">${escapeHtml(s.name)}</span>
                             </div>` : ''}
