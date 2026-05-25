@@ -236,6 +236,13 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # Gateway 已驗 JWT → 跳過 decode + revocation,直接拿 X-Gateway-* 當權威
         gw_payload = _verify_gateway_hmac(request)
         if gw_payload is not None:
+            # 即使 short-circuit,下游 ``Depends(get_current_user)``(fastapi-users
+            # BearerTransport)仍從 Authorization header 取 token。SPA 在 OIDC 後
+            # 只送 Cookie:access_token,本來 ``_extract_token`` 會 promote 到
+            # Authorization header,short-circuit 跳過會讓 fastapi-users 拿不到。
+            # 在這裡呼叫 ``_extract_token`` 純粹是為了觸發 promote(token 取出後
+            # 不再用),確保下游 Depends 看得到 Authorization。
+            _extract_token(request)
             request.state.user_payload = gw_payload
             snap = _payload_to_context(gw_payload, request)
             try:
