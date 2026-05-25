@@ -84,6 +84,7 @@ class TodoItemBase(BaseModel):
     title: str
     description: Optional[str] = None
     due_date: Optional[str] = None
+    start_date: Optional[str] = None  # v1.1.9 加:Gantt 時程 bar 起點
     status: str = "Todo"
     priority: str = "P2"
     assignee: Optional[str] = None
@@ -105,6 +106,7 @@ class TodoItemUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     due_date: Optional[str] = None
+    start_date: Optional[str] = None
     status: Optional[str] = None
     priority: Optional[str] = None
     assignee: Optional[str] = None

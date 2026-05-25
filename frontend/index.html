@@ -1246,7 +1246,7 @@
                     <input type="text" id="todoCreateTitle" required maxlength="300"
                         class="w-full border border-slate-300 rounded p-2 text-sm focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none">
                 </div>
-                <div class="grid grid-cols-3 gap-3">
+                <div class="grid grid-cols-4 gap-3">
                     <div>
                         <label class="block text-sm font-medium text-slate-700 mb-1">優先序</label>
                         <select id="todoCreatePriority" class="w-full border border-slate-300 rounded p-2 text-sm bg-white">
@@ -1267,7 +1267,12 @@
                         </select>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-slate-700 mb-1">到期日</label>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">開始日期</label>
+                        <input type="date" id="todoCreateStartDate"
+                            class="w-full border border-slate-300 rounded p-2 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">結束日期</label>
                         <input type="date" id="todoCreateDueDate"
                             class="w-full border border-slate-300 rounded p-2 text-sm">
                     </div>
@@ -20282,6 +20287,7 @@ curl -X POST http://localhost:8000/api/defects \\
         // 類型 UI 已拿掉,固定送 Task
         document.getElementById('todoCreatePriority').value = 'P2';
         document.getElementById('todoCreateStatus').value = 'New';
+        document.getElementById('todoCreateStartDate').value = '';
         document.getElementById('todoCreateDueDate').value = '';
         document.getElementById('todoCreateAssignee').value = '';
         document.getElementById('todoCreateDescription').value = '';
@@ -20354,6 +20360,7 @@ curl -X POST http://localhost:8000/api/defects \\
             priority: document.getElementById('todoCreatePriority').value,
             status: document.getElementById('todoCreateStatus').value,
             due_date: document.getElementById('todoCreateDueDate').value || null,
+            start_date: document.getElementById('todoCreateStartDate').value || null,
             assigned_to: document.getElementById('todoCreateAssignee').value || null,
             assigned_to_type: 'user',
             description: document.getElementById('todoCreateDescription').value || null,
@@ -20435,7 +20442,7 @@ curl -X POST http://localhost:8000/api/defects \\
                 <input type="text" id="todoEditTitle" maxlength="300" value="${escapeHtml(t.title||'')}"
                     class="w-full border border-slate-300 rounded p-2 text-sm focus:ring-2 focus:ring-blue-100 focus:border-blue-400 outline-none">
             </div>
-            <div class="grid grid-cols-3 gap-3">
+            <div class="grid grid-cols-4 gap-3">
                 <div>
                     <label class="block text-sm font-medium text-slate-700 mb-1">優先序</label>
                     <select id="todoEditPriority" class="w-full border border-slate-300 rounded p-2 text-sm bg-white">
@@ -20446,16 +20453,18 @@ curl -X POST http://localhost:8000/api/defects \\
                     <label class="block text-sm font-medium text-slate-700 mb-1">狀態</label>
                     <select id="todoEditStatus" class="w-full border border-slate-300 rounded p-2 text-sm bg-white">
                         <option value="New" ${t.status==='New'?'selected':''}>待辦</option>
-                        <option value="Assigned" ${t.status==='Assigned'?'selected':''}>已指派</option>
                         <option value="InProgress" ${t.status==='InProgress'?'selected':''}>進行中</option>
-                        <option value="InReview" ${t.status==='InReview'?'selected':''}>待驗證</option>
-                        <option value="ReworkRequired" ${t.status==='ReworkRequired'?'selected':''}>退回</option>
+                        <option value="InReview" ${(t.status==='InReview' || t.status==='ReworkRequired')?'selected':''}>待驗證</option>
                         <option value="Verified" ${t.status==='Verified'?'selected':''}>已完成</option>
-                        <option value="Closed" ${t.status==='Closed'?'selected':''}>關閉</option>
+                        <option value="Closed" ${(t.status==='Closed' || t.status==='Assigned')?'selected':''}>關閉</option>
                     </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">到期日</label>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">開始日期</label>
+                    <input type="date" id="todoEditStartDate" value="${t.start_date || ''}" class="w-full border border-slate-300 rounded p-2 text-sm">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">結束日期</label>
                     <input type="date" id="todoEditDueDate" value="${t.due_date || ''}" class="w-full border border-slate-300 rounded p-2 text-sm">
                 </div>
             </div>
@@ -20536,6 +20545,7 @@ curl -X POST http://localhost:8000/api/defects \\
             priority:     document.getElementById('todoEditPriority').value,
             status:       document.getElementById('todoEditStatus').value,
             due_date:     document.getElementById('todoEditDueDate').value || null,
+            start_date:   document.getElementById('todoEditStartDate').value || null,
             assigned_to:  document.getElementById('todoEditAssignee').value || null,
             assigned_to_type: 'user',
             description:  document.getElementById('todoEditDescription').value || null,
@@ -21392,7 +21402,27 @@ curl -X POST http://localhost:8000/api/defects \\
         const status = document.getElementById('tsStatusFilter')?.value || '';
         if (status) params.set('status', status);
         try {
-            _tsRows = await apiFetch(`/api/test-schedules?${params}`);
+            // v1.1.9:同時拉 test_schedules + todos(有 start_date + due_date 的 todo
+            // 也畫成 Gantt row,讓 todo 跟里程碑共同視覺化)。
+            const [schedules, todos] = await Promise.all([
+                apiFetch(`/api/test-schedules?${params}`),
+                apiFetch(`/api/todos?project_id=${encodeURIComponent(currentProjectId)}&limit=500`).catch(()=>[]),
+            ]);
+            const todoRows = (Array.isArray(todos) ? todos : todos?.items || [])
+                .filter(t => t.start_date && t.due_date)  // 只畫有完整區間的
+                .map(t => ({
+                    id: 'todo:' + t.id,
+                    _src: 'todo',
+                    _todoId: t.id,
+                    name: t.title,
+                    description: t.description,
+                    start_date: t.start_date,
+                    end_date: t.due_date,
+                    status: t.status,
+                    color: 'blue',
+                    assigned_to: t.assignee,
+                }));
+            _tsRows = [...schedules, ...todoRows];
             _tsRenderGantt();
         } catch (e) {
             console.error('[testSchedule] load failed', e);
@@ -21469,9 +21499,17 @@ curl -X POST http://localhost:8000/api/defects \\
             const statusPill = _TS_STATUS_PILL[s.status] || 'bg-slate-100 text-slate-700';
             const statusZh = _TS_STATUS_ZH[s.status] || s.status;
             const assignee = s.assigned_to || '未指派';
+            // todo 來源:點 row 跳到該 todo 的 detail modal;test_schedule 自己的還是走 ts edit
+            const clickHandler = s._src === 'todo'
+                ? `openTodoDetail('${s._todoId}')`
+                : `openTsEditModal('${s.id}')`;
+            // todo bar 用 blue,加 fa-clipboard-list icon 區別兩種來源
+            const srcBadge = s._src === 'todo'
+                ? '<span class="text-[9px] px-1 py-0 bg-white/30 rounded mr-1 font-mono">TODO</span>'
+                : '';
             return `
                 <div class="flex items-stretch border-b border-slate-100 hover:bg-amber-50/30 cursor-pointer"
-                     onclick="openTsEditModal('${s.id}')">
+                     onclick="${clickHandler}">
                     <!-- 左側 label 區 -->
                     <div class="w-56 shrink-0 border-r border-slate-200 p-2.5 flex flex-col gap-1">
                         <div class="text-sm font-semibold text-slate-800 line-clamp-1" title="${escapeHtml(s.name)}">${escapeHtml(s.name)}</div>
@@ -21487,7 +21525,7 @@ curl -X POST http://localhost:8000/api/defects \\
                             <div class="absolute top-3 ${barBg} rounded shadow-sm flex items-center px-2 text-white text-[11px] font-medium overflow-hidden"
                                  style="left:${offsetPct}%;width:${widthPct}%;min-width:8px;height:24px"
                                  title="${escapeHtml(s.name)} (${s.start_date} → ${s.end_date})">
-                                <span class="truncate">${escapeHtml(s.name)}</span>
+                                ${srcBadge}<span class="truncate">${escapeHtml(s.name)}</span>
                             </div>` : `
                             <div class="absolute top-3 left-2 text-[10px] text-slate-400 italic">不在當前範圍 (${s.start_date} → ${s.end_date})</div>`}
                     </div>

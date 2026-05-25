@@ -74,6 +74,9 @@ class TodoItem(Base):
     )
     # 預定到期日（YYYY-MM-DD），用於日曆 + 過期計算
     due_date: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    # v1.1.9 加:開始日期(YYYY-MM-DD)。讓「測試時程」Gantt 也能畫 todo 區間
+    # bar(start_date~due_date)。空表示沒排程。
+    start_date: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     status: Mapped[TodoStatus] = mapped_column(
         Enum(TodoStatus, values_callable=lambda x: [e.value for e in x], native_enum=False, length=20), default=TodoStatus.NEW, nullable=False
     )

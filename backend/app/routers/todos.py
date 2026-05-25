@@ -132,6 +132,7 @@ def _enrich(t: TodoItem) -> dict:
         "title": t.title,
         "description": t.description,
         "due_date": t.due_date,
+        "start_date": t.start_date,
         "status": t.status.value if hasattr(t.status, "value") else str(t.status),
         "priority": t.priority.value if hasattr(t.priority, "value") else str(t.priority),
         # API 對外保留 assignee/assignee_type 命名(避免 break 已有 client)
@@ -327,6 +328,7 @@ async def create_todo(
     now = datetime.utcnow() if payload.assignee else None
     t = TodoItem(
         project_id=payload.project_id,
+        start_date=getattr(payload, 'start_date', None),
         organization_id=user.organization_id,
         title=payload.title,
         description=payload.description,
