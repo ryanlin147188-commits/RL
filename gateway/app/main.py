@@ -17,7 +17,7 @@ import logging
 from contextlib import asynccontextmanager
 
 import httpx
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse, PlainTextResponse
 
@@ -25,6 +25,7 @@ from .auth import AuthError, is_public_path, verify_jwt
 from .config import settings
 from .http_proxy import close_client, forward_request, get_client
 from .middleware import AccessLogMiddleware, RequestIdMiddleware
+from .ws_proxy import proxy_websocket
 
 # Logging 先 stdlib 撐著;Commit 4 換 structlog
 logging.basicConfig(
@@ -168,4 +169,12 @@ async def proxy_results(request: Request, path: str):
     return await forward_request(request, payload=None, stream=True)
 
 
-# WebSocket /ws/* 留到 Commit 2
+# ── WebSocket proxy(Commit 2)──────────────────────────────────
+@app.websocket("/ws/{path:path}")
+async def proxy_ws(websocket: WebSocket, path: str):
+    """WebSocket 反代 — 驗 JWT 後雙向 pipe 到 backend。
+
+    現有 ``/ws/executions/{task_id}/logs`` 沒驗 token 是個漏洞,gateway 把
+    JWT 驗證集中到這裡,backend 端那條路徑接 X-Gateway-* 信任 header 就好。
+    """
+    await proxy_websocket(websocket, path)

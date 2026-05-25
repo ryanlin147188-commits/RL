@@ -4839,9 +4839,14 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             }
 
             // 連線 WS 取得即時日誌
+            // v1.1.10:gateway 要求 JWT 才能開 WS,瀏覽器原生 WebSocket API 不能
+            // 設 Authorization header,所以把 access_token 放 query。Gateway 端用
+            // ``?access_token=`` 解 token 驗 JWT,通過後才轉發給 backend。
             try {
                 const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-                const ws = new WebSocket(`${proto}//${location.host}/ws/executions/${task_id}/logs`);
+                const tok = (typeof authGetAccessToken === 'function') ? (authGetAccessToken() || '') : '';
+                const tokQs = tok ? `?access_token=${encodeURIComponent(tok)}` : '';
+                const ws = new WebSocket(`${proto}//${location.host}/ws/executions/${task_id}/logs${tokQs}`);
                 ws.onopen = () => append('> ✓ WebSocket 已連線', 'text-green-400');
                 ws.onmessage = (ev) => {
                     let msg = ev.data;
