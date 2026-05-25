@@ -1283,6 +1283,30 @@
                     <textarea id="todoCreateDescription" rows="4" placeholder="可填工作內容、預計步驟、每日進度紀錄..."
                         class="w-full border border-slate-300 rounded p-2 text-sm resize-none"></textarea>
                 </div>
+                <!-- 連結項目(選填) — 暫存 pending,POST todo 成功後一起送 -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">連結項目 <span class="text-slate-400 text-xs font-normal">(選填,可加多筆)</span></label>
+                    <div id="todoCreatePendingLinksList" class="space-y-2 mb-2"></div>
+                    <div class="flex gap-2 items-end bg-slate-50/70 border border-slate-200 rounded p-2">
+                        <div class="flex-1">
+                            <label class="block text-[11px] text-slate-500 mb-0.5">類型</label>
+                            <select id="todoCreateLinkType" class="w-full border border-slate-300 rounded p-1.5 text-xs bg-white">
+                                <option value="testcase">測試案例</option>
+                                <option value="report">執行報告</option>
+                                <option value="defect">缺陷</option>
+                                <option value="test_round">TestRun</option>
+                                <option value="project">專案</option>
+                            </select>
+                        </div>
+                        <div class="flex-1">
+                            <label class="block text-[11px] text-slate-500 mb-0.5">ID</label>
+                            <input type="text" id="todoCreateLinkTargetId" placeholder="貼上目標 id" class="w-full border border-slate-300 rounded p-1.5 text-xs font-mono">
+                        </div>
+                        <button type="button" onclick="_todoCreateAddPendingLink()" class="text-xs px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">
+                            <i class="fa-solid fa-link"></i> 加入
+                        </button>
+                    </div>
+                </div>
             </form>
             <div class="p-4 border-t border-slate-200 flex justify-end gap-2 bg-slate-50 rounded-b-lg">
                 <button type="button" onclick="closeTodoCreateModal()" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 rounded transition">取消</button>
@@ -20189,6 +20213,9 @@ curl -X POST http://localhost:8000/api/defects \\
     }
 
     // ── 新增待辦 modal ────────────────────────────────────────────────
+    // 新增 modal 開啟前累積的「待加入連結」— 建立成功後一筆 todo 配 N 筆 link
+    let _todoCreatePendingLinks = [];
+
     function _tkOpenCreate() {
         if (!currentProjectId) {
             if (typeof showToast === 'function') showToast('請先選擇專案', 'error');
@@ -20201,6 +20228,10 @@ curl -X POST http://localhost:8000/api/defects \\
         document.getElementById('todoCreateDueDate').value = '';
         document.getElementById('todoCreateAssignee').value = '';
         document.getElementById('todoCreateDescription').value = '';
+        document.getElementById('todoCreateLinkTargetId').value = '';
+        document.getElementById('todoCreateLinkType').value = 'testcase';
+        _todoCreatePendingLinks = [];
+        _renderTodoCreatePendingLinks();
         _todoLoadAssigneeOptions('todoCreateAssignee');
         document.getElementById('todoCreateModal').classList.remove('hidden');
         setTimeout(() => document.getElementById('todoCreateTitle').focus(), 50);
@@ -20208,6 +20239,39 @@ curl -X POST http://localhost:8000/api/defects \\
 
     function closeTodoCreateModal() {
         document.getElementById('todoCreateModal').classList.add('hidden');
+        _todoCreatePendingLinks = [];
+    }
+
+    // 把 type+id 推進 pending list(create 還沒送出時的暫存)
+    function _todoCreateAddPendingLink() {
+        const type = document.getElementById('todoCreateLinkType').value;
+        const id = document.getElementById('todoCreateLinkTargetId').value.trim();
+        if (!id) { showToast?.('請輸入目標 id', 'error'); return; }
+        // 同 type + id 已在 list 內就跳過,避免後續 POST 重複 409
+        if (_todoCreatePendingLinks.some(l => l.target_type === type && l.target_id === id)) {
+            showToast?.('該連結已加入', 'info');
+            return;
+        }
+        _todoCreatePendingLinks.push({ target_type: type, target_id: id });
+        document.getElementById('todoCreateLinkTargetId').value = '';
+        _renderTodoCreatePendingLinks();
+    }
+
+    function _todoCreateRemovePendingLink(idx) {
+        _todoCreatePendingLinks.splice(idx, 1);
+        _renderTodoCreatePendingLinks();
+    }
+
+    function _renderTodoCreatePendingLinks() {
+        const wrap = document.getElementById('todoCreatePendingLinksList');
+        if (!wrap) return;
+        if (!_todoCreatePendingLinks.length) { wrap.innerHTML = ''; return; }
+        wrap.innerHTML = _todoCreatePendingLinks.map((l, i) => `
+            <div class="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded px-2 py-1.5">
+                <span class="text-[10px] px-1.5 py-0.5 bg-white border border-slate-200 rounded font-mono uppercase text-slate-600">${escapeHtml(l.target_type)}</span>
+                <span class="text-xs text-slate-700 flex-1 truncate font-mono">${escapeHtml(l.target_id)}</span>
+                <button type="button" onclick="_todoCreateRemovePendingLink(${i})" class="text-rose-500 hover:text-rose-700 text-xs"><i class="fa-solid fa-xmark"></i></button>
+            </div>`).join('');
     }
 
     async function _todoLoadAssigneeOptions(selectId) {
@@ -20238,8 +20302,25 @@ curl -X POST http://localhost:8000/api/defects \\
         };
         try {
             const created = await apiFetch('/api/todos', { method: 'POST', body: payload });
+            // 有 pending links 就一筆一筆送(失敗單筆不擋其他;Promise.allSettled
+            // 收結果做報告)。設計取捨:不用 POST /api/todos 內嵌 links 是因為
+            // 後端是分開的 endpoint,前端 batch 比 backend 改 schema 簡單。
+            const links = _todoCreatePendingLinks.slice();
+            let linkOk = 0, linkFail = 0;
+            if (links.length) {
+                const results = await Promise.allSettled(links.map(l =>
+                    apiFetch(`/api/todos/${created.id}/links`, {
+                        method: 'POST',
+                        body: { target_type: l.target_type, target_id: l.target_id, link_kind: 'relates_to' },
+                    })
+                ));
+                results.forEach(r => r.status === 'fulfilled' ? linkOk++ : linkFail++);
+            }
             closeTodoCreateModal();
-            if (typeof showToast === 'function') showToast('已建立待辦', 'success');
+            const msg = links.length
+                ? `已建立待辦 + ${linkOk} 筆連結` + (linkFail ? ` (${linkFail} 筆失敗)` : '')
+                : '已建立待辦';
+            if (typeof showToast === 'function') showToast(msg, linkFail ? 'error' : 'success');
             await loadTestKanban();
             openTodoDetail(created.id);
         } catch (e) {
