@@ -15,7 +15,7 @@ class TestScheduleCreate(BaseModel):
     description: Optional[str] = None
     start_date: date
     end_date: date
-    status: TestScheduleStatus = TestScheduleStatus.PLANNED
+    status: TestScheduleStatus = TestScheduleStatus.TODO
     color: str = Field(default="blue", max_length=20)
     assigned_to: Optional[str] = Field(default=None, max_length=100)
     linked_test_round_id: Optional[str] = Field(default=None, max_length=36)

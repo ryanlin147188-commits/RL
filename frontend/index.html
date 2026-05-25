@@ -1373,11 +1373,11 @@
                     <div>
                         <label class="block text-sm font-medium text-slate-700 mb-1">狀態</label>
                         <select id="tsEditStatus" class="w-full border border-slate-300 rounded p-2 text-sm bg-white">
-                            <option value="Planned" selected>規劃中</option>
+                            <option value="Todo" selected>待辦</option>
                             <option value="InProgress">進行中</option>
-                            <option value="Done">已完成</option>
-                            <option value="Delayed">延期</option>
-                            <option value="Cancelled">取消</option>
+                            <option value="InReview">待驗證</option>
+                            <option value="Verified">已完成</option>
+                            <option value="Closed">關閉</option>
                         </select>
                     </div>
                     <div>
@@ -2532,17 +2532,54 @@
                     </div>
                 </section>
 
-                <!-- 指派給我的任務(指派給我,不論狀態,最多 10 筆) -->
-                <section class="max-w-6xl mx-auto mb-8">
-                    <div class="flex items-center justify-between mb-3">
-                        <h3 class="text-sm font-bold text-stone-500 uppercase tracking-wider flex items-center gap-2">
-                            <i class="fa-regular fa-clipboard text-violet-500"></i> <span data-i18n="home.myPendingReviews">指派給我的任務</span>
-                            <span class="text-[11px] font-normal normal-case tracking-normal text-stone-400">(指派給我,最多 10 筆)</span>
-                        </h3>
-                        <button onclick="loadHomeMyPendingReviews()" class="text-xs text-stone-500 hover:text-violet-700 transition" title="重新整理"><i class="fa-solid fa-rotate"></i></button>
+                <!-- 我的工作面板 — v1.1.9+:左側兩個列表(指派給我 + 快到期)、右側行事曆 -->
+                <section class="max-w-6xl mx-auto mb-8 grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    <!-- 左 2/3:任務列表 -->
+                    <div class="lg:col-span-2 space-y-4">
+                        <!-- 指派給我的任務(指派給我,不論狀態,最多 10 筆) -->
+                        <div>
+                            <div class="flex items-center justify-between mb-2">
+                                <h3 class="text-sm font-bold text-stone-500 uppercase tracking-wider flex items-center gap-2">
+                                    <i class="fa-regular fa-clipboard text-violet-500"></i> <span data-i18n="home.myPendingReviews">指派給我的任務</span>
+                                    <span class="text-[11px] font-normal normal-case tracking-normal text-stone-400">(指派給我,最多 10 筆)</span>
+                                </h3>
+                                <button onclick="loadHomeMyPendingReviews()" class="text-xs text-stone-500 hover:text-violet-700 transition" title="重新整理"><i class="fa-solid fa-rotate"></i></button>
+                            </div>
+                            <div id="homeMyPendingReviews" class="bg-white rounded-xl border border-violet-100 shadow-sm divide-y divide-stone-100">
+                                <div class="p-6 text-center text-stone-400 text-sm">載入中…</div>
+                            </div>
+                        </div>
+
+                        <!-- 快到期的任務(7 天內到期且未完成的 todo,最多 10 筆)-->
+                        <div>
+                            <div class="flex items-center justify-between mb-2">
+                                <h3 class="text-sm font-bold text-stone-500 uppercase tracking-wider flex items-center gap-2">
+                                    <i class="fa-regular fa-clock text-amber-500"></i> <span data-i18n="home.dueSoon">快到期的任務</span>
+                                    <span class="text-[11px] font-normal normal-case tracking-normal text-stone-400">(7 天內到期或已逾期,最多 10 筆)</span>
+                                </h3>
+                                <button onclick="loadHomeDueSoon()" class="text-xs text-stone-500 hover:text-amber-700 transition" title="重新整理"><i class="fa-solid fa-rotate"></i></button>
+                            </div>
+                            <div id="homeDueSoon" class="bg-white rounded-xl border border-amber-100 shadow-sm divide-y divide-stone-100">
+                                <div class="p-6 text-center text-stone-400 text-sm">載入中…</div>
+                            </div>
+                        </div>
                     </div>
-                    <div id="homeMyPendingReviews" class="bg-white rounded-xl border border-violet-100 shadow-sm divide-y divide-stone-100">
-                        <div class="p-6 text-center text-stone-400 text-sm">載入中…</div>
+
+                    <!-- 右 1/3:行事曆(月份視圖,顯示 todo due_date + test_schedule 區間)-->
+                    <div class="lg:col-span-1">
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="text-sm font-bold text-stone-500 uppercase tracking-wider flex items-center gap-2">
+                                <i class="fa-regular fa-calendar text-blue-500"></i> <span data-i18n="home.calendar">行事曆</span>
+                            </h3>
+                            <div class="flex items-center gap-1">
+                                <button onclick="homeCalShift(-1)" class="text-xs px-1.5 py-0.5 rounded hover:bg-blue-50 text-stone-500 hover:text-blue-700" title="上個月"><i class="fa-solid fa-chevron-left"></i></button>
+                                <button onclick="homeCalShift(0)" class="text-xs px-1.5 py-0.5 rounded hover:bg-blue-50 text-stone-500 hover:text-blue-700" title="本月">今天</button>
+                                <button onclick="homeCalShift(1)" class="text-xs px-1.5 py-0.5 rounded hover:bg-blue-50 text-stone-500 hover:text-blue-700" title="下個月"><i class="fa-solid fa-chevron-right"></i></button>
+                            </div>
+                        </div>
+                        <div id="homeCalendar" class="bg-white rounded-xl border border-blue-100 shadow-sm p-3">
+                            <div class="p-6 text-center text-stone-400 text-sm">載入中…</div>
+                        </div>
                     </div>
                 </section>
 
@@ -3875,10 +3912,42 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                                     </select>
                                 </div>
                                 <div class="flex-1"></div>
+                                <button type="button" id="pdRoiBtn" onclick="_pdOpenRoiSelector()"
+                                    class="px-3 py-1.5 bg-white hover:bg-amber-50 border border-amber-300 text-amber-700 rounded text-sm font-medium flex items-center gap-1">
+                                    <i class="fa-solid fa-vector-square"></i> <span id="pdRoiBtnLabel">選局部區域</span>
+                                </button>
                                 <button type="button" onclick="_pdRunCompare()"
                                     class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-sm font-medium flex items-center gap-1">
                                     <i class="fa-solid fa-play"></i> 開始比對
                                 </button>
+                            </div>
+                            <!-- ROI 指示列 -->
+                            <div id="pdRoiInfo" class="hidden mt-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800 flex items-center gap-2">
+                                <i class="fa-solid fa-vector-square"></i>
+                                <span>已圈選局部區域 <span id="pdRoiInfoCoord" class="font-mono"></span></span>
+                                <button type="button" onclick="_pdClearRoi()" class="ml-auto text-amber-700 hover:text-amber-900 underline">清除</button>
+                            </div>
+                        </div>
+
+                        <!-- ROI selector overlay(全螢幕 modal,在基準圖上拖框)-->
+                        <div id="pdRoiOverlay" class="fixed inset-0 bg-slate-900/70 hidden z-[2147483646] flex items-center justify-center"
+                             onclick="if(event.target===this) _pdCloseRoiSelector()">
+                            <div class="bg-white rounded-lg shadow-xl max-w-[95vw] max-h-[95vh] flex flex-col" onclick="event.stopPropagation()">
+                                <div class="p-3 border-b border-slate-200 flex items-center gap-3">
+                                    <i class="fa-solid fa-vector-square text-amber-500"></i>
+                                    <h3 class="font-bold text-slate-700 text-sm">在基準圖上拖拽圈選比對區域</h3>
+                                    <span class="text-xs text-slate-500">拖一個矩形 → 比對時只算這個區域;雙擊圖片清除選擇</span>
+                                    <div class="flex-1"></div>
+                                    <span id="pdRoiCoordLabel" class="text-xs font-mono text-amber-600">—</span>
+                                    <button type="button" onclick="_pdRoiSelectorConfirm()" class="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white text-sm rounded">套用</button>
+                                    <button type="button" onclick="_pdCloseRoiSelector()" class="px-3 py-1 border border-slate-300 hover:bg-slate-50 text-slate-600 text-sm rounded">取消</button>
+                                </div>
+                                <div class="relative overflow-auto p-3" style="max-height:80vh">
+                                    <div id="pdRoiCanvasWrap" class="relative inline-block select-none cursor-crosshair">
+                                        <img id="pdRoiCanvasImg" class="block max-w-none" alt="baseline" ondblclick="_pdRoiSelectorClear()">
+                                        <div id="pdRoiSelection" class="absolute hidden border-2 border-amber-500 bg-amber-200/30 pointer-events-none" style="left:0;top:0;width:0;height:0"></div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -3897,6 +3966,9 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                                 <span id="pdStatVerdict" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold">—</span>
                                 <span id="pdSizeWarn" class="hidden inline-flex items-center gap-1 px-2.5 py-1 bg-rose-50 text-rose-700 border border-rose-200 rounded-full text-xs">
                                     <i class="fa-solid fa-triangle-exclamation"></i> 兩張圖尺寸不同,比較圖已自動縮放對齊
+                                </span>
+                                <span id="pdRoiStat" class="hidden inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full text-xs">
+                                    <i class="fa-solid fa-vector-square"></i> 局部範圍 <strong id="pdRoiStatVal" class="font-mono">—</strong>
                                 </span>
                                 <div class="flex-1"></div>
                                 <!-- 視圖切換 -->
@@ -4098,11 +4170,11 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                     </select>
                     <select id="tsStatusFilter" onchange="loadTestSchedules()" class="text-xs px-2 py-1.5 border border-slate-300 rounded bg-white">
                         <option value="">所有狀態</option>
-                        <option value="Planned">規劃中</option>
+                        <option value="Todo">待辦</option>
                         <option value="InProgress">進行中</option>
-                        <option value="Done">已完成</option>
-                        <option value="Delayed">延期</option>
-                        <option value="Cancelled">取消</option>
+                        <option value="InReview">待驗證</option>
+                        <option value="Verified">已完成</option>
+                        <option value="Closed">關閉</option>
                     </select>
                     <button type="button" onclick="openTsCreateModal()"
                         class="text-xs px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded font-medium flex items-center gap-1 shadow-sm">
@@ -8003,6 +8075,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             'home.myPendingReviews': { 'zh-TW': '指派給我的任務', 'en': 'Tasks Assigned to Me' },
             'home.todos': { 'zh-TW': '待辦事項', 'en': 'To-do' },
             'home.calendar': { 'zh-TW': '行事曆', 'en': 'Calendar' },
+            'home.dueSoon': { 'zh-TW': '快到期的任務', 'en': 'Due Soon' },
             'home.todoBucket.overdue': { 'zh-TW': '過期', 'en': 'Overdue' },
             'home.todoBucket.dueSoon': { 'zh-TW': '快到期 (≤3天)', 'en': 'Due soon (≤3d)' },
             'home.todoBucket.upcoming': { 'zh-TW': '待辦', 'en': 'Upcoming' },
@@ -12936,6 +13009,8 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             // 我的待審核任務 — 換掉原本「最近測試案例」widget。
             // 從 server fetch /api/reviews?mine=true&status=pending,呈現前 10 筆。
             try { loadHomeMyPendingReviews(); } catch (_) {}
+            try { loadHomeDueSoon(); } catch (_) {}
+            try { renderHomeCalendar(); } catch (_) {}
         }
 
         // 載入首頁「指派給我的任務」widget(v1.1.9 改:不限狀態,只看指派給我)。
@@ -12971,6 +13046,227 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             } catch (e) {
                 box.innerHTML = '<div class="p-6 text-center text-rose-500 text-xs"><i class="fa-solid fa-triangle-exclamation mr-1"></i>載入失敗:' + escapeHtml(e.message || String(e)) + '</div>';
             }
+        }
+
+        // ════════════════════════════════════════════════════════════
+        // 首頁「快到期」widget — 7 天內到期或已逾期且未完成的 todos(指派給我)
+        // ════════════════════════════════════════════════════════════
+        async function loadHomeDueSoon() {
+            const box = document.getElementById('homeDueSoon');
+            if (!box) return;
+            box.innerHTML = '<div class="p-6 text-center text-stone-400 text-sm">載入中…</div>';
+            const me = (typeof authCurrentUsername === 'function') ? authCurrentUsername() : null;
+            if (!currentProjectId) {
+                box.innerHTML = '<div class="p-6 text-center text-stone-400 text-sm">請先選擇專案</div>';
+                return;
+            }
+            try {
+                const params = new URLSearchParams({ project_id: currentProjectId, limit: '50' });
+                if (me) params.set('assignee', me);
+                const rows = await apiFetch(`/api/todos?${params}`);
+                const list = Array.isArray(rows) ? rows : (rows?.items || []);
+                // 過濾:overdue + due_soon(≤7 天),排除已完成/關閉
+                const today = new Date(); today.setHours(0,0,0,0);
+                const filtered = list
+                    .filter(t => t.due_date && !['Verified','Closed'].includes(t.status))
+                    .map(t => {
+                        const due = new Date(t.due_date);
+                        due.setHours(0,0,0,0);
+                        const diff = Math.round((due - today) / 86400000);
+                        return { ...t, _daysToDue: diff };
+                    })
+                    .filter(t => t._daysToDue <= 7)
+                    .sort((a, b) => a._daysToDue - b._daysToDue)
+                    .slice(0, 10);
+                if (!filtered.length) {
+                    box.innerHTML = '<div class="p-6 text-center text-stone-400 text-sm"><i class="fa-regular fa-circle-check text-emerald-400 text-xl mb-1 block"></i>未來 7 天內沒有快到期的任務。</div>';
+                    return;
+                }
+                const TYPE_ICON = { Feature: 'fa-star text-purple-500', Task: 'fa-list-check text-blue-500', Bug: 'fa-bug text-rose-500', Spike: 'fa-flask text-amber-500' };
+                const STATUS_LABEL = { New: '待辦', Assigned: '待辦', InProgress: '進行中', InReview: '待驗證', ReworkRequired: '待驗證', Verified: '已完成', Closed: '關閉' };
+                box.innerHTML = filtered.map(t => {
+                    const ic = TYPE_ICON[t.item_type] || 'fa-circle-dot text-stone-400';
+                    const days = t._daysToDue;
+                    let badge;
+                    if (days < 0) badge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-200">逾期 ${-days} 天</span>`;
+                    else if (days === 0) badge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-200">今日</span>`;
+                    else if (days <= 3) badge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200">${days} 天後</span>`;
+                    else badge = `<span class="px-2 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-200">${days} 天後</span>`;
+                    const status = STATUS_LABEL[t.status] || t.status || '—';
+                    return '<button onclick="openTodoDetail(\'' + String(t.id).replace(/\'/g, "\\\\'") + '\')" class="w-full text-left p-3 hover:bg-amber-50/40 transition flex items-center gap-3">' +
+                        '<i class="fa-solid ' + ic + '"></i>' +
+                        '<div class="flex-1 min-w-0">' +
+                        '  <div class="text-sm font-semibold text-slate-800 truncate">' + escapeHtml(t.title || '(未命名)') + '</div>' +
+                        '  <div class="text-xs text-stone-500 mt-0.5 flex items-center gap-2 flex-wrap">' +
+                        '    <span><i class="fa-regular fa-calendar mr-1"></i>' + escapeHtml(t.due_date || '—') + '</span>' +
+                        '    <span class="text-stone-300">·</span>' +
+                        '    <span>' + escapeHtml(status) + '</span>' +
+                        '  </div>' +
+                        '</div>' +
+                        badge +
+                        '<i class="fa-solid fa-chevron-right text-stone-300 text-xs ml-1"></i>' +
+                        '</button>';
+                }).join('');
+            } catch (e) {
+                box.innerHTML = '<div class="p-6 text-center text-rose-500 text-xs"><i class="fa-solid fa-triangle-exclamation mr-1"></i>載入失敗:' + escapeHtml(e.message || String(e)) + '</div>';
+            }
+        }
+
+        // ════════════════════════════════════════════════════════════
+        // 首頁行事曆 — 月份視圖,標出待辦的 due_date 跟測試時程的區間
+        // ════════════════════════════════════════════════════════════
+        let _homeCalCursor = null;   // 顯示中的月份(Date 1 號)
+
+        function homeCalShift(delta) {
+            const base = _homeCalCursor || new Date();
+            if (delta === 0) {
+                _homeCalCursor = new Date();
+            } else {
+                _homeCalCursor = new Date(base.getFullYear(), base.getMonth() + delta, 1);
+            }
+            renderHomeCalendar();
+        }
+
+        async function renderHomeCalendar() {
+            const box = document.getElementById('homeCalendar');
+            if (!box) return;
+            if (!_homeCalCursor) _homeCalCursor = new Date();
+            const cur = _homeCalCursor;
+            const year = cur.getFullYear(), month = cur.getMonth();
+            const firstDay = new Date(year, month, 1);
+            const lastDay = new Date(year, month + 1, 0);
+            const startWeekday = firstDay.getDay();   // 0 = Sun
+            const daysInMonth = lastDay.getDate();
+
+            // 抓資料:當月 todos + test_schedules(只取與本月有交集的)
+            let todos = [], schedules = [];
+            try {
+                if (currentProjectId) {
+                    const me = (typeof authCurrentUsername === 'function') ? authCurrentUsername() : null;
+                    const tParams = new URLSearchParams({ project_id: currentProjectId, limit: '500' });
+                    if (me) tParams.set('assignee', me);
+                    const [tRows, sRows] = await Promise.all([
+                        apiFetch(`/api/todos?${tParams}`).catch(() => []),
+                        apiFetch(`/api/test-schedules?project_id=${encodeURIComponent(currentProjectId)}`).catch(() => []),
+                    ]);
+                    todos = (Array.isArray(tRows) ? tRows : (tRows?.items || []))
+                        .filter(t => t.due_date);
+                    schedules = Array.isArray(sRows) ? sRows : [];
+                }
+            } catch (_) {}
+
+            // 把事件鋪到日期 map
+            const dayMap = {};   // 'YYYY-MM-DD' → [{kind, title, color}]
+            todos.forEach(t => {
+                const key = t.due_date;
+                if (!key) return;
+                (dayMap[key] = dayMap[key] || []).push({
+                    kind: 'todo', title: t.title, color: ['Verified','Closed'].includes(t.status) ? 'emerald' : 'amber',
+                    onClick: `openTodoDetail('${String(t.id).replace(/'/g, "\\'")}')`,
+                });
+            });
+            schedules.forEach(s => {
+                // 區間內每一天都掛
+                if (!s.start_date || !s.end_date) return;
+                const st = new Date(s.start_date), ed = new Date(s.end_date);
+                for (let d = new Date(st); d <= ed; d.setDate(d.getDate() + 1)) {
+                    const key = d.toISOString().slice(0, 10);
+                    (dayMap[key] = dayMap[key] || []).push({
+                        kind: 'schedule', title: s.name, color: s.color || 'blue',
+                        onClick: `showTestScheduleView()`,
+                    });
+                }
+            });
+
+            const COLOR_DOT = {
+                amber: 'bg-amber-500', blue: 'bg-blue-500', emerald: 'bg-emerald-500',
+                rose: 'bg-rose-500', violet: 'bg-violet-500', indigo: 'bg-indigo-500', slate: 'bg-slate-400',
+            };
+            const WEEKDAYS = ['日','一','二','三','四','五','六'];
+            const todayKey = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+
+            const cells = [];
+            // 前面補空格(讓 firstDay 對齊週幾)
+            for (let i = 0; i < startWeekday; i++) cells.push('<div></div>');
+            for (let d = 1; d <= daysInMonth; d++) {
+                const key = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                const events = dayMap[key] || [];
+                const isToday = key === todayKey;
+                const dots = events.slice(0, 3).map(ev =>
+                    `<span class="inline-block w-1.5 h-1.5 rounded-full ${COLOR_DOT[ev.color] || 'bg-slate-400'}" title="${escapeHtml(ev.title || '')}"></span>`
+                ).join('');
+                const moreBadge = events.length > 3 ? `<span class="text-[8px] text-stone-400">+${events.length - 3}</span>` : '';
+                const eventTitle = events.length
+                    ? events.map(e => (e.kind === 'todo' ? '📋 ' : '📅 ') + (e.title || '')).join('\n')
+                    : '';
+                const dayCls = isToday
+                    ? 'bg-blue-500 text-white font-bold'
+                    : (events.length ? 'bg-blue-50/60 hover:bg-blue-100 text-slate-700' : 'hover:bg-slate-50 text-slate-600');
+                cells.push(
+                    '<div class="aspect-square flex flex-col items-center justify-start py-1 px-0.5 rounded text-xs cursor-pointer ' + dayCls + '" ' +
+                    'title="' + escapeHtml(eventTitle) + '" ' +
+                    (events.length ? 'onclick="renderHomeCalendarDay(\'' + key + '\')"' : '') +
+                    '>' +
+                    '  <span>' + d + '</span>' +
+                    '  <span class="flex items-center gap-0.5 mt-0.5">' + dots + moreBadge + '</span>' +
+                    '</div>'
+                );
+            }
+
+            box.innerHTML = `
+                <div class="flex items-center justify-between mb-2 px-1">
+                    <span class="text-sm font-semibold text-slate-700">${year} / ${String(month+1).padStart(2,'0')}</span>
+                    <span class="text-[10px] text-stone-400">
+                        <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 mr-0.5"></span>待辦
+                        <span class="inline-block w-1.5 h-1.5 rounded-full bg-blue-500 ml-2 mr-0.5"></span>時程
+                    </span>
+                </div>
+                <div class="grid grid-cols-7 gap-0.5 text-center text-[10px] font-medium text-stone-400 mb-1">
+                    ${WEEKDAYS.map(w => `<div>${w}</div>`).join('')}
+                </div>
+                <div class="grid grid-cols-7 gap-0.5">${cells.join('')}</div>
+                <div id="homeCalDayDetail" class="mt-2 pt-2 border-t border-slate-100 text-xs text-slate-500 min-h-[1.5rem]">點日期格看當日項目</div>
+            `;
+        }
+
+        function renderHomeCalendarDay(dayKey) {
+            // 點某日 → 在底下小區顯示當日項目列表
+            const wrap = document.getElementById('homeCalDayDetail');
+            if (!wrap) return;
+            // 用最新的 _homeCalCursor 重抓(同一份資料,從 DOM dot title 反推不可靠;重抓比較簡單)
+            (async () => {
+                if (!currentProjectId) { wrap.textContent = '請先選擇專案'; return; }
+                const me = (typeof authCurrentUsername === 'function') ? authCurrentUsername() : null;
+                const tParams = new URLSearchParams({ project_id: currentProjectId, limit: '500' });
+                if (me) tParams.set('assignee', me);
+                const [tRows, sRows] = await Promise.all([
+                    apiFetch(`/api/todos?${tParams}`).catch(() => []),
+                    apiFetch(`/api/test-schedules?project_id=${encodeURIComponent(currentProjectId)}`).catch(() => []),
+                ]);
+                const todos = (Array.isArray(tRows) ? tRows : (tRows?.items || []))
+                    .filter(t => t.due_date === dayKey);
+                const scheds = (Array.isArray(sRows) ? sRows : [])
+                    .filter(s => s.start_date && s.end_date && s.start_date <= dayKey && dayKey <= s.end_date);
+                if (!todos.length && !scheds.length) {
+                    wrap.innerHTML = `<span class="text-stone-400">${escapeHtml(dayKey)} 當日無項目。</span>`;
+                    return;
+                }
+                const items = [
+                    ...todos.map(t =>
+                        `<button onclick="openTodoDetail('${String(t.id).replace(/'/g, "\\'")}')" class="w-full text-left flex items-center gap-1.5 py-0.5 hover:text-amber-700">
+                            <i class="fa-regular fa-square-check text-amber-500 text-[10px]"></i>
+                            <span class="truncate">${escapeHtml(t.title)}</span>
+                        </button>`
+                    ),
+                    ...scheds.map(s =>
+                        `<button onclick="showTestScheduleView()" class="w-full text-left flex items-center gap-1.5 py-0.5 hover:text-blue-700">
+                            <i class="fa-regular fa-calendar text-blue-500 text-[10px]"></i>
+                            <span class="truncate">${escapeHtml(s.name)}</span>
+                        </button>`
+                    ),
+                ];
+                wrap.innerHTML = `<div class="font-medium text-slate-600 mb-1">${escapeHtml(dayKey)}</div>${items.join('')}`;
+            })();
         }
 
         // ==================== 測試案例清單（與側邊欄同步） ====================
@@ -19764,8 +20060,10 @@ curl -X POST http://localhost:8000/api/defects \\
 
     let _pdImageA = null;        // HTMLImageElement
     let _pdImageB = null;
-    let _pdLastResult = null;    // {total, diffCount, diffPct, diffCanvas, scaled: bool}
+    let _pdLastResult = null;    // {total, diffCount, diffPct, diffCanvas, scaled: bool, roi}
     let _pdSliderListener = null;
+    let _pdRoi = null;           // {x, y, w, h}(基準圖原始座標)— null = 整張比對
+    let _pdRoiDraft = null;      // ROI selector 拖拽中暫存(同樣是圖像原始座標)
 
     // ── 上傳 handlers ───────────────────────────────────────────────
     function _pdHandleDrop(ev, side) {
@@ -19909,7 +20207,7 @@ curl -X POST http://localhost:8000/api/defects \\
         const scaled = (wA !== wB || hA !== hB);
         document.getElementById('pdSizeWarn').classList.toggle('hidden', !scaled);
 
-        // 統一畫到同尺寸的 canvas
+        // 全圖 canvas(基準對齊)— diff 永遠在這個座標系上算
         const w = wA, h = hA;
         const canvasA = document.createElement('canvas');
         const canvasB = document.createElement('canvas');
@@ -19922,19 +20220,80 @@ curl -X POST http://localhost:8000/api/defects \\
         const dataA = ctxA.getImageData(0, 0, w, h);
         const dataB = ctxB.getImageData(0, 0, w, h);
         const diffData = ctxA.createImageData(w, h);
-        const diffCount = _pdPixelDiff(dataA.data, dataB.data, diffData.data, w, h, threshold, includeAA, rgb);
+
+        // v1.1.9+ ROI 局部比對:若有圈選區域,只在該區域內算 diff,區域外
+        // 像素填成 A 圖的灰階(讓 diff PNG 仍能看到上下文)。
+        // ROI 座標已存基準圖原始 pixel 系,不必再轉換。
+        let diffCount;
+        let roi = null;
+        if (_pdRoi) {
+            const rx = Math.max(0, Math.min(w - 1, Math.round(_pdRoi.x)));
+            const ry = Math.max(0, Math.min(h - 1, Math.round(_pdRoi.y)));
+            const rw = Math.max(1, Math.min(w - rx, Math.round(_pdRoi.w)));
+            const rh = Math.max(1, Math.min(h - ry, Math.round(_pdRoi.h)));
+            roi = { x: rx, y: ry, w: rw, h: rh };
+            // 先把整張 diffData 填成 A 圖灰階(區域外背景)
+            for (let i = 0; i < dataA.data.length; i += 4) {
+                const v = Math.round(0.299 * dataA.data[i] + 0.587 * dataA.data[i+1] + 0.114 * dataA.data[i+2]);
+                diffData.data[i] = diffData.data[i+1] = diffData.data[i+2] = v;
+                diffData.data[i+3] = 255;
+            }
+            // 只對 ROI 區域跑 pixel diff:把 ROI 的 imagedata 切出來,跑完寫回原座標
+            const ctxAR = document.createElement('canvas').getContext('2d');
+            ctxAR.canvas.width = rw; ctxAR.canvas.height = rh;
+            ctxAR.drawImage(canvasA, rx, ry, rw, rh, 0, 0, rw, rh);
+            const ctxBR = document.createElement('canvas').getContext('2d');
+            ctxBR.canvas.width = rw; ctxBR.canvas.height = rh;
+            ctxBR.drawImage(canvasB, rx, ry, rw, rh, 0, 0, rw, rh);
+            const subA = ctxAR.getImageData(0, 0, rw, rh);
+            const subB = ctxBR.getImageData(0, 0, rw, rh);
+            const subDiff = ctxAR.createImageData(rw, rh);
+            diffCount = _pdPixelDiff(subA.data, subB.data, subDiff.data, rw, rh, threshold, includeAA, rgb);
+            // 把 subDiff 寫回 diffData 的 ROI 區域
+            for (let yy = 0; yy < rh; yy++) {
+                for (let xx = 0; xx < rw; xx++) {
+                    const si = (yy * rw + xx) * 4;
+                    const di = ((ry + yy) * w + (rx + xx)) * 4;
+                    diffData.data[di]   = subDiff.data[si];
+                    diffData.data[di+1] = subDiff.data[si+1];
+                    diffData.data[di+2] = subDiff.data[si+2];
+                    diffData.data[di+3] = subDiff.data[si+3];
+                }
+            }
+            // 在 ROI 邊框畫一條 amber outline(讓 diff PNG 一目了然)
+            const OUT = [217, 119, 6];
+            const stroke = (x0, y0) => {
+                if (x0 < 0 || y0 < 0 || x0 >= w || y0 >= h) return;
+                const di = (y0 * w + x0) * 4;
+                diffData.data[di] = OUT[0]; diffData.data[di+1] = OUT[1]; diffData.data[di+2] = OUT[2]; diffData.data[di+3] = 255;
+            };
+            for (let xx = 0; xx < rw; xx++) { stroke(rx + xx, ry); stroke(rx + xx, ry + rh - 1); }
+            for (let yy = 0; yy < rh; yy++) { stroke(rx, ry + yy); stroke(rx + rw - 1, ry + yy); }
+        } else {
+            diffCount = _pdPixelDiff(dataA.data, dataB.data, diffData.data, w, h, threshold, includeAA, rgb);
+        }
         const diffCanvas = document.createElement('canvas');
         diffCanvas.width = w; diffCanvas.height = h;
         diffCanvas.getContext('2d').putImageData(diffData, 0, 0);
 
-        const total = w * h;
+        // 分母:有 ROI 就只算 ROI 像素,沒 ROI 算全圖
+        const total = roi ? (roi.w * roi.h) : (w * h);
         const diffPct = total > 0 ? (diffCount / total * 100) : 0;
-        _pdLastResult = { total, diffCount, diffPct, diffCanvas, scaled };
+        _pdLastResult = { total, diffCount, diffPct, diffCanvas, scaled, roi };
 
         // stats
         document.getElementById('pdStatTotal').textContent = total.toLocaleString();
         document.getElementById('pdStatDiff').textContent = diffCount.toLocaleString();
         document.getElementById('pdStatDiffPct').textContent = diffPct.toFixed(2) + '%';
+        // ROI 指示
+        const roiStatEl = document.getElementById('pdRoiStat');
+        const roiStatVal = document.getElementById('pdRoiStatVal');
+        if (roi) {
+            roiStatEl?.classList.remove('hidden');
+            if (roiStatVal) roiStatVal.textContent = `${roi.w}×${roi.h} @ (${roi.x},${roi.y})`;
+        } else {
+            roiStatEl?.classList.add('hidden');
+        }
         const verdict = document.getElementById('pdStatVerdict');
         if (diffPct < 1) {
             verdict.textContent = '✓ 相似度高';
@@ -20019,6 +20378,7 @@ curl -X POST http://localhost:8000/api/defects \\
 
     function _pdReset() {
         _pdImageA = _pdImageB = _pdLastResult = null;
+        _pdRoi = _pdRoiDraft = null;
         ['A','B'].forEach(side => {
             const lblEl = document.getElementById(side === 'A' ? 'pdDropALabel' : 'pdDropBLabel');
             const accent = side === 'A' ? 'indigo' : 'amber';
@@ -20036,6 +20396,150 @@ curl -X POST http://localhost:8000/api/defects \\
         document.getElementById('pdResultArea').classList.add('hidden');
         document.getElementById('pdExportBtn').disabled = true;
         document.getElementById('pdSizeWarn').classList.add('hidden');
+        document.getElementById('pdRoiInfo')?.classList.add('hidden');
+        const lbl = document.getElementById('pdRoiBtnLabel');
+        if (lbl) lbl.textContent = '選局部區域';
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // 局部比對(ROI selector)— v1.1.9+ 加
+    // 在基準圖上拖一個矩形,比對時只算該區域 pixel diff,可大幅降低 false
+    // positive(整張畫面比較常常因為動態時間 / 廣告 banner / 不重要的小變化
+    // 失敗,圈出真正要驗證的區塊更有意義)。座標一律存「基準圖原始 pixel」,
+    // 跟畫面尺寸縮放無關。
+    // ════════════════════════════════════════════════════════════════════
+    function _pdOpenRoiSelector() {
+        if (!_pdImageA) {
+            showToast?.('請先上傳基準圖', 'error');
+            return;
+        }
+        _pdRoiDraft = _pdRoi ? { ..._pdRoi } : null;
+        const overlay = document.getElementById('pdRoiOverlay');
+        const img = document.getElementById('pdRoiCanvasImg');
+        const sel = document.getElementById('pdRoiSelection');
+        img.src = _pdImageA.src;
+        img.onload = () => {
+            // 若先前有圈,顯示出來
+            if (_pdRoiDraft) _pdRoiRenderSelection();
+            else sel.classList.add('hidden');
+            _pdRoiUpdateCoordLabel();
+        };
+        overlay.classList.remove('hidden');
+        _pdRoiBindDrag();
+    }
+    function _pdCloseRoiSelector() {
+        document.getElementById('pdRoiOverlay').classList.add('hidden');
+        _pdRoiDraft = null;
+    }
+    function _pdRoiSelectorClear() {
+        _pdRoiDraft = null;
+        const sel = document.getElementById('pdRoiSelection');
+        if (sel) sel.classList.add('hidden');
+        _pdRoiUpdateCoordLabel();
+    }
+    function _pdRoiSelectorConfirm() {
+        if (!_pdRoiDraft || _pdRoiDraft.w < 4 || _pdRoiDraft.h < 4) {
+            _pdRoi = null;   // 沒拖或太小一律當清除
+        } else {
+            _pdRoi = { ..._pdRoiDraft };
+        }
+        _pdCloseRoiSelector();
+        // 更新 settings bar 的指示
+        const info = document.getElementById('pdRoiInfo');
+        const lbl = document.getElementById('pdRoiBtnLabel');
+        if (_pdRoi) {
+            info?.classList.remove('hidden');
+            document.getElementById('pdRoiInfoCoord').textContent =
+                `(x:${_pdRoi.x}, y:${_pdRoi.y}, ${_pdRoi.w}×${_pdRoi.h} px)`;
+            if (lbl) lbl.textContent = '已圈選';
+            showToast?.('已套用局部區域,點「開始比對」執行', 'success');
+        } else {
+            info?.classList.add('hidden');
+            if (lbl) lbl.textContent = '選局部區域';
+        }
+    }
+    function _pdClearRoi() {
+        _pdRoi = null;
+        document.getElementById('pdRoiInfo')?.classList.add('hidden');
+        const lbl = document.getElementById('pdRoiBtnLabel');
+        if (lbl) lbl.textContent = '選局部區域';
+        showToast?.('已清除局部區域,將對整張圖比對', 'success');
+    }
+
+    let _pdRoiDragListener = null;
+    function _pdRoiBindDrag() {
+        const wrap = document.getElementById('pdRoiCanvasWrap');
+        const img = document.getElementById('pdRoiCanvasImg');
+        const sel = document.getElementById('pdRoiSelection');
+        if (!wrap || !img) return;
+        if (_pdRoiDragListener) wrap.removeEventListener('pointerdown', _pdRoiDragListener);
+
+        let dragging = false;
+        let startX = 0, startY = 0;
+
+        // 把 DOM 座標(client px)轉成圖像原始 pixel 座標
+        function toImageCoord(clientX, clientY) {
+            const r = img.getBoundingClientRect();
+            const sx = img.naturalWidth / r.width;
+            const sy = img.naturalHeight / r.height;
+            const x = (clientX - r.left) * sx;
+            const y = (clientY - r.top) * sy;
+            return {
+                x: Math.max(0, Math.min(img.naturalWidth, x)),
+                y: Math.max(0, Math.min(img.naturalHeight, y)),
+            };
+        }
+
+        _pdRoiDragListener = (ev) => {
+            if (ev.target.tagName !== 'IMG') return;   // 只在圖片上開始拖
+            dragging = true;
+            const p = toImageCoord(ev.clientX, ev.clientY);
+            startX = p.x; startY = p.y;
+            _pdRoiDraft = { x: startX, y: startY, w: 0, h: 0 };
+            sel.classList.remove('hidden');
+            _pdRoiRenderSelection();
+            const onMove = (e) => {
+                if (!dragging) return;
+                const cur = toImageCoord(e.clientX, e.clientY);
+                _pdRoiDraft = {
+                    x: Math.min(startX, cur.x),
+                    y: Math.min(startY, cur.y),
+                    w: Math.abs(cur.x - startX),
+                    h: Math.abs(cur.y - startY),
+                };
+                _pdRoiRenderSelection();
+                _pdRoiUpdateCoordLabel();
+            };
+            const onUp = () => {
+                dragging = false;
+                window.removeEventListener('pointermove', onMove);
+                window.removeEventListener('pointerup', onUp);
+            };
+            window.addEventListener('pointermove', onMove);
+            window.addEventListener('pointerup', onUp);
+        };
+        wrap.addEventListener('pointerdown', _pdRoiDragListener);
+    }
+
+    // 把 _pdRoiDraft(圖像 pixel 座標)畫到 sel(用螢幕 px)
+    function _pdRoiRenderSelection() {
+        const img = document.getElementById('pdRoiCanvasImg');
+        const sel = document.getElementById('pdRoiSelection');
+        if (!img || !sel || !_pdRoiDraft) return;
+        const r = img.getBoundingClientRect();
+        const sx = r.width / img.naturalWidth;
+        const sy = r.height / img.naturalHeight;
+        sel.style.left   = (_pdRoiDraft.x * sx) + 'px';
+        sel.style.top    = (_pdRoiDraft.y * sy) + 'px';
+        sel.style.width  = (_pdRoiDraft.w * sx) + 'px';
+        sel.style.height = (_pdRoiDraft.h * sy) + 'px';
+    }
+
+    function _pdRoiUpdateCoordLabel() {
+        const lbl = document.getElementById('pdRoiCoordLabel');
+        if (!lbl) return;
+        if (!_pdRoiDraft || _pdRoiDraft.w < 1) { lbl.textContent = '尚未圈選'; return; }
+        lbl.textContent = `x:${Math.round(_pdRoiDraft.x)}, y:${Math.round(_pdRoiDraft.y)} | ${Math.round(_pdRoiDraft.w)}×${Math.round(_pdRoiDraft.h)} px`;
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -21356,15 +21860,32 @@ curl -X POST http://localhost:8000/api/defects \\
     // Release 等時程。每筆 schedule 有 start_date / end_date / status / color。
     // ════════════════════════════════════════════════════════════════════
 
+    // v1.1.9+:跟測試看版 5 值對齊。為了相容舊資料(migration 0036 之前),
+    // 仍保留 Planned / Done / Delayed / Cancelled 的 fallback display(萬一 server
+    // 還回舊值不致空白)。同時也兼容 todo Gantt 疊圖時的 Todo / New / Assigned 等。
     const _TS_STATUS_PILL = {
-        Planned:    'bg-slate-100   text-slate-700',
-        InProgress: 'bg-blue-100    text-blue-700',
-        Done:       'bg-emerald-100 text-emerald-700',
-        Delayed:    'bg-amber-100   text-amber-700',
-        Cancelled:  'bg-stone-200   text-stone-600',
+        Todo:           'bg-slate-100   text-slate-700',
+        InProgress:     'bg-blue-100    text-blue-700',
+        InReview:       'bg-violet-100  text-violet-700',
+        ReworkRequired: 'bg-violet-100  text-violet-700',
+        Verified:       'bg-emerald-100 text-emerald-700',
+        Closed:         'bg-stone-200   text-stone-600',
+        // 舊值 fallback(migration 之後不會出現,但避免 UI 空 pill)
+        Planned:   'bg-slate-100   text-slate-700',
+        Done:      'bg-emerald-100 text-emerald-700',
+        Delayed:   'bg-amber-100   text-amber-700',
+        Cancelled: 'bg-stone-200   text-stone-600',
+        // todo 疊圖時用到
+        New:       'bg-slate-100   text-slate-700',
+        Assigned:  'bg-slate-100   text-slate-700',
     };
     const _TS_STATUS_ZH = {
-        Planned: '規劃中', InProgress: '進行中', Done: '已完成', Delayed: '延期', Cancelled: '取消',
+        Todo: '待辦', InProgress: '進行中', InReview: '待驗證', ReworkRequired: '待驗證',
+        Verified: '已完成', Closed: '關閉',
+        // 舊值 fallback
+        Planned: '待辦', Done: '已完成', Delayed: '待辦', Cancelled: '關閉',
+        // todo 疊圖
+        New: '待辦', Assigned: '待辦',
     };
     // bar 顏色 mapping:color name → Tailwind bg class(全是已編譯顏色)
     const _TS_BAR_BG = {
@@ -21507,17 +22028,30 @@ curl -X POST http://localhost:8000/api/defects \\
             const srcBadge = s._src === 'todo'
                 ? '<span class="text-[9px] px-1 py-0 bg-white/30 rounded mr-1 font-mono">TODO</span>'
                 : '';
+            // 計算總天數(含頭尾)— 顯示在日期欄供 user 快速看持續時間
+            const totalSpanDays = Math.max(1, Math.round((sEnd - sStart) / msPerDay) + 1);
             return `
                 <div class="flex items-stretch border-b border-slate-100 hover:bg-amber-50/30 cursor-pointer"
                      onclick="${clickHandler}">
-                    <!-- 左側 label 區 -->
-                    <div class="w-56 shrink-0 border-r border-slate-200 p-2.5 flex flex-col gap-1">
-                        <div class="text-sm font-semibold text-slate-800 line-clamp-1" title="${escapeHtml(s.name)}">${escapeHtml(s.name)}</div>
+                    <!-- 左側 label 區(項目) -->
+                    <div class="w-52 shrink-0 border-r border-slate-200 p-2.5 flex flex-col gap-1">
+                        <div class="text-sm font-semibold text-slate-800 line-clamp-2" title="${escapeHtml(s.name)}">${escapeHtml(s.name)}</div>
                         <div class="flex items-center gap-2 text-[10px]">
                             <span class="px-1.5 py-0.5 ${statusPill} rounded font-medium">${statusZh}</span>
                             <span class="text-slate-500"><i class="fa-regular fa-user mr-0.5"></i>${escapeHtml(assignee)}</span>
                         </div>
-                        <div class="text-[10px] text-slate-400 font-mono">${s.start_date} → ${s.end_date}</div>
+                    </div>
+                    <!-- 起訖日期欄(v1.1.9+ 加,顯示起訖 + 天數)-->
+                    <div class="w-44 shrink-0 border-r border-slate-200 p-2.5 flex flex-col gap-0.5 text-xs">
+                        <div class="flex items-center gap-1 font-mono text-slate-700">
+                            <i class="fa-regular fa-calendar-plus text-emerald-500 text-[10px]"></i>
+                            <span>${s.start_date}</span>
+                        </div>
+                        <div class="flex items-center gap-1 font-mono text-slate-700">
+                            <i class="fa-regular fa-calendar-check text-rose-500 text-[10px]"></i>
+                            <span>${s.end_date}</span>
+                        </div>
+                        <div class="text-[10px] text-slate-400 mt-0.5">共 ${totalSpanDays} 天</div>
                     </div>
                     <!-- 右側 timeline 區 -->
                     <div class="flex-1 relative" style="min-height:60px">
@@ -21533,10 +22067,13 @@ curl -X POST http://localhost:8000/api/defects \\
         }).join('');
 
         gantt.innerHTML = `
-            <!-- header: 左側固定 label 區 + 右側月份格子 -->
+            <!-- header: 左側固定 label 區 + 起訖日期欄 + 右側月份格子 -->
             <div class="flex border-b border-slate-200 bg-slate-50/70 sticky top-0">
-                <div class="w-56 shrink-0 border-r border-slate-200 p-2.5 text-xs font-semibold text-slate-600">
+                <div class="w-52 shrink-0 border-r border-slate-200 p-2.5 text-xs font-semibold text-slate-600">
                     時程項目
+                </div>
+                <div class="w-44 shrink-0 border-r border-slate-200 p-2.5 text-xs font-semibold text-slate-600 flex items-center gap-1">
+                    <i class="fa-regular fa-calendar text-slate-500"></i> 起訖日期
                 </div>
                 <div class="flex-1 flex">${headerCells}</div>
             </div>
@@ -21559,7 +22096,7 @@ curl -X POST http://localhost:8000/api/defects \\
         twoWeeks.setDate(today.getDate() + 14);
         document.getElementById('tsEditStartDate').value = today.toISOString().slice(0,10);
         document.getElementById('tsEditEndDate').value = twoWeeks.toISOString().slice(0,10);
-        document.getElementById('tsEditStatus').value = 'Planned';
+        document.getElementById('tsEditStatus').value = 'Todo';
         document.getElementById('tsEditColor').value = 'amber';
         document.getElementById('tsEditAssignee').value = '';
         document.getElementById('tsEditDescription').value = '';
@@ -21578,7 +22115,11 @@ curl -X POST http://localhost:8000/api/defects \\
         document.getElementById('tsEditName').value = sched.name || '';
         document.getElementById('tsEditStartDate').value = sched.start_date || '';
         document.getElementById('tsEditEndDate').value = sched.end_date || '';
-        document.getElementById('tsEditStatus').value = sched.status || 'Planned';
+        // v1.1.9+ migration 0036:Planned→Todo, Delayed→Todo, Done→Verified, Cancelled→Closed。
+        // 若 server 已回新值,直接用;若是舊資料(migration 還沒跑),做 client-side fallback。
+        const _LEGACY_TS = { Planned: 'Todo', Delayed: 'Todo', Done: 'Verified', Cancelled: 'Closed' };
+        const _curStatus = sched.status || 'Todo';
+        document.getElementById('tsEditStatus').value = _LEGACY_TS[_curStatus] || _curStatus;
         document.getElementById('tsEditColor').value = sched.color || 'amber';
         document.getElementById('tsEditDescription').value = sched.description || '';
         document.getElementById('testScheduleModal').classList.remove('hidden');

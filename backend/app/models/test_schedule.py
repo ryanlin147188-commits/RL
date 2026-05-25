@@ -27,11 +27,23 @@ from .base import Base
 
 
 class TestScheduleStatus(str, enum.Enum):
-    PLANNED     = "Planned"      # 規劃中
-    IN_PROGRESS = "InProgress"   # 進行中
-    DONE        = "Done"         # 已完成
-    DELAYED     = "Delayed"      # 延期
-    CANCELLED   = "Cancelled"    # 取消
+    """測試時程狀態 — v1.1.9+ 與測試看版(TodoStatus)統一 5 值。
+
+    歷史 (v1.1.9 之前): Planned / InProgress / Done / Delayed / Cancelled。
+    現在: Todo / InProgress / InReview / Verified / Closed,跟 TodoStatus
+    對齊,首頁行事曆 / 看版 / 時程三處狀態語意一致。
+
+    Migration 0036 把舊值轉成新值:
+        Planned   → Todo
+        Delayed   → Todo(無對應的「延期」狀態;一律當待辦,user 可看開始 / 結束日)
+        Done      → Verified
+        Cancelled → Closed
+    """
+    TODO        = "Todo"        # 待辦
+    IN_PROGRESS = "InProgress"  # 進行中
+    IN_REVIEW   = "InReview"    # 待驗證
+    VERIFIED    = "Verified"    # 已完成
+    CLOSED      = "Closed"      # 關閉
 
 
 class TestSchedule(Assignable, TenantScoped, Base):
@@ -49,7 +61,7 @@ class TestSchedule(Assignable, TenantScoped, Base):
     end_date: Mapped[date] = mapped_column(Date, nullable=False)
     status: Mapped[TestScheduleStatus] = mapped_column(
         Enum(TestScheduleStatus, values_callable=lambda x: [e.value for e in x], native_enum=False, length=20),
-        default=TestScheduleStatus.PLANNED, nullable=False,
+        default=TestScheduleStatus.TODO, nullable=False,
     )
     # bar 顏色 — 前端 timeline 用,只存 tailwind color name(blue/emerald/amber/rose/violet)
     color: Mapped[str] = mapped_column(String(20), nullable=False, default="blue", server_default="blue")
