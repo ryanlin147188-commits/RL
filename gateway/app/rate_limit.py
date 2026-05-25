@@ -129,6 +129,13 @@ async def enforce_rate_limit(request: Request, rate_str: str) -> Optional[JSONRe
     if allowed:
         return None
     _log.info("rate limit hit: ident=%s rate=%s cur=%d", ident, rate_str, cur)
+    # Prometheus counter
+    try:
+        from .observability import rate_limit_rejections
+        ident_kind = "user" if ident.startswith("user:") else "ip"
+        rate_limit_rejections.labels(rate=rate_str, ident_kind=ident_kind).inc()
+    except Exception:
+        pass
     return JSONResponse(
         {
             "detail": "Too Many Requests",

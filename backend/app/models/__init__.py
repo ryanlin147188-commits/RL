@@ -1,3 +1,4 @@
+from .api_key import ApiKey
 from .base import Base
 from .defect import Defect, DefectPriority, DefectSeverity, DefectStatus
 from .execution_report import ExecutionReport, ReportStatus

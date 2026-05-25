@@ -145,6 +145,13 @@ async def forward_request(
     upstream_path = path + (f"?{query}" if query else "")
 
     fwd_headers = _filter_request_headers(request)
+    # API Key path:request.state.gateway_auth_override 是 _check_auth mint 的
+    # 短命 JWT。把原始 X-API-Key 拿掉(backend 不用),Authorization 設成新 JWT。
+    auth_override = getattr(request.state, "gateway_auth_override", None)
+    if auth_override:
+        fwd_headers.pop("x-api-key", None)
+        fwd_headers.pop("X-API-Key", None)
+        fwd_headers["authorization"] = auth_override
     fwd_headers.setdefault("x-forwarded-proto", request.url.scheme)
     fwd_headers.setdefault("x-forwarded-host", request.headers.get("host", ""))
     client_host = request.client.host if request.client else ""

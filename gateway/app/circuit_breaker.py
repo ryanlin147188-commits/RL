@@ -55,14 +55,15 @@ class CircuitBreaker:
             _log.info("circuit %s: %s → CLOSED (success)", self.name, self._state.value)
             self._state = CircuitState.CLOSED
             self._opened_at = None
+            _set_metric(self.name, self._state)
 
     def record_failure(self) -> None:
         self._consecutive_failures += 1
         if self._state == CircuitState.HALF_OPEN:
-            # 試水溫失敗 → 直接回 OPEN
             _log.warning("circuit %s: HALF_OPEN → OPEN (probe failed)", self.name)
             self._state = CircuitState.OPEN
             self._opened_at = time.time()
+            _set_metric(self.name, self._state)
             return
         if self._consecutive_failures >= self.threshold:
             _log.warning(
@@ -71,6 +72,21 @@ class CircuitBreaker:
             )
             self._state = CircuitState.OPEN
             self._opened_at = time.time()
+            _set_metric(self.name, self._state)
+
+
+def _set_metric(group: str, state: CircuitState) -> None:
+    """同步 Prometheus gauge:0=closed / 1=half_open / 2=open。
+
+    Late import 避免 observability.py 跟 circuit_breaker.py 互相 import。
+    Gauge label 一旦 set 就會持續匯出,不必每次都 set。
+    """
+    try:
+        from .observability import circuit_state_gauge
+        val = {CircuitState.CLOSED: 0, CircuitState.HALF_OPEN: 1, CircuitState.OPEN: 2}[state]
+        circuit_state_gauge.labels(group=group).set(val)
+    except Exception:
+        pass
 
     def status_dict(self) -> dict:
         return {
@@ -88,15 +104,16 @@ _breakers: dict[str, CircuitBreaker] = {}
 
 
 def init_breakers(configs: dict[str, CircuitConfig]) -> None:
-    """Lifespan startup 從 routes.yaml 載入。"""
+    """Lifespan startup 從 routes.yaml 載入,順手把 Prometheus gauge 設成 0(closed)。"""
     global _breakers
     _breakers = {
         name: CircuitBreaker(name, c.threshold, c.ttl_seconds)
         for name, c in configs.items()
     }
-    # 確保 default 一定有(沒 yaml 設定時用預設參數)
     if "default" not in _breakers:
         _breakers["default"] = CircuitBreaker("default", 10, 30)
+    for name in _breakers:
+        _set_metric(name, CircuitState.CLOSED)
     _log.info("circuit breakers initialized: %s", list(_breakers))
 
 

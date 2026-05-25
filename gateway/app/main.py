@@ -21,7 +21,7 @@ from fastapi import FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse, PlainTextResponse
 
-from .auth import AuthError, is_public_path, verify_jwt
+from .auth import AuthError, is_public_path, verify_jwt, verify_api_key, mint_short_jwt
 from .circuit_breaker import all_status, init_breakers
 from .config import settings
 from .http_proxy import close_client, forward_request, get_client
@@ -33,11 +33,12 @@ from .ws_proxy import proxy_websocket
 # 啟動時讀一次 routes.yaml(Commit 3 加),routes_cfg 全域可變(reload 用)
 routes_cfg: RoutesConfig = RoutesConfig()
 
-# Logging 先 stdlib 撐著;Commit 4 換 structlog
-logging.basicConfig(
-    level=getattr(logging, settings.log_level.upper(), logging.INFO),
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-)
+# v1.1.10 Commit 4:接 structlog JSON + Prometheus instrumentator
+from .observability import init_logging
+from prometheus_fastapi_instrumentator import Instrumentator
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+
+init_logging()
 _log = logging.getLogger("gateway")
 
 
@@ -63,6 +64,14 @@ app = FastAPI(
     openapi_url=None,
     lifespan=lifespan,
 )
+
+# Prometheus 自動 instrumentation:HTTP latency / status by method+path
+# 不 expose 它的 /metrics(我們自己 export,內含 gateway_* gauges)
+Instrumentator(
+    should_group_status_codes=True,
+    should_ignore_untemplated=True,
+    excluded_handlers=["/healthz", "/readyz", "/metrics"],
+).instrument(app)
 
 # ── Middleware 順序 ─────────────────────────────────────────────────
 # Starlette add_middleware 後 add 的先執行(reversed wrap)。
@@ -108,9 +117,10 @@ async def readyz():
 
 @app.get("/metrics", include_in_schema=False)
 async def metrics():
-    """Commit 4 才接 prometheus;先回 placeholder 讓 docker healthcheck / 監控
-    系統知道 endpoint 存在。"""
-    return PlainTextResponse("# gateway metrics — pending Commit 4\n")
+    """Prometheus 指標(default Python proc metrics + 自家 4 個 gateway_*)。"""
+    return PlainTextResponse(
+        generate_latest().decode("utf-8"), media_type=CONTENT_TYPE_LATEST,
+    )
 
 
 @app.get("/gateway/status", include_in_schema=False)
@@ -129,11 +139,33 @@ async def gateway_status():
 
 # ── 驗證 helper ──────────────────────────────────────────────────
 async def _check_auth(request: Request) -> dict | None:
-    """跑 JWT 驗證;public path 直接 None pass through。
+    """跑 JWT 或 API key 驗證;public path 直接 None pass through。
+
+    Auth 順序:
+    1. ``X-API-Key`` 存在 → 打 backend verify endpoint,mint 短命 JWT 注進 header
+    2. 否則照常從 Authorization / cookie / query 取 JWT
+    3. public path 都失敗 → 也 None pass through(讓 backend 自己處理)
 
     Raise AuthError 由上層 catch 轉 401。
     """
     path = request.url.path
+    # API Key path
+    # 注意:scope 內 header 列表的 mutation 在 BaseHTTPMiddleware 包裝後不一定
+    # 會被下游(_filter_request_headers 內的 request.headers iteration)看到 —
+    # Starlette Headers 內部會 ``self._list = list(scope["headers"])`` copy 一份。
+    # 改用 ``request.state.gateway_auth_override`` 攜帶 minted JWT,
+    # forward_request 看到就把 X-API-Key 拿掉 + 把 Authorization 換成這個 JWT。
+    api_key = request.headers.get("x-api-key") or request.headers.get("X-API-Key")
+    if api_key:
+        client = await get_client()
+        payload = await verify_api_key(api_key, client)
+        if payload:
+            jwt = mint_short_jwt(payload, ttl_seconds=300)
+            request.state.gateway_auth_override = f"Bearer {jwt}"
+            return payload
+        # API key 無效 → 直接 401(不要 fallback 到 JWT 路徑,避免暴力測試)
+        raise AuthError("API key 無效或已撤銷", code="api_key_invalid")
+
     if is_public_path(path):
         # public path 仍嘗試 decode 一下(失敗不擋,讓 backend 處理)
         try:
@@ -159,10 +191,16 @@ async def proxy_api(request: Request, path: str):
     rl_resp = await enforce_rate_limit(request, rate)
     if rl_resp is not None:
         return rl_resp
-    # 3) JWT auth
+    # 3) JWT / API key auth
     try:
         payload = await _check_auth(request)
     except AuthError as e:
+        # Prometheus counter
+        try:
+            from .observability import auth_failures
+            auth_failures.labels(reason=e.code).inc()
+        except Exception:
+            pass
         return JSONResponse(
             {"detail": e.detail, "code": e.code},
             status_code=401,

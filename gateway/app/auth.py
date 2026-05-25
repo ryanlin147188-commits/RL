@@ -145,3 +145,80 @@ def sign_gateway_request(
 def has_shared_secret() -> bool:
     """Backend short-circuit 用得到嗎?沒 secret 就走純雙層獨立驗證。"""
     return bool(settings.gateway_backend_shared_secret)
+
+
+# ── API Key 驗證(v1.1.10 Commit 4)─────────────────────────────
+# Gateway 收到 ``X-API-Key: ak_xxxx``:
+# 1) 先 SHA256 hash 跟 backend ``/api/auth/api-keys/verify`` 拿 user metadata
+# 2) 在 gateway 本地 mint 5 分鐘 JWT(同樣 AUTOTEST_JWT_SECRET 簽,backend 端
+#    AuthMiddleware 把它當一般 JWT 解,完全相容)
+# 3) Replace request 的 Authorization header,後續流程跟 JWT request 一樣
+async def verify_api_key(
+    plain_key: str, backend_client,
+) -> Optional[dict]:
+    """打 backend /api/auth/api-keys/verify 查 key。
+
+    backend_client 是 httpx.AsyncClient(共用 http_proxy 那支)。回 dict 含
+    user_id / username / organization_id / is_superuser / scopes,或 None。
+
+    Auth header 給 backend 看的:用 GATEWAY_BACKEND_SHARED_SECRET HMAC 簽
+    一個 method=POST path=/api/auth/api-keys/verify sub=gateway 的 header,
+    backend AuthMiddleware short-circuit 把 sub=gateway 重組進 user_payload,
+    /verify endpoint 內看到 sub=='gateway' 才放行(免一般 user 拿 key 來查
+    其他 user 的 key)。
+    """
+    import time as _t
+    if not plain_key.startswith("ak_"):
+        return None
+    method = "POST"
+    path = "/api/auth/api-keys/verify"
+    ts = int(_t.time())
+    sig, _ = sign_gateway_request(method, path, "gateway", timestamp=ts)
+    if not sig:
+        # 沒 shared secret,API key 功能無法使用(backend 不會信我們)
+        return None
+    headers = {
+        "X-Gateway-Verified": sig,
+        "X-Gateway-Timestamp": str(ts),
+        "X-Gateway-Sub": "gateway",
+        "X-Gateway-User": "gateway",
+        "Content-Type": "application/json",
+    }
+    try:
+        r = await backend_client.post(path, json={"api_key": plain_key}, headers=headers)
+    except Exception:
+        return None
+    if r.status_code != 200:
+        return None
+    data = r.json()
+    return {
+        "sub": data["username"],         # 跟 backend JWT 同欄位
+        "username": data["username"],
+        "user_id": data["user_id"],
+        "org_id": data.get("organization_id"),
+        "is_superuser": bool(data.get("is_superuser")),
+        "scopes": data.get("scopes"),
+        # 標記:這條 request 是 API key 來的,給 audit / metrics 用
+        "_api_key": True,
+    }
+
+
+def mint_short_jwt(payload: dict, ttl_seconds: int = 300) -> str:
+    """從 API key payload 產一個短命 JWT 給 backend(backend 也可拒收 _api_key)。"""
+    import time as _t
+    now = int(_t.time())
+    claims = {
+        "sub": payload["sub"],
+        "username": payload["username"],
+        "iat": now,
+        "exp": now + ttl_seconds,
+        "typ": "access",
+        "org_id": payload.get("org_id"),
+        "is_superuser": payload.get("is_superuser", False),
+        # jti 給 backend revocation 用(API key 衍生的 JWT 不會被 revoke,
+        # 但 backend revoke cache 預期欄位存在,給個 deterministic value)
+        "jti": f"apikey-{payload.get('user_id', '?')}-{now}",
+    }
+    return pyjwt.encode(
+        claims, settings.autotest_jwt_secret, algorithm=settings.jwt_algorithm,
+    )

@@ -11,4 +11,5 @@ pydantic-settings==2.5.2
 purgatory==3.0.1
 structlog==24.4.0
 prometheus-fastapi-instrumentator==7.0.0
+prometheus-client==0.21.0
 PyYAML==6.0.2
