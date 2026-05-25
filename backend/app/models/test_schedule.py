@@ -19,7 +19,7 @@ import uuid
 from datetime import date, datetime
 from typing import Optional
 
-from sqlalchemy import Date, DateTime, Enum, ForeignKey, String, Text
+from sqlalchemy import Date, DateTime, Enum, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.auth.tenant import Assignable, TenantScoped
@@ -64,7 +64,13 @@ class TestSchedule(Assignable, TenantScoped, Base):
         default=TestScheduleStatus.TODO, nullable=False,
     )
     # bar 顏色 — 前端 timeline 用,只存 tailwind color name(blue/emerald/amber/rose/violet)
+    # v1.1.9+ 前端會依 status 自動推 bar 色,本欄位作 fallback / 手動 override 用
     color: Mapped[str] = mapped_column(String(20), nullable=False, default="blue", server_default="blue")
+    # 進度百分比 (0-100) — Gantt-style 規劃工具常見欄位,讓 user 可以手動標
+    # 「目前完成度」獨立於 status(因為 status 是離散狀態,progress 是線性百分比)
+    progress: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0",
+    )
     # 連結到某個 TestRound(可空)— 把時程跟一輪測試綁,後續可在 TestRun 顯示
     linked_test_round_id: Mapped[Optional[str]] = mapped_column(
         String(36), ForeignKey("test_rounds.id", ondelete="SET NULL"), nullable=True, index=True,

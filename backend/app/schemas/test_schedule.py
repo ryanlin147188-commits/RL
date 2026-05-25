@@ -17,6 +17,7 @@ class TestScheduleCreate(BaseModel):
     end_date: date
     status: TestScheduleStatus = TestScheduleStatus.TODO
     color: str = Field(default="blue", max_length=20)
+    progress: int = Field(default=0, ge=0, le=100)
     assigned_to: Optional[str] = Field(default=None, max_length=100)
     linked_test_round_id: Optional[str] = Field(default=None, max_length=36)
 
@@ -28,6 +29,7 @@ class TestScheduleUpdate(BaseModel):
     end_date: Optional[date] = None
     status: Optional[TestScheduleStatus] = None
     color: Optional[str] = Field(default=None, max_length=20)
+    progress: Optional[int] = Field(default=None, ge=0, le=100)
     assigned_to: Optional[str] = Field(default=None, max_length=100)
     linked_test_round_id: Optional[str] = Field(default=None, max_length=36)
 
@@ -43,6 +45,7 @@ class TestScheduleResponse(BaseModel):
     end_date: date
     status: TestScheduleStatus
     color: str
+    progress: int = 0
     assigned_to: Optional[str] = None
     linked_test_round_id: Optional[str] = None
     organization_id: Optional[str] = None

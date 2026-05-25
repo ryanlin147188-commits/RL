@@ -1369,26 +1369,15 @@
                         <input type="date" id="tsEditEndDate" required class="w-full border border-slate-300 rounded p-2 text-sm">
                     </div>
                 </div>
-                <div class="grid grid-cols-3 gap-3">
+                <div class="grid grid-cols-2 gap-3">
                     <div>
                         <label class="block text-sm font-medium text-slate-700 mb-1">狀態</label>
                         <select id="tsEditStatus" class="w-full border border-slate-300 rounded p-2 text-sm bg-white">
-                            <option value="Todo" selected>待辦</option>
+                            <option value="Todo" selected>未開始</option>
                             <option value="InProgress">進行中</option>
                             <option value="InReview">待驗證</option>
                             <option value="Verified">已完成</option>
-                            <option value="Closed">關閉</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700 mb-1">顏色</label>
-                        <select id="tsEditColor" class="w-full border border-slate-300 rounded p-2 text-sm bg-white">
-                            <option value="blue">藍</option>
-                            <option value="amber" selected>琥珀</option>
-                            <option value="emerald">綠</option>
-                            <option value="rose">紅</option>
-                            <option value="violet">紫</option>
-                            <option value="indigo">靛</option>
+                            <option value="Closed">已結案</option>
                         </select>
                     </div>
                     <div>
@@ -1398,6 +1387,18 @@
                         </select>
                     </div>
                 </div>
+                <!-- 進度 slider(v1.1.9+ 加,0-100%)-->
+                <div>
+                    <label class="flex items-center justify-between text-sm font-medium text-slate-700 mb-1">
+                        <span>進度</span>
+                        <span id="tsEditProgressLabel" class="text-amber-600 font-mono">0%</span>
+                    </label>
+                    <input type="range" id="tsEditProgress" min="0" max="100" value="0" step="5"
+                           oninput="document.getElementById('tsEditProgressLabel').textContent = this.value + '%'"
+                           class="w-full">
+                </div>
+                <!-- Bar 顏色(隱藏,前端依 status 自動決定;保留 input 供後端 schema 接受)-->
+                <input type="hidden" id="tsEditColor" value="amber">
                 <div>
                     <label class="block text-sm font-medium text-slate-700 mb-1">說明</label>
                     <textarea id="tsEditDescription" rows="3" placeholder="這個階段要涵蓋什麼測試 / 範圍 / 完成標準..."
@@ -4163,21 +4164,6 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                         <h2 class="font-bold text-slate-700">測試時程</h2>
                     </div>
                     <div class="flex-1"></div>
-                    <select id="tsRangeSelect" onchange="loadTestSchedules()" class="text-xs px-2 py-1.5 border border-slate-300 rounded bg-white">
-                        <option value="1m">未來 1 個月</option>
-                        <option value="3m" selected>未來 3 個月</option>
-                        <option value="6m">未來 6 個月</option>
-                        <option value="12m">未來 1 年</option>
-                        <option value="all">全部</option>
-                    </select>
-                    <select id="tsStatusFilter" onchange="loadTestSchedules()" class="text-xs px-2 py-1.5 border border-slate-300 rounded bg-white">
-                        <option value="">所有狀態</option>
-                        <option value="Todo">待辦</option>
-                        <option value="InProgress">進行中</option>
-                        <option value="InReview">待驗證</option>
-                        <option value="Verified">已完成</option>
-                        <option value="Closed">關閉</option>
-                    </select>
                     <button type="button" onclick="openTsCreateModal()"
                         class="text-xs px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded font-medium flex items-center gap-1 shadow-sm">
                         <i class="fa-solid fa-plus"></i> 新增時程
@@ -4186,6 +4172,56 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                         class="text-xs px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-300 rounded font-medium text-slate-600 flex items-center gap-1">
                         <i class="fa-solid fa-rotate"></i>
                     </button>
+                </div>
+                <!-- 新版 toolbar:搜尋 + 過濾 + 天週月 view tabs -->
+                <div class="bg-white border border-slate-200 rounded-lg shadow-sm mb-3 p-3 flex flex-wrap items-center gap-3">
+                    <div class="relative flex-1 min-w-[240px] max-w-md">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                        <input id="tsSearch" type="search" oninput="_tsRenderGantt()"
+                               placeholder="搜尋任務或負責人…"
+                               class="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400 bg-slate-50/50">
+                    </div>
+                    <div class="relative">
+                        <button type="button" id="tsFilterBtn" onclick="_tsToggleFilterPopover()"
+                                class="w-9 h-9 flex items-center justify-center border border-slate-200 hover:bg-slate-50 rounded-lg text-slate-500 hover:text-slate-700"
+                                title="篩選">
+                            <i class="fa-solid fa-filter text-sm"></i>
+                        </button>
+                        <div id="tsFilterPopover" class="hidden absolute left-0 mt-2 w-56 bg-white border border-slate-200 rounded-lg shadow-lg z-20 p-3 space-y-2">
+                            <div>
+                                <label class="block text-xs font-medium text-slate-600 mb-1">狀態</label>
+                                <select id="tsStatusFilter" onchange="_tsRenderGantt()" class="w-full text-xs px-2 py-1.5 border border-slate-300 rounded bg-white">
+                                    <option value="">所有狀態</option>
+                                    <option value="Todo">未開始</option>
+                                    <option value="InProgress">進行中</option>
+                                    <option value="InReview">待驗證</option>
+                                    <option value="Verified">已完成</option>
+                                    <option value="Closed">已結案</option>
+                                    <option value="__overdue">卡關 / 延遲</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-600 mb-1">時間範圍</label>
+                                <select id="tsRangeSelect" onchange="loadTestSchedules()" class="w-full text-xs px-2 py-1.5 border border-slate-300 rounded bg-white">
+                                    <option value="1m">未來 1 個月</option>
+                                    <option value="3m" selected>未來 3 個月</option>
+                                    <option value="6m">未來 6 個月</option>
+                                    <option value="12m">未來 1 年</option>
+                                    <option value="all">全部</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex-1"></div>
+                    <!-- View mode tabs:天 / 週 / 月 -->
+                    <div class="inline-flex rounded-lg bg-slate-100 p-1 text-sm">
+                        <button type="button" data-tsview="day" onclick="_tsSetView('day')"
+                                class="ts-view-tab px-4 py-1 rounded-md font-medium text-slate-500 hover:text-slate-700 transition">天</button>
+                        <button type="button" data-tsview="week" onclick="_tsSetView('week')"
+                                class="ts-view-tab px-4 py-1 rounded-md font-medium text-slate-500 hover:text-slate-700 transition">週</button>
+                        <button type="button" data-tsview="month" onclick="_tsSetView('month')"
+                                class="ts-view-tab px-4 py-1 rounded-md font-medium text-slate-500 hover:text-slate-700 transition">月</button>
+                    </div>
                 </div>
                 <div id="tsEmptyState" class="hidden text-center py-20 text-slate-400">
                     <i class="fa-solid fa-calendar-plus text-4xl mb-3 block"></i>
@@ -21935,45 +21971,105 @@ curl -X POST http://localhost:8000/api/defects \\
     // Release 等時程。每筆 schedule 有 start_date / end_date / status / color。
     // ════════════════════════════════════════════════════════════════════
 
-    // v1.1.9+:跟測試看版 5 值對齊。為了相容舊資料(migration 0036 之前),
-    // 仍保留 Planned / Done / Delayed / Cancelled 的 fallback display(萬一 server
-    // 還回舊值不致空白)。同時也兼容 todo Gantt 疊圖時的 Todo / New / Assigned 等。
+    // v1.1.9+:測試時程狀態跟測試看版 5 值對齊。
+    // 顯示時:Todo→未開始 / InProgress→進行中 / InReview→待驗證 /
+    //         Verified→已完成 / Closed→已結案;另外 derive「卡關/延遲」狀態
+    //         (end_date < today 且尚未 verified/closed),用 rose 標
+    // 為了相容舊資料(migration 0036 之前)仍保留 Planned/Done/Delayed/Cancelled fallback。
     const _TS_STATUS_PILL = {
-        Todo:           'bg-slate-100   text-slate-700',
-        InProgress:     'bg-blue-100    text-blue-700',
-        InReview:       'bg-violet-100  text-violet-700',
-        ReworkRequired: 'bg-violet-100  text-violet-700',
-        Verified:       'bg-emerald-100 text-emerald-700',
-        Closed:         'bg-stone-200   text-stone-600',
-        // 舊值 fallback(migration 之後不會出現,但避免 UI 空 pill)
-        Planned:   'bg-slate-100   text-slate-700',
-        Done:      'bg-emerald-100 text-emerald-700',
-        Delayed:   'bg-amber-100   text-amber-700',
-        Cancelled: 'bg-stone-200   text-stone-600',
-        // todo 疊圖時用到
-        New:       'bg-slate-100   text-slate-700',
-        Assigned:  'bg-slate-100   text-slate-700',
+        Todo:           'bg-slate-100   text-slate-600 border border-slate-200',
+        InProgress:     'bg-blue-50     text-blue-700 border border-blue-200',
+        InReview:       'bg-violet-50   text-violet-700 border border-violet-200',
+        ReworkRequired: 'bg-violet-50   text-violet-700 border border-violet-200',
+        Verified:       'bg-emerald-50  text-emerald-700 border border-emerald-200',
+        Closed:         'bg-stone-100   text-stone-600 border border-stone-200',
+        Overdue:        'bg-rose-50     text-rose-700 border border-rose-200',
+        // 舊值 fallback
+        Planned:   'bg-slate-100   text-slate-600 border border-slate-200',
+        Done:      'bg-emerald-50  text-emerald-700 border border-emerald-200',
+        Delayed:   'bg-rose-50     text-rose-700 border border-rose-200',
+        Cancelled: 'bg-stone-100   text-stone-600 border border-stone-200',
+        New:       'bg-slate-100   text-slate-600 border border-slate-200',
+        Assigned:  'bg-slate-100   text-slate-600 border border-slate-200',
     };
     const _TS_STATUS_ZH = {
-        Todo: '待辦', InProgress: '進行中', InReview: '待驗證', ReworkRequired: '待驗證',
-        Verified: '已完成', Closed: '關閉',
-        // 舊值 fallback
-        Planned: '待辦', Done: '已完成', Delayed: '待辦', Cancelled: '關閉',
-        // todo 疊圖
-        New: '待辦', Assigned: '待辦',
+        Todo: '未開始', InProgress: '進行中', InReview: '待驗證', ReworkRequired: '待驗證',
+        Verified: '已完成', Closed: '已結案', Overdue: '卡關/延遲',
+        Planned: '未開始', Done: '已完成', Delayed: '卡關/延遲', Cancelled: '已結案',
+        New: '未開始', Assigned: '未開始',
     };
-    // bar 顏色 mapping:color name → Tailwind bg class(全是已編譯顏色)
+    const _TS_STATUS_ICON = {
+        Todo: 'fa-circle text-slate-400',
+        InProgress: 'fa-clock text-blue-500',
+        InReview: 'fa-clipboard-check text-violet-500',
+        ReworkRequired: 'fa-clipboard-check text-violet-500',
+        Verified: 'fa-circle-check text-emerald-500',
+        Closed: 'fa-circle-check text-stone-500',
+        Overdue: 'fa-circle-exclamation text-rose-500',
+        Planned: 'fa-circle text-slate-400',
+        Done: 'fa-circle-check text-emerald-500',
+        Delayed: 'fa-circle-exclamation text-rose-500',
+        Cancelled: 'fa-circle-check text-stone-500',
+        New: 'fa-circle text-slate-400',
+        Assigned: 'fa-circle text-slate-400',
+    };
+    // Bar 底色 — 一律依 (effective) status 推,無視 record.color
     const _TS_BAR_BG = {
-        blue:    'bg-blue-500',
-        amber:   'bg-amber-500',
-        emerald: 'bg-emerald-500',
-        rose:    'bg-rose-500',
-        violet:  'bg-violet-500',
-        indigo:  'bg-indigo-500',
+        Todo:       'bg-slate-400',
+        InProgress: 'bg-blue-500',
+        InReview:   'bg-violet-500',
+        ReworkRequired: 'bg-violet-500',
+        Verified:   'bg-emerald-500',
+        Closed:     'bg-emerald-600',
+        Overdue:    'bg-rose-500',
+        Planned:    'bg-slate-400',
+        Done:       'bg-emerald-500',
+        Delayed:    'bg-rose-500',
+        Cancelled:  'bg-stone-400',
+        New:        'bg-slate-400',
+        Assigned:   'bg-slate-400',
     };
 
+    // 視圖模式:day / week / month。預設 day。
+    let _tsView = 'day';
     let _tsRows = [];
     let _tsEditingId = null;  // null = 新增,有值 = 編輯
+
+    function _tsSetView(view) {
+        if (!['day','week','month'].includes(view)) return;
+        _tsView = view;
+        document.querySelectorAll('.ts-view-tab').forEach(b => {
+            const active = b.dataset.tsview === view;
+            b.classList.toggle('bg-white', active);
+            b.classList.toggle('shadow-sm', active);
+            b.classList.toggle('text-amber-700', active);
+            b.classList.toggle('font-semibold', active);
+            b.classList.toggle('text-slate-500', !active);
+            b.classList.toggle('font-medium', !active);
+        });
+        _tsRenderGantt();
+    }
+    function _tsToggleFilterPopover() {
+        const p = document.getElementById('tsFilterPopover');
+        if (p) p.classList.toggle('hidden');
+    }
+    // 點外面關 filter popover
+    document.addEventListener('click', (ev) => {
+        const p = document.getElementById('tsFilterPopover');
+        const b = document.getElementById('tsFilterBtn');
+        if (!p || !b || p.classList.contains('hidden')) return;
+        if (ev.target === b || b.contains(ev.target) || p.contains(ev.target)) return;
+        p.classList.add('hidden');
+    });
+
+    // 依 row 算「實際狀態」:已逾期且未驗證/未結案 → Overdue
+    function _tsEffectiveStatus(s) {
+        const today = new Date(); today.setHours(0,0,0,0);
+        const end = s.end_date ? new Date(s.end_date) : null;
+        const stillOpen = ['Todo','InProgress','InReview','ReworkRequired','New','Assigned','Planned','Delayed'].includes(s.status);
+        if (end && end < today && stillOpen) return 'Overdue';
+        return s.status;
+    }
 
     async function showTestScheduleView() {
         if (typeof confirmDiscardIfDirty === 'function' && !confirmDiscardIfDirty()) return false;
@@ -21985,6 +22081,8 @@ curl -X POST http://localhost:8000/api/defects \\
         document.getElementById('testScheduleWorkspace').classList.remove('hidden');
         document.getElementById('mainHeader').classList.remove('hidden');
         document.getElementById('mainActions')?.classList.add('hidden');
+        // 進入頁面時若沒有 active tab,默認到「天」並套上 styling
+        _tsSetView(_tsView || 'day');
         await loadTestSchedules();
     }
 
@@ -22026,14 +22124,29 @@ curl -X POST http://localhost:8000/api/defects \\
         }
     }
 
-    // 依當前 range 算 viewport 起訖日期
+    // 依當前 range + 視圖模式算 viewport 起訖日期
+    // view = 'day':從今日往前 7 天 ~ 往後依 range
+    // view = 'week':從今日往前 2 週 ~ 往後依 range,對齊到週日
+    // view = 'month':從今日所在月 1 號 ~ 往後依 range
     function _tsViewportRange() {
         const range = document.getElementById('tsRangeSelect')?.value || '3m';
-        const today = new Date();
-        const start = new Date(today);
-        start.setDate(1);  // 從本月 1 號開始
-        const end = new Date(start);
-        if (range === '1m') end.setMonth(end.getMonth() + 1);
+        const today = new Date(); today.setHours(0,0,0,0);
+        let start, end;
+        if (_tsView === 'day') {
+            // 顯示「過去 1 週 + 未來 N」,讓 user 看到「最近完成的 + 接下來」
+            start = new Date(today);
+            start.setDate(start.getDate() - 7);
+            end = new Date(today);
+        } else if (_tsView === 'week') {
+            // 對齊到該週週日
+            start = new Date(today);
+            start.setDate(start.getDate() - start.getDay() - 14);   // 前 2 週的週日
+            end = new Date(start);
+        } else { // month
+            start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+            end = new Date(start);
+        }
+        if (range === '1m')      end.setMonth(end.getMonth() + 1);
         else if (range === '3m') end.setMonth(end.getMonth() + 3);
         else if (range === '6m') end.setMonth(end.getMonth() + 6);
         else if (range === '12m') end.setMonth(end.getMonth() + 12);
@@ -22044,12 +22157,69 @@ curl -X POST http://localhost:8000/api/defects \\
                 const de = _tsRows.map(r => new Date(r.end_date));
                 start.setTime(Math.min(...ds.map(d=>d.getTime())));
                 end.setTime(Math.max(...de.map(d=>d.getTime())));
-                end.setDate(end.getDate() + 7);  // 多預留一週
+                end.setDate(end.getDate() + 14);
             } else {
                 end.setMonth(end.getMonth() + 3);
             }
         }
+        // 週視圖 / 月視圖再延伸到「整週 / 整月」尾巴,讓最後一格完整
+        if (_tsView === 'week') {
+            const off = (7 - end.getDay()) % 7;
+            end.setDate(end.getDate() + off);
+        } else if (_tsView === 'month') {
+            end = new Date(end.getFullYear(), end.getMonth() + 1, 1);
+        }
         return { start, end };
+    }
+
+    // ── 視圖各自的 column 分割 ─────────────────────────────────────
+    // day:1 格 1 天,顯示「5月 / 25 / 一」
+    // week:1 格 1 週,顯示「2026年 / 5/24 / ~ 5/30」
+    // month:1 格 1 月,顯示「2026年 / 5月 / 整月規劃」
+    function _tsBuildColumns(vStart, vEnd) {
+        const msPerDay = 86400000;
+        const cols = [];
+        if (_tsView === 'day') {
+            const wd = ['日','一','二','三','四','五','六'];
+            for (let d = new Date(vStart); d < vEnd; d.setDate(d.getDate() + 1)) {
+                const t = new Date(); t.setHours(0,0,0,0);
+                const isToday = d.getTime() === t.getTime();
+                const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                cols.push({
+                    label1: `${d.getMonth()+1}月`,
+                    label2: String(d.getDate()),
+                    label3: wd[d.getDay()],
+                    isToday, isWeekend,
+                });
+            }
+        } else if (_tsView === 'week') {
+            for (let d = new Date(vStart); d < vEnd; d.setDate(d.getDate() + 7)) {
+                const wEnd = new Date(d); wEnd.setDate(wEnd.getDate() + 6);
+                const today = new Date(); today.setHours(0,0,0,0);
+                const isToday = today >= d && today <= wEnd;
+                cols.push({
+                    label1: `${d.getFullYear()}年`,
+                    label2: `${d.getMonth()+1}/${d.getDate()}`,
+                    label3: `~ ${wEnd.getMonth()+1}/${wEnd.getDate()}`,
+                    isToday,
+                });
+            }
+        } else {
+            let cur = new Date(vStart.getFullYear(), vStart.getMonth(), 1);
+            while (cur < vEnd) {
+                const mEnd = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
+                const today = new Date(); today.setHours(0,0,0,0);
+                const isToday = today >= cur && today < mEnd;
+                cols.push({
+                    label1: `${cur.getFullYear()}年`,
+                    label2: `${cur.getMonth()+1}月`,
+                    label3: '整月規劃',
+                    isToday,
+                });
+                cur = mEnd;
+            }
+        }
+        return cols;
     }
 
     function _tsRenderGantt() {
@@ -22060,156 +22230,129 @@ curl -X POST http://localhost:8000/api/defects \\
 
         const { start: vStart, end: vEnd } = _tsViewportRange();
         const msPerDay = 86400000;
-        const totalDays = Math.max(1, Math.round((vEnd - vStart) / msPerDay));
+        const totalMs = vEnd - vStart;
 
-        // 月份格子 header — 動態算 viewport 內每個月佔的 day 數
-        const months = [];
-        let cur = new Date(vStart.getFullYear(), vStart.getMonth(), 1);
-        while (cur < vEnd) {
-            const monthEnd = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
-            const segStart = cur < vStart ? vStart : cur;
-            const segEnd = monthEnd > vEnd ? vEnd : monthEnd;
-            const days = Math.max(1, Math.round((segEnd - segStart) / msPerDay));
-            // 紀錄每個 segment 在 viewport 內覆蓋的「起始日序號 + 結束日序號」
-            // (segStart 永遠在月初或 viewport 起點;將其轉成該月的 day-of-month)
-            const startDay = segStart.getDate();
-            const endDay = new Date(segEnd.getTime() - msPerDay).getDate();   // segEnd 是 exclusive,所以 -1 day
-            months.push({
-                label: `${cur.getFullYear()}/${String(cur.getMonth()+1).padStart(2,'0')}`,
-                days, startDay, endDay,
-            });
-            cur = monthEnd;
-        }
-        // v1.1.9+:月份 header + 每日序號 + timeline bar 全部 host 在同一個
-        // ``grid-template-columns:repeat(totalDays, minmax(20px, 1fr))``,絕對對齊。
-        // 月份 header 用 ``grid-column: span N`` 跨越該月的天數,文字 LEFT-aligned
-        // 讓 "2026/05" 從該月左邊線開始(剛好對到下方的 "1" tick)。bar 仍用
-        // absolute % 但因為相對於同一個 grid container,百分比也對齊。
-        // minmax(20px, 1fr):每天最少 20px,viewport 不夠寬時 grid 會超出讓
-        // 外層 overflow-x-auto 觸發水平捲動(支援「向右延伸」)。
-        const MIN_DAY_PX = 20;
-        const gridCols = `display:grid;grid-template-columns:repeat(${totalDays}, minmax(${MIN_DAY_PX}px, 1fr));`;
-        // 整個 gantt 至少要這麼寬,讓左側 timeProject(w-52)+ dateRange(w-44)
-        // 永遠跟右側 grid 一起捲動,維持對齊
-        const LEFT_PANEL_PX = 208 + 176;   // w-52(13rem)+ w-44(11rem)
-        const minTotalPx = LEFT_PANEL_PX + totalDays * MIN_DAY_PX;
-        const headerCells = months.map(m =>
-            `<div class="text-xs font-mono text-slate-700 font-semibold text-left py-2 px-2 border-r border-slate-300"
-                  style="grid-column: span ${m.days}">${m.label}</div>`
-        ).join('');
+        // 視圖各自的最小欄寬
+        const MIN_COL_PX = _tsView === 'day' ? 64 : (_tsView === 'week' ? 160 : 240);
+        const LEFT_W_NAME = 224, LEFT_W_STATUS = 110, LEFT_W_OWNER = 110, LEFT_W_PROGRESS = 80;
+        const LEFT_PANEL_PX = LEFT_W_NAME + LEFT_W_STATUS + LEFT_W_OWNER + LEFT_W_PROGRESS;
 
-        // 每日序號列:每天一個 grid cell,文字依步進顯示;月初一律 bold +
-        // 加左邊框作為「月份分隔線」(跟上方月份 border-r 對齊在同一像素)
-        const stepDays = totalDays <= 60 ? 1 : (totalDays <= 180 ? 5 : 10);
-        const dayTicks = [];
-        for (let dayIdx = 0; dayIdx < totalDays; dayIdx++) {
-            const dt = new Date(vStart.getTime() + dayIdx * msPerDay);
-            const dom = dt.getDate();
-            const isMonthStart = (dom === 1);
-            const show = isMonthStart || (dayIdx % stepDays === 0);
-            const cls = isMonthStart
-                ? 'text-[10px] font-bold text-slate-700'
-                : 'text-[10px] font-mono text-slate-400';
-            // 月初左邊框跟上方月份 border-r 接在同一條 vertical line
-            const borderCls = isMonthStart ? 'border-l border-slate-300' : '';
-            dayTicks.push(
-                `<div class="text-left leading-tight pl-1 ${borderCls}" style="grid-column: span 1">
-                    ${show ? `<span class="${cls}">${dom}</span>` : ''}
-                </div>`
-            );
-        }
+        const cols = _tsBuildColumns(vStart, vEnd);
+        const totalCols = cols.length;
+        const gridCols = `display:grid;grid-template-columns:repeat(${totalCols}, minmax(${MIN_COL_PX}px, 1fr));`;
+        const minTotalPx = LEFT_PANEL_PX + totalCols * MIN_COL_PX;
 
-        // 排序:by start_date asc
-        const sorted = [..._tsRows].sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
+        const headerCells = cols.map(c => {
+            const todayCls = c.isToday ? 'bg-amber-50/60' : '';
+            const weekendCls = c.isWeekend ? 'bg-slate-50/40' : '';
+            return `<div class="text-center py-2 border-r border-slate-200 ${todayCls} ${weekendCls}" style="grid-column: span 1">
+                <div class="text-[10px] text-slate-500">${c.label1}</div>
+                <div class="text-sm font-semibold text-slate-700 leading-tight">${c.label2}</div>
+                ${c.label3 ? `<div class="text-[10px] ${c.isWeekend ? 'text-rose-500' : 'text-slate-400'} mt-0.5">${c.label3}</div>` : ''}
+            </div>`;
+        }).join('');
+
+        // 套用搜尋 + 狀態 filter
+        const searchKw = (document.getElementById('tsSearch')?.value || '').trim().toLowerCase();
+        const statusFilter = document.getElementById('tsStatusFilter')?.value || '';
+
+        // 加 _eff(實際狀態)→ filter → 排序
+        const sorted = [..._tsRows]
+            .map(s => ({ ...s, _eff: _tsEffectiveStatus(s) }))
+            .filter(s => {
+                if (statusFilter === '__overdue') { if (s._eff !== 'Overdue') return false; }
+                else if (statusFilter && s.status !== statusFilter) return false;
+                if (searchKw) {
+                    const hay = ((s.name||'') + ' ' + (s.assigned_to||'')).toLowerCase();
+                    if (!hay.includes(searchKw)) return false;
+                }
+                return true;
+            })
+            .sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
+
         const rows = sorted.map(s => {
             const sStart = new Date(s.start_date);
             const sEnd = new Date(s.end_date);
-            // 截到 viewport 範圍內
+            const sEndExclusive = new Date(sEnd.getTime() + msPerDay);
             const clipStart = sStart < vStart ? vStart : sStart;
-            const clipEnd = sEnd > vEnd ? vEnd : sEnd;
-            const visible = clipEnd >= vStart && clipStart <= vEnd;
-            const offsetDays = Math.max(0, Math.round((clipStart - vStart) / msPerDay));
-            const durationDays = Math.max(1, Math.round((clipEnd - clipStart) / msPerDay) + 1);
-            const offsetPct = (offsetDays / totalDays) * 100;
-            const widthPct = (durationDays / totalDays) * 100;
-            const barBg = _TS_BAR_BG[s.color] || 'bg-blue-500';
-            const statusPill = _TS_STATUS_PILL[s.status] || 'bg-slate-100 text-slate-700';
-            const statusZh = _TS_STATUS_ZH[s.status] || s.status;
+            const clipEnd = sEndExclusive > vEnd ? vEnd : sEndExclusive;
+            const visible = clipEnd > vStart && clipStart < vEnd;
+            const offsetPct = visible ? Math.max(0, (clipStart - vStart) / totalMs * 100) : 0;
+            const widthPct  = visible ? Math.max(0, (clipEnd - clipStart) / totalMs * 100) : 0;
+            const eff = s._eff;
+            const barBg = _TS_BAR_BG[eff] || 'bg-blue-500';
+            const statusPill = _TS_STATUS_PILL[eff] || _TS_STATUS_PILL.Todo;
+            const statusIcon = _TS_STATUS_ICON[eff] || _TS_STATUS_ICON.Todo;
+            const statusZh = _TS_STATUS_ZH[eff] || eff;
             const assignee = s.assigned_to || '未指派';
-            // todo 來源:點 row 跳到該 todo 的 detail modal;test_schedule 自己的還是走 ts edit
-            const clickHandler = s._src === 'todo'
-                ? `openTodoDetail('${s._todoId}')`
-                : `openTsEditModal('${s.id}')`;
-            // todo bar 用 blue,加 fa-clipboard-list icon 區別兩種來源
-            const srcBadge = s._src === 'todo'
-                ? '<span class="text-[9px] px-1 py-0 bg-white/30 rounded mr-1 font-mono">TODO</span>'
-                : '';
-            // 計算總天數(含頭尾)— 顯示在日期欄供 user 快速看持續時間
-            const totalSpanDays = Math.max(1, Math.round((sEnd - sStart) / msPerDay) + 1);
+            const progress = (s.progress != null) ? Math.max(0, Math.min(100, s.progress)) : 0;
+            const isTodo = s._src === 'todo';
+            const clickHandler = isTodo ? `openTodoDetail('${s._todoId}')` : `openTsEditModal('${s.id}')`;
+            const progressColor =
+                progress >= 100 ? 'text-emerald-600' :
+                progress >= 50 ? 'text-blue-600' :
+                progress > 0 ? 'text-amber-600' : 'text-slate-400';
+            const barLabel = `${s.name}${progress > 0 ? ` (${progress}%)` : ''}`;
+            const srcBadge = isTodo ? '<span class="text-[8px] px-1 py-0 bg-white/30 rounded mr-1 font-mono">TODO</span>' : '';
+
             return `
-                <div class="flex items-stretch border-b border-slate-100 hover:bg-amber-50/30 cursor-pointer"
+                <div class="flex items-stretch border-b border-slate-100 hover:bg-amber-50/20 cursor-pointer"
                      onclick="${clickHandler}">
-                    <!-- 左側 label 區(項目) -->
-                    <div class="w-52 shrink-0 border-r border-slate-200 p-2.5 flex flex-col gap-1">
-                        <div class="text-sm font-semibold text-slate-800 line-clamp-2" title="${escapeHtml(s.name)}">${escapeHtml(s.name)}</div>
-                        <div class="flex items-center gap-2 text-[10px]">
-                            <span class="px-1.5 py-0.5 ${statusPill} rounded font-medium">${statusZh}</span>
-                            <span class="text-slate-500"><i class="fa-regular fa-user mr-0.5"></i>${escapeHtml(assignee)}</span>
-                        </div>
+                    <div class="shrink-0 border-r border-slate-200 px-3 py-3 flex flex-col gap-1 justify-center" style="width:${LEFT_W_NAME}px">
+                        <div class="text-sm font-semibold text-slate-800 leading-tight line-clamp-2" title="${escapeHtml(s.name)}">${escapeHtml(s.name)}</div>
+                        ${s.description ? `<div class="text-[10px] text-slate-400 truncate leading-tight" title="${escapeHtml(s.description)}">${escapeHtml(s.description)}</div>` : ''}
                     </div>
-                    <!-- 起訖日期欄(v1.1.9+ 加,顯示起訖 + 天數)-->
-                    <div class="w-44 shrink-0 border-r border-slate-200 p-2.5 flex flex-col gap-0.5 text-xs">
-                        <div class="flex items-center gap-1 font-mono text-slate-700">
-                            <i class="fa-regular fa-calendar-plus text-emerald-500 text-[10px]"></i>
-                            <span>${s.start_date}</span>
-                        </div>
-                        <div class="flex items-center gap-1 font-mono text-slate-700">
-                            <i class="fa-regular fa-calendar-check text-rose-500 text-[10px]"></i>
-                            <span>${s.end_date}</span>
-                        </div>
-                        <div class="text-[10px] text-slate-400 mt-0.5">共 ${totalSpanDays} 天</div>
+                    <div class="shrink-0 border-r border-slate-200 px-3 py-3 flex items-center" style="width:${LEFT_W_STATUS}px">
+                        <span class="inline-flex items-center gap-1 px-2 py-1 ${statusPill} rounded-md text-xs font-medium">
+                            <i class="fa-solid ${statusIcon} text-[10px]"></i>${statusZh}
+                        </span>
                     </div>
-                    <!-- 右側 timeline 區 -->
-                    <div class="flex-1 relative" style="min-height:60px">
+                    <div class="shrink-0 border-r border-slate-200 px-3 py-3 flex items-center text-sm text-slate-700" style="width:${LEFT_W_OWNER}px">
+                        <i class="fa-regular fa-user text-slate-400 mr-1 text-xs"></i>
+                        <span class="truncate" title="${escapeHtml(assignee)}">${escapeHtml(assignee)}</span>
+                    </div>
+                    <div class="shrink-0 border-r border-slate-200 px-3 py-3 flex items-center font-mono ${progressColor} font-semibold text-sm" style="width:${LEFT_W_PROGRESS}px">
+                        ${progress}%
+                    </div>
+                    <div class="flex-1 relative" style="min-height:64px">
                         ${visible ? `
-                            <div class="absolute top-3 ${barBg} rounded shadow-sm flex items-center px-2 text-white text-[11px] font-medium overflow-hidden"
-                                 style="left:${offsetPct}%;width:${widthPct}%;min-width:8px;height:24px"
-                                 title="${escapeHtml(s.name)} (${s.start_date} → ${s.end_date})">
-                                ${srcBadge}<span class="truncate">${escapeHtml(s.name)}</span>
-                            </div>` : `
-                            <div class="absolute top-3 left-2 text-[10px] text-slate-400 italic">不在當前範圍 (${s.start_date} → ${s.end_date})</div>`}
+                            <div class="absolute top-1/2 -translate-y-1/2 ${barBg} rounded-md shadow-sm flex items-center px-2 text-white text-xs font-medium overflow-hidden"
+                                 style="left:${offsetPct}%;width:${widthPct}%;min-width:24px;height:26px"
+                                 title="${escapeHtml(s.name)} (${s.start_date} → ${s.end_date}) ${progress}%">
+                                ${srcBadge}<span class="truncate">${escapeHtml(barLabel)}</span>
+                            </div>` : ''}
                     </div>
                 </div>`;
         }).join('');
 
-        // v1.1.9+:外層 min-width 保證 gantt 內所有 row 一起延伸到 totalDays
-        // × MIN_DAY_PX,當 viewport 比這寬度小時觸發水平捲動(用上方 #tsGantt
-        // 的 overflow-x-auto)。
+        // 今日垂直紅虛線 — absolute 疊在右側 timeline 上方
+        const today = new Date(); today.setHours(0,0,0,0);
+        const inViewport = today >= vStart && today < vEnd;
+        const todayPct = inViewport ? ((today - vStart) / totalMs * 100) : -1;
+        const todayLabel = `今日 (${today.getMonth()+1}/${today.getDate()})`;
+        const todayMarker = inViewport ? `
+            <div class="absolute pointer-events-none" style="left:${todayPct}%;top:0;bottom:0;border-left:2px dashed rgb(225 29 72);z-index:5">
+                <div class="absolute -translate-x-1/2 bg-rose-500 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded shadow-sm whitespace-nowrap" style="top:4px;left:0">${todayLabel}</div>
+            </div>` : '';
+
         gantt.innerHTML = `
             <div style="min-width:${minTotalPx}px">
-                <!-- header: 左側固定 label 區 + 起訖日期欄 + 右側 grid(月份 + 每日序號兩列共用同一個 N-col grid) -->
-                <div class="flex flex-col border-b border-slate-200 bg-slate-50/70 sticky top-0 z-10">
-                    <!-- 第一列:項目 / 起訖 / 月份 header -->
-                    <div class="flex">
-                        <div class="w-52 shrink-0 border-r border-slate-200 p-2.5 text-xs font-semibold text-slate-600">
-                            時程項目
-                        </div>
-                        <div class="w-44 shrink-0 border-r border-slate-200 p-2.5 text-xs font-semibold text-slate-600 flex items-center gap-1">
-                            <i class="fa-regular fa-calendar text-slate-500"></i> 起訖日期
-                        </div>
-                        <div class="flex-1" style="${gridCols}">${headerCells}</div>
-                    </div>
-                    <!-- 第二列:每日序號(同一個 N-col grid,絕對與月份對齊) -->
-                    <div class="flex border-t border-slate-200/70 bg-white/60">
-                        <div class="w-52 shrink-0 border-r border-slate-200"></div>
-                        <div class="w-44 shrink-0 border-r border-slate-200"></div>
-                        <div class="flex-1 py-0.5" style="${gridCols}">${dayTicks.join('')}</div>
-                    </div>
+                <div class="flex border-b-2 border-slate-200 bg-slate-50 sticky top-0 z-10">
+                    <div class="shrink-0 border-r border-slate-200 px-3 py-3 text-xs font-semibold text-slate-600 flex items-center" style="width:${LEFT_W_NAME}px">測試任務名稱</div>
+                    <div class="shrink-0 border-r border-slate-200 px-3 py-3 text-xs font-semibold text-slate-600 flex items-center" style="width:${LEFT_W_STATUS}px">狀態</div>
+                    <div class="shrink-0 border-r border-slate-200 px-3 py-3 text-xs font-semibold text-slate-600 flex items-center" style="width:${LEFT_W_OWNER}px">負責人</div>
+                    <div class="shrink-0 border-r border-slate-200 px-3 py-3 text-xs font-semibold text-slate-600 flex items-center" style="width:${LEFT_W_PROGRESS}px">進度</div>
+                    <div class="flex-1" style="${gridCols}">${headerCells}</div>
                 </div>
-                ${rows}
+                <div class="relative">
+                    <div class="absolute flex pointer-events-none" style="top:0;bottom:0;left:0;right:0">
+                        <div class="shrink-0" style="width:${LEFT_PANEL_PX}px"></div>
+                        <div class="flex-1 relative">${todayMarker}</div>
+                    </div>
+                    ${rows}
+                </div>
             </div>`;
     }
-
     // 新增/編輯 modal handlers
     function openTsCreateModal() {
         if (!currentProjectId) {
@@ -22231,6 +22374,8 @@ curl -X POST http://localhost:8000/api/defects \\
         document.getElementById('tsEditAssignee').value = '';
         document.getElementById('tsEditDescription').value = '';
         document.getElementById('tsEditLinkedRound').value = '';
+        document.getElementById('tsEditProgress').value = 0;
+        document.getElementById('tsEditProgressLabel').textContent = '0%';
         _tsLoadOptions();
         document.getElementById('testScheduleModal').classList.remove('hidden');
         setTimeout(() => document.getElementById('tsEditName').focus(), 50);
@@ -22252,6 +22397,9 @@ curl -X POST http://localhost:8000/api/defects \\
         document.getElementById('tsEditStatus').value = _LEGACY_TS[_curStatus] || _curStatus;
         document.getElementById('tsEditColor').value = sched.color || 'amber';
         document.getElementById('tsEditDescription').value = sched.description || '';
+        const progressVal = (sched.progress != null) ? Math.max(0, Math.min(100, sched.progress)) : 0;
+        document.getElementById('tsEditProgress').value = progressVal;
+        document.getElementById('tsEditProgressLabel').textContent = progressVal + '%';
         document.getElementById('testScheduleModal').classList.remove('hidden');
         await _tsLoadOptions();
         document.getElementById('tsEditAssignee').value = sched.assigned_to || '';
@@ -22294,6 +22442,7 @@ curl -X POST http://localhost:8000/api/defects \\
             end_date: end,
             status: document.getElementById('tsEditStatus').value,
             color: document.getElementById('tsEditColor').value,
+            progress: parseInt(document.getElementById('tsEditProgress').value, 10) || 0,
             description: document.getElementById('tsEditDescription').value || null,
             assigned_to: document.getElementById('tsEditAssignee').value || null,
             linked_test_round_id: document.getElementById('tsEditLinkedRound').value || null,
