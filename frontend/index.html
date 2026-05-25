@@ -3978,7 +3978,8 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                     <i class="fa-solid fa-clipboard-list text-4xl mb-3 block"></i>
                     <p>這個專案還沒有待辦項目。點右上「新增待辦」開始追蹤工作。</p>
                 </div>
-                <div id="tkBoard" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+                <!-- Kanban 5 直條:flex 橫向排列,每欄固定最小寬度,寬度不夠時橫向 scroll(別 wrap)-->
+                <div id="tkBoard" class="flex gap-3 overflow-x-auto pb-2">
                     <!-- 5 個 column 由 JS 動態 render;這裡只是 skeleton -->
                 </div>
             </div>
@@ -20122,7 +20123,7 @@ curl -X POST http://localhost:8000/api/defects \\
             const count = cards.length;
             const targetStatus = _TK_COLUMN_TO_STATUS[col.key];
             return `
-                <div class="rounded-lg border ${col.border} shadow-sm flex flex-col min-h-[400px] overflow-hidden bg-white"
+                <div class="rounded-lg border ${col.border} shadow-sm flex flex-col min-h-[500px] overflow-hidden bg-white flex-shrink-0 w-72"
                      data-tk-status="${targetStatus}"
                      ondragover="event.preventDefault(); this.classList.add('ring-2','ring-blue-400')"
                      ondragleave="this.classList.remove('ring-2','ring-blue-400')"
