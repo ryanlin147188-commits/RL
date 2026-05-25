@@ -10782,6 +10782,12 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                         _suppressHashChange = false;
                     }
                     _lastDispatchedHash = targetHash;
+                    // history.replaceState 不會 fire hashchange,nav highlight 不會
+                    // 自動更新 → 切首頁 / 切其他不帶 data-nav-hash 的 view 時,前一
+                    // 個 active button 會卡著高亮。直接 call sync 函式重算一次。
+                    if (typeof window._updateNavActiveHighlight === 'function') {
+                        try { window._updateNavActiveHighlight(); } catch (_) {}
+                    }
                     return ret;
                 };
                 wrapped.__routePatched = true;
@@ -13189,47 +13195,90 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             const WEEKDAYS = ['日','一','二','三','四','五','六'];
             const todayKey = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
 
+            // v1.1.9+:重做成傳統「日曆表」(table-style 6 列 7 行格線),
+            // 每格 ~50px 高,顯示日期 + 第一個事件 title + 多事件 dot 群。
+            // 6 週 × 7 天 = 42 格,夠涵蓋任何月份(下個月日期淡灰顯示)。
+            const prevMonthLast = new Date(year, month, 0).getDate();   // 上月最後一天
+            const totalCells = 42;
             const cells = [];
-            // 前面補空格(讓 firstDay 對齊週幾)
-            for (let i = 0; i < startWeekday; i++) cells.push('<div></div>');
-            for (let d = 1; d <= daysInMonth; d++) {
-                const key = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            for (let i = 0; i < totalCells; i++) {
+                const dayNum = i - startWeekday + 1;   // 該 cell 對應的「本月日」
+                let cellY = year, cellM = month, cellD;
+                let isOtherMonth = false;
+                if (dayNum < 1) {
+                    cellD = prevMonthLast + dayNum;
+                    cellM = month - 1; if (cellM < 0) { cellM = 11; cellY = year - 1; }
+                    isOtherMonth = true;
+                } else if (dayNum > daysInMonth) {
+                    cellD = dayNum - daysInMonth;
+                    cellM = month + 1; if (cellM > 11) { cellM = 0; cellY = year + 1; }
+                    isOtherMonth = true;
+                } else {
+                    cellD = dayNum;
+                }
+                const key = `${cellY}-${String(cellM+1).padStart(2,'0')}-${String(cellD).padStart(2,'0')}`;
                 const events = dayMap[key] || [];
                 const isToday = key === todayKey;
+                const weekday = i % 7;
+                const isWeekend = (weekday === 0 || weekday === 6);
+
+                // 前 3 個事件以 colored dot 顯示;超過顯示 +N
                 const dots = events.slice(0, 3).map(ev =>
                     `<span class="inline-block w-1.5 h-1.5 rounded-full ${COLOR_DOT[ev.color] || 'bg-slate-400'}" title="${escapeHtml(ev.title || '')}"></span>`
                 ).join('');
-                const moreBadge = events.length > 3 ? `<span class="text-[8px] text-stone-400">+${events.length - 3}</span>` : '';
+                const moreBadge = events.length > 3 ? `<span class="text-[8px] text-stone-400 leading-none">+${events.length - 3}</span>` : '';
+                const firstTitle = events.length ? events[0].title : '';
                 const eventTitle = events.length
                     ? events.map(e => (e.kind === 'todo' ? '📋 ' : '📅 ') + (e.title || '')).join('\n')
                     : '';
-                const dayCls = isToday
-                    ? 'bg-blue-500 text-white font-bold'
-                    : (events.length ? 'bg-blue-50/60 hover:bg-blue-100 text-slate-700' : 'hover:bg-slate-50 text-slate-600');
+
+                // 字色
+                let dayNumCls;
+                if (isToday) dayNumCls = 'bg-blue-500 text-white font-bold w-5 h-5 rounded-full flex items-center justify-center text-[10px]';
+                else if (isOtherMonth) dayNumCls = 'text-stone-300';
+                else if (isWeekend) dayNumCls = 'text-rose-500';
+                else dayNumCls = 'text-slate-700';
+
+                // 背景
+                const cellBg = events.length && !isOtherMonth ? 'bg-blue-50/40' : 'bg-white';
+                const hoverBg = events.length ? 'hover:bg-blue-100/60' : 'hover:bg-slate-50';
+                const cellOnClick = events.length ? 'onclick="renderHomeCalendarDay(\'' + key + '\')"' : '';
+
                 cells.push(
-                    '<div class="aspect-square flex flex-col items-center justify-start py-1 px-0.5 rounded text-xs cursor-pointer ' + dayCls + '" ' +
-                    'title="' + escapeHtml(eventTitle) + '" ' +
-                    (events.length ? 'onclick="renderHomeCalendarDay(\'' + key + '\')"' : '') +
-                    '>' +
-                    '  <span>' + d + '</span>' +
-                    '  <span class="flex items-center gap-0.5 mt-0.5">' + dots + moreBadge + '</span>' +
-                    '</div>'
+                    `<div class="border-r border-b border-slate-200 ${cellBg} ${hoverBg} ${events.length ? 'cursor-pointer' : ''} relative flex flex-col p-1" `
+                    + 'title="' + escapeHtml(eventTitle) + '" '
+                    + cellOnClick
+                    + ' style="min-height:48px">'
+                    + `  <div class="${isToday ? '' : 'flex justify-end'}">`
+                    + `    <span class="${dayNumCls}">${cellD}</span>`
+                    + '  </div>'
+                    + (firstTitle && !isOtherMonth
+                        ? `<div class="text-[9px] text-slate-600 truncate leading-tight mt-0.5">${escapeHtml(firstTitle)}</div>`
+                        : '')
+                    + (dots || moreBadge ? `<div class="flex items-center gap-0.5 mt-auto">${dots}${moreBadge}</div>` : '')
+                    + '</div>'
                 );
             }
+
+            const weekdayHeader = WEEKDAYS.map((w, i) => {
+                const cls = (i === 0 || i === 6) ? 'text-rose-500' : 'text-slate-500';
+                return `<div class="border-r border-b border-slate-200 bg-slate-50 text-center py-1.5 text-[11px] font-semibold ${cls}">${w}</div>`;
+            }).join('');
 
             box.innerHTML = `
                 <div class="flex items-center justify-between mb-2 px-1">
                     <span class="text-sm font-semibold text-slate-700">${year} / ${String(month+1).padStart(2,'0')}</span>
-                    <span class="text-[10px] text-stone-400">
-                        <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 mr-0.5"></span>待辦
-                        <span class="inline-block w-1.5 h-1.5 rounded-full bg-blue-500 ml-2 mr-0.5"></span>時程
+                    <span class="text-[10px] text-stone-400 flex items-center gap-2">
+                        <span class="flex items-center gap-0.5"><span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-500"></span>待辦</span>
+                        <span class="flex items-center gap-0.5"><span class="inline-block w-1.5 h-1.5 rounded-full bg-blue-500"></span>時程</span>
+                        <span class="flex items-center gap-0.5"><span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500"></span>已完成</span>
                     </span>
                 </div>
-                <div class="grid grid-cols-7 gap-0.5 text-center text-[10px] font-medium text-stone-400 mb-1">
-                    ${WEEKDAYS.map(w => `<div>${w}</div>`).join('')}
+                <div class="grid grid-cols-7 border-l border-t border-slate-200 rounded overflow-hidden bg-white shadow-sm">
+                    ${weekdayHeader}
+                    ${cells.join('')}
                 </div>
-                <div class="grid grid-cols-7 gap-0.5">${cells.join('')}</div>
-                <div id="homeCalDayDetail" class="mt-2 pt-2 border-t border-slate-100 text-xs text-slate-500 min-h-[1.5rem]">點日期格看當日項目</div>
+                <div id="homeCalDayDetail" class="mt-2 pt-2 border-t border-slate-100 text-xs text-slate-500 min-h-[1.5rem]">點有事件的日期格看當日項目</div>
             `;
         }
 
@@ -22009,32 +22058,38 @@ curl -X POST http://localhost:8000/api/defects \\
             });
             cur = monthEnd;
         }
+        // 月份格 flex 比例純依天數,不設 min-width(避免 viewport 變窄時月份
+        // header 跟下方 absolute-positioned day tick / bar 不同步)。整個
+        // gantt 改為 overflow-x-auto + min-width 套在最外層更好。
         const headerCells = months.map(m =>
             `<div class="text-xs font-mono text-slate-600 text-center py-2 border-r border-slate-200 last:border-r-0"
-                  style="flex:${m.days};min-width:60px">${m.label}</div>`
+                  style="flex:${m.days}">${m.label}</div>`
         ).join('');
 
-        // v1.1.9+:月份下方再加一列「每日序號」(1~31),用 flex 等分每個月
-        // 的天數,跟上方月份對齊。為避免空間爆掉,自動依 totalDays 決定要不要
-        // 顯示(>120 天 viewport 太長就 fallback 為每 5 天標一個刻度)。
-        const showFullDays = totalDays <= 120;
-        const dayHeaderCells = months.map(m => {
-            const inner = [];
-            for (let d = m.startDay; d <= m.endDay; d++) {
-                const visible = showFullDays || (d === 1 || d % 5 === 0 || d === m.endDay);
-                const isWeekend = (() => {
-                    // 用 month 起始日 + (d - startDay) 算出實際 Date 看週幾
-                    const dt = new Date(cur);   // cur 已經 advance 過,改用 segStart 較準
-                    return false;   // 不算 weekend 標色:單純標序號就好
-                })();
-                inner.push(
-                    `<div class="flex-1 text-center text-[9px] font-mono ${visible ? 'text-slate-500' : 'text-slate-200'}"
-                          style="min-width:0">${visible ? d : ''}</div>`
-                );
-            }
-            return `<div class="flex border-r border-slate-200 last:border-r-0"
-                         style="flex:${m.days};min-width:60px">${inner.join('')}</div>`;
-        }).join('');
+        // v1.1.9+:月份下方再加一列「每日序號」(1~31)。
+        // 改用 absolute 定位的 tick(每天一個 label,left = (dayIdx/totalDays)
+        // *100%),確保跟下方 timeline 的 bar 用同一座標系,絕對不會跑掉。
+        // viewport 太長時自動只顯示「每 5 天」+ 月初 1 號,避免文字擠成糊。
+        const stepDays = totalDays <= 60 ? 1 : (totalDays <= 180 ? 5 : 10);
+        const dayTicks = [];
+        for (let dayIdx = 0; dayIdx < totalDays; dayIdx++) {
+            const dt = new Date(vStart.getTime() + dayIdx * msPerDay);
+            const dom = dt.getDate();
+            // 顯示條件:每 stepDays 天標一次 + 月初一號永遠標
+            const show = (dom === 1) || (dayIdx % stepDays === 0);
+            if (!show) continue;
+            const leftPct = (dayIdx / totalDays) * 100;
+            const isMonthStart = (dom === 1);
+            const cls = isMonthStart
+                ? 'text-[9px] font-bold text-slate-600'
+                : 'text-[9px] font-mono text-slate-400';
+            dayTicks.push(
+                `<div class="absolute text-center" style="left:${leftPct}%;width:${100/totalDays}%;min-width:14px;transform:translateX(-50%)">
+                    <div class="${cls}">${dom}</div>
+                </div>`
+            );
+        }
+        const dayHeaderRow = `<div class="relative h-5">${dayTicks.join('')}</div>`;
 
         // 排序:by start_date asc
         const sorted = [..._tsRows].sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
@@ -22112,11 +22167,11 @@ curl -X POST http://localhost:8000/api/defects \\
                     </div>
                     <div class="flex-1 flex">${headerCells}</div>
                 </div>
-                <!-- 第二列:每日序號(每月底下 1~30/31)-->
+                <!-- 第二列:每日序號(absolute 定位 tick,與下方 timeline 同座標系)-->
                 <div class="flex border-t border-slate-200/70 bg-white/60">
                     <div class="w-52 shrink-0 border-r border-slate-200"></div>
                     <div class="w-44 shrink-0 border-r border-slate-200"></div>
-                    <div class="flex-1 flex">${dayHeaderCells}</div>
+                    <div class="flex-1">${dayHeaderRow}</div>
                 </div>
             </div>
             ${rows}`;
