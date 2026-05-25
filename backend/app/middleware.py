@@ -54,6 +54,10 @@ _PUBLIC_PATTERNS: list[re.Pattern] = [
     re.compile(r"^/api/auth/login$"),
     re.compile(r"^/api/auth/refresh$"),
     re.compile(r"^/api/auth/register$"),
+    # v1.1.10 自助註冊重新啟用後加的 verify endpoints(全部匿名)
+    re.compile(r"^/api/auth/register/verify-check$"),
+    re.compile(r"^/api/auth/register/verify$"),
+    re.compile(r"^/api/auth/register/resend-verify$"),
     re.compile(r"^/api/auth/bootstrap-invite$"),
     # Forgot-password 三步流程都需要匿名存取(從 email 連結點進來時還沒登入)
     re.compile(r"^/api/auth/forgot-password$"),

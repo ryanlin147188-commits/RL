@@ -1,5 +1,6 @@
 from .api_key import ApiKey
 from .base import Base
+from .email_verification_token import EmailVerificationToken
 from .defect import Defect, DefectPriority, DefectSeverity, DefectStatus
 from .execution_report import ExecutionReport, ReportStatus
 from .execution_step_log import ExecutionStepLog, StepStatus

@@ -235,6 +235,49 @@ def render_password_reset_email(
     return _PWD_RESET_HTML_ZH.format(**fmt), _PWD_RESET_TEXT_ZH.format(**fmt)
 
 
+# ── v1.1.10 新增:自助註冊驗證信 ────────────────────────────
+_REG_VERIFY_HTML_ZH = """\
+<html><body style="font-family:system-ui,-apple-system,sans-serif;color:#1f2937;max-width:600px">
+<h2 style="color:#d97706">AutoTest 帳號啟用驗證</h2>
+<p>您好 <b>{display_name}</b>,</p>
+<p>感謝您註冊 AutoTest。請點擊下方連結啟用帳號:</p>
+<p><a href="{verify_url}" style="display:inline-block;padding:10px 18px;background:#d97706;color:white;text-decoration:none;border-radius:6px">啟用帳號 →</a></p>
+<p style="color:#6b7280;font-size:12px">連結將於 <b>{expires_at}</b> 過期,且僅可使用一次。</p>
+<p style="color:#6b7280;font-size:12px">啟用後即可登入,但要等管理員指派專案 / 角色才能完整使用平台功能。</p>
+<p style="color:#6b7280;font-size:12px">若連結無法點擊,請複製以下網址至瀏覽器:</p>
+<pre style="background:#f3f4f6;padding:10px;border-radius:6px;font-size:12px;word-break:break-all;white-space:pre-wrap">{verify_url}</pre>
+<hr style="border:none;border-top:1px solid #e5e7eb;margin-top:24px">
+<p style="color:#9ca3af;font-size:11px">若您沒有註冊本帳號,請忽略本信。本信件由 AutoTest 自動發出,請勿直接回覆。</p>
+</body></html>
+"""
+
+_REG_VERIFY_TEXT_ZH = """\
+AutoTest 帳號啟用驗證
+
+您好 {display_name},
+
+感謝您註冊 AutoTest。請點擊下方連結啟用帳號:
+
+{verify_url}
+
+連結將於 {expires_at} 過期,且僅可使用一次。
+啟用後即可登入,但要等管理員指派專案 / 角色才能完整使用平台功能。
+
+若您沒有註冊本帳號,請忽略本信。
+"""
+
+
+def render_registration_verify_email(
+    *,
+    display_name: str,
+    verify_url: str,
+    expires_at: str,
+) -> tuple[str, str]:
+    """Return (html_body, text_body) for the self-registration verify link email."""
+    fmt = {"display_name": display_name, "verify_url": verify_url, "expires_at": expires_at}
+    return _REG_VERIFY_HTML_ZH.format(**fmt), _REG_VERIFY_TEXT_ZH.format(**fmt)
+
+
 def render_notification_email(
     *,
     title: str,

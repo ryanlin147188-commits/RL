@@ -2,7 +2,7 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class LoginRequest(BaseModel):
@@ -113,5 +113,38 @@ class ResetPasswordTokenInfo(BaseModel):
     不洩露 username,避免 token 流出後別人能拼湊出帳號名。"""
     valid: bool
     expires_at: Optional[datetime] = None
+
+
+# ── 自助註冊(v1.1.10 重新啟用)──────────────────────────────────
+class RegisterRequest(BaseModel):
+    """匿名 user 自助註冊。
+
+    Backend 永遠不洩露「該 username / email 是否已存在」(避免帳號 enumeration)
+    — username 衝突就 raise 409,但 email 衝突 silently 不建 row 直接回成功。
+    """
+    username: str = Field(..., min_length=3, max_length=80,
+                          pattern=r"^[A-Za-z0-9_.\-]+$")
+    password: str = Field(..., min_length=6, max_length=200)
+    display_name: str = Field(..., min_length=1, max_length=120)
+    email: str = Field(..., min_length=3, max_length=255)
+
+
+class RegisterResponse(BaseModel):
+    sent: bool = True
+    message: str = "驗證信已寄出,請收信並點連結啟用帳號"
+
+
+class VerifyTokenRequest(BaseModel):
+    token: str
+
+
+class VerifyTokenResponse(BaseModel):
+    valid: bool
+    email: Optional[str] = None
+    expires_at: Optional[datetime] = None
+
+
+class ResendVerifyRequest(BaseModel):
+    email: str
 
 

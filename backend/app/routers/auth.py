@@ -43,6 +43,7 @@ from app.auth.security import (
 )
 from app.rate_limit import limiter
 from app.database import get_db
+from app.models.email_verification_token import EmailVerificationToken
 from app.models.org_membership import OrgMembership
 from app.models.organization import Organization
 from app.models.password_reset_token import PasswordResetToken
@@ -54,6 +55,9 @@ from app.schemas.auth import (
     ForgotPasswordResponse,
     LoginRequest,
     RefreshRequest,
+    RegisterRequest,
+    RegisterResponse,
+    ResendVerifyRequest,
     ResetPasswordRequest,
     ResetPasswordTokenInfo,
     TokenResponse,
@@ -62,11 +66,15 @@ from app.schemas.auth import (
     UserResetPasswordRequest,
     UserResponse,
     UserUpdateMeRequest,
+    VerifyTokenRequest,
+    VerifyTokenResponse,
 )
 
 
 # 重置 token 有效期。1 小時是常見、夠寬,且夠短不會堆積過多 dormant token。
 PASSWORD_RESET_TTL_HOURS = 1
+# 註冊驗證 token TTL — email 可能有延遲,所以給 24 小時(比 reset 1 小時長)
+EMAIL_VERIFY_TTL_HOURS = 24
 
 router = APIRouter()
 
@@ -106,25 +114,269 @@ async def login(
     )
 
 
-@router.post("/auth/register", status_code=410, tags=["U · 認證"])
-async def register_disabled(request: Request) -> dict:
-    """自助註冊已停用。
+# ── 自助註冊 + Email 驗證(v1.1.10 重新啟用)──────────────────
+# 流程:
+#   1. POST /auth/register             匿名;建 user (is_active=False) + 寄驗證信
+#   2. GET  /auth/register/verify-check 匿名;前端載入時 ?verify_token= 預檢
+#   3. POST /auth/register/verify      匿名;真的啟用 user
+#   4. POST /auth/register/resend-verify 匿名;重寄驗證信(同 IP rate-limit)
+#
+# Privacy:同 forgot-password 模式 — 永遠回 200 + 通用訊息,不洩露
+# username / email 是否已存在。username 衝突回 409(無法 silent),但
+# email 衝突 silent。
 
-    本系統改為「管理員建立帳號」單一管道,所有使用者一律由 admin 透過
-    `POST /auth/users` 建立。舊的 invite-code / email-domain 自動歸屬流程
-    一併移除,避免任意人寫入 default org 的安全風險。
+@router.post(
+    "/auth/register",
+    response_model=RegisterResponse,
+    status_code=201,
+    tags=["U · 認證"],
+)
+@limiter.limit("10/hour")  # 同 IP 每小時最多 10 次,防爬蟲創帳號
+async def register(
+    request: Request,
+    payload: RegisterRequest,
+    user_manager: UserManager = Depends(get_user_manager),
+    db: AsyncSession = Depends(get_db),
+) -> RegisterResponse:
+    """匿名 user 自助註冊。
 
-    保留此 stub 是為了:
-      * 給舊的 client 一個明確的 410 + JSON 訊息,而不是 404
-      * 在 OpenAPI 文件留一行紀錄,方便讀者知道功能搬到哪裡
+    建 ``users`` row 但 ``is_active=False``,寄一封含 ``/?verify_token=...``
+    的驗證信。User 必須點連結才能啟用帳號;啟用後仍沒有 org/role,要等
+    superuser 在「設定 → 專案協作成員」手動指派。
     """
-    raise HTTPException(
-        status_code=410,
-        detail={
-            "code": "registration_disabled",
-            "message": "自助註冊已停用,請聯絡管理員開設帳號",
-        },
+    import logging
+    logger = logging.getLogger(__name__)
+
+    username = payload.username.strip()
+    email = payload.email.strip().lower()
+    display_name = payload.display_name.strip()
+
+    if "@" not in email:
+        raise HTTPException(422, "Email 格式錯誤")
+
+    # username 衝突 → 直接告知(無法 silent,user 必須改名)
+    existing_username = (
+        await db.execute(select(User).where(User.username == username))
+    ).scalar_one_or_none()
+    if existing_username:
+        raise HTTPException(409, {"code": "username_taken", "message": "帳號已被使用"})
+
+    # email 衝突 → silent(避免帳號探測攻擊)
+    # 不告訴 caller,直接回成功但 row 不建。也不寄信。
+    existing_email = (
+        await db.execute(select(User).where(User.email == email))
+    ).scalar_one_or_none()
+    if existing_email:
+        logger.info("register: email '%s' already taken (silent)", email)
+        return RegisterResponse()
+
+    # 建 user — is_active=False, org/role 都不設(等 admin 指派)
+    new_user = User(
+        id=str(uuid.uuid4()),
+        username=username,
+        email=email,
+        display_name=display_name,
+        password_hash=hash_password(payload.password),
+        is_active=False,            # 直到 verify 才開
+        is_superuser=False,
+        must_change_password=False, # 自己設的密碼,不必再 force
+        organization_id=None,       # 待 admin 指派
+        role_id=None,
     )
+    db.add(new_user)
+    await db.flush()
+
+    # mint verification token
+    token_value = secrets.token_urlsafe(32)
+    expires_at = datetime.utcnow() + timedelta(hours=EMAIL_VERIFY_TTL_HOURS)
+    client_ip = request.client.host if request.client else None
+    db.add(EmailVerificationToken(
+        token=token_value,
+        user_id=new_user.id,
+        email_sent_to=email,
+        expires_at=expires_at,
+        requested_ip=client_ip,
+    ))
+    await db.commit()
+
+    # 寄信(透過 Celery,失敗不影響 register 回應)
+    try:
+        from app.services.email_service import render_registration_verify_email
+        from tasks.email_tasks import send_email_task
+
+        verify_url = (
+            f"{request.url.scheme}://{request.url.netloc}/?verify_token={token_value}"
+        )
+        html_body, text_body = render_registration_verify_email(
+            display_name=display_name,
+            verify_url=verify_url,
+            expires_at=expires_at.strftime("%Y-%m-%d %H:%M UTC"),
+        )
+        send_email_task.delay(
+            to=email,
+            subject="AutoTest 帳號啟用驗證",
+            html_body=html_body,
+            text_body=text_body,
+            organization_id=None,   # 新 user 還沒 org
+        )
+        logger.info(
+            "register: token=%s issued for new user=%s ip=%s",
+            token_value[:8] + "...", username, client_ip,
+        )
+    except Exception:  # noqa: BLE001
+        logger.exception(
+            "register: token saved but email enqueue failed for %s", username,
+        )
+
+    return RegisterResponse()
+
+
+@router.get(
+    "/auth/register/verify-check",
+    response_model=VerifyTokenResponse,
+    tags=["U · 認證"],
+)
+async def register_verify_check(
+    token: str,
+    db: AsyncSession = Depends(get_db),
+) -> VerifyTokenResponse:
+    """前端載入 ``/?verify_token=...`` 後先打這支看 token 還有效嗎,避免使用者
+    白等 toast 才告訴他過期。"""
+    if not token:
+        return VerifyTokenResponse(valid=False)
+    evt = (
+        await db.execute(
+            select(EmailVerificationToken).where(EmailVerificationToken.token == token)
+        )
+    ).scalar_one_or_none()
+    if not evt or evt.used_at is not None or evt.expires_at < datetime.utcnow():
+        return VerifyTokenResponse(valid=False)
+    return VerifyTokenResponse(
+        valid=True, email=evt.email_sent_to, expires_at=evt.expires_at,
+    )
+
+
+@router.post(
+    "/auth/register/verify",
+    tags=["U · 認證"],
+)
+@limiter.limit("20/hour")  # 防暴力猜 token
+async def register_verify(
+    request: Request,
+    payload: VerifyTokenRequest,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """以 token 啟用對應的 user(``is_active=True``)。"""
+    if not payload.token:
+        raise HTTPException(400, "缺少 token")
+
+    evt = (
+        await db.execute(
+            select(EmailVerificationToken).where(EmailVerificationToken.token == payload.token)
+        )
+    ).scalar_one_or_none()
+    if not evt:
+        raise HTTPException(400, "驗證連結無效")
+    if evt.used_at is not None:
+        raise HTTPException(400, "驗證連結已被使用")
+    if evt.expires_at < datetime.utcnow():
+        raise HTTPException(400, "驗證連結已過期,請重新註冊或請管理員協助")
+
+    user = await db.get(User, evt.user_id)
+    if not user:
+        evt.used_at = datetime.utcnow()
+        await db.flush()
+        raise HTTPException(400, "對應帳號已不存在")
+
+    user.is_active = True
+    evt.used_at = datetime.utcnow()
+    # 同 user 的其他未使用 token 一併失效(避免外洩 token 又被用)
+    other_active = (
+        await db.execute(
+            select(EmailVerificationToken)
+            .where(EmailVerificationToken.user_id == user.id)
+            .where(EmailVerificationToken.id != evt.id)
+            .where(EmailVerificationToken.used_at.is_(None))
+        )
+    ).scalars().all()
+    for t in other_active:
+        t.used_at = datetime.utcnow()
+    await db.flush()
+
+    return {"ok": True, "username": user.username}
+
+
+@router.post(
+    "/auth/register/resend-verify",
+    response_model=RegisterResponse,
+    tags=["U · 認證"],
+)
+@limiter.limit("3/hour")  # 防被當寄信跳板
+async def register_resend_verify(
+    request: Request,
+    payload: ResendVerifyRequest,
+    db: AsyncSession = Depends(get_db),
+) -> RegisterResponse:
+    """重寄驗證信。永遠回 200(不洩露 email 存在),失敗 silent。"""
+    import logging
+    logger = logging.getLogger(__name__)
+
+    email = payload.email.strip().lower()
+    if "@" not in email:
+        return RegisterResponse()
+
+    user = (
+        await db.execute(
+            select(User)
+            .where(User.email == email)
+            .where(User.is_active.is_(False))
+        )
+    ).scalar_one_or_none()
+    if not user:
+        # 不存在 / 已啟用 → silent
+        logger.info("resend-verify: no inactive user for email %s", email)
+        return RegisterResponse()
+
+    # 撤掉舊 token,發新的
+    from sqlalchemy import delete as sql_delete
+    await db.execute(
+        sql_delete(EmailVerificationToken).where(EmailVerificationToken.user_id == user.id)
+    )
+    token_value = secrets.token_urlsafe(32)
+    expires_at = datetime.utcnow() + timedelta(hours=EMAIL_VERIFY_TTL_HOURS)
+    client_ip = request.client.host if request.client else None
+    db.add(EmailVerificationToken(
+        token=token_value,
+        user_id=user.id,
+        email_sent_to=email,
+        expires_at=expires_at,
+        requested_ip=client_ip,
+    ))
+    await db.commit()
+
+    try:
+        from app.services.email_service import render_registration_verify_email
+        from tasks.email_tasks import send_email_task
+
+        verify_url = (
+            f"{request.url.scheme}://{request.url.netloc}/?verify_token={token_value}"
+        )
+        html_body, text_body = render_registration_verify_email(
+            display_name=user.display_name or user.username,
+            verify_url=verify_url,
+            expires_at=expires_at.strftime("%Y-%m-%d %H:%M UTC"),
+        )
+        send_email_task.delay(
+            to=email,
+            subject="AutoTest 帳號啟用驗證(重寄)",
+            html_body=html_body,
+            text_body=text_body,
+            organization_id=None,
+        )
+    except Exception:  # noqa: BLE001
+        logger.exception("resend-verify: email enqueue failed for %s", email)
+
+    return RegisterResponse()
 
 
 # ── 忘記密碼:三步流程 ────────────────────────────────────────────────────

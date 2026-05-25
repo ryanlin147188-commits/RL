@@ -639,7 +639,9 @@
         (function () {
             try {
                 var hasReset = /[?&]reset_token=/.test(window.location.search || '');
-                if (hasReset) {
+                // v1.1.10:?verify_token=... 註冊驗證信點進來同樣不能跳過 overlay
+                var hasVerify = /[?&]verify_token=/.test(window.location.search || '');
+                if (hasReset || hasVerify) {
                     document.documentElement.setAttribute('data-auth', 'out');
                     return;
                 }
@@ -694,11 +696,15 @@
                 <p id="authHeroSubtitle" class="text-sm opacity-90 mt-2">歡迎回來，請登入以繼續</p>
             </div>
 
-            <!-- Tab 切換 -->
+            <!-- Tab 切換(v1.1.10:加入「建立帳號」) -->
             <div class="flex border-b border-stone-200 bg-stone-50/50">
                 <button type="button" id="authTabLogin" onclick="switchAuthTab('login')"
                     class="flex-1 py-3 text-sm font-medium text-amber-600 border-b-2 border-amber-500 bg-white transition">
                     <i class="fa-solid fa-right-to-bracket mr-1"></i> 登入
+                </button>
+                <button type="button" id="authTabRegister" onclick="switchAuthTab('register')"
+                    class="flex-1 py-3 text-sm font-medium text-stone-500 border-b-2 border-transparent hover:text-amber-600 transition">
+                    <i class="fa-solid fa-user-plus mr-1"></i> 建立帳號
                 </button>
                 <button type="button" id="authTabForgot" onclick="switchAuthTab('forgot')"
                     class="flex-1 py-3 text-sm font-medium text-stone-500 border-b-2 border-transparent hover:text-amber-600 transition">
@@ -765,7 +771,62 @@
                 </button>
             </div>
 
-            <!-- 註冊表單已下架:本系統禁止自助註冊,所有帳號由管理員建立。 -->
+            <!-- 註冊表單(v1.1.10 重新啟用,需 email 驗證才能登入) -->
+            <form id="authRegisterForm" onsubmit="return authHandleRegister(event)" class="px-8 py-6 space-y-4 hidden">
+                <p class="text-xs text-stone-600 bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
+                    <i class="fa-solid fa-circle-info text-amber-500 mt-0.5"></i>
+                    <span>建立帳號後會寄一封驗證信到您的 Email,點信內連結啟用帳號才能登入。啟用後需請管理員指派專案 / 角色才能完整使用平台。</span>
+                </p>
+                <div>
+                    <label for="regDisplayName" class="block text-xs font-semibold text-stone-600 mb-1.5">使用者名稱</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-id-card absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm"></i>
+                        <input type="text" id="regDisplayName" required maxlength="120" autocomplete="name"
+                            placeholder="顯示在介面上的名字(可中文)"
+                            class="w-full pl-9 pr-3 py-2.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition">
+                    </div>
+                </div>
+                <div>
+                    <label for="regEmail" class="block text-xs font-semibold text-stone-600 mb-1.5">電子信箱</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-envelope absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm"></i>
+                        <input type="email" id="regEmail" required maxlength="255" autocomplete="email"
+                            placeholder="you@example.com"
+                            class="w-full pl-9 pr-3 py-2.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition">
+                    </div>
+                </div>
+                <div>
+                    <label for="regUsername" class="block text-xs font-semibold text-stone-600 mb-1.5">帳號</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-user absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm"></i>
+                        <input type="text" id="regUsername" required minlength="3" maxlength="80"
+                            pattern="[A-Za-z0-9_.\-]+" autocomplete="username"
+                            placeholder="只能用英數字 / _ / . / -"
+                            title="3-80 字元,只能用英數字 / 底線 / 點 / 連字號"
+                            class="w-full pl-9 pr-3 py-2.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition">
+                    </div>
+                    <p class="text-[10px] text-stone-500 mt-1">登入用,3-80 字元,不能用中文或空格</p>
+                </div>
+                <div>
+                    <label for="regPassword" class="block text-xs font-semibold text-stone-600 mb-1.5">密碼</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-lock absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm"></i>
+                        <input type="password" id="regPassword" required minlength="6" autocomplete="new-password"
+                            class="w-full pl-9 pr-10 py-2.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition">
+                        <button type="button" onclick="togglePasswordVisibility('regPassword', this)" aria-label="顯示/隱藏密碼"
+                            class="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-stone-400 hover:text-amber-500 transition">
+                            <i class="fa-regular fa-eye"></i>
+                        </button>
+                    </div>
+                    <p class="text-[10px] text-stone-500 mt-1">至少 6 個字元</p>
+                </div>
+                <button type="submit" id="authRegisterSubmitBtn" class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-lg font-semibold text-sm shadow-md transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-user-plus"></i> 建立帳號
+                </button>
+                <div id="authRegisterSentNote" class="hidden text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded p-3">
+                    <i class="fa-solid fa-circle-check"></i> 驗證信已寄出,請至信箱點連結啟用帳號(連結 24 小時內有效)。
+                </div>
+            </form>
 
             <!-- 忘記密碼表單(寄重置連結到 email) -->
             <form id="authForgotForm" onsubmit="return authHandleForgot(event)" class="px-8 py-6 space-y-4 hidden">
@@ -10373,6 +10434,15 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             try { _maybeShowOidcError(); } catch (_) {}
             // 第一步：檢查登入狀態。未登入 → 顯示認證覆蓋層並停止初始化。
             authBootstrap();
+            // v1.1.10:URL 帶 ?verify_token=... → 從註冊驗證信點進來的,
+            // 啟用帳號後直接停留在登入頁讓 user 登入(不繼續 OIDC hydrate 流程)。
+            try {
+                const handled = await _maybeHandleVerifyToken();
+                if (handled) {
+                    _maybeShowZohoButton().catch(() => {});
+                    return;
+                }
+            } catch (_) {}
             // v1.1.5:從 OIDC(Zoho)callback 回來時 URL 帶 ``#oidc_login=1``,
             // 沒有 localStorage token 但有 httpOnly cookie。hydrate 成功就視同
             // 已登入;失敗則 fall through 到原本的 authIsLoggedIn 檢查。
@@ -11018,8 +11088,8 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         }
 
         function switchAuthTab(tab) {
-            // 'register' tab 已下架(改由管理員建立帳號)。
-            const tabs = ['login', 'forgot'];
+            // v1.1.10:'register' 重新啟用(email 驗證才能登入)。
+            const tabs = ['login', 'register', 'forgot'];
             if (!tabs.includes(tab)) tab = 'login';
             tabs.forEach(t => {
                 const btn = document.getElementById('authTab' + t.charAt(0).toUpperCase() + t.slice(1));
@@ -11036,10 +11106,10 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             const subtitle = document.getElementById('authHeroSubtitle');
             if (subtitle) {
                 if (tab === 'login') subtitle.textContent = '歡迎回來，請登入以繼續';
+                else if (tab === 'register') subtitle.textContent = '建立新帳號,加入 AutoTest';
                 else if (tab === 'forgot') subtitle.textContent = '沒關係，我們來幫你重設密碼';
             }
-            // SSO (Zoho) 區塊只在「登入」分頁顯示;切到「忘記密碼」時隱藏。
-            // 切回「登入」時若後端有 enabled,由 _maybeShowZohoButton 重新解 hidden。
+            // SSO (Zoho) 區塊只在「登入」分頁顯示;切到其他 tab 時隱藏。
             const oidc = document.getElementById('oidcBlock');
             if (oidc) {
                 if (tab === 'login') {
@@ -11047,6 +11117,117 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 } else {
                     oidc.classList.add('hidden');
                 }
+            }
+        }
+
+        // v1.1.10:自助註冊
+        async function authHandleRegister(ev) {
+            ev.preventDefault();
+            const displayName = document.getElementById('regDisplayName').value.trim();
+            const email = document.getElementById('regEmail').value.trim();
+            const username = document.getElementById('regUsername').value.trim();
+            const password = document.getElementById('regPassword').value;
+            if (!displayName) return showToast('請填使用者名稱', 'error');
+            if (!email.includes('@')) return showToast('Email 格式錯誤', 'error');
+            if (!/^[A-Za-z0-9_.\-]+$/.test(username)) return showToast('帳號只能用英數字 / _ / . / -', 'error');
+            if (username.length < 3) return showToast('帳號至少 3 字元', 'error');
+            if (password.length < 6) return showToast('密碼至少 6 字元', 'error');
+
+            const btn = document.getElementById('authRegisterSubmitBtn');
+            const oldHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 處理中…';
+            try {
+                const r = await window.fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        display_name: displayName, email, username, password,
+                    }),
+                });
+                const data = await r.json().catch(() => ({}));
+                if (!r.ok) {
+                    // 409 username_taken;422 等驗證錯誤;429 rate-limited
+                    let msg = '註冊失敗';
+                    if (r.status === 409) msg = '帳號已被使用,請換一個';
+                    else if (r.status === 429) msg = '太多次了,請稍候再試';
+                    else if (data && data.detail) {
+                        msg = typeof data.detail === 'string' ? data.detail
+                            : (data.detail.message || msg);
+                    }
+                    showToast(msg, 'error', 4000);
+                    return;
+                }
+                // 成功 → 顯示綠色訊息 + 自動帶 username 到登入 tab
+                const note = document.getElementById('authRegisterSentNote');
+                if (note) note.classList.remove('hidden');
+                showToast('驗證信已寄出,請收信並點連結啟用帳號', 'success', 5000);
+                setTimeout(() => {
+                    switchAuthTab('login');
+                    const uIn = document.getElementById('loginUsername');
+                    if (uIn) uIn.value = username;
+                    const pIn = document.getElementById('loginPassword');
+                    if (pIn) pIn.focus();
+                }, 1500);
+            } catch (e) {
+                showToast('連線失敗:' + (e.message || e), 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = oldHtml;
+            }
+        }
+
+        // v1.1.10:處理 ``?verify_token=...`` URL param(從註冊驗證信點連結進來)
+        async function _maybeHandleVerifyToken() {
+            const params = new URLSearchParams(location.search);
+            const token = params.get('verify_token');
+            if (!token) return false;
+            // 清掉 URL 上的 token,避免 reload 時又跑一次 + 不洩漏到歷史紀錄
+            try {
+                const qs = new URLSearchParams(location.search);
+                qs.delete('verify_token');
+                const newSearch = qs.toString();
+                const newUrl = location.pathname + (newSearch ? '?' + newSearch : '') + location.hash;
+                history.replaceState(null, '', newUrl);
+            } catch (_) {}
+
+            // Step 1:預檢 token 還有效嗎
+            try {
+                const r = await window.fetch(`/api/auth/register/verify-check?token=${encodeURIComponent(token)}`);
+                const d = await r.json().catch(() => ({}));
+                if (!r.ok || !d.valid) {
+                    showToast('驗證連結無效或已過期,請重新註冊或請管理員協助', 'error', 6000);
+                    return false;
+                }
+            } catch (_) {
+                showToast('連線失敗,請稍後再試', 'error');
+                return false;
+            }
+
+            // Step 2:真的啟用
+            try {
+                const r2 = await window.fetch('/api/auth/register/verify', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ token }),
+                });
+                if (!r2.ok) {
+                    showToast('啟用失敗,請重試或聯絡管理員', 'error', 5000);
+                    return false;
+                }
+                const d2 = await r2.json().catch(() => ({}));
+                showToast('帳號已啟用,請輸入帳號密碼登入', 'success', 5000);
+                switchAuthTab('login');
+                if (d2 && d2.username) {
+                    const uIn = document.getElementById('loginUsername');
+                    if (uIn) uIn.value = d2.username;
+                    const pIn = document.getElementById('loginPassword');
+                    if (pIn) pIn.focus();
+                }
+                return true;
+            } catch (e) {
+                showToast('啟用失敗:' + (e.message || e), 'error');
+                return false;
             }
         }
 

@@ -16,6 +16,19 @@ routes:
   - match: { path: /api/auth/login, methods: [POST] }
     rate_limit: 100/minute      # 暴力破解保護,但 dev 反覆試密碼 OK
     circuit_group: auth
+  # v1.1.10 自助註冊 + email verify(4 條)
+  - match: { path: /api/auth/register, methods: [POST] }
+    rate_limit: 10/hour         # 防爬蟲創帳號
+    circuit_group: auth
+  - match: { path: /api/auth/register/verify-check, methods: [GET] }
+    rate_limit: 60/minute       # 前端載入會打,放寬
+    circuit_group: auth
+  - match: { path: /api/auth/register/verify, methods: [POST] }
+    rate_limit: 20/hour         # 防暴力猜 token
+    circuit_group: auth
+  - match: { path: /api/auth/register/resend-verify, methods: [POST] }
+    rate_limit: 3/hour          # 防被當寄信跳板
+    circuit_group: auth
   - match: { path: /api/auth/forgot-password, methods: [POST] }
     rate_limit: 20/hour         # 同 IP 每小時 20 次寄信
     circuit_group: auth

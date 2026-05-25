@@ -44,6 +44,10 @@ _PUBLIC_PATTERNS: list[re.Pattern] = [
     re.compile(r"^/api/auth/login$"),
     re.compile(r"^/api/auth/refresh$"),
     re.compile(r"^/api/auth/register$"),
+    # v1.1.10 自助註冊 verify endpoints — 跟 backend middleware.py 對齊
+    re.compile(r"^/api/auth/register/verify-check$"),
+    re.compile(r"^/api/auth/register/verify$"),
+    re.compile(r"^/api/auth/register/resend-verify$"),
     re.compile(r"^/api/auth/bootstrap-invite$"),
     re.compile(r"^/api/auth/forgot-password$"),
     re.compile(r"^/api/auth/reset-password$"),
