@@ -3,7 +3,7 @@
 > **一套 self-hosted 的測試自動化平台，內建 BDD 案例編輯器、多模式錄製器、Robot Framework + Playwright 執行引擎、缺陷管理、測試看版與測試時程——全部裝在一份 Docker Compose 裡。**
 > Apache 2.0，完全跑在你自己的網路內，無授權費、無按人收費、無 telemetry。
 
-[![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](LICENSES.md)
+[![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](LICENSE)
 [![Robot Framework](https://img.shields.io/badge/Engine-Robot%20Framework%207.x-blue.svg)](https://robotframework.org/)
 [![Docker](https://img.shields.io/badge/Deploy-Docker%20Compose-2496ED.svg)](https://docs.docker.com/compose/)
 [![Stack](https://img.shields.io/badge/Stack-FastAPI%20%2B%20PostgreSQL%20%2B%20SeaweedFS-0a7e07.svg)](#技術架構)
@@ -259,7 +259,17 @@ nginx 設定已預留 443 port，掛上你的 TLS 憑證即可。frontend image 
 
 ## 授權
 
-Apache License 2.0。完整條文與第三方相依授權見 [LICENSES.md](LICENSES.md)。
+本專案採用 **Apache License 2.0**。完整條文見 [LICENSE](LICENSE)（授權正本）與 [NOTICE](NOTICE)（必要 attribution）。第三方相依套件的授權整理與 SaaS 商用稽核見 [LICENSES.md](LICENSES.md)。
+
+```
+Copyright 2026 Ryan Lin (Kapito)
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+```
 
 ---
 

@@ -8,8 +8,10 @@
 |---|---|
 | [README.md](README.md) | 平台介紹、快速開始、v1.1.9 功能一覽、技術架構、安全強化、FAQ |
 | [操作說明.md](操作說明.md) | 完整使用者操作手冊（13 個分頁的功能對照 + CI/CD 整合範例） |
-| [SECURITY.md](SECURITY.md) | 安全漏洞回報政策、OIDC 強化、自架部署安全建議 |
+| [LICENSE](LICENSE) | 軟體授權正本（Apache License, Version 2.0） |
+| [NOTICE](NOTICE) | Apache 2.0 必要 attribution、第三方相依套件條列 |
 | [LICENSES.md](LICENSES.md) | 第三方授權與 SaaS 商業使用稽核（60+ 元件） |
+| [SECURITY.md](SECURITY.md) | 安全漏洞回報政策、OIDC 強化、自架部署安全建議 |
 | [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) | 貢獻者行為準則 |
 
 ## 營運文件
