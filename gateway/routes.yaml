@@ -8,29 +8,28 @@ upstream:
   backend: http://backend:8000
 
 # 預設限速(沒 match 到 per-route override 都吃這條)
-default_rate_limit: 600/minute
+# v1.1.10:user 反映 dev 期間容易撞 — 全面放寬到「能擋掉惡意爬蟲,但 dev 用
+# 不到的等級」。改 routes.yaml 後 docker compose restart gateway 即可。
+default_rate_limit: 2000/minute
 
-# Per-route 限速 + 熔斷分組
-# match.path:exact 或 prefix(後綴 / 結尾代表 prefix)
-# methods:限定 HTTP method;留空 = 所有 method
 routes:
   - match: { path: /api/auth/login, methods: [POST] }
-    rate_limit: 30/minute       # 防暴力破解,但 dev 偶爾打錯不會卡死
+    rate_limit: 100/minute      # 暴力破解保護,但 dev 反覆試密碼 OK
     circuit_group: auth
   - match: { path: /api/auth/forgot-password, methods: [POST] }
-    rate_limit: 5/hour          # 防被當寄信跳板
+    rate_limit: 20/hour         # 同 IP 每小時 20 次寄信
     circuit_group: auth
   - match: { path: /api/auth/reset-password, methods: [POST] }
-    rate_limit: 10/hour
+    rate_limit: 30/hour
     circuit_group: auth
   - match: { path: /api/auth/refresh, methods: [POST] }
-    rate_limit: 120/minute      # SPA 自動 refresh 不能被卡
+    rate_limit: 300/minute      # SPA 自動 refresh 完全不卡
     circuit_group: auth
   - match: { path: /api/executions, methods: [POST] }
-    rate_limit: 60/minute       # 觸發測試執行
+    rate_limit: 120/minute
     circuit_group: executions
   - match: { path: /api/, methods: [] }
-    rate_limit: 600/minute
+    rate_limit: 2000/minute     # 一般 API 流量
     circuit_group: default
 
 # 熔斷器 — 每個 group 一個獨立 breaker

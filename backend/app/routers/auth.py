@@ -72,10 +72,9 @@ router = APIRouter()
 
 
 @router.post("/auth/login", response_model=TokenResponse, tags=["U · 認證"])
-# v1.1.10:gateway 已用 routes.yaml 設 30/minute 作主擋。backend 本層作 defense in
-# depth,把 limit 拉到 60/minute(2 倍 gateway 值),只擋「繞過 gateway 直打 backend」
-# 的攻擊。日常使用瀏覽器流量會被 gateway 30/min 先攔。
-@limiter.limit("60/minute")
+# v1.1.10:gateway routes.yaml 主擋 100/minute,backend 這層放寬到 200/minute
+# 只擋「繞過 gateway 直打 backend」的攻擊。日常瀏覽器流量被 gateway 先攔。
+@limiter.limit("200/minute")
 async def login(
     request: Request,
     payload: LoginRequest,
