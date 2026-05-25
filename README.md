@@ -1,4 +1,4 @@
-# AutoTest — 自架自動化測試平台
+# RL — 自架自動化測試平台
 
 > **Apache 2.0 開源、完全 self-hosted、可直接用於商業環境**
 > 一份 `docker compose up` 就能跑起來的測試平台:BDD 案例 / 多模式錄製 / Robot Framework + Playwright 執行 / 缺陷管理 / 測試看版 / 跨組織協作。
@@ -10,9 +10,9 @@
 
 ---
 
-## 為什麼選 AutoTest
+## 為什麼選 RL
 
-| 條件 | AutoTest | TestRail / Zephyr / qTest / Jira |
+| 條件 | RL | TestRail / Zephyr / qTest / Jira |
 |---|---|---|
 | 授權費 | **零**(Apache 2.0) | 按人 / 按專案計費 |
 | 部署位置 | **你的伺服器**,完全離線可運作 | SaaS,資料在外部雲端 |
