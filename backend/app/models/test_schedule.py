@@ -71,10 +71,13 @@ class TestSchedule(Assignable, TenantScoped, Base):
     progress: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default="0",
     )
-    # 連結到某個 TestRound(可空)— 把時程跟一輪測試綁,後續可在 TestRun 顯示
-    linked_test_round_id: Mapped[Optional[str]] = mapped_column(
-        String(36), ForeignKey("test_rounds.id", ondelete="SET NULL"), nullable=True, index=True,
-    )
+    # 連結項目(可空)— polymorphic 連結到任一其他 entity:
+    #   linked_target_type ∈ {testcase, report, defect, test_round, project}
+    #   linked_target_id   = 該 entity 的 UUID
+    # 注意:沒掛 ForeignKey(跨多表 polymorphic 不適合 FK)。完整性由 app
+    # 層保證(刪 entity 時前端要清掉這欄,或讓它變孤兒不影響顯示)。
+    linked_target_type: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    linked_target_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow

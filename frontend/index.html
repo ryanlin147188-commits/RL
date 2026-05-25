@@ -1345,7 +1345,7 @@
          ════════════════════════════════════════════════════════════════════ -->
     <div id="testScheduleModal" class="fixed inset-0 bg-slate-900/50 hidden z-[160] flex items-center justify-center"
          onclick="if(event.target===this) closeTsModal()">
-        <div class="bg-white rounded-lg shadow-xl w-[600px] max-w-[95vw] flex flex-col max-h-[90vh]"
+        <div class="bg-white rounded-lg shadow-xl w-[880px] max-w-[95vw] flex flex-col max-h-[90vh]"
              onclick="event.stopPropagation()">
             <div class="p-4 border-b border-slate-200 flex items-center gap-2 flex-shrink-0">
                 <i class="fa-solid fa-calendar-week text-amber-500"></i>
@@ -1371,44 +1371,56 @@
                 </div>
                 <div class="grid grid-cols-2 gap-3">
                     <div>
+                        <!-- v1.1.9+ 狀態選項與測試看版完全一致(5 個值同 label) -->
                         <label class="block text-sm font-medium text-slate-700 mb-1">狀態</label>
                         <select id="tsEditStatus" class="w-full border border-slate-300 rounded p-2 text-sm bg-white">
-                            <option value="Todo" selected>未開始</option>
+                            <option value="Todo" selected>待辦</option>
                             <option value="InProgress">進行中</option>
                             <option value="InReview">待驗證</option>
                             <option value="Verified">已完成</option>
-                            <option value="Closed">已結案</option>
+                            <option value="Closed">關閉</option>
                         </select>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-slate-700 mb-1">負責人</label>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">指派人</label>
                         <select id="tsEditAssignee" class="w-full border border-slate-300 rounded p-2 text-sm bg-white">
                             <option value="">(未指派)</option>
                         </select>
                     </div>
                 </div>
-                <!-- 進度 slider(v1.1.9+ 加,0-100%)-->
-                <div>
-                    <label class="flex items-center justify-between text-sm font-medium text-slate-700 mb-1">
-                        <span>進度</span>
-                        <span id="tsEditProgressLabel" class="text-amber-600 font-mono">0%</span>
-                    </label>
-                    <input type="range" id="tsEditProgress" min="0" max="100" value="0" step="5"
-                           oninput="document.getElementById('tsEditProgressLabel').textContent = this.value + '%'"
-                           class="w-full">
-                </div>
                 <!-- Bar 顏色(隱藏,前端依 status 自動決定;保留 input 供後端 schema 接受)-->
                 <input type="hidden" id="tsEditColor" value="amber">
+                <!-- 進度欄位 v1.1.9 移除(改由 status 標進度,bar 內也不再顯示百分比)-->
+                <input type="hidden" id="tsEditProgress" value="0">
                 <div>
                     <label class="block text-sm font-medium text-slate-700 mb-1">說明</label>
                     <textarea id="tsEditDescription" rows="3" placeholder="這個階段要涵蓋什麼測試 / 範圍 / 完成標準..."
                         class="w-full border border-slate-300 rounded p-2 text-sm resize-none"></textarea>
                 </div>
+                <!-- 連結項目 — v1.1.9+ 改 polymorphic(支援 testcase/report/defect/test_round/project)-->
                 <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">連結 TestRun</label>
-                    <select id="tsEditLinkedRound" class="w-full border border-slate-300 rounded p-2 text-sm bg-white">
-                        <option value="">(不連結)</option>
-                    </select>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">連結項目 <span class="text-slate-400 text-xs font-normal">(選填)</span></label>
+                    <div class="grid grid-cols-2 gap-2 bg-slate-50/70 border border-slate-200 rounded p-2">
+                        <div>
+                            <label class="block text-[11px] text-slate-500 mb-0.5">類型</label>
+                            <select id="tsEditLinkType"
+                                onchange="_tsPopulateLinkTargets()"
+                                class="w-full border border-slate-300 rounded p-1.5 text-sm bg-white">
+                                <option value="">(不連結)</option>
+                                <option value="testcase">測試案例</option>
+                                <option value="report">執行報告</option>
+                                <option value="defect">缺陷</option>
+                                <option value="test_round">TestRun</option>
+                                <option value="project">專案</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[11px] text-slate-500 mb-0.5">目標</label>
+                            <select id="tsEditLinkTargetId" class="w-full border border-slate-300 rounded p-1.5 text-sm bg-white">
+                                <option value="">(先選類型)</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
             </form>
             <div class="p-4 border-t border-slate-200 flex justify-between items-center gap-2 bg-slate-50 rounded-b-lg flex-shrink-0">
@@ -21992,11 +22004,12 @@ curl -X POST http://localhost:8000/api/defects \\
         New:       'bg-slate-100   text-slate-600 border border-slate-200',
         Assigned:  'bg-slate-100   text-slate-600 border border-slate-200',
     };
+    // v1.1.9+:label 與測試看版完全對齊(待辦 / 進行中 / 待驗證 / 已完成 / 關閉)
     const _TS_STATUS_ZH = {
-        Todo: '未開始', InProgress: '進行中', InReview: '待驗證', ReworkRequired: '待驗證',
-        Verified: '已完成', Closed: '已結案', Overdue: '卡關/延遲',
-        Planned: '未開始', Done: '已完成', Delayed: '卡關/延遲', Cancelled: '已結案',
-        New: '未開始', Assigned: '未開始',
+        Todo: '待辦', InProgress: '進行中', InReview: '待驗證', ReworkRequired: '待驗證',
+        Verified: '已完成', Closed: '關閉', Overdue: '卡關/延遲',
+        Planned: '待辦', Done: '已完成', Delayed: '卡關/延遲', Cancelled: '關閉',
+        New: '待辦', Assigned: '待辦',
     };
     const _TS_STATUS_ICON = {
         Todo: 'fa-circle text-slate-400',
@@ -22340,7 +22353,7 @@ curl -X POST http://localhost:8000/api/defects \\
                 <div class="flex border-b-2 border-slate-200 bg-slate-50 sticky top-0 z-10">
                     <div class="shrink-0 border-r border-slate-200 px-3 py-3 text-xs font-semibold text-slate-600 flex items-center" style="width:${LEFT_W_NAME}px">測試任務名稱</div>
                     <div class="shrink-0 border-r border-slate-200 px-3 py-3 text-xs font-semibold text-slate-600 flex items-center" style="width:${LEFT_W_STATUS}px">狀態</div>
-                    <div class="shrink-0 border-r border-slate-200 px-3 py-3 text-xs font-semibold text-slate-600 flex items-center" style="width:${LEFT_W_OWNER}px">負責人</div>
+                    <div class="shrink-0 border-r border-slate-200 px-3 py-3 text-xs font-semibold text-slate-600 flex items-center" style="width:${LEFT_W_OWNER}px">指派人</div>
                     <div class="shrink-0 border-r border-slate-200 px-3 py-3 text-xs font-semibold text-slate-600 flex items-center" style="width:${LEFT_W_PROGRESS}px">進度</div>
                     <div class="flex-1" style="${gridCols}">${headerCells}</div>
                 </div>
@@ -22373,10 +22386,10 @@ curl -X POST http://localhost:8000/api/defects \\
         document.getElementById('tsEditColor').value = 'amber';
         document.getElementById('tsEditAssignee').value = '';
         document.getElementById('tsEditDescription').value = '';
-        document.getElementById('tsEditLinkedRound').value = '';
         document.getElementById('tsEditProgress').value = 0;
-        document.getElementById('tsEditProgressLabel').textContent = '0%';
-        _tsLoadOptions();
+        document.getElementById('tsEditLinkType').value = '';
+        document.getElementById('tsEditLinkTargetId').innerHTML = '<option value="">(先選類型)</option>';
+        _tsLoadAssigneeOptions();
         document.getElementById('testScheduleModal').classList.remove('hidden');
         setTimeout(() => document.getElementById('tsEditName').focus(), 50);
     }
@@ -22399,11 +22412,19 @@ curl -X POST http://localhost:8000/api/defects \\
         document.getElementById('tsEditDescription').value = sched.description || '';
         const progressVal = (sched.progress != null) ? Math.max(0, Math.min(100, sched.progress)) : 0;
         document.getElementById('tsEditProgress').value = progressVal;
-        document.getElementById('tsEditProgressLabel').textContent = progressVal + '%';
         document.getElementById('testScheduleModal').classList.remove('hidden');
-        await _tsLoadOptions();
+        await _tsLoadAssigneeOptions();
         document.getElementById('tsEditAssignee').value = sched.assigned_to || '';
-        document.getElementById('tsEditLinkedRound').value = sched.linked_test_round_id || '';
+        // 連結項目:先填類型,再 load 目標 list,最後選回原本連的
+        const linkType = sched.linked_target_type || '';
+        const linkId = sched.linked_target_id || '';
+        document.getElementById('tsEditLinkType').value = linkType;
+        if (linkType) {
+            await _tsPopulateLinkTargets();
+            document.getElementById('tsEditLinkTargetId').value = linkId;
+        } else {
+            document.getElementById('tsEditLinkTargetId').innerHTML = '<option value="">(先選類型)</option>';
+        }
     }
 
     function closeTsModal() {
@@ -22411,22 +22432,63 @@ curl -X POST http://localhost:8000/api/defects \\
         _tsEditingId = null;
     }
 
-    async function _tsLoadOptions() {
+    async function _tsLoadAssigneeOptions() {
         if (!currentProjectId) return;
-        // assignee
         try {
             const members = await apiFetch(`/api/projects/${currentProjectId}/members`).catch(()=>[]);
             const aSel = document.getElementById('tsEditAssignee');
             aSel.innerHTML = '<option value="">(未指派)</option>' +
                 (members || []).map(m => `<option value="${escapeHtml(m.username||'')}">${escapeHtml(m.username||m.display_name||'')}</option>`).join('');
         } catch (_) {}
-        // test rounds
+    }
+
+    // v1.1.9+:連結項目目標選單 — 依類型動態 load 候選清單
+    // 跟 _todoPopulateLinkTargets 同模式,但獨立實作避免耦合
+    async function _tsPopulateLinkTargets() {
+        const type = document.getElementById('tsEditLinkType').value;
+        const sel = document.getElementById('tsEditLinkTargetId');
+        if (!type) {
+            sel.innerHTML = '<option value="">(先選類型)</option>';
+            return;
+        }
+        sel.innerHTML = '<option value="">(載入中…)</option>';
         try {
-            const rounds = await apiFetch(`/api/rounds?project_id=${encodeURIComponent(currentProjectId)}`).catch(()=>[]);
-            const rSel = document.getElementById('tsEditLinkedRound');
-            rSel.innerHTML = '<option value="">(不連結)</option>' +
-                (rounds || []).map(r => `<option value="${r.id}">${escapeHtml(r.name||r.id.slice(0,8))}</option>`).join('');
-        } catch (_) {}
+            let items = [];
+            if (type === 'testcase') {
+                const tree = await apiFetch(`/api/projects/${currentProjectId}/tree`).catch(() => []);
+                // 從樹狀結構 flatten 找 TESTCASE 葉節點
+                const walk = (nodes, path) => {
+                    nodes?.forEach(n => {
+                        const p = path ? path + ' / ' + (n.name || n.title) : (n.name || n.title);
+                        if (n.level_type === 'TESTCASE') items.push({ id: n.id, label: p });
+                        if (n.children) walk(n.children, p);
+                    });
+                };
+                walk(tree, '');
+            } else if (type === 'report') {
+                const rows = await apiFetch(`/api/reports?project_id=${encodeURIComponent(currentProjectId)}&limit=200`).catch(() => []);
+                const arr = Array.isArray(rows) ? rows : (rows?.items || []);
+                items = arr.map(r => ({ id: r.id, label: (r.name || r.id.slice(0,8)) + ' · ' + (r.status || '') }));
+            } else if (type === 'defect') {
+                const rows = await apiFetch(`/api/defects?project_id=${encodeURIComponent(currentProjectId)}&limit=200`).catch(() => []);
+                const arr = Array.isArray(rows) ? rows : (rows?.items || []);
+                items = arr.map(d => ({ id: d.id, label: (d.code || d.id.slice(0,8)) + ' · ' + (d.title || '') }));
+            } else if (type === 'test_round') {
+                const rows = await apiFetch(`/api/rounds?project_id=${encodeURIComponent(currentProjectId)}`).catch(() => []);
+                items = (rows || []).map(r => ({ id: r.id, label: r.name || r.id.slice(0,8) }));
+            } else if (type === 'project') {
+                // 專案只能連自己這個專案
+                const proj = (typeof projectsData === 'object' && projectsData[currentProjectId]) ? projectsData[currentProjectId] : null;
+                items = currentProjectId ? [{ id: currentProjectId, label: (proj?.name || currentProjectId) }] : [];
+            }
+            sel.innerHTML = '<option value="">(請選擇)</option>' +
+                items.map(it => `<option value="${escapeHtml(it.id)}">${escapeHtml(it.label)}</option>`).join('');
+            if (!items.length) {
+                sel.innerHTML = '<option value="">(此類型沒有可用項目)</option>';
+            }
+        } catch (e) {
+            sel.innerHTML = '<option value="">(載入失敗)</option>';
+        }
     }
 
     async function submitTsModal() {
@@ -22436,6 +22498,10 @@ curl -X POST http://localhost:8000/api/defects \\
         if (!name) { showToast?.('名稱必填', 'error'); return; }
         if (!start || !end) { showToast?.('開始 / 結束日期必填', 'error'); return; }
         if (end < start) { showToast?.('結束日期必須晚於開始日期', 'error'); return; }
+        const linkType = document.getElementById('tsEditLinkType').value || null;
+        const linkId = document.getElementById('tsEditLinkTargetId').value || null;
+        // type 跟 id 必須一起有或一起沒(否則後端孤兒 type / id)
+        const validLink = linkType && linkId;
         const payload = {
             name,
             start_date: start,
@@ -22445,7 +22511,8 @@ curl -X POST http://localhost:8000/api/defects \\
             progress: parseInt(document.getElementById('tsEditProgress').value, 10) || 0,
             description: document.getElementById('tsEditDescription').value || null,
             assigned_to: document.getElementById('tsEditAssignee').value || null,
-            linked_test_round_id: document.getElementById('tsEditLinkedRound').value || null,
+            linked_target_type: validLink ? linkType : null,
+            linked_target_id: validLink ? linkId : null,
         };
         try {
             if (_tsEditingId) {

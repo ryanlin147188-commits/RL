@@ -89,8 +89,10 @@ async def create_test_schedule(
         end_date=payload.end_date,
         status=payload.status,
         color=payload.color,
+        progress=payload.progress,
         assigned_to=payload.assigned_to,
-        linked_test_round_id=payload.linked_test_round_id,
+        linked_target_type=payload.linked_target_type,
+        linked_target_id=payload.linked_target_id,
     )
     db.add(sched)
     await db.commit()

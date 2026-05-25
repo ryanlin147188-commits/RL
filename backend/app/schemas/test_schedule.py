@@ -19,7 +19,8 @@ class TestScheduleCreate(BaseModel):
     color: str = Field(default="blue", max_length=20)
     progress: int = Field(default=0, ge=0, le=100)
     assigned_to: Optional[str] = Field(default=None, max_length=100)
-    linked_test_round_id: Optional[str] = Field(default=None, max_length=36)
+    linked_target_type: Optional[str] = Field(default=None, max_length=32)
+    linked_target_id: Optional[str] = Field(default=None, max_length=36)
 
 
 class TestScheduleUpdate(BaseModel):
@@ -31,7 +32,8 @@ class TestScheduleUpdate(BaseModel):
     color: Optional[str] = Field(default=None, max_length=20)
     progress: Optional[int] = Field(default=None, ge=0, le=100)
     assigned_to: Optional[str] = Field(default=None, max_length=100)
-    linked_test_round_id: Optional[str] = Field(default=None, max_length=36)
+    linked_target_type: Optional[str] = Field(default=None, max_length=32)
+    linked_target_id: Optional[str] = Field(default=None, max_length=36)
 
 
 class TestScheduleResponse(BaseModel):
@@ -47,7 +49,8 @@ class TestScheduleResponse(BaseModel):
     color: str
     progress: int = 0
     assigned_to: Optional[str] = None
-    linked_test_round_id: Optional[str] = None
+    linked_target_type: Optional[str] = None
+    linked_target_id: Optional[str] = None
     organization_id: Optional[str] = None
     created_at: datetime
     updated_at: datetime
