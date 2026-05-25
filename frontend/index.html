@@ -1290,7 +1290,8 @@
                     <div class="flex gap-2 items-end bg-slate-50/70 border border-slate-200 rounded p-2">
                         <div class="flex-1">
                             <label class="block text-[11px] text-slate-500 mb-0.5">類型</label>
-                            <select id="todoCreateLinkType" class="w-full border border-slate-300 rounded p-1.5 text-xs bg-white">
+                            <select id="todoCreateLinkType" onchange="_todoPopulateLinkTargets('todoCreateLinkType','todoCreateLinkTargetId')"
+                                class="w-full border border-slate-300 rounded p-1.5 text-xs bg-white">
                                 <option value="testcase">測試案例</option>
                                 <option value="report">執行報告</option>
                                 <option value="defect">缺陷</option>
@@ -1299,8 +1300,10 @@
                             </select>
                         </div>
                         <div class="flex-1">
-                            <label class="block text-[11px] text-slate-500 mb-0.5">ID</label>
-                            <input type="text" id="todoCreateLinkTargetId" placeholder="貼上目標 id" class="w-full border border-slate-300 rounded p-1.5 text-xs font-mono">
+                            <label class="block text-[11px] text-slate-500 mb-0.5">目標</label>
+                            <select id="todoCreateLinkTargetId" class="w-full border border-slate-300 rounded p-1.5 text-xs bg-white">
+                                <option value="">(載入中…)</option>
+                            </select>
                         </div>
                         <button type="button" onclick="_todoCreateAddPendingLink()" class="text-xs px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">
                             <i class="fa-solid fa-link"></i> 加入
@@ -20216,6 +20219,59 @@ curl -X POST http://localhost:8000/api/defects \\
     // 新增 modal 開啟前累積的「待加入連結」— 建立成功後一筆 todo 配 N 筆 link
     let _todoCreatePendingLinks = [];
 
+    // 把目標 select 依 target_type 換成對應的候選清單。
+    // 5 種:testcase / report / defect / test_round / project。fetch 失敗或空清單顯示 disabled option。
+    async function _todoPopulateLinkTargets(typeSelId, targetSelId) {
+        const typeSel = document.getElementById(typeSelId);
+        const targetSel = document.getElementById(targetSelId);
+        if (!typeSel || !targetSel || !currentProjectId) return;
+        const type = typeSel.value;
+        targetSel.innerHTML = '<option value="">(載入中…)</option>';
+        const pid = encodeURIComponent(currentProjectId);
+        try {
+            let items = [];
+            if (type === 'testcase') {
+                const tree = await apiFetch(`/api/projects/${pid}/tree`);
+                const walk = (node, parent) => {
+                    if (!node) return;
+                    const path = parent ? `${parent} / ${node.name}` : node.name;
+                    if ((node.level_type || node.levelType) === 'TESTCASE') items.push({ id: node.id, label: path });
+                    (node.children || []).forEach(c => walk(c, path));
+                };
+                (Array.isArray(tree) ? tree : tree?.tree || []).forEach(n => walk(n, ''));
+            } else if (type === 'report') {
+                const r = await apiFetch(`/api/reports?project_id=${pid}&page=1&limit=100`);
+                const rows = r?.items || r || [];
+                items = rows.map(rep => {
+                    const ts = rep.created_at ? new Date(rep.created_at).toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
+                    const cn = rep.source_title || (rep.id||'').slice(0,8);
+                    return { id: rep.id, label: `${ts} · ${rep.status||''} · ${cn}` };
+                });
+            } else if (type === 'defect') {
+                const rows = await apiFetch(`/api/defects?project_id=${pid}&page_size=200`);
+                items = (Array.isArray(rows) ? rows : (rows?.items||[])).map(d => ({
+                    id: d.id, label: `${d.code || d.id.slice(0,8)} · ${d.title || ''}`,
+                }));
+            } else if (type === 'test_round') {
+                const rows = await apiFetch(`/api/rounds?project_id=${pid}`);
+                items = (Array.isArray(rows) ? rows : (rows?.items||[])).map(r => ({
+                    id: r.id, label: r.name || r.id.slice(0,8),
+                }));
+            } else if (type === 'project') {
+                // 只能連到當前 project — 單選
+                const proj = (typeof projectsData !== 'undefined' && projectsData?.[currentProjectId]) || null;
+                items = [{ id: currentProjectId, label: proj?.name || currentProjectId }];
+            }
+            if (!items.length) {
+                targetSel.innerHTML = '<option value="" disabled>(沒有可選的目標)</option>';
+                return;
+            }
+            targetSel.innerHTML = items.map(it => `<option value="${escapeHtml(it.id)}">${escapeHtml(it.label)}</option>`).join('');
+        } catch (e) {
+            targetSel.innerHTML = `<option value="" disabled>(載入失敗:${escapeHtml(String(e.message||e))})</option>`;
+        }
+    }
+
     function _tkOpenCreate() {
         if (!currentProjectId) {
             if (typeof showToast === 'function') showToast('請先選擇專案', 'error');
@@ -20228,11 +20284,11 @@ curl -X POST http://localhost:8000/api/defects \\
         document.getElementById('todoCreateDueDate').value = '';
         document.getElementById('todoCreateAssignee').value = '';
         document.getElementById('todoCreateDescription').value = '';
-        document.getElementById('todoCreateLinkTargetId').value = '';
         document.getElementById('todoCreateLinkType').value = 'testcase';
         _todoCreatePendingLinks = [];
         _renderTodoCreatePendingLinks();
         _todoLoadAssigneeOptions('todoCreateAssignee');
+        _todoPopulateLinkTargets('todoCreateLinkType', 'todoCreateLinkTargetId');
         document.getElementById('todoCreateModal').classList.remove('hidden');
         setTimeout(() => document.getElementById('todoCreateTitle').focus(), 50);
     }
@@ -20245,15 +20301,16 @@ curl -X POST http://localhost:8000/api/defects \\
     // 把 type+id 推進 pending list(create 還沒送出時的暫存)
     function _todoCreateAddPendingLink() {
         const type = document.getElementById('todoCreateLinkType').value;
-        const id = document.getElementById('todoCreateLinkTargetId').value.trim();
-        if (!id) { showToast?.('請輸入目標 id', 'error'); return; }
+        const sel  = document.getElementById('todoCreateLinkTargetId');
+        const id   = (sel?.value || '').trim();
+        const label = sel?.options[sel.selectedIndex]?.text || id;
+        if (!id) { showToast?.('請選擇目標項目', 'error'); return; }
         // 同 type + id 已在 list 內就跳過,避免後續 POST 重複 409
         if (_todoCreatePendingLinks.some(l => l.target_type === type && l.target_id === id)) {
             showToast?.('該連結已加入', 'info');
             return;
         }
-        _todoCreatePendingLinks.push({ target_type: type, target_id: id });
-        document.getElementById('todoCreateLinkTargetId').value = '';
+        _todoCreatePendingLinks.push({ target_type: type, target_id: id, label });
         _renderTodoCreatePendingLinks();
     }
 
@@ -20269,7 +20326,7 @@ curl -X POST http://localhost:8000/api/defects \\
         wrap.innerHTML = _todoCreatePendingLinks.map((l, i) => `
             <div class="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded px-2 py-1.5">
                 <span class="text-[10px] px-1.5 py-0.5 bg-white border border-slate-200 rounded font-mono uppercase text-slate-600">${escapeHtml(l.target_type)}</span>
-                <span class="text-xs text-slate-700 flex-1 truncate font-mono">${escapeHtml(l.target_id)}</span>
+                <span class="text-xs text-slate-700 flex-1 truncate" title="${escapeHtml(l.target_id)}">${escapeHtml(l.label || l.target_id)}</span>
                 <button type="button" onclick="_todoCreateRemovePendingLink(${i})" class="text-rose-500 hover:text-rose-700 text-xs"><i class="fa-solid fa-xmark"></i></button>
             </div>`).join('');
     }
@@ -20421,7 +20478,8 @@ curl -X POST http://localhost:8000/api/defects \\
                 <div class="flex gap-2 items-end bg-slate-50/70 border border-slate-200 rounded p-2">
                     <div class="flex-1">
                         <label class="block text-[11px] text-slate-500 mb-0.5">類型</label>
-                        <select id="todoLinkType" class="w-full border border-slate-300 rounded p-1.5 text-xs bg-white">
+                        <select id="todoLinkType" onchange="_todoPopulateLinkTargets('todoLinkType','todoLinkTargetId')"
+                            class="w-full border border-slate-300 rounded p-1.5 text-xs bg-white">
                             <option value="testcase">測試案例</option>
                             <option value="report">執行報告</option>
                             <option value="defect">缺陷</option>
@@ -20430,8 +20488,10 @@ curl -X POST http://localhost:8000/api/defects \\
                         </select>
                     </div>
                     <div class="flex-1">
-                        <label class="block text-[11px] text-slate-500 mb-0.5">ID</label>
-                        <input type="text" id="todoLinkTargetId" placeholder="貼上目標 id" class="w-full border border-slate-300 rounded p-1.5 text-xs font-mono">
+                        <label class="block text-[11px] text-slate-500 mb-0.5">目標</label>
+                        <select id="todoLinkTargetId" class="w-full border border-slate-300 rounded p-1.5 text-xs bg-white">
+                            <option value="">(載入中…)</option>
+                        </select>
                     </div>
                     <button type="button" onclick="_todoAddLink()" class="text-xs px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">
                         <i class="fa-solid fa-link"></i> 加入
@@ -20450,6 +20510,8 @@ curl -X POST http://localhost:8000/api/defects \\
             const sel = document.getElementById('todoEditAssignee');
             if (sel) sel.value = t.assigned_to || '';
         }, 50);
+        // detail modal 每次 re-render 都拉一次「目標」下拉,跟著當前 type 走
+        _todoPopulateLinkTargets('todoLinkType', 'todoLinkTargetId');
 
         document.getElementById('todoDetailFooter').innerHTML = `
             <button type="button" onclick="_todoConfirmDelete()"
@@ -20505,8 +20567,8 @@ curl -X POST http://localhost:8000/api/defects \\
     async function _todoAddLink() {
         if (!_todoCurrent) return;
         const target_type = document.getElementById('todoLinkType').value;
-        const target_id = document.getElementById('todoLinkTargetId').value.trim();
-        if (!target_id) { showToast?.('請輸入目標 id', 'error'); return; }
+        const target_id = (document.getElementById('todoLinkTargetId')?.value || '').trim();
+        if (!target_id) { showToast?.('請選擇目標項目', 'error'); return; }
         try {
             await apiFetch(`/api/todos/${_todoCurrent.id}/links`, {
                 method: 'POST',
