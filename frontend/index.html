@@ -4192,7 +4192,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                     <p>還沒有時程規劃。點右上「新增時程」開始安排 Sprint / 階段 / 里程碑。</p>
                 </div>
                 <!-- Gantt-style timeline -->
-                <div id="tsGantt" class="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+                <div id="tsGantt" class="bg-white border border-slate-200 rounded-lg shadow-sm overflow-x-auto">
                     <!-- header (date axis) + rows by JS render -->
                 </div>
             </div>
@@ -22081,16 +22081,25 @@ curl -X POST http://localhost:8000/api/defects \\
             cur = monthEnd;
         }
         // v1.1.9+:月份 header + 每日序號 + timeline bar 全部 host 在同一個
-        // ``grid-template-columns:repeat(totalDays, 1fr)`` 內,絕對對齊。
-        // 月份 header 用 ``grid-column: span N`` 跨越該月的天數。bar 仍用
+        // ``grid-template-columns:repeat(totalDays, minmax(20px, 1fr))``,絕對對齊。
+        // 月份 header 用 ``grid-column: span N`` 跨越該月的天數,文字 LEFT-aligned
+        // 讓 "2026/05" 從該月左邊線開始(剛好對到下方的 "1" tick)。bar 仍用
         // absolute % 但因為相對於同一個 grid container,百分比也對齊。
-        const gridCols = `display:grid;grid-template-columns:repeat(${totalDays}, minmax(0, 1fr));`;
+        // minmax(20px, 1fr):每天最少 20px,viewport 不夠寬時 grid 會超出讓
+        // 外層 overflow-x-auto 觸發水平捲動(支援「向右延伸」)。
+        const MIN_DAY_PX = 20;
+        const gridCols = `display:grid;grid-template-columns:repeat(${totalDays}, minmax(${MIN_DAY_PX}px, 1fr));`;
+        // 整個 gantt 至少要這麼寬,讓左側 timeProject(w-52)+ dateRange(w-44)
+        // 永遠跟右側 grid 一起捲動,維持對齊
+        const LEFT_PANEL_PX = 208 + 176;   // w-52(13rem)+ w-44(11rem)
+        const minTotalPx = LEFT_PANEL_PX + totalDays * MIN_DAY_PX;
         const headerCells = months.map(m =>
-            `<div class="text-xs font-mono text-slate-600 text-center py-2 border-r border-slate-200"
+            `<div class="text-xs font-mono text-slate-700 font-semibold text-left py-2 px-2 border-r border-slate-300"
                   style="grid-column: span ${m.days}">${m.label}</div>`
         ).join('');
 
-        // 每日序號列:每天一個 grid cell,文字依步進顯示;月初一律 bold
+        // 每日序號列:每天一個 grid cell,文字依步進顯示;月初一律 bold +
+        // 加左邊框作為「月份分隔線」(跟上方月份 border-r 對齊在同一像素)
         const stepDays = totalDays <= 60 ? 1 : (totalDays <= 180 ? 5 : 10);
         const dayTicks = [];
         for (let dayIdx = 0; dayIdx < totalDays; dayIdx++) {
@@ -22099,11 +22108,12 @@ curl -X POST http://localhost:8000/api/defects \\
             const isMonthStart = (dom === 1);
             const show = isMonthStart || (dayIdx % stepDays === 0);
             const cls = isMonthStart
-                ? 'text-[9px] font-bold text-slate-600'
-                : 'text-[9px] font-mono text-slate-400';
+                ? 'text-[10px] font-bold text-slate-700'
+                : 'text-[10px] font-mono text-slate-400';
+            // 月初左邊框跟上方月份 border-r 接在同一條 vertical line
             const borderCls = isMonthStart ? 'border-l border-slate-300' : '';
             dayTicks.push(
-                `<div class="text-center leading-tight ${borderCls}" style="grid-column: span 1">
+                `<div class="text-left leading-tight pl-1 ${borderCls}" style="grid-column: span 1">
                     ${show ? `<span class="${cls}">${dom}</span>` : ''}
                 </div>`
             );
@@ -22172,27 +22182,32 @@ curl -X POST http://localhost:8000/api/defects \\
                 </div>`;
         }).join('');
 
+        // v1.1.9+:外層 min-width 保證 gantt 內所有 row 一起延伸到 totalDays
+        // × MIN_DAY_PX,當 viewport 比這寬度小時觸發水平捲動(用上方 #tsGantt
+        // 的 overflow-x-auto)。
         gantt.innerHTML = `
-            <!-- header: 左側固定 label 區 + 起訖日期欄 + 右側 grid(月份 + 每日序號兩列共用同一個 N-col grid) -->
-            <div class="flex flex-col border-b border-slate-200 bg-slate-50/70 sticky top-0 z-10">
-                <!-- 第一列:項目 / 起訖 / 月份 header -->
-                <div class="flex">
-                    <div class="w-52 shrink-0 border-r border-slate-200 p-2.5 text-xs font-semibold text-slate-600">
-                        時程項目
+            <div style="min-width:${minTotalPx}px">
+                <!-- header: 左側固定 label 區 + 起訖日期欄 + 右側 grid(月份 + 每日序號兩列共用同一個 N-col grid) -->
+                <div class="flex flex-col border-b border-slate-200 bg-slate-50/70 sticky top-0 z-10">
+                    <!-- 第一列:項目 / 起訖 / 月份 header -->
+                    <div class="flex">
+                        <div class="w-52 shrink-0 border-r border-slate-200 p-2.5 text-xs font-semibold text-slate-600">
+                            時程項目
+                        </div>
+                        <div class="w-44 shrink-0 border-r border-slate-200 p-2.5 text-xs font-semibold text-slate-600 flex items-center gap-1">
+                            <i class="fa-regular fa-calendar text-slate-500"></i> 起訖日期
+                        </div>
+                        <div class="flex-1" style="${gridCols}">${headerCells}</div>
                     </div>
-                    <div class="w-44 shrink-0 border-r border-slate-200 p-2.5 text-xs font-semibold text-slate-600 flex items-center gap-1">
-                        <i class="fa-regular fa-calendar text-slate-500"></i> 起訖日期
+                    <!-- 第二列:每日序號(同一個 N-col grid,絕對與月份對齊) -->
+                    <div class="flex border-t border-slate-200/70 bg-white/60">
+                        <div class="w-52 shrink-0 border-r border-slate-200"></div>
+                        <div class="w-44 shrink-0 border-r border-slate-200"></div>
+                        <div class="flex-1 py-0.5" style="${gridCols}">${dayTicks.join('')}</div>
                     </div>
-                    <div class="flex-1" style="${gridCols}">${headerCells}</div>
                 </div>
-                <!-- 第二列:每日序號(同一個 N-col grid,絕對與月份對齊) -->
-                <div class="flex border-t border-slate-200/70 bg-white/60">
-                    <div class="w-52 shrink-0 border-r border-slate-200"></div>
-                    <div class="w-44 shrink-0 border-r border-slate-200"></div>
-                    <div class="flex-1 py-0.5" style="${gridCols}">${dayTicks.join('')}</div>
-                </div>
-            </div>
-            ${rows}`;
+                ${rows}
+            </div>`;
     }
 
     // 新增/編輯 modal handlers
