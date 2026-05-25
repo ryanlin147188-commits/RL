@@ -771,11 +771,11 @@
                 </button>
             </div>
 
-            <!-- 註冊表單(v1.1.10 重新啟用,需 email 驗證才能登入) -->
+            <!-- 註冊表單(v1.1.10 簡化版:免驗證信,直接可登入並擁有個人工作空間) -->
             <form id="authRegisterForm" onsubmit="return authHandleRegister(event)" class="px-8 py-6 space-y-4 hidden">
                 <p class="text-xs text-stone-600 bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
                     <i class="fa-solid fa-circle-info text-amber-500 mt-0.5"></i>
-                    <span>建立帳號後會寄一封驗證信到您的 Email,點信內連結啟用帳號才能登入。啟用後需請管理員指派專案 / 角色才能完整使用平台。</span>
+                    <span>建立帳號後您會自動擁有自己的工作空間(個人組織)+ 管理員權限,可立即登入使用。其他人邀請您加入專案時會用 Email 通知,點信內連結兌換即可加入協作。</span>
                 </p>
                 <div>
                     <label for="regDisplayName" class="block text-xs font-semibold text-stone-600 mb-1.5">使用者名稱</label>
@@ -824,7 +824,7 @@
                     <i class="fa-solid fa-user-plus"></i> 建立帳號
                 </button>
                 <div id="authRegisterSentNote" class="hidden text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded p-3">
-                    <i class="fa-solid fa-circle-check"></i> 驗證信已寄出,請至信箱點連結啟用帳號(連結 24 小時內有效)。
+                    <i class="fa-solid fa-circle-check"></i> 註冊成功,正在切到登入頁面…
                 </div>
             </form>
 
@@ -3160,9 +3160,10 @@
                         <button id="setTabUser"     onclick="settingsSwitchTab('user')"     class="px-3 py-1.5 text-sm font-medium rounded text-amber-700 bg-amber-50 border border-amber-300"><i class="fa-solid fa-user-circle"></i> <span data-i18n="settings.tab.user">設定</span></button>
                         <button id="setTabNotif"   onclick="settingsSwitchTab('notif')"   class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-bell text-amber-500"></i> 通知設定</button>
                         <button id="setTabEmail"   onclick="settingsSwitchTab('email')"   class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-envelope text-blue-500"></i> Email 通知</button>
-                        <!-- 僅 admin / superuser 可見;預設 hidden,settingsTabsApplyVisibility() 載入時依 me 決定顯示 -->
-                        <button id="setTabProjectMembers" onclick="settingsSwitchTab('projectMembers')" class="hidden px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-users text-amber-500"></i> 專案協作成員</button>
-                        <button id="setTabRoles"   onclick="settingsSwitchTab('roles')"   class="hidden px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-shield-halved text-violet-500"></i> 角色與權限</button>
+                        <!-- v1.1.10:四個 tab 一律顯示,內容區若使用者在當前 active org 不是 admin
+                             會自動加上 read-only banner;以該 org 內 admin 設定為主。 -->
+                        <button id="setTabProjectMembers" onclick="settingsSwitchTab('projectMembers')" class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-users text-amber-500"></i> 專案協作成員</button>
+                        <button id="setTabRoles"   onclick="settingsSwitchTab('roles')"   class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-shield-halved text-violet-500"></i> 角色與權限</button>
                     </div>
 
                     <!-- ─── Pane 1: 使用者設定（保留原本內容） ─── -->
@@ -3329,13 +3330,26 @@
                             </div>
                         </div>
                         <div class="mt-5 pt-5 border-t border-stone-100 flex flex-wrap gap-3 items-center justify-between">
-                            <div class="text-xs text-stone-500">
-                                <i class="fa-solid fa-circle-info text-amber-500"></i> 登出將會清除目前的 session，但不影響已儲存的測試資料。
+                            <div class="text-xs text-stone-500 max-w-xl">
+                                <i class="fa-solid fa-triangle-exclamation text-rose-500"></i>
+                                <b class="text-rose-600">危險區域:</b>刪除帳號將永久移除您的帳號、個人工作空間,以及所有專屬於此帳號的設定/邀請紀錄;此動作<b>不可復原</b>。共用專案(您被邀請進去的)不會被刪除,但您會立刻失去存取權限。
                             </div>
-                            <button type="button" onclick="authLogout()"
+                            <button type="button" onclick="authDeleteAccount()"
                                 class="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white rounded-md text-sm font-semibold shadow-sm transition flex items-center gap-2">
-                                <i class="fa-solid fa-right-from-bracket"></i> 登出
+                                <i class="fa-solid fa-user-xmark"></i> 刪除帳號
                             </button>
+                        </div>
+                    </section>
+
+                    <!-- 退出專案卡(v1.1.10)— 列出我被邀請進的外部專案,可逐個退出。
+                         全退完且當前 active org 不是 personal,會自動切回 personal org。 -->
+                    <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-4 sm:p-6">
+                        <h3 class="font-bold text-stone-700 text-base mb-1 flex items-center gap-2">
+                            <i class="fa-solid fa-right-from-bracket text-amber-500"></i> 退出專案
+                        </h3>
+                        <p class="text-xs text-stone-500 mb-3">列出您所屬的所有專案。退出後將失去該專案的存取權,直到被重新邀請。退出完後若您有「個人工作空間」,系統會自動切回去。</p>
+                        <div id="leaveProjectsList" class="space-y-2">
+                            <div class="text-xs text-stone-400 text-center py-4">載入中…</div>
                         </div>
                     </section>
 
@@ -3538,7 +3552,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                                     專案協作成員 — <span id="pmCurrentProjectName" class="text-amber-600">—</span>
                                 </h3>
                                 <div class="flex items-center gap-2">
-                                    <button onclick="pmInviteOpen()" class="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded text-sm font-semibold shadow-sm flex items-center gap-1.5">
+                                    <button id="pmInviteBtn" onclick="pmInviteOpen()" class="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded text-sm font-semibold shadow-sm flex items-center gap-1.5">
                                         <i class="fa-solid fa-envelope"></i> 邀請使用者
                                     </button>
                                 </div>
@@ -11158,17 +11172,13 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                     showToast(msg, 'error', 4000);
                     return;
                 }
-                // 成功 → 顯示綠色訊息 + 自動帶 username 到登入 tab
-                const note = document.getElementById('authRegisterSentNote');
-                if (note) note.classList.remove('hidden');
-                showToast('驗證信已寄出,請收信並點連結啟用帳號', 'success', 5000);
-                setTimeout(() => {
-                    switchAuthTab('login');
-                    const uIn = document.getElementById('loginUsername');
-                    if (uIn) uIn.value = username;
-                    const pIn = document.getElementById('loginPassword');
-                    if (pIn) pIn.focus();
-                }, 1500);
+                // v1.1.10:不再寄驗證信,直接帶 username 跳到登入 tab + 預填
+                showToast('註冊成功,請以您的帳號密碼登入', 'success', 5000);
+                switchAuthTab('login');
+                const uIn = document.getElementById('loginUsername');
+                if (uIn) uIn.value = username;
+                const pIn = document.getElementById('loginPassword');
+                if (pIn) pIn.focus();
             } catch (e) {
                 showToast('連線失敗:' + (e.message || e), 'error');
             } finally {
@@ -11679,6 +11689,63 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             setTimeout(() => { window.location.reload(); }, 600);
         }
 
+        // v1.1.10:刪除自己的帳號 — 設定 → 登入資訊 內的「危險區域」入口
+        // 兩段保護:
+        //   1. openFormModal 要求輸入「自己的 username」做手動確認(防誤點)
+        //   2. 後端 DELETE /api/auth/me 會擋 superuser 自刪 + revoke 當前 token
+        async function authDeleteAccount() {
+            const me = (typeof _authReadSession === 'function' ? _authReadSession() : null) || {};
+            const myUsername = me.username || (window.currentUser && window.currentUser.username) || '';
+            if (!myUsername) {
+                showToast('找不到當前登入帳號,請重新整理後再試', 'error');
+                return;
+            }
+            const result = await openFormModal({
+                title: '刪除帳號 — 此動作無法復原',
+                icon: 'fa-triangle-exclamation',
+                intro: `這會永久移除帳號「${myUsername}」、您的個人工作空間,以及所有相關設定。請在下方輸入您的帳號名稱以確認。`,
+                fields: [
+                    {
+                        key: 'confirm',
+                        label: `請輸入「${myUsername}」以確認刪除`,
+                        type: 'text',
+                        required: true,
+                        placeholder: myUsername,
+                        hint: '輸入內容必須完全相符(大小寫敏感)',
+                    },
+                ],
+                submitLabel: '確認刪除帳號',
+            });
+            if (result === null) return;  // user 按取消
+            if ((result.confirm || '').trim() !== myUsername) {
+                showToast('輸入的帳號名稱不相符,已取消刪除', 'warning', 4000);
+                return;
+            }
+            try {
+                const headers = {};
+                const tok = (typeof authGetAccessToken === 'function') ? authGetAccessToken() : null;
+                if (tok) headers['Authorization'] = 'Bearer ' + tok;
+                const r = await window.fetch('/api/auth/me', { method: 'DELETE', headers });
+                if (!r.ok) {
+                    let msg = '刪除失敗';
+                    if (r.status === 400) {
+                        const d = await r.json().catch(() => ({}));
+                        msg = (d && d.detail) ? d.detail : msg;
+                    } else if (r.status === 401) msg = '驗證失敗,請重新登入';
+                    showToast(msg, 'error', 5000);
+                    return;
+                }
+                // 成功:後端已 revoke jti,清前端 token + 跳登入頁
+                try { stopNotifPolling(); } catch (_) {}
+                authClearTokens();
+                _authWriteSession(null);
+                showToast('帳號已刪除,即將跳轉到登入頁', 'success', 3000);
+                setTimeout(() => { window.location.href = '/'; }, 1200);
+            } catch (e) {
+                showToast('連線失敗:' + (e.message || e), 'error');
+            }
+        }
+
         // ==================== 使用者選單（右上角）====================
         // 新設計：點使用者名稱 → 直接進「使用者設定」頁；不再有下拉
         // 保留 toggleUserMenu / closeUserMenu 以維持舊呼叫端相容（no-op）
@@ -11799,6 +11866,8 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             document.getElementById('usPrefConfirmDiscard').checked = prefs.confirmDiscard !== false;
             // enableRecording 預設 true(沒設過 → 開錄影)
             document.getElementById('usPrefEnableRecording').checked = prefs.enableRecording !== false;
+            // v1.1.10:載入「退出專案」section 的可退出專案清單
+            try { loadJoinedExternalProjects(); } catch (_) {}
         }
 
         async function _renderUserAvatar(me) {
@@ -15659,6 +15728,9 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             const proj = projectsData[currentProjectId];
             nameEl.textContent = proj ? proj.name : currentProjectId.slice(0, 8);
             _renderTableSkeleton(tbody, 7, 5);
+            // v1.1.10:沒 user.manage 時隱藏整個「待兌換邀請」section(管理員專用)
+            const invSec = document.getElementById('pmInvitesSection');
+            if (invSec) invSec.classList.toggle('hidden', !hasPerm('user.manage'));
             try {
                 const r = await fetch(`/api/projects/${encodeURIComponent(currentProjectId)}/members`);
                 if (!r.ok) throw new Error('HTTP '+r.status);
@@ -15725,6 +15797,11 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         async function pmInvitesReload() {
             const tbody = document.getElementById('pmInvitesBody');
             if (!tbody || !currentProjectId) return;
+            // v1.1.10:沒 user.manage 不打 invites API(只有 admin 才能管理邀請)。
+            if (!hasPerm('user.manage')) {
+                tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-stone-400">您不是此專案的管理員,無法檢視邀請紀錄</td></tr>';
+                return;
+            }
             try {
                 const r = await fetch(`/api/projects/${encodeURIComponent(currentProjectId)}/invites?status=pending`);
                 if (!r.ok) {
@@ -15793,6 +15870,120 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 return false;
             }
         }
+        // ─── 退出專案(v1.1.10)— 個人設定 → 登入資訊下方那塊 ────────────
+        // 列出 user 所屬的所有 project(GET /api/projects 已 server-side 過濾為
+        // user 是 ProjectMember 的 project)。退出 endpoint 會擋「最後一個成員
+        // 退出」,所以這裡不必前端 filter。
+        async function loadJoinedExternalProjects() {
+            const wrap = document.getElementById('leaveProjectsList');
+            if (!wrap) return;
+            wrap.innerHTML = '<div class="text-xs text-stone-400 text-center py-4">載入中…</div>';
+            try {
+                const projsRes = await fetch('/api/projects');
+                if (!projsRes.ok) throw new Error('HTTP ' + projsRes.status);
+                const projs = await projsRes.json();
+                if (!Array.isArray(projs) || !projs.length) {
+                    wrap.innerHTML = '<div class="text-xs text-stone-400 text-center py-4">您目前沒有加入任何專案</div>';
+                    return;
+                }
+                wrap.innerHTML = projs.map(p => `
+                    <div class="flex items-center justify-between gap-3 bg-stone-50 rounded-lg p-3 border border-stone-100">
+                        <div class="min-w-0">
+                            <div class="font-medium text-stone-700 text-sm truncate">${_esc(p.name)}</div>
+                            <div class="text-[10px] text-stone-400 font-mono truncate">${_esc(p.id)}</div>
+                        </div>
+                        <button type="button" onclick="leaveProject('${_esc(p.id)}','${_esc((p.name || '').replace(/'/g, '&#39;'))}')"
+                            class="shrink-0 px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded text-xs font-semibold transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-right-from-bracket"></i> 退出
+                        </button>
+                    </div>`).join('');
+            } catch (e) {
+                wrap.innerHTML = `<div class="text-xs text-rose-500 text-center py-4">載入失敗:${_esc(e.message || String(e))}</div>`;
+            }
+        }
+
+        async function leaveProject(projectId, projectName) {
+            if (!projectId) return;
+            const confirm = await openFormModal({
+                title: '退出專案',
+                icon: 'fa-right-from-bracket',
+                intro: `確定要退出「${projectName}」?退出後您將失去該專案的所有存取權限,直到對方重新邀請您。`,
+                fields: [
+                    {
+                        key: 'ack',
+                        label: '輸入「退出」以確認',
+                        type: 'text',
+                        required: true,
+                        placeholder: '退出',
+                    },
+                ],
+                submitLabel: '確認退出',
+            });
+            if (confirm === null) return;
+            if ((confirm.ack || '').trim() !== '退出') {
+                showToast('輸入文字不相符,已取消退出', 'warning', 3000);
+                return;
+            }
+            try {
+                const r = await fetch(`/api/projects/${encodeURIComponent(projectId)}/leave`, {
+                    method: 'DELETE',
+                });
+                if (!r.ok) {
+                    const d = await r.json().catch(() => ({}));
+                    showToast('退出失敗:' + (d.detail || `HTTP ${r.status}`), 'error', 5000);
+                    return;
+                }
+                showToast(`已退出「${projectName}」`, 'success');
+                // 重新載入清單;若剩餘為 0 且當前 active org 不是 personal,自動切回去
+                await _maybeSwitchBackToPersonalOrgAfterLeave();
+                await loadJoinedExternalProjects();
+                // 刷左側專案清單也順手 reload(該專案不應再出現在 sidebar)
+                try { await initProjects(); } catch (_) {}
+            } catch (e) {
+                showToast('連線失敗:' + (e.message || e), 'error');
+            }
+        }
+
+        // 退完所有專案後,若 user 有 personal org 且當前 active org 不是它,自動切回去。
+        // user 沒 personal org(例如 admin 建出來的帳號)→ no-op。
+        async function _maybeSwitchBackToPersonalOrgAfterLeave() {
+            try {
+                const orgsRes = await fetch('/api/auth/me/orgs');
+                if (!orgsRes.ok) return;
+                const orgs = await orgsRes.json();
+                if (!Array.isArray(orgs) || !orgs.length) return;
+                const current = orgs.find(o => o.is_current);
+                // 個人 org 的 slug 必為 personal-{username};註冊用 is_default=true。
+                const personal = orgs.find(o => (o.slug || '').startsWith('personal-'));
+                if (!personal || !current) return;
+                // 已經在 personal org 上就不必切
+                if (current.organization_id === personal.organization_id) return;
+                // 還剩多少 project?(剛退完了應該少一個)
+                const projsRes = await fetch('/api/projects');
+                if (!projsRes.ok) return;
+                const projs = await projsRes.json();
+                if ((projs || []).length > 0) return;
+                // 全退完 + 有 personal + 不在 personal → 切回 personal
+                const sw = await fetch('/api/auth/switch-org', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ organization_id: personal.organization_id }),
+                });
+                if (!sw.ok) return;
+                const tok = await sw.json();
+                if (tok && tok.access_token) {
+                    try { authClearTokens(); } catch (_) {}
+                    try { localStorage.setItem(AUTH_TOKEN_KEYS.access, tok.access_token); } catch (_) {}
+                    if (tok.refresh_token) {
+                        try { localStorage.setItem(AUTH_TOKEN_KEYS.refresh, tok.refresh_token); } catch (_) {}
+                    }
+                }
+                showToast(`已自動切回您的個人工作空間「${personal.name}」`, 'info', 4000);
+                // 全頁 reload 讓 sidebar / org switcher 全部刷新
+                setTimeout(() => { window.location.reload(); }, 800);
+            } catch (_) { /* fail-safe:切不回去就讓 user 自己切 */ }
+        }
+
         function userRedeemInviteSubmit(ev) {
             ev.preventDefault();
             const input = document.getElementById('userRedeemCodeInput');
@@ -15814,6 +16005,9 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         }
 
         async function pmLoadRoles() {
+            // v1.1.10:沒 settings.read 不打 API(普通 user 進此 tab 是 read-only,
+            // 不需要 bulk role 下拉);避免 console 403。
+            if (!hasPerm('settings.read')) { _pmAllRoles = []; return; }
             try {
                 const r = await fetch('/api/settings/roles');
                 if (r.ok) {
@@ -15852,11 +16046,22 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 );
                 return;
             }
+            // v1.1.10:沒 user.manage 不 render 編輯/刪除按鈕;搭配 banner 提示為唯讀。
+            const canManage = hasPerm('user.manage');
             tbody.innerHTML = filtered.map(m => {
                 const joined = m.joined_at ? new Date(m.joined_at).toLocaleDateString() : '—';
                 const statusBadge = m.status === 'active'
                     ? '<span class="px-2 py-0.5 text-[11px] bg-emerald-50 text-emerald-700 rounded font-medium">active</span>'
                     : `<span class="px-2 py-0.5 text-[11px] bg-stone-100 text-stone-600 rounded">${_esc(m.status)}</span>`;
+                const actionsHtml = canManage ? `
+                            <button onclick="pmOpenEditUserModal('${_esc(m.username)}')" title="編輯使用者(顯示名稱 / Email / 啟用)"
+                                class="text-stone-400 hover:text-amber-600 transition px-1">
+                                <i class="fa-solid fa-user-pen"></i>
+                            </button>
+                            <button onclick="pmRemove('${_esc(m.username)}')" title="從此專案移除(帳號保留)"
+                                class="text-stone-400 hover:text-rose-600 transition px-1">
+                                <i class="fa-solid fa-user-minus"></i>
+                            </button>` : '<span class="text-stone-300 text-[11px]">—</span>';
                 return `
                     <tr class="hover:bg-amber-50/40">
                         <td class="p-3">
@@ -15866,24 +16071,20 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                         <td class="p-3 text-stone-600">${_esc(m.email || '—')}</td>
                         <td class="p-3">${statusBadge}</td>
                         <td class="p-3 text-stone-500 text-[11px]">${joined}</td>
-                        <td class="p-3 text-center whitespace-nowrap">
-                            <button onclick="pmOpenEditUserModal('${_esc(m.username)}')" title="編輯使用者(顯示名稱 / Email / 啟用)"
-                                class="text-stone-400 hover:text-amber-600 transition px-1">
-                                <i class="fa-solid fa-user-pen"></i>
-                            </button>
-                            <button onclick="pmRemove('${_esc(m.username)}')" title="從此專案移除(帳號保留)"
-                                class="text-stone-400 hover:text-rose-600 transition px-1">
-                                <i class="fa-solid fa-user-minus"></i>
-                            </button>
-                        </td>
+                        <td class="p-3 text-center whitespace-nowrap">${actionsHtml}</td>
                     </tr>
                 `;
             }).join('');
+            // 「邀請使用者」按鈕也跟著 hasPerm 顯示
+            const inviteBtn = document.getElementById('pmInviteBtn');
+            if (inviteBtn) inviteBtn.classList.toggle('hidden', !canManage);
         }
 
         // ── 使用者 CRUD modals(superuser-only;非 superuser 呼叫會被後端 403)──
         async function _pmLoadAdminRoles() {
             // 用 /api/settings/roles(已存在)塞進 create / edit 角色下拉
+            // v1.1.10:沒 settings.read 直接回空陣列,避免 console 403。
+            if (!hasPerm('settings.read')) return [];
             try {
                 const r = await fetch('/api/settings/roles');
                 if (!r.ok) return [];
@@ -17957,30 +18158,61 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                     pane.classList.add('hidden');
                 }
             });
+            // v1.1.10:四個 tab 任何 role 都看得到,但若 user 不是當前 active org 的 admin
+            // 在 pane 頂部 inject read-only banner 提醒「以 org admin 設定為主」。
+            _settingsTabApplyReadOnlyBanner(name);
             if (name === 'notif') loadNotificationPrefs();
             if (name === 'email') loadEmailConfig();
             if (name === 'projectMembers') { try { pmReload(); } catch (_) {} }
             if (name === 'roles') rolesLoadList();
         }
 
-        // 設定頁 tab 顯示控制 — 改用 hasPerm 不打 API 探測,避免 DevTools 一堆 403 紅字。
-        // 規則:
-        //   角色與權限 (setTabRoles)  → 需要 role.manage     (admin)
-        //   通知設定   (setTabNotif)  → 需要 settings.read   (admin) — 系統通知 catalogue
-        //   Email 通知 (setTabEmail)  → 需要 settings.write  (admin) — SMTP server 設定
-        //   設定       (setTabUser)   → 任何登入者都看得到(改自己)
+        // v1.1.10:settings 內四個進階 tab(notif / email / projectMembers / roles)
+        // 改為「任何 role 一律看得到」— 沒對應寫權限時 inject 一條 read-only banner。
+        // 邊角邏輯:user 是被邀請到其他人的 org 時,他在那個 org 通常不是 admin,
+        // 設定要以「該 org 真正的 admin」為主,本頁只能查看。
+        const _SETTINGS_TAB_PERM = {
+            notif: 'settings.read',
+            email: 'settings.write',
+            projectMembers: 'user.manage',
+            roles: 'role.manage',
+        };
+        function _settingsTabApplyReadOnlyBanner(name) {
+            const perm = _SETTINGS_TAB_PERM[name];
+            if (!perm) return;   // user tab 不需 banner
+            const paneId = 'setPane' + name.charAt(0).toUpperCase() + name.slice(1);
+            const pane = document.getElementById(paneId);
+            if (!pane) return;
+            const bannerId = '_setROBanner_' + name;
+            const old = document.getElementById(bannerId);
+            if (old) old.remove();
+            if (hasPerm(perm)) return;   // 有權限 → 不顯示 banner
+            // 從 me/orgs cache 拿 active org 名稱(orgSwitcher 載入時填好);沒拿到 fallback。
+            let orgName = '當前組織';
+            try {
+                const cur = (Array.isArray(_meOrgsCache) ? _meOrgsCache.find(o => o.is_current) : null);
+                if (cur && cur.name) orgName = cur.name;
+            } catch (_) {}
+            const div = document.createElement('div');
+            div.id = bannerId;
+            div.className = 'mb-4 px-4 py-3 bg-amber-50 border border-amber-300 rounded-lg text-sm text-amber-900 flex items-start gap-2';
+            div.innerHTML = `
+                <i class="fa-solid fa-circle-info text-amber-500 mt-0.5"></i>
+                <div>
+                    <b>您在「${_esc(orgName)}」不是管理員 — 以下為唯讀模式。</b><br>
+                    本頁面設定以該組織的管理員為主;若您是被邀請加入其他人專案,設定/角色/通知會以邀請方的設定為準。
+                    如需修改,請聯絡該組織管理員,或切換到您具管理員角色的組織。
+                </div>`;
+            pane.insertBefore(div, pane.firstChild);
+        }
+
+        // settingsTabsApplyVisibility — v1.1.10 改為 no-op 保留(四個 tab 一律顯示)。
+        // 過去依 hasPerm 動態 hidden;現在按 user 要求改成「按鈕都看得到,沒權限的 tab
+        // 在進入後以 read-only banner 標示」。其他地方還在呼叫此 function,保留空殼。
         function settingsTabsApplyVisibility() {
-            const rules = [
-                { id: 'setTabRoles', perm: 'role.manage' },
-                { id: 'setTabNotif', perm: 'settings.read' },
-                { id: 'setTabEmail', perm: 'settings.write' },
-                { id: 'setTabProjectMembers', perm: 'user.manage' },
-            ];
-            rules.forEach(({ id, perm }) => {
+            ['setTabRoles', 'setTabNotif', 'setTabEmail', 'setTabProjectMembers'].forEach(id => {
                 const btn = document.getElementById(id);
-                if (!btn) return;
-                if (hasPerm(perm)) btn.classList.remove('hidden');
-                else btn.classList.add('hidden');
+                if (btn) btn.classList.remove('hidden');
             });
         }
 
@@ -18015,6 +18247,11 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         async function rolesLoadList() {
             const tbody = document.getElementById('rolesListTbody');
             if (!tbody) return;
+            // v1.1.10:backend GET /settings/roles 要 settings.read;沒就不打 API。
+            if (!hasPerm('settings.read')) {
+                tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-stone-400">您不是當前組織的管理員,無法檢視角色設定</td></tr>';
+                return;
+            }
             tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-stone-400">載入中…</td></tr>';
             try {
                 const r = await fetch('/api/settings/roles');
@@ -18644,6 +18881,11 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             const username = (typeof authCurrentUsername === 'function' ? (authCurrentUsername()||'admin') : 'admin');
             document.getElementById('notifPrefUsername').textContent = username;
             const tbody = document.getElementById('notifEventsBody');
+            // v1.1.10:沒 settings.read 不打 API;banner 已說明 read-only。
+            if (!hasPerm('settings.read')) {
+                tbody.innerHTML = '<tr><td colspan="2" class="p-4 text-center text-stone-400">您不是當前組織的管理員,無法檢視通知設定</td></tr>';
+                return;
+            }
             tbody.innerHTML = '<tr><td colspan="2" class="p-4 text-center text-stone-400">載入中…</td></tr>';
             try {
                 if (!_notifEvents.length) {
@@ -18693,6 +18935,8 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
 
         // ─── 電子郵件 SMTP 設定 ───────────────────────────────────────
         async function loadEmailConfig() {
+            // v1.1.10:backend GET /settings/email 要 settings.read;沒就不打 API。
+            if (!hasPerm('settings.read')) return;
             try {
                 const r = await fetch('/api/settings/email');
                 if (!r.ok) throw new Error('HTTP '+r.status);

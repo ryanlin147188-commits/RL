@@ -36,5 +36,8 @@ class ProjectResponse(BaseModel):
     start_date: Optional[str] = None
     target_date: Optional[str] = None
     tags: Optional[str] = None
+    # v1.1.10:前端「退出專案」section 用 organization_id 判斷專案是「自己 org 的」
+    # 還是「被邀請進別人 org 的」(only 後者列出來給 user 退出)。
+    organization_id: Optional[str] = None
     created_at: datetime
     updated_at: datetime

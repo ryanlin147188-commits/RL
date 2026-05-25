@@ -39,17 +39,14 @@ def _normalize_project_status(val):
     return _LEGACY_PROJECT_STATUS.get(val, val)
 
 
-def _scope_filter(stmt, user: User):
-    """以 organization_id 過濾；superuser 看得到全部，普通使用者只看自己的 org。"""
-    if user.is_superuser:
-        return stmt
-    return stmt.where(Project.organization_id == user.organization_id)
-
-
 # 1. GET /api/projects
 # 多租戶 phase 2:加 ProjectMember 過濾。grandfather migration 已把所有同 org 的
 # user × project 寫進 ProjectMember,所以行為對既有使用者完全不變;管理員開始
 # 從某 project 移除成員後,該 user 立刻看不到該 project。
+#
+# v1.1.10:拿掉 organization_id 過濾,純粹靠 ProjectMember JOIN 控制可見性。
+# 這樣被邀請進別人 org 專案的協作者(ProjectInvite redeem 後)就能在 sidebar
+# 看到該專案,即使他的 personal org 跟 project.organization_id 不同。
 @router.get(
     "/projects",
     response_model=list[ProjectResponse],
@@ -60,9 +57,8 @@ async def list_projects(
     db: AsyncSession = Depends(get_db),
 ):
     stmt = select(Project).order_by(Project.created_at.desc())
-    stmt = _scope_filter(stmt, user)
     if not user.is_superuser:
-        # 只回 current_user 是 active member 的 projects。
+        # 只回 current_user 是 active member 的 projects(跨 org 也算)。
         stmt = stmt.join(
             ProjectMember,
             (ProjectMember.project_id == Project.id)
@@ -119,11 +115,30 @@ async def create_project(
     return project
 
 
-def _check_org_or_404(proj: Optional[Project], user: User) -> Project:
-    """共用：找不到或 org 不對都回 404（不洩漏「跨 org 存在」資訊）。"""
+async def _check_org_or_404(
+    proj: Optional[Project], user: User, db: AsyncSession,
+) -> Project:
+    """共用:找不到、或不是該 project 的成員都回 404(不洩漏「跨 org 存在」資訊)。
+
+    v1.1.10:cross-org 放行 — 同 org 直接通過;跨 org 但有 active ProjectMember row
+    (走 ProjectInvite redeem 進來的協作者)也通過。其餘 404。
+    """
     if proj is None:
         raise HTTPException(status_code=404, detail="Project not found")
-    if not user.is_superuser and proj.organization_id != user.organization_id:
+    if user.is_superuser:
+        return proj
+    if proj.organization_id == user.organization_id:
+        return proj
+    # 跨 org:檢查是否有 active ProjectMember row
+    pm = (
+        await db.execute(
+            select(ProjectMember)
+            .where(ProjectMember.project_id == proj.id)
+            .where(ProjectMember.username == user.username)
+            .where(ProjectMember.status == "active")
+        )
+    ).scalar_one_or_none()
+    if pm is None:
         raise HTTPException(status_code=404, detail="Project not found")
     return proj
 
@@ -143,7 +158,7 @@ async def get_project_tree(
 ):
     """一次撈出整棵樹，回傳巢狀 JSON（核心 API）。"""
     proj = await db.get(Project, project_id)
-    _check_org_or_404(proj, user)
+    await _check_org_or_404(proj, user, db)
 
     result = await db.execute(
         select(TreeNode)
@@ -170,7 +185,7 @@ async def delete_project(
 ):
     """刪除專案（連同樹狀節點、測試案例、執行報告等一併由 DB cascade 刪除）。"""
     proj = await db.get(Project, project_id)
-    proj = _check_org_or_404(proj, user)
+    proj = await _check_org_or_404(proj, user, db)
     await db.delete(proj)
     await db.commit()
     return None
@@ -193,7 +208,7 @@ async def update_project(
 ):
     """更新測試專案的欄位（部分更新，未提供的欄位保留）。"""
     proj = await db.get(Project, project_id)
-    proj = _check_org_or_404(proj, user)
+    proj = await _check_org_or_404(proj, user, db)
     data = payload.model_dump(exclude_unset=True)
     if "name" in data:
         name = (data["name"] or "").strip()
@@ -226,7 +241,7 @@ async def get_project(
     db: AsyncSession = Depends(get_db),
 ):
     proj = await db.get(Project, project_id)
-    return _check_org_or_404(proj, user)
+    return await _check_org_or_404(proj, user, db)
 
 
 # ─────────────────── Project Members CRUD(phase 2)───────────────────
@@ -250,7 +265,7 @@ async def list_project_assignable_users(
     只看 organization_id,會把專案外的使用者也列出來。
     """
     proj = await db.get(Project, project_id)
-    _check_org_or_404(proj, user)
+    await _check_org_or_404(proj, user, db)
     rows = (
         await db.execute(
             select(User)
@@ -297,7 +312,7 @@ async def list_project_members(
     """列出某專案的所有成員。可選 `?search=&sort_by=&sort_dir=&limit=&offset=`。
     帶 `limit` 時會在 response header 加 `X-Total-Count`。"""
     proj = await db.get(Project, project_id)
-    _check_org_or_404(proj, user)
+    await _check_org_or_404(proj, user, db)
 
     base_join = (
         select(ProjectMember, User, Role)
@@ -374,7 +389,7 @@ async def add_project_member(
 ):
     """加成員到專案。body `{"username": "...", "role_id": "..." | null}`。"""
     proj = await db.get(Project, project_id)
-    _check_org_or_404(proj, user)
+    await _check_org_or_404(proj, user, db)
     if not _can_manage_project_members(user, proj):
         raise HTTPException(403, "需要組織管理員權限才能管理專案成員")
     target_username = (payload or {}).get("username", "").strip()
@@ -435,7 +450,7 @@ async def bulk_update_project_members(
     body: `{"usernames": [...], "role_id": "..." | null, "status": "active"}`
     role_id=null 表示繼承 OrgMembership 角色。"""
     proj = await db.get(Project, project_id)
-    _check_org_or_404(proj, user)
+    await _check_org_or_404(proj, user, db)
     if not _can_manage_project_members(user, proj):
         raise HTTPException(403, "需要組織管理員權限才能管理專案成員")
 
@@ -502,7 +517,7 @@ async def add_project_members_from_group(
     回傳:`{added: N, skipped: [{username, reason}]}`。
     跳過原因:已在此專案 / 不在此 org 的 OrgMembership / user 不存在。"""
     proj = await db.get(Project, project_id)
-    _check_org_or_404(proj, user)
+    await _check_org_or_404(proj, user, db)
     if not _can_manage_project_members(user, proj):
         raise HTTPException(403, "需要組織管理員權限才能管理專案成員")
     group_id = (payload or {}).get("group_id")
@@ -592,7 +607,7 @@ async def update_project_member(
 ):
     """改成員的角色或狀態。body 可含 `role_id`(NULL 代表繼承 org-level)/ `status`。"""
     proj = await db.get(Project, project_id)
-    _check_org_or_404(proj, user)
+    await _check_org_or_404(proj, user, db)
     if not _can_manage_project_members(user, proj):
         raise HTTPException(403, "需要組織管理員權限才能管理專案成員")
     pm = (
@@ -631,7 +646,7 @@ async def remove_project_member(
 ):
     """從專案移除成員(該 user 仍保留 OrgMembership,只是看不到此專案了)。"""
     proj = await db.get(Project, project_id)
-    _check_org_or_404(proj, user)
+    await _check_org_or_404(proj, user, db)
     if not _can_manage_project_members(user, proj):
         raise HTTPException(403, "需要組織管理員權限才能管理專案成員")
     pm = (
@@ -644,11 +659,65 @@ async def remove_project_member(
     if not pm:
         raise HTTPException(404, "找不到此成員")
     if username == user.username and not user.is_superuser:
-        raise HTTPException(400, "不可移除自己;請其他 admin 操作")
+        raise HTTPException(400, "不可移除自己;要自己退出專案請走 DELETE /projects/{id}/leave")
     await db.delete(pm)
     await db.flush()
     from app.auth.casbin_sync import schedule_user_resync
     schedule_user_resync(username)
+
+
+@router.delete(
+    "/projects/{project_id}/leave",
+    status_code=204,
+    tags=["G · 專案"],
+)
+async def leave_project(
+    project_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """使用者自助退出專案(v1.1.10)。
+
+    不需 USER_MANAGE 權限 — 只要是該專案的 active ProjectMember 就能退出
+    (對應「設定 → 退出專案」UI)。退出後 sidebar 看不到該 project,
+    要再回去得請 admin 重新邀請。
+
+    擋條件:
+    * 找不到 active ProjectMember → 404
+    * 退完後該 project 沒有任何 active member 了(避免孤兒化)→ 400
+    """
+    proj = await db.get(Project, project_id)
+    if proj is None:
+        raise HTTPException(404, "找不到專案")
+    pm = (
+        await db.execute(
+            select(ProjectMember)
+            .where(ProjectMember.project_id == project_id)
+            .where(ProjectMember.username == user.username)
+            .where(ProjectMember.status == "active")
+        )
+    ).scalar_one_or_none()
+    if pm is None:
+        raise HTTPException(404, "您不是此專案的成員")
+    # 退完後是否就沒任何 active member 了?是 → 擋,避免孤兒。
+    remaining = (
+        await db.execute(
+            select(ProjectMember)
+            .where(ProjectMember.project_id == project_id)
+            .where(ProjectMember.username != user.username)
+            .where(ProjectMember.status == "active")
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if remaining is None:
+        raise HTTPException(
+            400,
+            "您是此專案唯一的成員,退出後將沒人能管理。請改用「刪除專案」,或邀請其他人接手後再退出",
+        )
+    await db.delete(pm)
+    await db.flush()
+    from app.auth.casbin_sync import schedule_user_resync
+    schedule_user_resync(user.username)
 
 
 # ─────────────────── Clone Project ───────────────────────────────────
@@ -679,7 +748,7 @@ async def clone_project(
     from app.models.testcase_precondition_link import TestcasePreconditionLink
 
     src = await db.get(Project, project_id)
-    _check_org_or_404(src, user)
+    await _check_org_or_404(src, user, db)
 
     # 1) 建立新專案
     new_proj = Project(
@@ -847,7 +916,7 @@ async def create_project_invite(
     db: AsyncSession = Depends(get_db),
 ):
     proj = await db.get(Project, project_id)
-    proj = _check_org_or_404(proj, user)
+    proj = await _check_org_or_404(proj, user, db)
 
     email_lc = payload.invitee_email.lower().strip()
 
@@ -924,7 +993,7 @@ async def list_project_invites(
     db: AsyncSession = Depends(get_db),
 ):
     proj = await db.get(Project, project_id)
-    _check_org_or_404(proj, user)
+    await _check_org_or_404(proj, user, db)
     stmt = select(ProjectInvite).where(ProjectInvite.project_id == project_id)
     if status:
         stmt = stmt.where(ProjectInvite.status == status)
@@ -948,7 +1017,7 @@ async def revoke_project_invite(
     if inv is None:
         raise HTTPException(404, "邀請不存在")
     proj = await db.get(Project, inv.project_id)
-    _check_org_or_404(proj, user)
+    await _check_org_or_404(proj, user, db)
     if inv.status != "pending":
         # 已 redeemed / 已 revoked / 已 expired 都 idempotent skip
         return

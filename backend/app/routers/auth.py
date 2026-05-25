@@ -114,16 +114,20 @@ async def login(
     )
 
 
-# ── 自助註冊 + Email 驗證(v1.1.10 重新啟用)──────────────────
+# ── 自助註冊(v1.1.10 簡化版)─────────────────────────────────
 # 流程:
-#   1. POST /auth/register             匿名;建 user (is_active=False) + 寄驗證信
-#   2. GET  /auth/register/verify-check 匿名;前端載入時 ?verify_token= 預檢
-#   3. POST /auth/register/verify      匿名;真的啟用 user
-#   4. POST /auth/register/resend-verify 匿名;重寄驗證信(同 IP rate-limit)
+#   POST /auth/register  匿名;建 user(is_active=True,可立即登入)
+#                        + 自動建個人 Organization + OrgMembership(admin role)
 #
-# Privacy:同 forgot-password 模式 — 永遠回 200 + 通用訊息,不洩露
-# username / email 是否已存在。username 衝突回 409(無法 silent),但
-# email 衝突 silent。
+# 設計決策:取消 email 驗證流程(user 反映太繁瑣)。Email 驗證只保留:
+#   1. 忘記密碼(/auth/forgot-password)
+#   2. 加入別人專案協作(ProjectInvite — 邀請信寄 email,redeem 時驗 email)
+#
+# 下面的 /auth/register/verify-check, /verify, /resend-verify endpoint 保留
+# 但目前路徑不會觸發 — 之後若要重啟用 email 驗證 / email change confirm 可直接用。
+#
+# Privacy:同 forgot-password 模式 — username 衝突回 409(無法 silent),但
+# email 衝突 silent 不洩漏。
 
 @router.post(
     "/auth/register",
@@ -138,11 +142,15 @@ async def register(
     user_manager: UserManager = Depends(get_user_manager),
     db: AsyncSession = Depends(get_db),
 ) -> RegisterResponse:
-    """匿名 user 自助註冊。
+    """匿名 user 自助註冊(v1.1.10 簡化版)。
 
-    建 ``users`` row 但 ``is_active=False``,寄一封含 ``/?verify_token=...``
-    的驗證信。User 必須點連結才能啟用帳號;啟用後仍沒有 org/role,要等
-    superuser 在「設定 → 專案協作成員」手動指派。
+    建 ``users`` row 並直接 ``is_active=True``。同時自動建立:
+    * 個人 Organization(``slug=personal-{username}``, ``name="{display_name} 的工作空間"``)
+    * OrgMembership(``is_default=True``、套用 system "admin" role)
+    * ``users.organization_id`` / ``users.role_id`` 直接指向上面那組
+
+    註冊完即可登入,在自己的工作空間是管理員。若要協作別人的專案,走
+    ``ProjectInvite``(寄信 + 點連結兌換,email 必須相符)。
     """
     import logging
     logger = logging.getLogger(__name__)
@@ -162,86 +170,100 @@ async def register(
         raise HTTPException(409, {"code": "username_taken", "message": "帳號已被使用"})
 
     # email 衝突 → silent(避免帳號探測攻擊)
-    # 不告訴 caller,直接回成功但 row 不建。也不寄信。
+    # 不告訴 caller,直接回成功但 row 不建,也不寄信。
     existing_email = (
         await db.execute(select(User).where(User.email == email))
     ).scalar_one_or_none()
     if existing_email:
         logger.info("register: email '%s' already taken (silent)", email)
-        return RegisterResponse()
+        return RegisterResponse(message="註冊完成,請以您的帳號登入")
 
-    # 建 user — is_active=False, org/role 都不設(等 admin 指派)
+    # 找 system "admin" role(_seed_default_roles 啟動時建好的全 70 權限)。
+    # 注意:_seed_default_org_and_backfill 會把 NULL organization_id 全部回填到
+    # default org,所以不能用 organization_id IS NULL 過濾,只匹配 name+is_system。
+    admin_role = (
+        await db.execute(
+            select(Role).where(Role.name == "admin", Role.is_system.is_(True))
+        )
+    ).scalar_one_or_none()
+    if not admin_role:
+        logger.error("register: system admin role not seeded; abort")
+        raise HTTPException(500, "系統未完成初始化,請聯絡管理員")
+
+    # 1) 建個人 Organization
+    # slug:username 已 unique(/^[A-Za-z0-9_.\-]+$/)→ slug 也必 unique
+    org_slug = f"personal-{username.lower()}"
+    org_name = f"{display_name} 的工作空間"
+    new_org = Organization(
+        id=str(uuid.uuid4()),
+        slug=org_slug,
+        name=org_name,
+        plan="free",
+    )
+    db.add(new_org)
+    await db.flush()
+
+    # 2) 建 User(is_active=True 直接可用)+ 指向個人 org + admin role
     new_user = User(
         id=str(uuid.uuid4()),
         username=username,
         email=email,
         display_name=display_name,
         password_hash=hash_password(payload.password),
-        is_active=False,            # 直到 verify 才開
+        is_active=True,                  # 不再驗證 email
         is_superuser=False,
-        must_change_password=False, # 自己設的密碼,不必再 force
-        organization_id=None,       # 待 admin 指派
-        role_id=None,
+        must_change_password=False,
+        organization_id=new_org.id,
+        role_id=admin_role.id,
     )
     db.add(new_user)
     await db.flush()
 
-    # mint verification token
-    token_value = secrets.token_urlsafe(32)
-    expires_at = datetime.utcnow() + timedelta(hours=EMAIL_VERIFY_TTL_HOURS)
-    client_ip = request.client.host if request.client else None
-    db.add(EmailVerificationToken(
-        token=token_value,
+    # 3) OrgMembership — 個人 org 內的 admin,設成 default
+    db.add(OrgMembership(
+        username=new_user.username,
         user_id=new_user.id,
-        email_sent_to=email,
-        expires_at=expires_at,
-        requested_ip=client_ip,
+        organization_id=new_org.id,
+        role_id=admin_role.id,
+        is_default=True,
+        status="active",
+        invited_by=None,
     ))
     await db.commit()
 
-    # 寄信(透過 Celery,失敗不影響 register 回應)
+    client_ip = request.client.host if request.client else None
+    logger.info(
+        "register: created user=%s org=%s(slug=%s) ip=%s",
+        username, new_org.id, org_slug, client_ip,
+    )
+
+    # 4) 觸發 Casbin 重新同步該 user 的 policy
     try:
-        from app.services.email_service import render_registration_verify_email
-        from tasks.email_tasks import send_email_task
-
-        verify_url = (
-            f"{request.url.scheme}://{request.url.netloc}/?verify_token={token_value}"
-        )
-        html_body, text_body = render_registration_verify_email(
-            display_name=display_name,
-            verify_url=verify_url,
-            expires_at=expires_at.strftime("%Y-%m-%d %H:%M UTC"),
-        )
-        send_email_task.delay(
-            to=email,
-            subject="AutoTest 帳號啟用驗證",
-            html_body=html_body,
-            text_body=text_body,
-            organization_id=None,   # 新 user 還沒 org
-        )
-        logger.info(
-            "register: token=%s issued for new user=%s ip=%s",
-            token_value[:8] + "...", username, client_ip,
-        )
+        from app.auth.casbin_sync import schedule_user_resync
+        schedule_user_resync(new_user.username)
     except Exception:  # noqa: BLE001
-        logger.exception(
-            "register: token saved but email enqueue failed for %s", username,
-        )
+        logger.exception("register: casbin resync schedule failed for %s", username)
 
-    return RegisterResponse()
+    return RegisterResponse(message="註冊成功,請以您的帳號密碼登入")
 
+
+# ── 以下三個 verify endpoint 在 v1.1.10 簡化後不會被新註冊流程觸發 ─────
+# 保留:之後若要重啟用 email 驗證,或做 email change confirm 可直接重用。
+# 安全:既有 email_verification_tokens 表還在,middleware 白名單也保留;
+# 從外部直接呼叫不影響註冊路徑,只能對殘留的 inactive user(歷史資料)生效。
 
 @router.get(
     "/auth/register/verify-check",
     response_model=VerifyTokenResponse,
     tags=["U · 認證"],
+    deprecated=True,
 )
 async def register_verify_check(
     token: str,
     db: AsyncSession = Depends(get_db),
 ) -> VerifyTokenResponse:
-    """前端載入 ``/?verify_token=...`` 後先打這支看 token 還有效嗎,避免使用者
-    白等 toast 才告訴他過期。"""
+    """[v1.1.10 deprecated] 前端載入 ``/?verify_token=...`` 後先打這支看
+    token 還有效嗎。新註冊流程不再寄驗證信,此 endpoint 保留作未來用途。"""
     if not token:
         return VerifyTokenResponse(valid=False)
     evt = (
@@ -259,6 +281,7 @@ async def register_verify_check(
 @router.post(
     "/auth/register/verify",
     tags=["U · 認證"],
+    deprecated=True,
 )
 @limiter.limit("20/hour")  # 防暴力猜 token
 async def register_verify(
@@ -266,7 +289,8 @@ async def register_verify(
     payload: VerifyTokenRequest,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """以 token 啟用對應的 user(``is_active=True``)。"""
+    """[v1.1.10 deprecated] 以 token 啟用對應的 user(``is_active=True``)。
+    新註冊流程已直接 is_active=True,此 endpoint 保留作未來用途。"""
     if not payload.token:
         raise HTTPException(400, "缺少 token")
 
@@ -310,6 +334,7 @@ async def register_verify(
     "/auth/register/resend-verify",
     response_model=RegisterResponse,
     tags=["U · 認證"],
+    deprecated=True,
 )
 @limiter.limit("3/hour")  # 防被當寄信跳板
 async def register_resend_verify(
@@ -317,7 +342,8 @@ async def register_resend_verify(
     payload: ResendVerifyRequest,
     db: AsyncSession = Depends(get_db),
 ) -> RegisterResponse:
-    """重寄驗證信。永遠回 200(不洩露 email 存在),失敗 silent。"""
+    """[v1.1.10 deprecated] 重寄驗證信。永遠回 200(不洩露 email 存在),失敗 silent。
+    新註冊流程不再寄驗證信,此 endpoint 保留作未來用途。"""
     import logging
     logger = logging.getLogger(__name__)
 
@@ -1097,3 +1123,87 @@ async def delete_user(
     await user_manager.delete(target)
     from app.auth.casbin_sync import schedule_user_resync
     schedule_user_resync(username)
+
+
+@router.delete("/auth/me", status_code=204, tags=["U · 認證"])
+async def delete_my_account(
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    user_manager: UserManager = Depends(get_user_manager),
+):
+    """使用者自助刪除自己的帳號(v1.1.10)。
+
+    保護:
+    * ``is_superuser`` 不允許 self-delete — 避免系統最後一個 admin 自爆。
+      要刪 superuser 須由另一個 superuser 走 ``DELETE /auth/users/{u}``,
+      或先把該帳號降級。
+    * 刪除後 revoke 當前 access token(jti 進 Valkey blocklist);refresh
+      token 沒辦法主動 invalidate,但 user row 沒了下次拿 refresh token 換
+      access 也會 401。
+
+    Cascade:
+    * ``org_memberships`` / ``group_memberships`` / ``api_keys`` /
+      ``email_verification_tokens`` 等 FK ``ondelete=CASCADE`` 自動刪除。
+    * 若 user 的 active org 是個人 org(``slug='personal-{username}'``)且
+      其他 OrgMembership 已被 cascade 刪光,順手把該 Organization 也刪掉,
+      避免累積孤兒 org row。其他人共用的 org 不動。
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    if user.is_superuser:
+        raise HTTPException(
+            400,
+            "Superuser 帳號不能自助刪除,請先由另一位 superuser 降級或刪除此帳號",
+        )
+
+    username = user.username
+    user_id = user.id
+    personal_org_id = user.organization_id
+
+    client_ip = request.client.host if request.client else None
+    logger.warning(
+        "delete_my_account: user=%s id=%s active_org=%s ip=%s",
+        username, user_id, personal_org_id, client_ip,
+    )
+
+    # 1) 刪 user(會 cascade 掉 OrgMembership / ProjectMember / ApiKey 等)
+    await user_manager.delete(user)
+
+    # 2) 如果 active org 是該 user 的個人 org 且現在沒人了,順手清掉。
+    #    (註冊時建的 slug 格式:personal-{username.lower()},user 是唯一 member)
+    if personal_org_id:
+        org = await db.get(Organization, personal_org_id)
+        expected_slug = f"personal-{username.lower()}"
+        if org and org.slug == expected_slug:
+            # 確認沒有其他 OrgMembership / User 還掛在這個 org 上
+            still_member = (
+                await db.execute(
+                    select(OrgMembership).where(
+                        OrgMembership.organization_id == personal_org_id
+                    ).limit(1)
+                )
+            ).scalar_one_or_none()
+            still_user = (
+                await db.execute(
+                    select(User).where(User.organization_id == personal_org_id).limit(1)
+                )
+            ).scalar_one_or_none()
+            if not still_member and not still_user:
+                await db.delete(org)
+                await db.commit()
+                logger.info(
+                    "delete_my_account: personal org=%s(%s) removed",
+                    org.id, expected_slug,
+                )
+
+    # 3) Revoke 當前 access token
+    payload = getattr(request.state, "user_payload", None) or {}
+    await revoke_jti(payload.get("jti"), payload.get("exp"))
+
+    # 4) Casbin policy resync
+    from app.auth.casbin_sync import schedule_user_resync
+    schedule_user_resync(username)
+
+    return None
