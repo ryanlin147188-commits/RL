@@ -72,7 +72,10 @@ router = APIRouter()
 
 
 @router.post("/auth/login", response_model=TokenResponse, tags=["U · 認證"])
-@limiter.limit("10/minute")          # 暴力破解防護：同一 IP 每分鐘最多 10 次登入嘗試
+# v1.1.10:gateway 已用 routes.yaml 設 30/minute 作主擋。backend 本層作 defense in
+# depth,把 limit 拉到 60/minute(2 倍 gateway 值),只擋「繞過 gateway 直打 backend」
+# 的攻擊。日常使用瀏覽器流量會被 gateway 30/min 先攔。
+@limiter.limit("60/minute")
 async def login(
     request: Request,
     payload: LoginRequest,

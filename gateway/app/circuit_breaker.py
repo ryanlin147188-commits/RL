@@ -74,6 +74,16 @@ class CircuitBreaker:
             self._opened_at = time.time()
             _set_metric(self.name, self._state)
 
+    def status_dict(self) -> dict:
+        return {
+            "name": self.name,
+            "state": self.state.value,
+            "consecutive_failures": self._consecutive_failures,
+            "threshold": self.threshold,
+            "ttl_seconds": self.ttl_seconds,
+            "opened_at": self._opened_at,
+        }
+
 
 def _set_metric(group: str, state: CircuitState) -> None:
     """同步 Prometheus gauge:0=closed / 1=half_open / 2=open。
@@ -87,16 +97,6 @@ def _set_metric(group: str, state: CircuitState) -> None:
         circuit_state_gauge.labels(group=group).set(val)
     except Exception:
         pass
-
-    def status_dict(self) -> dict:
-        return {
-            "name": self.name,
-            "state": self.state.value,
-            "consecutive_failures": self._consecutive_failures,
-            "threshold": self.threshold,
-            "ttl_seconds": self.ttl_seconds,
-            "opened_at": self._opened_at,
-        }
 
 
 # ── Registry ─────────────────────────────────────────────────────

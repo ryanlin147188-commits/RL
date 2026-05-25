@@ -71,9 +71,15 @@ class RateLimiter:
         return self._redis
 
     async def check(self, ident: str, limit_count: int, period_sec: int) -> tuple[bool, int]:
-        """回 ``(allowed, current_count)``。allowed=False 時 caller 該回 429。"""
+        """回 ``(allowed, current_count)``。allowed=False 時 caller 該回 429。
+
+        Key 要含 limit_count 避免同 period 不同 limit 共用 counter — 例如
+        ``/api/auth/login`` 30/min 跟 ``/api/foo`` 600/min 都是 60 秒一週期,
+        若 key 只含 period 會打到同 bucket,30/min 那條的失敗計數會炸到
+        600/min 那條身上。
+        """
         bucket_ts = int(time.time()) // period_sec
-        key = f"ratelimit:{period_sec}:{bucket_ts}:{ident}"
+        key = f"ratelimit:{period_sec}:{limit_count}:{bucket_ts}:{ident}"
         r = await self.get_redis()
         if r:
             try:

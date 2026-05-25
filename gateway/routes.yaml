@@ -15,16 +15,16 @@ default_rate_limit: 600/minute
 # methods:限定 HTTP method;留空 = 所有 method
 routes:
   - match: { path: /api/auth/login, methods: [POST] }
-    rate_limit: 10/minute       # 防暴力破解
+    rate_limit: 30/minute       # 防暴力破解,但 dev 偶爾打錯不會卡死
     circuit_group: auth
   - match: { path: /api/auth/forgot-password, methods: [POST] }
-    rate_limit: 3/hour          # 防被當寄信跳板
+    rate_limit: 5/hour          # 防被當寄信跳板
     circuit_group: auth
   - match: { path: /api/auth/reset-password, methods: [POST] }
     rate_limit: 10/hour
     circuit_group: auth
   - match: { path: /api/auth/refresh, methods: [POST] }
-    rate_limit: 100/minute      # SPA 自動 refresh 不能被卡
+    rate_limit: 120/minute      # SPA 自動 refresh 不能被卡
     circuit_group: auth
   - match: { path: /api/executions, methods: [POST] }
     rate_limit: 60/minute       # 觸發測試執行
