@@ -1,0 +1,14 @@
+# AutoTest Gateway routes configuration
+#
+# Commit 1:placeholder。Commit 3 才接動態路由 / 限速 override / 熔斷器分組。
+# 目前 gateway 用內建 hard-coded 白名單(app/auth.py:_PUBLIC_PATTERNS),
+# 沒讀這個檔。預留路徑讓 docker COPY 不會炸。
+
+version: 1
+upstream:
+  backend: http://backend:8000
+
+# Commit 3 才生效:
+# default_rate_limit: 600/minute
+# routes: []
+# circuit_breakers: {}

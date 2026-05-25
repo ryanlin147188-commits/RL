@@ -5,11 +5,23 @@
 - whitelist：登入 / refresh / health / docs / openapi 不需要 token
 - WebSocket / 靜態檔不在這條路徑下，不受影響
 - 同時也接受 query param `?access_token=` 或 cookie `access_token` (給 SSE / 下載連結方便)
+
+v1.1.10 (gateway short-circuit):
+- 若 ``GATEWAY_BACKEND_SHARED_SECRET`` 環境變數有設且 request 帶合法
+  ``X-Gateway-Verified`` HMAC,直接信任 gateway 已驗的 user / org / sub,
+  跳過 JWT decode。HMAC 覆蓋 ``{method}\\n{path}\\n{sub}\\n{timestamp}``,
+  timestamp 必須在 30 秒內(防 replay)。沒設 secret → 短路功能關閉,
+  退回原本「gateway / backend 雙層各自驗 JWT」。
 """
 from __future__ import annotations
 
+import hashlib
+import hmac
+import logging
+import os
 import re
-from typing import Iterable
+import time
+from typing import Iterable, Optional
 
 import jwt as pyjwt
 from fastapi import Request
@@ -20,6 +32,8 @@ from app.auth.context import (
     reset_request_context,
     set_request_context,
 )
+
+_log = logging.getLogger(__name__)
 # v1.1.8.1 Task 1:JWT decode 集中到 fastapi_users_integration,middleware 跟
 # fastapi-users 的 read_token 共用同一份 JWT 規格定義。本檔不再自己呼
 # ``security.decode_token`` — 改透過 ``decode_access_token_payload``,內部仍
@@ -145,6 +159,54 @@ def _payload_to_context(payload: dict | None, request: Request):
     )
 
 
+# ── Gateway short-circuit(v1.1.10)─────────────────────────────
+# 環境變數讀一次,避免 hot path 每個 request 都 os.environ.get
+_GW_SHARED_SECRET: Optional[str] = os.environ.get("GATEWAY_BACKEND_SHARED_SECRET") or None
+_GW_TIMESTAMP_TOLERANCE_SEC = 30
+
+
+def _verify_gateway_hmac(request: Request) -> Optional[dict]:
+    """檢查 ``X-Gateway-Verified`` 是否為 gateway 簽的合法 HMAC。
+
+    合法 → 回 dict 重組好的 user_payload(跳過 JWT decode 直接拿 X-Gateway-*
+    header 當權威);任一驗證失敗 → 回 None,由 caller 退回原 JWT 流程。
+    """
+    if not _GW_SHARED_SECRET:
+        return None
+    sig = request.headers.get("X-Gateway-Verified")
+    ts_str = request.headers.get("X-Gateway-Timestamp")
+    sub = request.headers.get("X-Gateway-Sub")
+    if not (sig and ts_str and sub):
+        return None
+    try:
+        ts = int(ts_str)
+    except ValueError:
+        return None
+    if abs(int(time.time()) - ts) > _GW_TIMESTAMP_TOLERANCE_SEC:
+        _log.warning("gateway HMAC timestamp out of tolerance (ts=%s)", ts)
+        return None
+    # 重算 HMAC(method 對 sign_gateway_request 一致用 upper case)
+    method = request.method.upper()
+    path = request.url.path
+    msg = f"{method}\n{path}\n{sub}\n{ts}".encode("utf-8")
+    expected = hmac.new(
+        _GW_SHARED_SECRET.encode("utf-8"), msg, hashlib.sha256,
+    ).hexdigest()
+    if not hmac.compare_digest(sig, expected):
+        _log.warning("gateway HMAC mismatch for %s %s sub=%s", method, path, sub)
+        return None
+    # 簽章 OK → 重組 payload(欄位對齊 JWT decode 後的 dict)
+    payload: dict = {
+        "sub": sub,
+        "username": request.headers.get("X-Gateway-User") or sub,
+        "is_superuser": request.headers.get("X-Gateway-Is-Superuser") == "1",
+    }
+    org = request.headers.get("X-Gateway-Org")
+    if org:
+        payload["org_id"] = org
+    return payload
+
+
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         method = request.method.upper()
@@ -165,6 +227,17 @@ class AuthMiddleware(BaseHTTPMiddleware):
                     payload = None
             request.state.user_payload = payload
             snap = _payload_to_context(payload, request)
+            try:
+                return await call_next(request)
+            finally:
+                reset_request_context(snap)
+
+        # ── Gateway short-circuit ──
+        # Gateway 已驗 JWT → 跳過 decode + revocation,直接拿 X-Gateway-* 當權威
+        gw_payload = _verify_gateway_hmac(request)
+        if gw_payload is not None:
+            request.state.user_payload = gw_payload
+            snap = _payload_to_context(gw_payload, request)
             try:
                 return await call_next(request)
             finally:
