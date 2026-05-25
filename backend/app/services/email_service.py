@@ -49,14 +49,27 @@ class EmailSendFailed(RuntimeError):
 
 
 def _resolve_config(db: Session, organization_id: Optional[str]) -> EmailConfig:
-    """Find the EmailConfig for ``organization_id``, falling back to the
-    org-less ``id='default'`` row. Raises EmailNotConfigured if neither is
-    usable."""
+    """Find the EmailConfig for ``organization_id``, falling back to:
+
+    1. ``id='default'`` 全域 row(無 organization 綁定的 fallback row)
+    2. **任一 ``enabled=True`` 的 config**(v1.1.10 加)— 給註冊驗證信用,
+       因為新 user 註冊時還沒 org,但平台 admin 通常有設一個有效 SMTP
+
+    Raises ``EmailNotConfigured`` 沒任何可用 config。
+    """
     stmt = select(EmailConfig).where(EmailConfig.organization_id == organization_id)
     cfg = db.execute(stmt).scalar_one_or_none()
     if cfg is None:
-        # Per-org row absent — try the global default
         cfg = db.get(EmailConfig, "default")
+    if cfg is None or not cfg.enabled:
+        # v1.1.10 fallback:抓任何 enabled config(註冊信沒 org 用得到)
+        cfg = db.execute(
+            select(EmailConfig)
+            .where(EmailConfig.enabled.is_(True))
+            .where(EmailConfig.smtp_host.is_not(None))
+            .where(EmailConfig.from_address.is_not(None))
+            .limit(1)
+        ).scalar_one_or_none()
     if cfg is None or not cfg.enabled:
         raise EmailNotConfigured(
             f"no enabled EmailConfig for org_id={organization_id!r}"
