@@ -2532,54 +2532,56 @@
                     </div>
                 </section>
 
-                <!-- 我的工作面板 — v1.1.9+:左側兩個列表(指派給我 + 快到期)、右側行事曆 -->
-                <section class="max-w-6xl mx-auto mb-8 grid grid-cols-1 lg:grid-cols-3 gap-4">
-                    <!-- 左 2/3:任務列表 -->
-                    <div class="lg:col-span-2 space-y-4">
-                        <!-- 指派給我的任務(指派給我,不論狀態,最多 10 筆) -->
-                        <div>
-                            <div class="flex items-center justify-between mb-2">
-                                <h3 class="text-sm font-bold text-stone-500 uppercase tracking-wider flex items-center gap-2">
-                                    <i class="fa-regular fa-clipboard text-violet-500"></i> <span data-i18n="home.myPendingReviews">指派給我的任務</span>
-                                    <span class="text-[11px] font-normal normal-case tracking-normal text-stone-400">(指派給我,最多 10 筆)</span>
-                                </h3>
-                                <button onclick="loadHomeMyPendingReviews()" class="text-xs text-stone-500 hover:text-violet-700 transition" title="重新整理"><i class="fa-solid fa-rotate"></i></button>
-                            </div>
-                            <div id="homeMyPendingReviews" class="bg-white rounded-xl border border-violet-100 shadow-sm divide-y divide-stone-100">
-                                <div class="p-6 text-center text-stone-400 text-sm">載入中…</div>
-                            </div>
+                <!-- 我的工作面板 — v1.1.9+:上方兩個任務列表並排,下方全寬行事曆 -->
+                <section class="max-w-6xl mx-auto mb-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <!-- 指派給我的任務(指派給我,不論狀態,最多 10 筆) -->
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="text-sm font-bold text-stone-500 uppercase tracking-wider flex items-center gap-2">
+                                <i class="fa-regular fa-clipboard text-violet-500"></i> <span data-i18n="home.myPendingReviews">指派給我的任務</span>
+                                <span class="text-[11px] font-normal normal-case tracking-normal text-stone-400">(指派給我,最多 10 筆)</span>
+                            </h3>
+                            <button onclick="loadHomeMyPendingReviews()" class="text-xs text-stone-500 hover:text-violet-700 transition" title="重新整理"><i class="fa-solid fa-rotate"></i></button>
                         </div>
-
-                        <!-- 快到期的任務(7 天內到期且未完成的 todo,最多 10 筆)-->
-                        <div>
-                            <div class="flex items-center justify-between mb-2">
-                                <h3 class="text-sm font-bold text-stone-500 uppercase tracking-wider flex items-center gap-2">
-                                    <i class="fa-regular fa-clock text-amber-500"></i> <span data-i18n="home.dueSoon">快到期的任務</span>
-                                    <span class="text-[11px] font-normal normal-case tracking-normal text-stone-400">(7 天內到期或已逾期,最多 10 筆)</span>
-                                </h3>
-                                <button onclick="loadHomeDueSoon()" class="text-xs text-stone-500 hover:text-amber-700 transition" title="重新整理"><i class="fa-solid fa-rotate"></i></button>
-                            </div>
-                            <div id="homeDueSoon" class="bg-white rounded-xl border border-amber-100 shadow-sm divide-y divide-stone-100">
-                                <div class="p-6 text-center text-stone-400 text-sm">載入中…</div>
-                            </div>
+                        <div id="homeMyPendingReviews" class="bg-white rounded-xl border border-violet-100 shadow-sm divide-y divide-stone-100">
+                            <div class="p-6 text-center text-stone-400 text-sm">載入中…</div>
                         </div>
                     </div>
 
-                    <!-- 右 1/3:行事曆(月份視圖,顯示 todo due_date + test_schedule 區間)-->
-                    <div class="lg:col-span-1">
+                    <!-- 快到期的任務(7 天內到期且未完成的 todo,最多 10 筆)-->
+                    <div>
                         <div class="flex items-center justify-between mb-2">
                             <h3 class="text-sm font-bold text-stone-500 uppercase tracking-wider flex items-center gap-2">
-                                <i class="fa-regular fa-calendar text-blue-500"></i> <span data-i18n="home.calendar">行事曆</span>
+                                <i class="fa-regular fa-clock text-amber-500"></i> <span data-i18n="home.dueSoon">快到期的任務</span>
+                                <span class="text-[11px] font-normal normal-case tracking-normal text-stone-400">(7 天內到期或已逾期,最多 10 筆)</span>
                             </h3>
-                            <div class="flex items-center gap-1">
-                                <button onclick="homeCalShift(-1)" class="text-xs px-1.5 py-0.5 rounded hover:bg-blue-50 text-stone-500 hover:text-blue-700" title="上個月"><i class="fa-solid fa-chevron-left"></i></button>
-                                <button onclick="homeCalShift(0)" class="text-xs px-1.5 py-0.5 rounded hover:bg-blue-50 text-stone-500 hover:text-blue-700" title="本月">今天</button>
-                                <button onclick="homeCalShift(1)" class="text-xs px-1.5 py-0.5 rounded hover:bg-blue-50 text-stone-500 hover:text-blue-700" title="下個月"><i class="fa-solid fa-chevron-right"></i></button>
-                            </div>
+                            <button onclick="loadHomeDueSoon()" class="text-xs text-stone-500 hover:text-amber-700 transition" title="重新整理"><i class="fa-solid fa-rotate"></i></button>
                         </div>
-                        <div id="homeCalendar" class="bg-white rounded-xl border border-blue-100 shadow-sm p-3">
+                        <div id="homeDueSoon" class="bg-white rounded-xl border border-amber-100 shadow-sm divide-y divide-stone-100">
                             <div class="p-6 text-center text-stone-400 text-sm">載入中…</div>
                         </div>
+                    </div>
+                </section>
+
+                <!-- 行事曆(全寬月曆表,macOS Calendar 風格)-->
+                <section class="max-w-6xl mx-auto mb-8">
+                    <div class="flex items-center justify-between mb-2">
+                        <h3 class="text-sm font-bold text-stone-500 uppercase tracking-wider flex items-center gap-2">
+                            <i class="fa-regular fa-calendar text-blue-500"></i> <span data-i18n="home.calendar">行事曆</span>
+                        </h3>
+                        <div class="flex items-center gap-2">
+                            <span class="text-[10px] text-stone-400 flex items-center gap-2">
+                                <span class="flex items-center gap-0.5"><span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-500"></span>待辦</span>
+                                <span class="flex items-center gap-0.5"><span class="inline-block w-1.5 h-1.5 rounded-full bg-blue-500"></span>時程</span>
+                                <span class="flex items-center gap-0.5"><span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500"></span>已完成</span>
+                            </span>
+                            <button onclick="homeCalShift(-1)" class="text-xs px-2 py-1 rounded hover:bg-blue-50 text-stone-500 hover:text-blue-700 border border-stone-200" title="上個月"><i class="fa-solid fa-chevron-left"></i></button>
+                            <button onclick="homeCalShift(0)" class="text-xs px-3 py-1 rounded hover:bg-blue-50 text-stone-600 hover:text-blue-700 border border-stone-200" title="本月">今天</button>
+                            <button onclick="homeCalShift(1)" class="text-xs px-2 py-1 rounded hover:bg-blue-50 text-stone-500 hover:text-blue-700 border border-stone-200" title="下個月"><i class="fa-solid fa-chevron-right"></i></button>
+                        </div>
+                    </div>
+                    <div id="homeCalendar" class="bg-white rounded-xl border border-stone-200 shadow-sm overflow-hidden">
+                        <div class="p-12 text-center text-stone-400 text-sm">載入中…</div>
                     </div>
                 </section>
 
@@ -13192,17 +13194,23 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 amber: 'bg-amber-500', blue: 'bg-blue-500', emerald: 'bg-emerald-500',
                 rose: 'bg-rose-500', violet: 'bg-violet-500', indigo: 'bg-indigo-500', slate: 'bg-slate-400',
             };
-            const WEEKDAYS = ['日','一','二','三','四','五','六'];
+            const COLOR_PILL_BG = {
+                amber: 'bg-amber-100 text-amber-800', blue: 'bg-blue-100 text-blue-800',
+                emerald: 'bg-emerald-100 text-emerald-800', rose: 'bg-rose-100 text-rose-800',
+                violet: 'bg-violet-100 text-violet-800', indigo: 'bg-indigo-100 text-indigo-800',
+                slate: 'bg-slate-100 text-slate-800',
+            };
+            const WEEKDAYS = ['週日','週一','週二','週三','週四','週五','週六'];
             const todayKey = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
 
-            // v1.1.9+:重做成傳統「日曆表」(table-style 6 列 7 行格線),
-            // 每格 ~50px 高,顯示日期 + 第一個事件 title + 多事件 dot 群。
-            // 6 週 × 7 天 = 42 格,夠涵蓋任何月份(下個月日期淡灰顯示)。
-            const prevMonthLast = new Date(year, month, 0).getDate();   // 上月最後一天
+            // v1.1.9+ macOS Calendar 風格月曆表:7 col × 6 row,每格 ~110px 高,
+            // 顯示大日期數字 + 事件 pill(含 title 截斷)。grid-cols-7 不在預編
+            // 譯 Tailwind 內,改用 inline ``grid-template-columns:repeat(7,1fr)``。
+            const prevMonthLast = new Date(year, month, 0).getDate();
             const totalCells = 42;
             const cells = [];
             for (let i = 0; i < totalCells; i++) {
-                const dayNum = i - startWeekday + 1;   // 該 cell 對應的「本月日」
+                const dayNum = i - startWeekday + 1;
                 let cellY = year, cellM = month, cellD;
                 let isOtherMonth = false;
                 if (dayNum < 1) {
@@ -13222,63 +13230,77 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 const weekday = i % 7;
                 const isWeekend = (weekday === 0 || weekday === 6);
 
-                // 前 3 個事件以 colored dot 顯示;超過顯示 +N
-                const dots = events.slice(0, 3).map(ev =>
-                    `<span class="inline-block w-1.5 h-1.5 rounded-full ${COLOR_DOT[ev.color] || 'bg-slate-400'}" title="${escapeHtml(ev.title || '')}"></span>`
-                ).join('');
-                const moreBadge = events.length > 3 ? `<span class="text-[8px] text-stone-400 leading-none">+${events.length - 3}</span>` : '';
-                const firstTitle = events.length ? events[0].title : '';
-                const eventTitle = events.length
+                // 事件 pill(最多 3 個顯示完整 title,超過顯示 +N more)
+                const eventPills = events.slice(0, 3).map(ev => {
+                    const pillCls = COLOR_PILL_BG[ev.color] || COLOR_PILL_BG.slate;
+                    const icon = ev.kind === 'todo' ? 'fa-clipboard-list' : 'fa-calendar';
+                    const safeOnClick = ev.onClick ? ev.onClick.replace(/"/g, '&quot;') : '';
+                    return `<div class="${pillCls} rounded px-1.5 py-0.5 text-[10px] truncate flex items-center gap-1 hover:brightness-95 cursor-pointer"
+                                 title="${escapeHtml(ev.title || '')}"
+                                 onclick="event.stopPropagation();${safeOnClick}">
+                                <i class="fa-solid ${icon} text-[8px] opacity-70"></i>
+                                <span class="truncate">${escapeHtml(ev.title || '')}</span>
+                            </div>`;
+                }).join('');
+                const moreBadge = events.length > 3
+                    ? `<div class="text-[9px] text-stone-500 mt-0.5 pl-1">還有 ${events.length - 3} 項…</div>`
+                    : '';
+                const eventTitleTooltip = events.length
                     ? events.map(e => (e.kind === 'todo' ? '📋 ' : '📅 ') + (e.title || '')).join('\n')
                     : '';
 
-                // 字色
-                let dayNumCls;
-                if (isToday) dayNumCls = 'bg-blue-500 text-white font-bold w-5 h-5 rounded-full flex items-center justify-center text-[10px]';
-                else if (isOtherMonth) dayNumCls = 'text-stone-300';
-                else if (isWeekend) dayNumCls = 'text-rose-500';
-                else dayNumCls = 'text-slate-700';
+                // 日期字色
+                let dayNumWrap, dayNumText;
+                if (isToday) {
+                    dayNumWrap = 'inline-flex items-center justify-center w-7 h-7 rounded-full bg-rose-500 text-white text-sm font-bold';
+                    dayNumText = cellD;
+                } else if (isOtherMonth) {
+                    dayNumWrap = 'text-stone-300 text-sm font-medium px-1';
+                    dayNumText = cellD;
+                } else if (isWeekend) {
+                    dayNumWrap = 'text-rose-500 text-sm font-medium px-1';
+                    dayNumText = cellD;
+                } else {
+                    dayNumWrap = 'text-slate-700 text-sm font-medium px-1';
+                    dayNumText = cellD;
+                }
 
-                // 背景
-                const cellBg = events.length && !isOtherMonth ? 'bg-blue-50/40' : 'bg-white';
-                const hoverBg = events.length ? 'hover:bg-blue-100/60' : 'hover:bg-slate-50';
-                const cellOnClick = events.length ? 'onclick="renderHomeCalendarDay(\'' + key + '\')"' : '';
+                const cellBg = isOtherMonth ? 'bg-slate-50/40' : 'bg-white';
+                const hoverBg = events.length ? 'hover:bg-blue-50/60' : 'hover:bg-slate-50';
+                const cellOnClick = events.length ? `onclick="renderHomeCalendarDay('${key}')"` : '';
+                const cellCursor = events.length ? 'cursor-pointer' : '';
 
                 cells.push(
-                    `<div class="border-r border-b border-slate-200 ${cellBg} ${hoverBg} ${events.length ? 'cursor-pointer' : ''} relative flex flex-col p-1" `
-                    + 'title="' + escapeHtml(eventTitle) + '" '
-                    + cellOnClick
-                    + ' style="min-height:48px">'
-                    + `  <div class="${isToday ? '' : 'flex justify-end'}">`
-                    + `    <span class="${dayNumCls}">${cellD}</span>`
-                    + '  </div>'
-                    + (firstTitle && !isOtherMonth
-                        ? `<div class="text-[9px] text-slate-600 truncate leading-tight mt-0.5">${escapeHtml(firstTitle)}</div>`
-                        : '')
-                    + (dots || moreBadge ? `<div class="flex items-center gap-0.5 mt-auto">${dots}${moreBadge}</div>` : '')
-                    + '</div>'
+                    `<div class="border-r border-b border-slate-200 ${cellBg} ${hoverBg} ${cellCursor} flex flex-col p-1.5 gap-1 overflow-hidden"
+                          title="${escapeHtml(eventTitleTooltip)}"
+                          ${cellOnClick}
+                          style="min-height:96px;height:96px">
+                        <div class="flex justify-end shrink-0">
+                            <span class="${dayNumWrap}">${dayNumText}</span>
+                        </div>
+                        <div class="flex flex-col gap-0.5 flex-1 overflow-hidden">
+                            ${isOtherMonth ? '' : eventPills}
+                            ${isOtherMonth ? '' : moreBadge}
+                        </div>
+                    </div>`
                 );
             }
 
+            // 週幾標題列(週日/週六 標 rose)
             const weekdayHeader = WEEKDAYS.map((w, i) => {
-                const cls = (i === 0 || i === 6) ? 'text-rose-500' : 'text-slate-500';
-                return `<div class="border-r border-b border-slate-200 bg-slate-50 text-center py-1.5 text-[11px] font-semibold ${cls}">${w}</div>`;
+                const cls = (i === 0 || i === 6) ? 'text-rose-500' : 'text-slate-600';
+                return `<div class="border-r border-b border-slate-200 bg-slate-50 text-center py-2 text-xs font-semibold ${cls}">${w}</div>`;
             }).join('');
 
             box.innerHTML = `
-                <div class="flex items-center justify-between mb-2 px-1">
-                    <span class="text-sm font-semibold text-slate-700">${year} / ${String(month+1).padStart(2,'0')}</span>
-                    <span class="text-[10px] text-stone-400 flex items-center gap-2">
-                        <span class="flex items-center gap-0.5"><span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-500"></span>待辦</span>
-                        <span class="flex items-center gap-0.5"><span class="inline-block w-1.5 h-1.5 rounded-full bg-blue-500"></span>時程</span>
-                        <span class="flex items-center gap-0.5"><span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500"></span>已完成</span>
-                    </span>
+                <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50/40">
+                    <div class="text-lg font-bold text-slate-800">${year} 年 ${String(month+1).padStart(2,'0')} 月</div>
                 </div>
-                <div class="grid grid-cols-7 border-l border-t border-slate-200 rounded overflow-hidden bg-white shadow-sm">
+                <div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));" class="border-l border-t border-slate-200">
                     ${weekdayHeader}
                     ${cells.join('')}
                 </div>
-                <div id="homeCalDayDetail" class="mt-2 pt-2 border-t border-slate-100 text-xs text-slate-500 min-h-[1.5rem]">點有事件的日期格看當日項目</div>
+                <div id="homeCalDayDetail" class="px-4 py-2 border-t border-slate-100 text-xs text-slate-500 min-h-[2rem] bg-slate-50/30">點有事件的日期格看當日項目</div>
             `;
         }
 
@@ -22058,38 +22080,34 @@ curl -X POST http://localhost:8000/api/defects \\
             });
             cur = monthEnd;
         }
-        // 月份格 flex 比例純依天數,不設 min-width(避免 viewport 變窄時月份
-        // header 跟下方 absolute-positioned day tick / bar 不同步)。整個
-        // gantt 改為 overflow-x-auto + min-width 套在最外層更好。
+        // v1.1.9+:月份 header + 每日序號 + timeline bar 全部 host 在同一個
+        // ``grid-template-columns:repeat(totalDays, 1fr)`` 內,絕對對齊。
+        // 月份 header 用 ``grid-column: span N`` 跨越該月的天數。bar 仍用
+        // absolute % 但因為相對於同一個 grid container,百分比也對齊。
+        const gridCols = `display:grid;grid-template-columns:repeat(${totalDays}, minmax(0, 1fr));`;
         const headerCells = months.map(m =>
-            `<div class="text-xs font-mono text-slate-600 text-center py-2 border-r border-slate-200 last:border-r-0"
-                  style="flex:${m.days}">${m.label}</div>`
+            `<div class="text-xs font-mono text-slate-600 text-center py-2 border-r border-slate-200"
+                  style="grid-column: span ${m.days}">${m.label}</div>`
         ).join('');
 
-        // v1.1.9+:月份下方再加一列「每日序號」(1~31)。
-        // 改用 absolute 定位的 tick(每天一個 label,left = (dayIdx/totalDays)
-        // *100%),確保跟下方 timeline 的 bar 用同一座標系,絕對不會跑掉。
-        // viewport 太長時自動只顯示「每 5 天」+ 月初 1 號,避免文字擠成糊。
+        // 每日序號列:每天一個 grid cell,文字依步進顯示;月初一律 bold
         const stepDays = totalDays <= 60 ? 1 : (totalDays <= 180 ? 5 : 10);
         const dayTicks = [];
         for (let dayIdx = 0; dayIdx < totalDays; dayIdx++) {
             const dt = new Date(vStart.getTime() + dayIdx * msPerDay);
             const dom = dt.getDate();
-            // 顯示條件:每 stepDays 天標一次 + 月初一號永遠標
-            const show = (dom === 1) || (dayIdx % stepDays === 0);
-            if (!show) continue;
-            const leftPct = (dayIdx / totalDays) * 100;
             const isMonthStart = (dom === 1);
+            const show = isMonthStart || (dayIdx % stepDays === 0);
             const cls = isMonthStart
                 ? 'text-[9px] font-bold text-slate-600'
                 : 'text-[9px] font-mono text-slate-400';
+            const borderCls = isMonthStart ? 'border-l border-slate-300' : '';
             dayTicks.push(
-                `<div class="absolute text-center" style="left:${leftPct}%;width:${100/totalDays}%;min-width:14px;transform:translateX(-50%)">
-                    <div class="${cls}">${dom}</div>
+                `<div class="text-center leading-tight ${borderCls}" style="grid-column: span 1">
+                    ${show ? `<span class="${cls}">${dom}</span>` : ''}
                 </div>`
             );
         }
-        const dayHeaderRow = `<div class="relative h-5">${dayTicks.join('')}</div>`;
 
         // 排序:by start_date asc
         const sorted = [..._tsRows].sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
@@ -22155,9 +22173,9 @@ curl -X POST http://localhost:8000/api/defects \\
         }).join('');
 
         gantt.innerHTML = `
-            <!-- header: 左側固定 label 區 + 起訖日期欄 + 右側月份格子(兩列:月份 / 每日序號) -->
+            <!-- header: 左側固定 label 區 + 起訖日期欄 + 右側 grid(月份 + 每日序號兩列共用同一個 N-col grid) -->
             <div class="flex flex-col border-b border-slate-200 bg-slate-50/70 sticky top-0 z-10">
-                <!-- 第一列:項目 / 起訖 / 月份 -->
+                <!-- 第一列:項目 / 起訖 / 月份 header -->
                 <div class="flex">
                     <div class="w-52 shrink-0 border-r border-slate-200 p-2.5 text-xs font-semibold text-slate-600">
                         時程項目
@@ -22165,13 +22183,13 @@ curl -X POST http://localhost:8000/api/defects \\
                     <div class="w-44 shrink-0 border-r border-slate-200 p-2.5 text-xs font-semibold text-slate-600 flex items-center gap-1">
                         <i class="fa-regular fa-calendar text-slate-500"></i> 起訖日期
                     </div>
-                    <div class="flex-1 flex">${headerCells}</div>
+                    <div class="flex-1" style="${gridCols}">${headerCells}</div>
                 </div>
-                <!-- 第二列:每日序號(absolute 定位 tick,與下方 timeline 同座標系)-->
+                <!-- 第二列:每日序號(同一個 N-col grid,絕對與月份對齊) -->
                 <div class="flex border-t border-slate-200/70 bg-white/60">
                     <div class="w-52 shrink-0 border-r border-slate-200"></div>
                     <div class="w-44 shrink-0 border-r border-slate-200"></div>
-                    <div class="flex-1">${dayHeaderRow}</div>
+                    <div class="flex-1 py-0.5" style="${gridCols}">${dayTicks.join('')}</div>
                 </div>
             </div>
             ${rows}`;
