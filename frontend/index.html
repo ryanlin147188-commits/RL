@@ -23055,7 +23055,8 @@ curl -X POST http://localhost:8000/api/defects \\
     let _tsView = 'day';
     let _tsRows = [];
     let _tsEditingId = null;  // null = 新增,有值 = 編輯
-    const _tsExpandedSet = new Set();  // v1.1.11:目前展開的 schedule id 集合
+    const _tsExpandedSet = new Set();  // v1.1.11:legacy(原 sprint_links 展開,已停用,留作後相容)
+    const _tsCollapsedSet = new Set();  // v1.1.11.2:user 手動 collapse 的 Sprint id;預設展開
 
     function _tsSetView(view) {
         if (!['day','week','month'].includes(view)) return;
@@ -23106,26 +23107,70 @@ curl -X POST http://localhost:8000/api/defects \\
         if (status) params.set('status', status);
         try {
             // v1.1.9:同時拉 test_schedules + todos(有 start_date + due_date 的 todo
-            // 也畫成 Gantt row,讓 todo 跟里程碑共同視覺化)。
+            // 也畫成 Gantt row);v1.1.11.2:todo 透過 schedule_id 歸屬 Sprint,
+            // 改成階層渲染(Sprint → 內部 todos)+ Sprint row 顯進度條。
             const [schedules, todos] = await Promise.all([
                 apiFetch(`/api/test-schedules?${params}`),
                 apiFetch(`/api/todos?project_id=${encodeURIComponent(currentProjectId)}&limit=500`).catch(()=>[]),
             ]);
-            const todoRows = (Array.isArray(todos) ? todos : todos?.items || [])
-                .filter(t => t.start_date && t.due_date)  // 只畫有完整區間的
-                .map(t => ({
-                    id: 'todo:' + t.id,
-                    _src: 'todo',
-                    _todoId: t.id,
-                    name: t.title,
-                    description: t.description,
-                    start_date: t.start_date,
-                    end_date: t.due_date,
-                    status: t.status,
-                    color: 'blue',
-                    assigned_to: t.assignee,
-                }));
-            _tsRows = [...schedules, ...todoRows];
+            const allTodos = Array.isArray(todos) ? todos : todos?.items || [];
+
+            // 按 schedule_id 分組
+            const todosBySchedule = {};
+            const orphanTodos = [];
+            for (const t of allTodos) {
+                if (t.schedule_id) {
+                    (todosBySchedule[t.schedule_id] = todosBySchedule[t.schedule_id] || []).push(t);
+                } else if (t.start_date && t.due_date) {
+                    // legacy / 還沒掛 Sprint 的 todo,留為 orphan 平鋪在最下面
+                    orphanTodos.push(t);
+                }
+            }
+
+            // 為每個 Sprint 算進度:Verified / Closed 數 / 總 todo 數
+            const enrichedSchedules = (schedules || []).map(s => {
+                const all = todosBySchedule[s.id] || [];
+                const done = all.filter(t =>
+                    t.status === 'Verified' || t.status === 'Closed'
+                ).length;
+                const total = all.length;
+                // 只有 start/due 都有的子任務才畫 timeline bar
+                const drawable = all.filter(t => t.start_date && t.due_date);
+                return {
+                    ...s,
+                    _children: drawable.map(t => ({
+                        id: 'todo:' + t.id,
+                        _src: 'todo',
+                        _todoId: t.id,
+                        _parentScheduleId: s.id,
+                        name: t.title,
+                        description: t.description,
+                        start_date: t.start_date,
+                        end_date: t.due_date,
+                        status: t.status,
+                        color: 'blue',
+                        assigned_to: t.assignee,
+                    })),
+                    _progressDone: done,
+                    _progressTotal: total,
+                    _progressPct: total > 0 ? Math.round(done / total * 100) : 0,
+                };
+            });
+
+            // orphan todos:沒掛 Sprint 的有區間 todo,仍平鋪渲染(legacy 相容)
+            const todoRows = orphanTodos.map(t => ({
+                id: 'todo:' + t.id,
+                _src: 'todo',
+                _todoId: t.id,
+                name: t.title,
+                description: t.description,
+                start_date: t.start_date,
+                end_date: t.due_date,
+                status: t.status,
+                color: 'blue',
+                assigned_to: t.assignee,
+            }));
+            _tsRows = [...enrichedSchedules, ...todoRows];
             _tsRenderGantt();
         } catch (e) {
             console.error('[testSchedule] load failed', e);
@@ -23266,19 +23311,38 @@ curl -X POST http://localhost:8000/api/defects \\
         const searchKw = (document.getElementById('tsSearch')?.value || '').trim().toLowerCase();
         const statusFilter = document.getElementById('tsStatusFilter')?.value || '';
 
-        // 加 _eff(實際狀態)→ filter → 排序
-        const sorted = [..._tsRows]
-            .map(s => ({ ...s, _eff: _tsEffectiveStatus(s) }))
-            .filter(s => {
-                if (statusFilter === '__overdue') { if (s._eff !== 'Overdue') return false; }
-                else if (statusFilter && s.status !== statusFilter) return false;
-                if (searchKw) {
-                    const hay = ((s.name||'') + ' ' + (s.assigned_to||'')).toLowerCase();
-                    if (!hay.includes(searchKw)) return false;
-                }
-                return true;
-            })
+        const _passFilter = (s) => {
+            if (statusFilter === '__overdue') { if (s._eff !== 'Overdue') return false; }
+            else if (statusFilter && s.status !== statusFilter) return false;
+            if (searchKw) {
+                const hay = ((s.name||'') + ' ' + (s.assigned_to||'')).toLowerCase();
+                if (!hay.includes(searchKw)) return false;
+            }
+            return true;
+        };
+        // 加 _eff(實際狀態)→ filter → 排序;v1.1.11.2:有 _children 的 Sprint 把
+        // 通過 filter 的子任務 inline 展開排在它後面(預設展開,_tsCollapsedSet 控收起)。
+        const topLevel = [..._tsRows]
+            .map(s => ({
+                ...s,
+                _eff: _tsEffectiveStatus(s),
+                _children: (s._children || []).map(c => ({ ...c, _eff: _tsEffectiveStatus(c) })),
+            }))
+            .filter(_passFilter)
             .sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
+
+        const sorted = [];
+        for (const s of topLevel) {
+            sorted.push({ ...s, _depth: 0 });
+            const expanded = !_tsCollapsedSet.has(s.id);
+            if (expanded && s._children?.length) {
+                const childRows = s._children
+                    .filter(_passFilter)
+                    .sort((a, b) => new Date(a.start_date) - new Date(b.start_date))
+                    .map(c => ({ ...c, _depth: 1 }));
+                sorted.push(...childRows);
+            }
+        }
 
         const rows = sorted.map(s => {
             const sStart = new Date(s.start_date);
@@ -23299,31 +23363,41 @@ curl -X POST http://localhost:8000/api/defects \\
             const clickHandler = isTodo ? `openTodoDetail('${s._todoId}')` : `openTsEditModal('${s.id}')`;
             const srcBadge = isTodo ? '<span class="text-[8px] px-1 py-0 bg-white/30 rounded mr-1 font-mono">TODO</span>' : '';
 
-            // v1.1.11+:非 todo source 的 schedule row 加可展開 caret;
-            // 點 caret 顯示該 sprint 的 sprint_links 一覽(stop propagation 避免觸發 row click)
-            const canExpand = !isTodo;
-            const isExpanded = canExpand && _tsExpandedSet.has(s.id);
-            const caretHtml = canExpand
-                ? `<button type="button" onclick="event.stopPropagation(); _tsToggleExpand('${s.id}')"
+            // v1.1.11.2:hierarchy 渲染
+            // - Sprint (depth 0,非 todo source) 有子任務時 → caret 切收起/展開
+            // - 子任務 (depth 1, isTodo) → 左側多縮排,row 背景變灰
+            const depth = s._depth || 0;
+            const isChild = depth > 0;
+            const hasChildren = !isTodo && (s._children?.length || 0) > 0;
+            const isCollapsed = hasChildren && _tsCollapsedSet.has(s.id);
+            const caretHtml = hasChildren
+                ? `<button type="button" onclick="event.stopPropagation(); _tsToggleChildren('${s.id}')"
                        class="ts-expand-caret w-5 h-5 shrink-0 inline-flex items-center justify-center text-slate-400 hover:text-amber-600 transition"
-                       title="${isExpanded ? '收起連結項目' : '展開連結項目'}" aria-expanded="${isExpanded}">
-                       <i class="fa-solid ${isExpanded ? 'fa-caret-down' : 'fa-caret-right'} text-sm"></i>
+                       title="${isCollapsed ? '展開子任務' : '收起子任務'}" aria-expanded="${!isCollapsed}">
+                       <i class="fa-solid ${isCollapsed ? 'fa-caret-right' : 'fa-caret-down'} text-sm"></i>
                    </button>`
                 : '<span class="w-5 h-5 shrink-0 inline-block"></span>';
-            const expandedHtml = isExpanded
-                ? `<div class="border-b border-slate-100 bg-amber-50/30 px-4 py-3" data-ts-expanded="${s.id}">
-                       <div id="tsExpanded_${s.id}" class="text-xs text-slate-500"><i class="fa-solid fa-spinner fa-spin"></i> 載入中…</div>
-                   </div>`
-                : '';
+            // Sprint row 在名稱下方顯進度條:已完成數 / 總任務數 + %
+            const progressBarHtml = (!isTodo && (s._progressTotal != null) && s._progressTotal > 0) ? `
+                <div class="flex items-center gap-1.5 mt-1">
+                    <div class="flex-1 h-1.5 bg-slate-200 rounded overflow-hidden">
+                        <div class="h-full bg-amber-500 transition-all" style="width:${s._progressPct}%"></div>
+                    </div>
+                    <span class="text-[10px] text-slate-500 font-mono shrink-0">${s._progressDone}/${s._progressTotal} · ${s._progressPct}%</span>
+                </div>` : '';
+            // 子任務行的縮排 + 行背景
+            const rowBgCls = isChild ? 'bg-slate-50/70 hover:bg-amber-50/30' : 'hover:bg-amber-50/20';
+            const indentPx = depth * 20;
 
             return `
-                <div class="flex items-stretch border-b border-slate-100 hover:bg-amber-50/20 cursor-pointer" data-ts-row="${s.id}"
+                <div class="flex items-stretch border-b border-slate-100 ${rowBgCls} cursor-pointer" data-ts-row="${s.id}"
                      onclick="${clickHandler}">
-                    <div class="shrink-0 border-r border-slate-200 px-3 py-3 flex items-start gap-1.5" style="width:${LEFT_W_NAME}px">
-                        ${caretHtml}
+                    <div class="shrink-0 border-r border-slate-200 px-3 py-3 flex items-start gap-1.5" style="width:${LEFT_W_NAME}px;padding-left:${12 + indentPx}px">
+                        ${isChild ? '<span class="w-3 shrink-0 inline-flex items-center text-slate-300 text-sm">↳</span>' : caretHtml}
                         <div class="flex-1 min-w-0 flex flex-col gap-1 justify-center">
-                            <div class="text-sm font-semibold text-slate-800 leading-tight line-clamp-2" title="${escapeHtml(s.name)}">${escapeHtml(s.name)}</div>
+                            <div class="${isChild ? 'text-xs text-slate-600' : 'text-sm font-semibold text-slate-800'} leading-tight line-clamp-2" title="${escapeHtml(s.name)}">${escapeHtml(s.name)}</div>
                             ${s.description ? `<div class="text-[10px] text-slate-400 truncate leading-tight" title="${escapeHtml(s.description)}">${escapeHtml(s.description)}</div>` : ''}
+                            ${progressBarHtml}
                         </div>
                     </div>
                     <div class="shrink-0 border-r border-slate-200 px-3 py-3 flex items-center" style="width:${LEFT_W_STATUS}px">
@@ -23343,8 +23417,7 @@ curl -X POST http://localhost:8000/api/defects \\
                                 ${srcBadge}<span class="truncate">${escapeHtml(s.name)}</span>
                             </div>` : ''}
                     </div>
-                </div>
-                ${expandedHtml}`;
+                </div>`;
         }).join('');
 
         // 今日垂直紅虛線 — absolute 疊在右側 timeline 上方
@@ -23626,7 +23699,15 @@ curl -X POST http://localhost:8000/api/defects \\
         delete _tsLinksCache[scheduleId];
     }
 
-    // v1.1.11+:Gantt row 展開 / 收起連結項目
+    // v1.1.11.2+:切 Sprint 子任務(todo)的顯示。預設展開,點 caret 收起 → 加入 _tsCollapsedSet。
+    function _tsToggleChildren(scheduleId) {
+        if (_tsCollapsedSet.has(scheduleId)) _tsCollapsedSet.delete(scheduleId);
+        else _tsCollapsedSet.add(scheduleId);
+        _tsRenderGantt();
+    }
+
+    // v1.1.11+:Gantt row 展開 / 收起連結項目(v1.1.11.2 起 Sprint 不再直接連結 entity,
+    // 此函式變成 no-op stub 保留,避免舊 onclick 路徑萬一還有反向引用)。
     async function _tsToggleExpand(scheduleId) {
         if (_tsExpandedSet.has(scheduleId)) {
             _tsExpandedSet.delete(scheduleId);
