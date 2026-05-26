@@ -47,6 +47,8 @@ from app.models.email_verification_token import EmailVerificationToken
 from app.models.org_membership import OrgMembership
 from app.models.organization import Organization
 from app.models.password_reset_token import PasswordResetToken
+from app.models.project import Project
+from app.models.project_member import ProjectMember
 from app.models.role import Role
 from app.models.user import User
 from app.schemas.auth import (
@@ -698,7 +700,10 @@ async def switch_org(
 ):
     """切換 active 組織。要求:
     1. body `{"organization_id": "..."}`
-    2. current_user 在該 org 必須有 OrgMembership(active 狀態)
+    2. current_user 在該 org 必須有 OrgMembership(active 狀態)— 或
+       v1.1.11 起放寬:在該 org 內任一 active ProjectMember(跨 org 協作者
+       也能切過去當該 org 的 active context;permission 走 ProjectMember.role_id
+       或 fallback,不會莫名升權)
     通過 → 更新 `users.organization_id` + 重新簽 access_token(payload.org_id 變更)
     + 設 ``active_org_id`` 簽章 cookie(middleware 偏好讀此 cookie 後再 fall back
     到 JWT.org_id;為了讓 Casbin enforcer 拿到準確的 domain)。
@@ -715,8 +720,20 @@ async def switch_org(
             .where(OrgMembership.status == "active")
         )
     ).scalar_one_or_none()
+    # v1.1.11:跨 org 協作者放行 — 在目標 org 內有 active ProjectMember 就 OK。
     if not mem and not user.is_superuser:
-        raise HTTPException(403, "您不是該組織的成員")
+        pm_in_target_org = (
+            await db.execute(
+                select(ProjectMember.id)
+                .join(Project, Project.id == ProjectMember.project_id)
+                .where(ProjectMember.username == user.username)
+                .where(ProjectMember.status == "active")
+                .where(Project.organization_id == target_org_id)
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        if not pm_in_target_org:
+            raise HTTPException(403, "您不是該組織的成員,也不是任何該組織內專案的成員")
     # superuser 可切到任何 org(維持既有行為);仍需檢查 org 存在
     if not mem:
         org_exists = (
