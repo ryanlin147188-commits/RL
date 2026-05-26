@@ -22264,12 +22264,7 @@ curl -X POST http://localhost:8000/api/defects \\
                     </button>
                 </div>
             </div>
-            <!-- meta footer -->
-            <div class="text-[11px] text-slate-400 border-t border-slate-100 pt-2 font-mono">
-                建立 ${t.created_at ? new Date(t.created_at).toLocaleString('zh-TW') : '—'}
-                · 更新 ${t.updated_at ? new Date(t.updated_at).toLocaleString('zh-TW') : '—'}
-                ${t.completed_at ? ' · 完成 '+new Date(t.completed_at).toLocaleString('zh-TW') : ''}
-            </div>
+            <!-- v1.1.11.2:meta footer(建立/更新/完成 時間戳)拿掉 — 編輯 modal 不需要這些噪音。 -->
         `;
         _todoLoadAssigneeOptions('todoEditAssignee');
         _todoLoadScheduleOptions('todoEditScheduleId');  // v1.1.11.2:載入 Sprint 選項
