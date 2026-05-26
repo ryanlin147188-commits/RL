@@ -538,11 +538,20 @@ async def update_notification_pref(
 # ─── EmailConfig（每個 org 一份） ──────────────────────────────────────
 
 async def _get_or_create_email_for_org(db: AsyncSession, org_id: Optional[str]) -> EmailConfig:
-    """以 organization_id 為主鍵尋找；找不到就建一筆。"""
+    """以 organization_id 為主鍵尋找；找不到就建一筆。
+
+    v1.1.11:defensive — 歷史上 ON DELETE SET NULL + main.py 啟動 backfill 會把
+    被刪 org 留下的 EmailConfig.organization_id 重新指回 default org,造成多筆
+    對到同一個 org 的 row,scalar_one_or_none 直接 MultipleResultsFound 500。
+    若找到多筆 → 優先選 ``id == organization_id`` 的 canonical row(``_get_or_create``
+    建出來的都是這個 pattern);找不到 canonical 就挑第一個。不主動刪孤兒
+    (操作 DB 風險高),DB cleanup 走另一條路徑。
+    """
     stmt = select(EmailConfig).where(EmailConfig.organization_id == org_id)
-    cfg = (await db.execute(stmt)).scalar_one_or_none()
-    if cfg:
-        return cfg
+    rows = (await db.execute(stmt)).scalars().all()
+    if rows:
+        canonical = next((r for r in rows if r.id == org_id), None)
+        return canonical or rows[0]
     # 用 org_id 作為主鍵（避免 collision；若 org_id 為 None 用 "default" 字串）
     cfg = EmailConfig(id=org_id or "default", organization_id=org_id)
     db.add(cfg)
