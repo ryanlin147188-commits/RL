@@ -95,6 +95,8 @@ class TodoItemBase(BaseModel):
     item_type: str = "Task"  # Epic / Story / Task / Bug / Spike
     parent_id: Optional[str] = None
     sprint_label: Optional[str] = None
+    # v1.1.11.2:歸屬到某個 Sprint(test_schedules row),新增待辦時用 dropdown 選
+    schedule_id: Optional[str] = None
 
 
 class TodoItemCreate(TodoItemBase):
@@ -116,6 +118,7 @@ class TodoItemUpdate(BaseModel):
     item_type: Optional[str] = None
     parent_id: Optional[str] = None
     sprint_label: Optional[str] = None
+    schedule_id: Optional[str] = None
 
 
 class TodoAssignRequest(BaseModel):

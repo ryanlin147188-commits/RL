@@ -145,6 +145,7 @@ def _enrich(t: TodoItem) -> dict:
         "item_type": t.item_type.value if hasattr(t.item_type, "value") else str(t.item_type),
         "parent_id": t.parent_id,
         "sprint_label": t.sprint_label,
+        "schedule_id": getattr(t, "schedule_id", None),  # v1.1.11.2:歸屬 Sprint(test_schedules)
         "completed_at": t.completed_at,
         "created_at": t.created_at,
         "updated_at": t.updated_at,
@@ -165,6 +166,7 @@ async def list_todos(
     item_type: Optional[str] = Query(None, description="Feature / Task / Bug / Spike"),
     parent_id: Optional[str] = Query(None, description="篩選某個父項下的子項"),
     sprint_label: Optional[str] = Query(None, description="Sprint label;傳 '__backlog__' 代表沒掛 sprint"),
+    schedule_id: Optional[str] = Query(None, description="v1.1.11.2:歸屬到某個 Sprint (test_schedules.id)"),
     bucket: Optional[str] = Query(
         None,
         description="overdue / due_soon (≤3 天) / upcoming / done。覆蓋 status 過濾。",
@@ -193,6 +195,8 @@ async def list_todos(
             stmt = stmt.where(TodoItem.sprint_label.is_(None))
         else:
             stmt = stmt.where(TodoItem.sprint_label == sprint_label)
+    if schedule_id:
+        stmt = stmt.where(TodoItem.schedule_id == schedule_id)
     stmt = page.apply(stmt)
     rows = (await db.execute(stmt)).scalars().all()
     enriched = [_enrich(t) for t in rows]
@@ -344,6 +348,7 @@ async def create_todo(
         item_type=_resolve_type(payload.item_type, TodoItemType.TASK),
         parent_id=payload.parent_id,
         sprint_label=payload.sprint_label,
+        schedule_id=payload.schedule_id,
     )
     db.add(t)
     await db.flush()

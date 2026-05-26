@@ -996,7 +996,7 @@
             <div class="flex-1"></div>
             <nav id="topNavRow" class="overflow-x-auto flex items-center gap-1 whitespace-nowrap min-w-0" style="-ms-overflow-style:none;scrollbar-width:none;">
                 <button type="button" data-nav-hash="#testcases"    onclick="showTestCasesView()"    title="測試案例" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-list-check text-blue-600"></i><span class="nav-label" data-i18n="nav.testCases">測試案例</span></button>
-                <button type="button" data-nav-hash="#testschedule" onclick="showTestScheduleView()" title="Sprint" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-calendar-week text-amber-600"></i><span class="nav-label" data-i18n="nav.testSchedule">Sprint</span></button>
+                <button type="button" data-nav-hash="#testschedule" onclick="showTestScheduleView()" title="測試 Sprint" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-calendar-week text-amber-600"></i><span class="nav-label" data-i18n="nav.testSchedule">測試 Sprint</span></button>
                 <button type="button" data-nav-hash="#testdatasets" onclick="showTestDataSetsView()" title="測試資料" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-table text-violet-600"></i><span class="nav-label" data-i18n="nav.dataSets">測試資料</span></button>
                 <button type="button" data-nav-hash="#envvars"      onclick="showEnvVarsView()"      title="環境變數" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-key text-emerald-600"></i><span class="nav-label" data-i18n="nav.envVars">環境變數</span></button>
                 <button type="button" data-nav-hash="#devices"      onclick="showDevicesView()"      title="設備資訊" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-mobile-screen text-rose-600"></i><span class="nav-label" data-i18n="nav.devices">設備資訊</span></button>
@@ -1334,11 +1334,20 @@
                             class="w-full border border-slate-300 rounded p-2 text-sm">
                     </div>
                 </div>
-                <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">指派</label>
-                    <select id="todoCreateAssignee" class="w-full border border-slate-300 rounded p-2 text-sm bg-white">
-                        <option value="">(未指派)</option>
-                    </select>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">指派</label>
+                        <select id="todoCreateAssignee" class="w-full border border-slate-300 rounded p-2 text-sm bg-white">
+                            <option value="">(未指派)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <!-- v1.1.11.2:歸屬到某個 Sprint(test_schedules)。空值 = Backlog -->
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Sprint <span class="text-slate-400 text-xs font-normal">(選填)</span></label>
+                        <select id="todoCreateScheduleId" class="w-full border border-slate-300 rounded p-2 text-sm bg-white">
+                            <option value="">(Backlog,不掛 Sprint)</option>
+                        </select>
+                    </div>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-700 mb-1">描述 / 每日進度</label>
@@ -1358,7 +1367,6 @@
                                 <option value="report">執行報告</option>
                                 <option value="defect">缺陷</option>
                                 <option value="test_round">TestRun</option>
-                                <option value="project">專案</option>
                             </select>
                         </div>
                         <div class="flex-1">
@@ -1454,23 +1462,11 @@
                     <textarea id="tsEditDescription" rows="3" placeholder="這個階段要涵蓋什麼測試 / 範圍 / 完成標準..."
                         class="w-full border border-slate-300 rounded p-2 text-sm resize-none"></textarea>
                 </div>
-                <!-- 連結項目 — v1.1.11+ M:N 多連結 (sprint_links 表)。
-                     舊版單一 polymorphic input 保留為 hidden 不寫(讓 submit 不破舊欄位);
-                     editor 編輯模式時把既有 linked_target_* 顯示為「legacy」row,不可編輯。 -->
+                <!-- 連結項目區塊已移除(v1.1.11.2)— Sprint 本身不直接連結 entity;
+                     看板任務 / 缺陷透過自己身上的 schedule_id 反向歸屬到 Sprint。
+                     保留 hidden 欄位避免引用它的舊 JS 路徑 null pointer。 -->
                 <input type="hidden" id="tsEditLinkType" value="">
                 <input type="hidden" id="tsEditLinkTargetId" value="">
-                <div>
-                    <div class="flex items-center justify-between mb-1">
-                        <label class="block text-sm font-medium text-slate-700">連結項目 <span class="text-slate-400 text-xs font-normal">(可多個)</span></label>
-                        <button type="button" onclick="_tsAddLinkRow()"
-                            class="text-xs px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-300 rounded font-medium flex items-center gap-1">
-                            <i class="fa-solid fa-plus"></i> 新增連結
-                        </button>
-                    </div>
-                    <div id="tsLinksContainer" class="space-y-2 bg-slate-50/70 border border-slate-200 rounded p-2 min-h-[44px]">
-                        <p id="tsLinksEmptyHint" class="text-xs text-slate-400 italic text-center py-2">尚未連結任何項目;按右上「+ 新增連結」加入測試案例、執行報告、缺陷、TestRun 或看板任務。</p>
-                    </div>
-                </div>
             </form>
             <div class="p-4 border-t border-slate-200 flex justify-between items-center gap-2 bg-slate-50 rounded-b-lg flex-shrink-0">
                 <button type="button" id="tsModalDeleteBtn" onclick="_tsConfirmDelete()"
@@ -4466,7 +4462,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 <div class="flex flex-wrap items-center gap-2 mb-4">
                     <div class="flex items-center gap-2">
                         <i class="fa-solid fa-calendar-week text-amber-600"></i>
-                        <h2 class="font-bold text-slate-700">Sprint</h2>
+                        <h2 class="font-bold text-slate-700">測試 Sprint</h2>
                     </div>
                     <div class="flex-1"></div>
                     <button type="button" onclick="openTsCreateModal()"
@@ -4842,7 +4838,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             fileCompareWorkspace:  '檔案比對',
             testKanbanWorkspace:   '測試看版',
             defectsWorkspace:      '缺陷管理',
-            testScheduleWorkspace: 'Sprint',
+            testScheduleWorkspace: '測試 Sprint',
             mockWorkspace:         'Mock',
         };
 
@@ -8379,7 +8375,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             'nav.recorder': { 'zh-TW': '測試錄製', 'en': 'Recorder' },
             'nav.reports': { 'zh-TW': '測試報告', 'en': 'Reports' },
             'nav.testKanban': { 'zh-TW': '測試看版', 'en': 'Task Board' },
-            'nav.testSchedule': { 'zh-TW': 'Sprint', 'en': 'Sprint' },
+            'nav.testSchedule': { 'zh-TW': '測試 Sprint', 'en': 'Test Sprint' },
             'nav.defects': { 'zh-TW': '缺陷管理', 'en': 'Defects' },
             'nav.review': { 'zh-TW': '審核', 'en': 'Review' },
             // 環境切換
@@ -21893,6 +21889,7 @@ curl -X POST http://localhost:8000/api/defects \\
         _todoCreatePendingLinks = [];
         _renderTodoCreatePendingLinks();
         _todoLoadAssigneeOptions('todoCreateAssignee');
+        _todoLoadScheduleOptions('todoCreateScheduleId');  // v1.1.11.2:載入 Sprint dropdown
         _todoPopulateLinkTargets('todoCreateLinkType', 'todoCreateLinkTargetId');
         document.getElementById('todoCreateModal').classList.remove('hidden');
         setTimeout(() => document.getElementById('todoCreateTitle').focus(), 50);
@@ -21948,6 +21945,20 @@ curl -X POST http://localhost:8000/api/defects \\
         } catch (_) {}
     }
 
+    // v1.1.11.2:載入 Sprint 清單到 dropdown(新增待辦 modal 用)
+    async function _todoLoadScheduleOptions(selectId) {
+        const sel = document.getElementById(selectId);
+        if (!sel || !currentProjectId) return;
+        try {
+            const rows = await apiFetch(`/api/test-schedules?project_id=${encodeURIComponent(currentProjectId)}`).catch(() => []);
+            const arr = Array.isArray(rows) ? rows : (rows?.items || []);
+            const current = sel.value;
+            sel.innerHTML = '<option value="">(Backlog,不掛 Sprint)</option>' +
+                (arr || []).map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name || s.id.slice(0,8))}</option>`).join('');
+            if (current) sel.value = current;
+        } catch (_) {}
+    }
+
     async function submitTodoCreate() {
         const title = document.getElementById('todoCreateTitle').value.trim();
         if (!title) { showToast?.('標題必填', 'error'); return; }
@@ -21962,6 +21973,8 @@ curl -X POST http://localhost:8000/api/defects \\
             assigned_to: document.getElementById('todoCreateAssignee').value || null,
             assigned_to_type: 'user',
             description: document.getElementById('todoCreateDescription').value || null,
+            // v1.1.11.2:歸屬到某個 Sprint(test_schedules);空值 → Backlog
+            schedule_id: document.getElementById('todoCreateScheduleId')?.value || null,
         };
         try {
             const created = await apiFetch('/api/todos', { method: 'POST', body: payload });
@@ -23052,7 +23065,7 @@ curl -X POST http://localhost:8000/api/defects \\
         _hideAllWorkspaces();
         _setViewMeta && _setViewMeta('nav.testSchedule','nav.testSchedule',
             '<i class="fa-solid fa-calendar-week text-amber-600"></i>',
-            'Schedule','bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium');
+            'Sprint','bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium');
         document.getElementById('testScheduleWorkspace').classList.remove('hidden');
         document.getElementById('mainHeader').classList.remove('hidden');
         document.getElementById('mainActions')?.classList.add('hidden');
@@ -23374,7 +23387,7 @@ curl -X POST http://localhost:8000/api/defects \\
         document.getElementById('tsEditProgress').value = 0;
         _tsLinksOriginal = [];
         _tsLinksBuffer = [];
-        _tsRenderLinksInModal();
+        // v1.1.11.2:Sprint 移除連結項目區塊,_tsRenderLinksInModal 有 guard,無事
         _tsLoadAssigneeOptions();
         document.getElementById('testScheduleModal').classList.remove('hidden');
         setTimeout(() => document.getElementById('tsEditName').focus(), 50);
@@ -23401,15 +23414,9 @@ curl -X POST http://localhost:8000/api/defects \\
         document.getElementById('testScheduleModal').classList.remove('hidden');
         await _tsLoadAssigneeOptions();
         document.getElementById('tsEditAssignee').value = sched.assigned_to || '';
-        // 載入既有的所有連結(包含 legacy 那筆)
+        // v1.1.11.2:Sprint 不再直接連結 entity,跳過連結 fetch(buffer 保留空 array)
         _tsLinksBuffer = [];
         _tsLinksOriginal = [];
-        try {
-            const links = await apiFetch(`/api/test-schedules/${id}/links`).catch(() => []);
-            _tsLinksOriginal = (links || []).map(l => ({ ...l }));
-            _tsLinksBuffer = (links || []).map(l => ({ ...l }));
-        } catch (_) {}
-        _tsRenderLinksInModal();
     }
 
     function closeTsModal() {
@@ -23733,8 +23740,7 @@ curl -X POST http://localhost:8000/api/defects \\
                 scheduleId = created?.id;
                 showToast?.('已建立', 'success');
             }
-            // 連結項目 diff + batch CRUD
-            if (scheduleId) await _tsCommitLinkDiff(scheduleId);
+            // v1.1.11.2:Sprint 已不直接連結 entity,不再呼 _tsCommitLinkDiff
             closeTsModal();
             await loadTestSchedules();
         } catch (e) {

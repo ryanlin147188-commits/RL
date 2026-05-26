@@ -106,6 +106,11 @@ class TodoItem(Base):
         String(36), ForeignKey("todo_items.id", ondelete="SET NULL"), nullable=True, index=True,
     )
     sprint_label: Mapped[Optional[str]] = mapped_column(String(80), nullable=True, index=True)
+    # v1.1.11.2:歸屬到某個 Sprint(test_schedules row);取代純文字 sprint_label。
+    # Sprint 刪除時 SET NULL,避免 todo 也被連帶刪。前端「新增待辦」改用 dropdown 選 Sprint。
+    schedule_id: Mapped[Optional[str]] = mapped_column(
+        String(36), ForeignKey("test_schedules.id", ondelete="SET NULL"), nullable=True, index=True,
+    )
     # 關聯實體：方便連到缺陷 / 案例 / 計畫等（type+id），UI 上可作為跳轉連結
     related_entity_type: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
     related_entity_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
