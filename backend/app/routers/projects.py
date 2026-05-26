@@ -66,7 +66,23 @@ async def list_projects(
             & (ProjectMember.status == "active"),
         )
     result = await db.execute(stmt)
-    return result.scalars().all()
+    projects = result.scalars().all()
+    if not projects:
+        return []
+    # v1.1.11:populate organization_name(前端 badge 顯示用)。批次一次撈完。
+    org_ids = list({p.organization_id for p in projects if p.organization_id})
+    name_map: dict[str, str] = {}
+    if org_ids:
+        rows = (await db.execute(
+            select(Organization.id, Organization.name).where(Organization.id.in_(org_ids))
+        )).all()
+        name_map = {oid: name for oid, name in rows}
+    out = []
+    for p in projects:
+        resp = ProjectResponse.model_validate(p)
+        resp.organization_name = name_map.get(p.organization_id) if p.organization_id else None
+        out.append(resp)
+    return out
 
 
 # 2. POST /api/projects

@@ -39,5 +39,8 @@ class ProjectResponse(BaseModel):
     # v1.1.10:前端「退出專案」section 用 organization_id 判斷專案是「自己 org 的」
     # 還是「被邀請進別人 org 的」(only 後者列出來給 user 退出)。
     organization_id: Optional[str] = None
+    # v1.1.11:跨 org 協作場景下,前端右上 badge 顯示「該專案所屬 org 名稱」,
+    # 不用再額外打 /api/orgs/{id} 拿名字。list_projects 跟 retrieve 都會 populate。
+    organization_name: Optional[str] = None
     created_at: datetime
     updated_at: datetime

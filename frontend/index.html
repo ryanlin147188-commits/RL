@@ -7968,8 +7968,14 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                     return;
                 }
                 for (const p of list) {
-                    // v1.1.11:把 organization_id 一併存進 projectsData,switchProject 拿來比對。
-                    projectsData[p.id] = { name: p.name, organization_id: p.organization_id, treeData: [] };
+                    // v1.1.11:把 organization_id / organization_name 一併存進 projectsData,
+                    // switchProject 拿來比對切 org + 更新右上 badge label。
+                    projectsData[p.id] = {
+                        name: p.name,
+                        organization_id: p.organization_id,
+                        organization_name: p.organization_name,
+                        treeData: [],
+                    };
                     sel.innerHTML += `<option value="${p.id}">${p.name}</option>`;
                 }
                 // v1.1.11:reload 後若 sessionStorage 有 postReloadProjectId(來自 switchProject
@@ -8061,6 +8067,17 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             }
             // 切專案 → 重載側邊欄測試版號清單(每個 project 各自的版號)
             try { tvReloadList(); } catch (_) {}
+            // v1.1.11:右上 org badge 跟著當前 project 的 org 名稱走(跨 org 協作者
+            // 沒切 backend active org,但 badge 仍要反映「現在看的是哪個 org 的專案」)。
+            try {
+                const meta = projectsData[pid];
+                const label = document.getElementById('orgBadgeLabel');
+                const wrap = document.getElementById('orgBadge');
+                if (label && wrap && meta && meta.organization_name) {
+                    label.textContent = meta.organization_name;
+                    wrap.classList.remove('hidden');
+                }
+            } catch (_) {}
         }
 
         function renderAllTree() {
