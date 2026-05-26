@@ -12,13 +12,13 @@
 
 ## 為什麼選 RL
 
-| 條件 | RL | TestRail / Zephyr / qTest / Jira |
+| 條件 | RL | 
 |---|---|---|
-| 授權費 | **零**(Apache 2.0) | 按人 / 按專案計費 |
-| 部署位置 | **你的伺服器**,完全離線可運作 | SaaS,資料在外部雲端 |
-| 商業使用 | **可直接商用**,可修改、可整合進產品、可內部部署收費 | 嚴格 EULA + 用量限制 |
-| Telemetry / Phone-home | **無** | 通常有 |
-| Vendor lock-in | **無**(資料在 PostgreSQL + Markdown) | 強(專有格式) |
+| 授權費 | **零**(Apache 2.0) | 
+| 部署位置 | **你的伺服器**,完全離線可運作 | 
+| 商業使用 | **可直接商用**,可修改、可整合進產品、可內部部署收費 | 
+| Telemetry / Phone-home | **無** | 
+| Vendor lock-in | **無**(資料在 PostgreSQL + Markdown) | 
 
 只要保留 [LICENSE](LICENSE) + [NOTICE](NOTICE) 兩個檔案,你就可以:
 
