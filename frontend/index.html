@@ -8006,21 +8006,29 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             const goHome = !opts || opts.goHome !== false;
             // v1.1.11:Org sync — 切到的 project 若屬於其他 organization,先切 backend
             // active org 再 reload,reload 後 initProjects 會用 sessionStorage 把這個
-            // project 選回來。沒 _meOrgsCache 或拿不到 project.organization_id 時 fallback
-            // 到舊行為(不切 org,直接 load 樹)。
+            // project 選回來。
+            // 跨 org 協作例外(2026-05-26 修正):user 可能只是該 project 的 ProjectMember
+            // 而沒有目標 org 的 OrgMembership(被邀請的協作者場景)。這時 switch-org 後端
+            // 會 403。改成:只在 _meOrgsCache 中找得到目標 org(代表 user 有 OrgMembership)
+            // 才切;找不到 → 不切,以「協作者」身分檢視,active org 維持不變。
             if (pid) {
                 const projMeta = projectsData[pid];
                 const projOrgId = projMeta && projMeta.organization_id;
-                const currentOrg = (Array.isArray(_meOrgsCache) ? _meOrgsCache : []).find(o => o.is_current);
+                const orgs = Array.isArray(_meOrgsCache) ? _meOrgsCache : [];
+                const currentOrg = orgs.find(o => o.is_current);
                 const currentOrgId = currentOrg ? currentOrg.organization_id : null;
                 if (projOrgId && currentOrgId && projOrgId !== currentOrgId) {
-                    const targetOrg = (_meOrgsCache || []).find(o => o.organization_id === projOrgId);
-                    const targetName = targetOrg ? (targetOrg.name || targetOrg.slug) : '目標組織';
-                    await _switchActiveOrgAndReload(projOrgId, {
-                        stashProjectId: pid,
-                        toastMsg: `已切到「${targetName}」,重新載入中...`,
-                    });
-                    return;   // reload 接手後續流程
+                    const targetOrg = orgs.find(o => o.organization_id === projOrgId);
+                    if (targetOrg) {
+                        const targetName = targetOrg.name || targetOrg.slug || '目標組織';
+                        await _switchActiveOrgAndReload(projOrgId, {
+                            stashProjectId: pid,
+                            toastMsg: `已切到「${targetName}」,重新載入中...`,
+                        });
+                        return;   // reload 接手後續流程
+                    }
+                    // 沒 OrgMembership → 不 call switch-org(會 403)。保持當前 active org,
+                    // 以協作者身分檢視該 project。Badge 仍顯示 user 自己的 org 名稱。
                 }
             }
             currentProjectId = pid;
