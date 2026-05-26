@@ -1354,11 +1354,19 @@
                     <textarea id="todoCreateDescription" rows="4" placeholder="可填工作內容、預計步驟、每日進度紀錄..."
                         class="w-full border border-slate-300 rounded p-2 text-sm resize-none"></textarea>
                 </div>
-                <!-- 連結項目(選填) — 暫存 pending,POST todo 成功後一起送 -->
+                <!-- 連結項目(選填) — v1.1.11.2:預設不顯示 picker,按「+ 加入連結」才展開。
+                     原因:always-visible select 跟既有連結列 X 在垂直方向相鄰,
+                     macOS Chrome 把 select dropdown 朝上開時會覆蓋 X 的命中區域。 -->
                 <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">連結項目 <span class="text-slate-400 text-xs font-normal">(選填,可加多筆)</span></label>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="block text-sm font-medium text-slate-700">連結項目 <span class="text-slate-400 text-xs font-normal">(選填,可加多筆)</span></label>
+                        <button type="button" id="todoCreateAddLinkBtn" onclick="_todoCreateShowAddLinkForm()"
+                            class="text-xs px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-300 rounded font-medium flex items-center gap-1">
+                            <i class="fa-solid fa-plus"></i> 加入連結
+                        </button>
+                    </div>
                     <div id="todoCreatePendingLinksList" class="space-y-2 mb-2"></div>
-                    <div class="flex gap-2 items-end bg-slate-50/70 border border-slate-200 rounded p-2">
+                    <div id="todoCreateAddLinkForm" class="hidden flex gap-2 items-end bg-slate-50/70 border border-slate-200 rounded p-2">
                         <div class="flex-1">
                             <label class="block text-[11px] text-slate-500 mb-0.5">類型</label>
                             <select id="todoCreateLinkType" onchange="_todoPopulateLinkTargets('todoCreateLinkType','todoCreateLinkTargetId')"
@@ -1377,6 +1385,10 @@
                         </div>
                         <button type="button" onclick="_todoCreateAddPendingLink()" class="text-xs px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">
                             <i class="fa-solid fa-link"></i> 加入
+                        </button>
+                        <button type="button" onclick="_todoCreateHideAddLinkForm()"
+                            class="text-xs px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-600 border border-slate-300 rounded">
+                            取消
                         </button>
                     </div>
                 </div>
@@ -4335,6 +4347,18 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                         <h2 class="font-bold text-slate-700">測試看版</h2>
                     </div>
                     <div class="flex-1"></div>
+                    <!-- v1.1.11.2:Sprint / Backlog 切換 — 把 todo 按是否有 schedule_id 區分 -->
+                    <div class="inline-flex rounded-md border border-slate-300 overflow-hidden text-xs" role="tablist" aria-label="Sprint / Backlog 切換">
+                        <button type="button" id="tkScopeAll"     onclick="_tkSetScope('all')"
+                            class="tk-scope-btn px-3 py-1.5 bg-blue-600 text-white font-medium">全部</button>
+                        <button type="button" id="tkScopeSprint"  onclick="_tkSetScope('sprint')"
+                            class="tk-scope-btn px-3 py-1.5 bg-white text-slate-600 hover:bg-slate-50 border-l border-slate-300">已排入 Sprint</button>
+                        <button type="button" id="tkScopeBacklog" onclick="_tkSetScope('backlog')"
+                            class="tk-scope-btn px-3 py-1.5 bg-white text-slate-600 hover:bg-slate-50 border-l border-slate-300">Backlog</button>
+                    </div>
+                    <select id="tkSprintFilter" onchange="loadTestKanban()" class="text-xs px-2 py-1.5 border border-slate-300 rounded bg-white hidden">
+                        <option value="">所有 Sprint</option>
+                    </select>
                     <select id="tkAssigneeFilter" onchange="loadTestKanban()" class="text-xs px-2 py-1.5 border border-slate-300 rounded bg-white">
                         <option value="">所有指派人</option>
                         <option value="null">未指派</option>
@@ -21683,6 +21707,56 @@ curl -X POST http://localhost:8000/api/defects \\
         await loadTestKanban();
     }
 
+    // v1.1.11.2:統一 reload — todo / sprint CRUD 後同時刷 Kanban + Sprint Gantt。
+    // 兩個 view 都 fire,不等彼此(各自有自己的 spinner),user 不管在哪個 workspace
+    // 切過去都看到最新資料。loadXxx 還沒定義時(view 沒進去過)會 silently skip。
+    async function _reloadTodoViews() {
+        const ops = [];
+        if (typeof loadTestKanban === 'function') ops.push(loadTestKanban().catch(()=>{}));
+        if (typeof loadTestSchedules === 'function') ops.push(loadTestSchedules().catch(()=>{}));
+        await Promise.allSettled(ops);
+    }
+
+    // v1.1.11.2:Kanban Sprint/Backlog 切換狀態
+    let _tkScope = 'all';  // 'all' / 'sprint' / 'backlog'
+
+    function _tkSetScope(scope) {
+        _tkScope = scope;
+        // 更新 toggle 按鈕視覺
+        ['all','sprint','backlog'].forEach(s => {
+            const el = document.getElementById('tkScope' + s.charAt(0).toUpperCase() + s.slice(1));
+            if (!el) return;
+            const active = s === scope;
+            el.classList.toggle('bg-blue-600', active);
+            el.classList.toggle('text-white', active);
+            el.classList.toggle('font-medium', active);
+            el.classList.toggle('bg-white', !active);
+            el.classList.toggle('text-slate-600', !active);
+            el.classList.toggle('hover:bg-slate-50', !active);
+        });
+        // sprint scope 時亮出 sprint 選單(可選特定 sprint);其他 scope 隱藏
+        const sprintSel = document.getElementById('tkSprintFilter');
+        if (sprintSel) {
+            sprintSel.classList.toggle('hidden', scope !== 'sprint');
+            if (scope === 'sprint') _tkLoadSprintOptions();
+            else sprintSel.value = '';
+        }
+        loadTestKanban();
+    }
+
+    async function _tkLoadSprintOptions() {
+        const sel = document.getElementById('tkSprintFilter');
+        if (!sel || !currentProjectId) return;
+        try {
+            const rows = await apiFetch(`/api/test-schedules?project_id=${encodeURIComponent(currentProjectId)}`).catch(() => []);
+            const arr = Array.isArray(rows) ? rows : (rows?.items || []);
+            const current = sel.value;
+            sel.innerHTML = '<option value="">所有 Sprint</option>' +
+                (arr || []).map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name || s.id.slice(0,8))}</option>`).join('');
+            if (current) sel.value = current;
+        } catch (_) {}
+    }
+
     async function loadTestKanban() {
         const board = document.getElementById('tkBoard');
         const params = new URLSearchParams();
@@ -21696,10 +21770,23 @@ curl -X POST http://localhost:8000/api/defects \\
             params.set('assignee', assignee);
         }
         if (ttype) params.set('item_type', ttype);
+        // v1.1.11.2:scope 'sprint' 且選了特定 sprint → 用 schedule_id 後端過濾;
+        // 其他 scope 拉全部後 client-side 過濾(因為 backend 沒 "is_null" 篩選)
+        const sprintFilter = document.getElementById('tkSprintFilter')?.value || '';
+        if (_tkScope === 'sprint' && sprintFilter) {
+            params.set('schedule_id', sprintFilter);
+        }
         params.set('limit', '500');
         try {
             const rows = await apiFetch(`/api/todos?${params}`);
-            _tkTodos = Array.isArray(rows) ? rows : (rows?.items || []);
+            let list = Array.isArray(rows) ? rows : (rows?.items || []);
+            // scope client-side filter
+            if (_tkScope === 'sprint' && !sprintFilter) {
+                list = list.filter(t => !!t.schedule_id);
+            } else if (_tkScope === 'backlog') {
+                list = list.filter(t => !t.schedule_id);
+            }
+            _tkTodos = list;
             _tkRenderBoard(_tkTodos);
         } catch (e) {
             console.error('[testKanban] load failed', e);
@@ -21796,11 +21883,11 @@ curl -X POST http://localhost:8000/api/defects \\
                 method: 'PUT',
                 body: { status: targetStatus },
             });
-            await loadTestKanban();
+            await _reloadTodoViews();
             if (typeof showToast === 'function') showToast('已更新狀態', 'success');
         } catch (e) {
             if (typeof showToast === 'function') showToast('狀態更新失敗:' + (e.message||e), 'error');
-            await loadTestKanban();
+            await _reloadTodoViews();
         }
     }
 
@@ -21809,7 +21896,7 @@ curl -X POST http://localhost:8000/api/defects \\
         try {
             await apiFetch(`/api/todos/${id}`, { method: 'DELETE', raw: true });
             if (typeof showToast === 'function') showToast('已刪除', 'success');
-            await loadTestKanban();
+            await _reloadTodoViews();
         } catch (e) {
             if (typeof showToast === 'function') showToast('刪除失敗:' + (e.message||e), 'error');
         }
@@ -21888,11 +21975,22 @@ curl -X POST http://localhost:8000/api/defects \\
         document.getElementById('todoCreateLinkType').value = 'testcase';
         _todoCreatePendingLinks = [];
         _renderTodoCreatePendingLinks();
+        _todoCreateHideAddLinkForm();  // v1.1.11.2:預設不展開連結 picker
         _todoLoadAssigneeOptions('todoCreateAssignee');
         _todoLoadScheduleOptions('todoCreateScheduleId');  // v1.1.11.2:載入 Sprint dropdown
-        _todoPopulateLinkTargets('todoCreateLinkType', 'todoCreateLinkTargetId');
         document.getElementById('todoCreateModal').classList.remove('hidden');
         setTimeout(() => document.getElementById('todoCreateTitle').focus(), 50);
+    }
+
+    // v1.1.11.2:連結 picker 展開 / 收起。展開時才 load 目標清單(避免初次 modal 慢)
+    function _todoCreateShowAddLinkForm() {
+        document.getElementById('todoCreateAddLinkForm')?.classList.remove('hidden');
+        document.getElementById('todoCreateAddLinkBtn')?.classList.add('hidden');
+        _todoPopulateLinkTargets('todoCreateLinkType', 'todoCreateLinkTargetId');
+    }
+    function _todoCreateHideAddLinkForm() {
+        document.getElementById('todoCreateAddLinkForm')?.classList.add('hidden');
+        document.getElementById('todoCreateAddLinkBtn')?.classList.remove('hidden');
     }
 
     function closeTodoCreateModal() {
@@ -21914,6 +22012,8 @@ curl -X POST http://localhost:8000/api/defects \\
         }
         _todoCreatePendingLinks.push({ target_type: type, target_id: id, label });
         _renderTodoCreatePendingLinks();
+        // v1.1.11.2:加完一筆自動把 picker 收起(user 要繼續加再點「+ 加入連結」)
+        _todoCreateHideAddLinkForm();
     }
 
     function _todoCreateRemovePendingLink(idx) {
@@ -22003,7 +22103,7 @@ curl -X POST http://localhost:8000/api/defects \\
                 ? `已建立待辦 + ${linkOk} 筆連結` + (linkFail ? ` (${linkFail} 筆失敗)` : '')
                 : '已建立待辦';
             if (typeof showToast === 'function') showToast(msg, linkFail ? 'error' : 'success');
-            await loadTestKanban();
+            await _reloadTodoViews();
             openTodoDetail(created.id);
         } catch (e) {
             showToast?.('建立失敗:' + (e.message||e), 'error');
@@ -22128,13 +22228,17 @@ curl -X POST http://localhost:8000/api/defects \\
                 <textarea id="todoEditDescription" rows="4" placeholder="可記錄每日進度與工作筆記..."
                     class="w-full border border-slate-300 rounded p-2 text-sm resize-none">${escapeHtml(t.description||'')}</textarea>
             </div>
-            <!-- 連結項目區 -->
+            <!-- 連結項目區 — v1.1.11.2:picker 預設摺疊,避免 select dropdown 朝上開時擋住 X -->
             <div>
                 <div class="flex items-center justify-between mb-2">
                     <label class="block text-sm font-medium text-slate-700">連結項目 <span class="text-slate-400 text-xs">(${_todoCurrentLinks.length})</span></label>
+                    <button type="button" id="todoEditAddLinkBtn" onclick="_todoEditShowAddLinkForm()"
+                        class="text-xs px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-300 rounded font-medium flex items-center gap-1">
+                        <i class="fa-solid fa-plus"></i> 加入連結
+                    </button>
                 </div>
                 <div class="space-y-2 mb-2">${linksHtml}</div>
-                <div class="flex gap-2 items-end bg-slate-50/70 border border-slate-200 rounded p-2">
+                <div id="todoEditAddLinkForm" class="hidden flex gap-2 items-end bg-slate-50/70 border border-slate-200 rounded p-2">
                     <div class="flex-1">
                         <label class="block text-[11px] text-slate-500 mb-0.5">類型</label>
                         <select id="todoLinkType" onchange="_todoPopulateLinkTargets('todoLinkType','todoLinkTargetId')"
@@ -22143,17 +22247,20 @@ curl -X POST http://localhost:8000/api/defects \\
                             <option value="report">執行報告</option>
                             <option value="defect">缺陷</option>
                             <option value="test_round">TestRun</option>
-                            <option value="project">專案</option>
                         </select>
                     </div>
                     <div class="flex-1">
                         <label class="block text-[11px] text-slate-500 mb-0.5">目標</label>
                         <select id="todoLinkTargetId" class="w-full border border-slate-300 rounded p-1.5 text-xs bg-white">
-                            <option value="">(載入中…)</option>
+                            <option value="">(先選類型)</option>
                         </select>
                     </div>
                     <button type="button" onclick="_todoAddLink()" class="text-xs px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium">
                         <i class="fa-solid fa-link"></i> 加入
+                    </button>
+                    <button type="button" onclick="_todoEditHideAddLinkForm()"
+                        class="text-xs px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-600 border border-slate-300 rounded">
+                        取消
                     </button>
                 </div>
             </div>
@@ -22173,8 +22280,7 @@ curl -X POST http://localhost:8000/api/defects \\
             const schedSel = document.getElementById('todoEditScheduleId');
             if (schedSel && t.schedule_id) schedSel.value = t.schedule_id;
         }, 50);
-        // detail modal 每次 re-render 都拉一次「目標」下拉,跟著當前 type 走
-        _todoPopulateLinkTargets('todoLinkType', 'todoLinkTargetId');
+        // v1.1.11.2:add-link picker 預設摺疊(_renderTodoDetail 每次 re-render 都 reset)
 
         document.getElementById('todoDetailFooter').innerHTML = `
             <button type="button" onclick="_todoConfirmDelete()"
@@ -22213,7 +22319,7 @@ curl -X POST http://localhost:8000/api/defects \\
             _todoCurrent = updated;
             _renderTodoDetail();
             if (typeof showToast === 'function') showToast('已儲存', 'success');
-            await loadTestKanban();
+            await _reloadTodoViews();
         } catch (e) {
             showToast?.('儲存失敗:' + (e.message||e), 'error');
         }
@@ -22226,7 +22332,7 @@ curl -X POST http://localhost:8000/api/defects \\
             await apiFetch(`/api/todos/${_todoCurrent.id}`, { method: 'DELETE', raw: true });
             closeTodoDetail();
             if (typeof showToast === 'function') showToast('已刪除', 'success');
-            await loadTestKanban();
+            await _reloadTodoViews();
         } catch (e) {
             showToast?.('刪除失敗:' + (e.message||e), 'error');
         }
@@ -22249,6 +22355,17 @@ curl -X POST http://localhost:8000/api/defects \\
         } catch (e) {
             showToast?.('加入連結失敗:' + (e.message || e?.detail || e), 'error');
         }
+    }
+
+    // v1.1.11.2:編輯 modal 的 add-link picker 展開 / 收起
+    function _todoEditShowAddLinkForm() {
+        document.getElementById('todoEditAddLinkForm')?.classList.remove('hidden');
+        document.getElementById('todoEditAddLinkBtn')?.classList.add('hidden');
+        _todoPopulateLinkTargets('todoLinkType', 'todoLinkTargetId');
+    }
+    function _todoEditHideAddLinkForm() {
+        document.getElementById('todoEditAddLinkForm')?.classList.add('hidden');
+        document.getElementById('todoEditAddLinkBtn')?.classList.remove('hidden');
     }
 
     async function _todoRemoveLink(linkId) {
