@@ -7,6 +7,7 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.models.project_device import DevicePlatform
 
 
 # ── 環境變數 ─────────────────────────────────────────────
@@ -25,4 +26,27 @@ class EnvVarResponse(EnvVarItem):
 class EnvVarsListResponse(BaseModel):
     project_id: str
     items: list[EnvVarResponse]
+
+
+# ── 設備資訊 ─────────────────────────────────────────────
+class DeviceItem(BaseModel):
+    """單一設備（Android / iOS 虛擬裝置）。"""
+    label: str = Field(..., min_length=1, max_length=100)
+    platform: DevicePlatform
+    platform_version: Optional[str] = Field(default=None, max_length=20)
+    device_name: Optional[str] = Field(default=None, max_length=100)
+    avd_name: Optional[str] = Field(default=None, max_length=100)
+    udid: Optional[str] = Field(default=None, max_length=100)
+    automation_name: Optional[str] = Field(default=None, max_length=50)
+    extra_caps_json: Optional[dict[str, Any]] = None
+
+
+class DeviceResponse(DeviceItem):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+
+
+class DevicesListResponse(BaseModel):
+    project_id: str
+    items: list[DeviceResponse]
 

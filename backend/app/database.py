@@ -83,6 +83,7 @@ async def init_db() -> None:
         org_invite,
         test_version,
         project,
+        project_device,
         project_env_var,
         recording,
         step_screenshot_baseline,

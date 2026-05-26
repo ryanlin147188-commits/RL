@@ -999,6 +999,7 @@
                 <button type="button" data-nav-hash="#testschedule" onclick="showTestScheduleView()" title="測試時程" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-calendar-week text-amber-600"></i><span class="nav-label" data-i18n="nav.testSchedule">測試時程</span></button>
                 <button type="button" data-nav-hash="#testdatasets" onclick="showTestDataSetsView()" title="測試資料" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-table text-violet-600"></i><span class="nav-label" data-i18n="nav.dataSets">測試資料</span></button>
                 <button type="button" data-nav-hash="#envvars"      onclick="showEnvVarsView()"      title="環境變數" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-key text-emerald-600"></i><span class="nav-label" data-i18n="nav.envVars">環境變數</span></button>
+                <button type="button" data-nav-hash="#devices"      onclick="showDevicesView()"      title="設備資訊" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-mobile-screen text-rose-600"></i><span class="nav-label" data-i18n="nav.devices">設備資訊</span></button>
                 <button type="button" data-nav-hash="#mock"         onclick="showMockView()"         title="Mock" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-plug text-indigo-600"></i><span class="nav-label" data-i18n="nav.mock">Mock</span></button>
                 <button type="button" data-nav-hash="#testround"    onclick="showTestRoundView()"    title="TestRun" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-layer-group text-purple-600"></i><span class="nav-label" data-i18n="nav.testRound">TestRun</span></button>
                 <button type="button" data-nav-hash="#schedule"     onclick="showScheduleView()"     title="測試排程" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-calendar-days text-emerald-600"></i><span class="nav-label" data-i18n="nav.schedule">測試排程</span></button>
@@ -2042,6 +2043,137 @@
                         </table>
                     </div>
                 </section>
+            </div>
+
+            <!-- 視圖:設備資訊工作區(主從式:左側列表 / 右側編輯) v1.1.11 restored -->
+            <div id="devicesWorkspace" class="flex-1 overflow-hidden bg-slate-50/50 hidden flex">
+
+                <!-- ── 左側:設備列表 ── -->
+                <aside class="w-[300px] shrink-0 border-r border-slate-200 bg-white flex flex-col">
+                    <!-- 頂部:新增按鈕 + 標題 -->
+                    <div class="px-4 py-3 border-b border-slate-200">
+                        <h3 class="font-bold text-slate-700 text-sm flex items-center gap-2 mb-2">
+                            <i class="fa-solid fa-mobile-screen text-rose-500"></i> 設備清單
+                        </h3>
+                        <div class="flex gap-2">
+                            <button type="button" onclick="addDeviceRow('ANDROID')"
+                                class="flex-1 text-xs px-2 py-1.5 bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 rounded font-medium flex items-center justify-center gap-1">
+                                <i class="fa-brands fa-android"></i> Android
+                            </button>
+                            <button type="button" onclick="addDeviceRow('IOS')"
+                                class="flex-1 text-xs px-2 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded font-medium flex items-center justify-center gap-1">
+                                <i class="fa-brands fa-apple"></i> iOS
+                            </button>
+                        </div>
+                    </div>
+                    <!-- 列表(可捲動) -->
+                    <div id="deviceListLeft" class="flex-1 overflow-y-auto p-2 space-y-1">
+                        <!-- by JS -->
+                    </div>
+                    <!-- 底部 footer:總數 + 儲存 -->
+                    <div class="px-4 py-3 border-t border-slate-200 bg-slate-50/50 flex items-center justify-between">
+                        <span id="deviceListCount" class="text-xs text-slate-500"></span>
+                        <button type="button" onclick="saveDevices()" id="devicesSaveBtn"
+                            class="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded text-xs font-medium flex items-center gap-1">
+                            <i class="fa-solid fa-floppy-disk"></i> 儲存全部
+                        </button>
+                    </div>
+                </aside>
+
+                <!-- ── 右側:編輯區 ── -->
+                <div class="flex-1 overflow-y-auto p-6">
+                    <!-- 沒選任何設備時的空狀態 -->
+                    <div id="deviceEditorEmpty" class="h-full flex flex-col items-center justify-center text-slate-400">
+                        <i class="fa-solid fa-mobile-screen-button text-6xl mb-3 text-slate-200"></i>
+                        <p class="text-sm">請從左側選擇一個設備,或按上方「+ Android / + iOS」新增</p>
+                    </div>
+
+                    <!-- 編輯器(選了設備才顯示) -->
+                    <div id="deviceEditorPane" class="hidden w-full space-y-4">
+                        <section class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm">
+                            <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+                                <h3 class="font-bold text-slate-700 flex items-center gap-2 text-base">
+                                    <i id="deviceEditorPlatformIcon" class="text-2xl"></i>
+                                    <span id="deviceEditorTitle">設備編輯</span>
+                                    <span id="deviceEmulatorStatus" class="text-[11px] font-normal ml-2 px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">未啟動</span>
+                                </h3>
+                                <div class="flex gap-2">
+                                    <button type="button" onclick="launchSelectedEmulator()" id="devLaunchBtn"
+                                        class="text-xs px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded shadow-sm flex items-center gap-1.5" title="啟動此設備的虛擬機(Android AVD / iOS Simulator)">
+                                        <i class="fa-solid fa-power-off"></i> 啟動虛擬機
+                                    </button>
+                                    <button type="button" onclick="stopSelectedEmulator()" id="devStopBtn"
+                                        class="text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded flex items-center gap-1.5" title="關閉虛擬機">
+                                        <i class="fa-solid fa-stop"></i> 關閉
+                                    </button>
+                                    <button type="button" onclick="removeSelectedDevice()" class="text-xs px-3 py-1.5 text-red-600 hover:bg-red-50 border border-red-200 rounded">
+                                        <i class="fa-solid fa-trash"></i> 從清單移除
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <!-- Label -->
+                                <div>
+                                    <label for="devLabel" class="text-xs font-semibold text-slate-600 block mb-1">Label <span class="text-red-500">*</span></label>
+                                    <input id="devLabel" type="text" placeholder="如 pixel5_emu"
+                                        oninput="updateSelectedDeviceField('label', this.value)"
+                                        class="w-full text-xs font-mono px-2 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-rose-400 outline-none" />
+                                    <p class="text-[10px] text-slate-400 mt-1">限英數+底線;會被注入為 <code class="bg-slate-100 px-1 rounded">&{DEVICE_&lt;label&gt;}</code></p>
+                                </div>
+                                <!-- Platform Version -->
+                                <div>
+                                    <label for="devVersion" class="text-xs font-semibold text-slate-600 block mb-1">OS 版本</label>
+                                    <input id="devVersion" type="text" placeholder="如 13.0 / 17.4"
+                                        oninput="updateSelectedDeviceField('platform_version', this.value)"
+                                        class="w-full text-xs px-2 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-rose-400 outline-none" />
+                                </div>
+                                <!-- Device Name -->
+                                <div>
+                                    <label for="devName" class="text-xs font-semibold text-slate-600 block mb-1">Device Name</label>
+                                    <input id="devName" type="text" placeholder="如 Pixel 5 / iPhone 15"
+                                        oninput="updateSelectedDeviceField('device_name', this.value)"
+                                        class="w-full text-xs px-2 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-rose-400 outline-none" />
+                                </div>
+                                <!-- platform-specific:AVD or UDID -->
+                                <div id="devPlatSpecific">
+                                    <!-- 由 JS 依平台填入 -->
+                                </div>
+                                <!-- automationName -->
+                                <div class="col-span-2">
+                                    <label for="devAutomation" class="text-xs font-semibold text-slate-600 block mb-1">automationName</label>
+                                    <input id="devAutomation" type="text"
+                                        oninput="updateSelectedDeviceField('automation_name', this.value)"
+                                        class="w-full text-xs font-mono px-2 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-rose-400 outline-none" />
+                                    <p id="devAutomationHint" class="text-[10px] text-slate-400 mt-1"></p>
+                                </div>
+                                <!-- Extra capabilities JSON -->
+                                <div class="col-span-2">
+                                    <label for="devExtraCaps" class="text-xs font-semibold text-slate-600 block mb-1">額外 Capabilities(JSON)</label>
+                                    <textarea id="devExtraCaps" rows="4" placeholder='{"appPackage": "com.example", "noReset": true}'
+                                        oninput="updateSelectedDeviceExtraCaps(this.value)"
+                                        class="w-full text-xs font-mono px-2 py-2 border border-slate-300 rounded focus:ring-1 focus:ring-rose-400 outline-none resize-y"></textarea>
+                                    <p id="devExtraCapsErr" class="text-[10px] text-red-500 mt-1 hidden"></p>
+                                    <p class="text-[10px] text-slate-400 mt-1">會與上方欄位合併到最終 capabilities;JSON 格式錯誤時不會送出儲存</p>
+                                </div>
+                            </div>
+                        </section>
+
+                        <!-- Capabilities Preview -->
+                        <section class="bg-slate-900 text-slate-100 rounded-lg border border-slate-700 shadow-sm overflow-hidden">
+                            <div class="px-4 py-2 bg-slate-800 border-b border-slate-700 flex items-center justify-between">
+                                <h4 class="text-xs font-semibold flex items-center gap-2">
+                                    <i class="fa-solid fa-code text-emerald-400"></i> Capabilities Preview
+                                    <span class="text-[10px] text-slate-400 font-normal">執行時注入到 Robot 的格式</span>
+                                </h4>
+                                <button type="button" onclick="copyDeviceCapsPreview()" class="text-xs text-slate-300 hover:text-white" title="複製 Robot 寫法">
+                                    <i class="fa-regular fa-copy"></i> 複製
+                                </button>
+                            </div>
+                            <pre id="devCapsPreview" class="p-4 text-[11px] font-mono text-emerald-300 overflow-x-auto leading-relaxed"></pre>
+                        </section>
+                    </div>
+                </div>
             </div>
 
             <!-- .env 匯入 Modal -->
@@ -4572,6 +4704,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                     '#testround':       'testRoundWorkspace',
                     '#schedule':        'scheduleWorkspace',
                     '#envvars':         'envVarsWorkspace',
+                    '#devices':         'devicesWorkspace',
                     '#usersettings':    'userSettingsWorkspace',
                     '#filecompare':     'fileCompareWorkspace',
                     '#testkanban':      'testKanbanWorkspace',
@@ -8149,6 +8282,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             'nav.testCases': { 'zh-TW': '測試案例', 'en': 'Test Cases' },
             'nav.dataSets': { 'zh-TW': '測試資料', 'en': 'Data Sets' },
             'nav.envVars': { 'zh-TW': '環境變數', 'en': 'Env Vars' },
+            'nav.devices': { 'zh-TW': '設備資訊', 'en': 'Devices' },
             'nav.mock': { 'zh-TW': 'Mock', 'en': 'Mock' },
             'nav.testRound': { 'zh-TW': 'TestRun', 'en': 'Test Rounds' },
             'nav.recorder': { 'zh-TW': '測試錄製', 'en': 'Recorder' },
@@ -8175,6 +8309,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             'view.testCases.title': { 'zh-TW': '測試案例清單', 'en': 'Test Cases' },
             'view.dataSets.title': { 'zh-TW': '測試資料', 'en': 'Data Sets' },
             'view.envVars.title': { 'zh-TW': '環境變數', 'en': 'Environment Variables' },
+            'view.devices.title': { 'zh-TW': '設備資訊', 'en': 'Devices' },
             'view.dbConfig.title': { 'zh-TW': 'DB 連線資訊', 'en': 'DB Configurations' },
             'view.mock.title': { 'zh-TW': 'Mock 端點管理', 'en': 'Mock Endpoints' },
             'view.testRound.title': { 'zh-TW': 'TestRun', 'en': 'Test Rounds' },
@@ -9987,6 +10122,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                         selectInput.innerHTML =
                             '<option value="WEB">WEB</option>' +
                             '<option value="API">API</option>' +
+                            '<option value="APP">APP</option>' +
                             '<option value="E2E">E2E</option>';
                     } else if (info.level === 2) {
                         titleEl.innerHTML = '<i class="fa-regular fa-window-maximize text-slate-400"></i> 新增頁面';
@@ -10915,6 +11051,8 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 'showFileCompareView',
                 // v1.1.9 新增:讓 hash routing + nav active highlight 認得
                 'showTestKanbanView', 'showDefectsView', 'showTestScheduleView', 'showMockView',
+                // v1.1.11 restored:設備資訊
+                'showDevicesView',
             ];
             const _hashToFn = {};   // '#defects' → 'showDefectsView'
             let _suppressHashChange = false;
@@ -12429,6 +12567,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             document.getElementById('testRoundWorkspace').classList.add('hidden');
             document.getElementById('scheduleWorkspace')?.classList.add('hidden');
             document.getElementById('envVarsWorkspace')?.classList.add('hidden');
+            document.getElementById('devicesWorkspace')?.classList.add('hidden');
             document.getElementById('homeWorkspace')?.classList.add('hidden');
             document.getElementById('testcasesWorkspace')?.classList.add('hidden');
             document.getElementById('userSettingsWorkspace')?.classList.add('hidden');
@@ -14474,30 +14613,310 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         
         }
 
+        // v1.1.11 restored:設備資訊 view + 補一條 nav callback
+        function showDevicesView() {
+            if (!confirmDiscardIfDirty()) return false;
+            _hideAllWorkspaces();
+            _setViewMeta('view.devices.title', 'view.devices.title', '<i class="fa-solid fa-mobile-screen text-rose-500"></i>', 'Devices', 'bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-medium');
+            document.getElementById('devicesWorkspace').classList.remove('hidden');
+            document.getElementById('mainHeader').classList.remove('hidden');
+            document.getElementById('mainActions').classList.add('hidden');
+            currentTestCase = null;
+            loadProjectSettings();
+            try { _afterViewChange(); } catch (_) {}
+        }
+
         // ==================== 全專案設定（環境變數 / 設備資訊） ====================
         // 整批替換 (PUT) 模式：JS 維護 in-memory list，按「儲存」才 PUT 整包
         let envVarsBuffer = [];   // [{name, value, description}, ...]
+        let devicesBuffer = [];   // v1.1.11 restored:[{label, platform, platform_version, device_name, avd_name, udid, automation_name, extra_caps_json}, ...]
 
         async function loadProjectSettings() {
             const pid = currentProjectId;
             if (!pid) {
                 envVarsBuffer = [];
+                devicesBuffer = [];
                 renderEnvVarsList();
+                try { renderDevicesList(); } catch (_) {}
                 return;
             }
             try {
-                const ev = await apiFetch(`/api/projects/${pid}/env-vars`);
+                // v1.1.11 restored:同時拉 env-vars 與 devices
+                const [ev, dv] = await Promise.all([
+                    apiFetch(`/api/projects/${pid}/env-vars`),
+                    apiFetch(`/api/projects/${pid}/devices`).catch(() => ({ items: [] })),
+                ]);
                 envVarsBuffer = (ev?.items || []).map(it => ({
                     name: it.name || '',
                     value: it.value || '',
                     description: it.description || '',
                 }));
+                devicesBuffer = (dv?.items || []).map(it => ({
+                    label: it.label || '',
+                    platform: it.platform || 'ANDROID',
+                    platform_version: it.platform_version || '',
+                    device_name: it.device_name || '',
+                    avd_name: it.avd_name || '',
+                    udid: it.udid || '',
+                    automation_name: it.automation_name || '',
+                    extra_caps_json: it.extra_caps_json || null,
+                }));
             } catch (e) {
                 envVarsBuffer = [];
+                devicesBuffer = [];
                 showToast(`載入專案設定失敗：${e.message}`, 'error');
             }
             renderEnvVarsList();
+            try { renderDevicesList(); } catch (_) {}
         }
+
+        // ──── v1.1.11 restored:設備資訊主從式 UI 全套 helpers ────
+        // 設備資訊:主從式狀態
+        let _selectedDeviceIdx = null;
+
+        function renderDevicesList() {
+            const left = document.getElementById('deviceListLeft');
+            const countEl = document.getElementById('deviceListCount');
+            if (!left) return;
+
+            if (countEl) {
+                const a = devicesBuffer.filter(d => d.platform === 'ANDROID').length;
+                const i = devicesBuffer.filter(d => d.platform === 'IOS').length;
+                countEl.textContent = `${devicesBuffer.length} 個(A:${a} / i:${i})`;
+            }
+
+            if (devicesBuffer.length === 0) {
+                left.innerHTML = '<p class="text-xs text-slate-400 italic p-3 text-center">尚無設備<br>按上方按鈕新增</p>';
+                _selectedDeviceIdx = null;
+                renderDeviceEditor();
+                return;
+            }
+
+            left.innerHTML = devicesBuffer.map((d, i) => {
+                const isAndroid = d.platform === 'ANDROID';
+                const icon = isAndroid
+                    ? '<i class="fa-brands fa-android text-green-600 text-lg"></i>'
+                    : '<i class="fa-brands fa-apple text-slate-700 text-lg"></i>';
+                const isSelected = _selectedDeviceIdx === i;
+                const labelTxt = (d.label || '').trim() || `(未命名 #${i + 1})`;
+                const subtitle = [
+                    d.platform_version ? `OS ${escapeAttr(d.platform_version)}` : '',
+                    d.device_name ? escapeAttr(d.device_name) : '',
+                ].filter(Boolean).join(' · ') || '<span class="italic">未填細節</span>';
+                return `
+                <div onclick="selectDevice(${i})"
+                    class="cursor-pointer rounded border transition px-3 py-2 ${isSelected ? 'bg-rose-50 border-rose-300 shadow-inner' : 'bg-white border-slate-200 hover:bg-slate-50 hover:border-slate-300'}">
+                    <div class="flex items-center gap-2">
+                        ${icon}
+                        <div class="flex-1 min-w-0">
+                            <div class="text-xs font-mono font-semibold text-slate-700 truncate">${escapeAttr(labelTxt)}</div>
+                            <div class="text-[10px] text-slate-500 truncate">${subtitle}</div>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function selectDevice(i) {
+            if (i < 0 || i >= devicesBuffer.length) return;
+            _selectedDeviceIdx = i;
+            renderDevicesList();
+            renderDeviceEditor();
+        }
+
+        function renderDeviceEditor() {
+            const empty = document.getElementById('deviceEditorEmpty');
+            const pane = document.getElementById('deviceEditorPane');
+            if (!empty || !pane) return;
+            if (_selectedDeviceIdx == null || _selectedDeviceIdx >= devicesBuffer.length) {
+                empty.classList.remove('hidden');
+                pane.classList.add('hidden');
+                return;
+            }
+            const d = devicesBuffer[_selectedDeviceIdx];
+            empty.classList.add('hidden');
+            pane.classList.remove('hidden');
+
+            const isAndroid = d.platform === 'ANDROID';
+            const platIcon = document.getElementById('deviceEditorPlatformIcon');
+            platIcon.className = `text-2xl fa-brands ${isAndroid ? 'fa-android text-green-600' : 'fa-apple text-slate-700'}`;
+            document.getElementById('deviceEditorTitle').textContent = (d.label || '(未命名)') + ` — ${isAndroid ? 'Android' : 'iOS'}`;
+
+            document.getElementById('devLabel').value = d.label || '';
+            document.getElementById('devVersion').value = d.platform_version || '';
+            document.getElementById('devName').value = d.device_name || '';
+            document.getElementById('devAutomation').value = d.automation_name || '';
+            document.getElementById('devAutomationHint').textContent =
+                d.automation_name ? '' : `預設值(自動帶入):${isAndroid ? 'UiAutomator2' : 'XCUITest'}`;
+
+            const ps = document.getElementById('devPlatSpecific');
+            if (isAndroid) {
+                ps.innerHTML = `
+                    <label for="devAvd" class="text-xs font-semibold text-slate-600 block mb-1">AVD 名稱</label>
+                    <input id="devAvd" type="text" placeholder="如 pixel_5_api_33"
+                        oninput="updateSelectedDeviceField('avd_name', this.value)"
+                        value="${escapeAttr(d.avd_name || '')}"
+                        class="w-full text-xs font-mono px-2 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-rose-400 outline-none" />
+                    <p class="text-[10px] text-slate-400 mt-1">Android emulator AVD 名稱(<code class="bg-slate-100 px-1 rounded">avd</code> capability)</p>`;
+            } else {
+                ps.innerHTML = `
+                    <label for="devUdid" class="text-xs font-semibold text-slate-600 block mb-1">UDID</label>
+                    <input id="devUdid" type="text" placeholder="Simulator UDID"
+                        oninput="updateSelectedDeviceField('udid', this.value)"
+                        value="${escapeAttr(d.udid || '')}"
+                        class="w-full text-xs font-mono px-2 py-1.5 border border-slate-300 rounded focus:ring-1 focus:ring-rose-400 outline-none" />
+                    <p class="text-[10px] text-slate-400 mt-1">iOS Simulator UDID(<code class="bg-slate-100 px-1 rounded">udid</code> capability)</p>`;
+            }
+
+            const caps = d.extra_caps_json && typeof d.extra_caps_json === 'object'
+                ? JSON.stringify(d.extra_caps_json, null, 2)
+                : '';
+            document.getElementById('devExtraCaps').value = caps;
+            document.getElementById('devExtraCapsErr').classList.add('hidden');
+
+            renderDeviceCapsPreview();
+            setEmulatorStatusBadge();
+        }
+
+        function updateSelectedDeviceField(field, value) {
+            if (_selectedDeviceIdx == null) return;
+            devicesBuffer[_selectedDeviceIdx][field] = value;
+            renderDevicesList();
+            renderDeviceCapsPreview();
+            if (field === 'automation_name') {
+                const isA = devicesBuffer[_selectedDeviceIdx].platform === 'ANDROID';
+                document.getElementById('devAutomationHint').textContent =
+                    value ? '' : `預設值(自動帶入):${isA ? 'UiAutomator2' : 'XCUITest'}`;
+            }
+            const d = devicesBuffer[_selectedDeviceIdx];
+            const isAndroid = d.platform === 'ANDROID';
+            document.getElementById('deviceEditorTitle').textContent = (d.label || '(未命名)') + ` — ${isAndroid ? 'Android' : 'iOS'}`;
+        }
+
+        function updateSelectedDeviceExtraCaps(text) {
+            if (_selectedDeviceIdx == null) return;
+            const errEl = document.getElementById('devExtraCapsErr');
+            if (!text.trim()) {
+                devicesBuffer[_selectedDeviceIdx].extra_caps_json = null;
+                errEl.classList.add('hidden');
+                renderDeviceCapsPreview();
+                return;
+            }
+            try {
+                const parsed = JSON.parse(text);
+                if (typeof parsed !== 'object' || parsed == null || Array.isArray(parsed)) {
+                    throw new Error('必須是 JSON 物件 {}');
+                }
+                devicesBuffer[_selectedDeviceIdx].extra_caps_json = parsed;
+                errEl.classList.add('hidden');
+                renderDeviceCapsPreview();
+            } catch (e) {
+                errEl.textContent = `JSON 解析失敗:${e.message}`;
+                errEl.classList.remove('hidden');
+            }
+        }
+
+        function renderDeviceCapsPreview() {
+            const pre = document.getElementById('devCapsPreview');
+            if (!pre || _selectedDeviceIdx == null) return;
+            const d = devicesBuffer[_selectedDeviceIdx];
+            const isA = d.platform === 'ANDROID';
+            const auto = d.automation_name || (isA ? 'UiAutomator2' : 'XCUITest');
+            const caps = {
+                platformName: isA ? 'Android' : 'iOS',
+                platformVersion: d.platform_version || '',
+                deviceName: d.device_name || '',
+                automationName: auto,
+            };
+            if (isA && d.avd_name) caps.avd = d.avd_name;
+            if (!isA && d.udid) caps.udid = d.udid;
+            Object.assign(caps, d.extra_caps_json || {});
+            const cleaned = Object.fromEntries(Object.entries(caps).filter(([, v]) => v !== ''));
+
+            const label = (d.label || '<label>').trim();
+            const robotLine = `&{DEVICE_${label}}    ${Object.entries(cleaned).map(([k, v]) => `${k}=${v}`).join('    ')}`;
+            const pyDict = JSON.stringify(cleaned, null, 2);
+
+            pre.innerHTML = `<span class="text-slate-400"># Robot Framework 注入格式:</span>\n<span class="text-emerald-300">${escapeAttr(robotLine)}</span>\n\n<span class="text-slate-400"># 等同 Python dict:</span>\n<span class="text-blue-300">${escapeAttr(pyDict)}</span>`;
+        }
+
+        async function copyDeviceCapsPreview() {
+            if (_selectedDeviceIdx == null) return;
+            const pre = document.getElementById('devCapsPreview');
+            const m = pre.innerText.match(/&\{DEVICE_[^\n]+/);
+            if (!m) return;
+            try {
+                await navigator.clipboard.writeText(m[0]);
+                showToast('已複製 Robot 寫法到剪貼簿', 'success');
+            } catch (_) {
+                showToast('複製失敗', 'error');
+            }
+        }
+
+        function addDeviceRow(platform) {
+            devicesBuffer.push({
+                label: '',
+                platform: platform || 'ANDROID',
+                platform_version: '',
+                device_name: '',
+                avd_name: '',
+                udid: '',
+                automation_name: '',
+                extra_caps_json: null,
+            });
+            _selectedDeviceIdx = devicesBuffer.length - 1;
+            renderDevicesList();
+            renderDeviceEditor();
+            setTimeout(() => document.getElementById('devLabel')?.focus(), 50);
+        }
+        function removeDeviceRow(i) {
+            devicesBuffer.splice(i, 1);
+            if (_selectedDeviceIdx === i) _selectedDeviceIdx = null;
+            else if (_selectedDeviceIdx != null && _selectedDeviceIdx > i) _selectedDeviceIdx--;
+            renderDevicesList();
+            renderDeviceEditor();
+        }
+        function removeSelectedDevice() {
+            if (_selectedDeviceIdx == null) return;
+            if (!confirm('確定移除此設備?')) return;
+            removeDeviceRow(_selectedDeviceIdx);
+        }
+        async function saveDevices() {
+            const pid = currentProjectId;
+            if (!pid) { showToast('請先選擇專案', 'error'); return; }
+            const items = devicesBuffer.filter(d => (d.label || '').trim());
+            for (const d of items) {
+                if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(d.label)) {
+                    showToast(`設備 label 不合法:${d.label}(限英數+底線、不可數字開頭)`, 'error');
+                    return;
+                }
+            }
+            try {
+                const res = await apiFetch(`/api/projects/${pid}/devices`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(items),
+                });
+                devicesBuffer = (res.items || []).map(it => ({
+                    label: it.label,
+                    platform: it.platform,
+                    platform_version: it.platform_version || '',
+                    device_name: it.device_name || '',
+                    avd_name: it.avd_name || '',
+                    udid: it.udid || '',
+                    automation_name: it.automation_name || '',
+                    extra_caps_json: it.extra_caps_json || null,
+                }));
+                renderDevicesList();
+                showToast(`已儲存 ${items.length} 個設備`, 'success');
+            } catch (e) {
+                showToast(`儲存失敗:${e.message}`, 'error');
+            }
+        }
+
+        // ──── /v1.1.11 restored ────
+        // 啟動 / 關閉虛擬機 (_emulatorStatus / launchSelectedEmulator / stopSelectedEmulator /
+        // setEmulatorStatusBadge) 33ce8dc 沒從 HEAD 拿掉,直接 reuse 下面那組,不在此重宣告。
 
         // 哪些 NAME 預設遮蔽 value（含 TOKEN/SECRET/PASSWORD/KEY 字樣）
         const _SENSITIVE_NAME_RE = /(TOKEN|SECRET|PASSWORD|PASSWD|API[_-]?KEY|PRIVATE[_-]?KEY|CREDENTIAL)/i;

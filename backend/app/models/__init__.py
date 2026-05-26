@@ -28,6 +28,7 @@ from .password_reset_token import PasswordResetToken
 from .project_member import ProjectMember
 from .role import Role
 from .user import User
+from .project_device import DevicePlatform, ProjectDevice
 from .project_env_var import ProjectEnvVar
 from .review import (
     ReviewableEntityType,
@@ -87,6 +88,7 @@ __all__ = [
     # Groups (團隊群組,可巢狀,可作為 todo assignee)
     "Group", "GroupMembership",
     # Project-level config + execution artefacts
+    "ProjectDevice", "DevicePlatform",
     "ProjectEnvVar",
     "StepScreenshotBaseline",
     "TestRound",
