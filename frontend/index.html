@@ -10537,8 +10537,6 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 // v1.1.11:initProjects 跑完 → 若使用者完全沒專案且當前不在 personal org,
                 // 自動切回 personal org;否則 switchProject 已經處理過 org sync。
                 try { await _maybeSwitchToPersonalWhenNoProject(); } catch (_) {}
-                // (原本的 hash dispatch — 仍然要跑)
-                try {
                 // Hash-aware initial dispatch — preserves the view across
                 // reload. Falls back to showHomeView when hash is empty
                 // or doesn't map to a known view.
