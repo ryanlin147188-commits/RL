@@ -172,19 +172,6 @@ class UserManager(BaseUserManager[User, str]):
             # 同步最新 display_name
             if display_name and user.display_name != display_name:
                 user.display_name = display_name
-            # v1.1.11:既有 user(可能在 personal org 概念出現之前建的,例如 Ryan.lin)
-            # binding 上 SSO 後,順便補建 personal org 讓他退出外部專案後有地方可回。
-            try:
-                from app.auth.personal_org import ensure_personal_org
-                await ensure_personal_org(
-                    self.user_db.session, user, set_as_active=False  # type: ignore[attr-defined]
-                )
-            except Exception as e:
-                import logging
-                logging.getLogger(__name__).warning(
-                    "ensure_personal_org backfill failed for user=%s: %s",
-                    user.username, e,
-                )
             return user
 
         # 3) JIT 新建。密碼 hash 走 fastapi-users PasswordHelper(argon2)。
@@ -212,21 +199,6 @@ class UserManager(BaseUserManager[User, str]):
         # — SSO 進來的人不必首登改密碼,所以 SSO 路徑要把 flag 拔掉)
         await self.on_after_register(new_user)
         new_user.must_change_password = False
-        # v1.1.11:SSO 新 user 也要有 personal org(slug=personal-{username})當自己
-        # 的工作空間。set_as_active=True → user.organization_id 直接指向新 org,
-        # 第一次登入就在自己 org 是 admin,不會莫名其妙落到別人的 Default Organization
-        # 看 read-only banner。
-        try:
-            from app.auth.personal_org import ensure_personal_org
-            await ensure_personal_org(
-                self.user_db.session, new_user, set_as_active=True  # type: ignore[attr-defined]
-            )
-        except Exception as e:
-            import logging
-            logging.getLogger(__name__).warning(
-                "ensure_personal_org failed for new SSO user=%s: %s",
-                new_user.username, e,
-            )
         # 仁慈模式:把新 user 加進該 org 的所有 active project_members,
         # 否則 list_projects 的 INNER JOIN ProjectMember 會把所有 project 過濾掉。
         # 若 user.organization_id 還沒被 on_after_register 設好,helper 內部會 return 0。
@@ -252,24 +224,6 @@ class UserManager(BaseUserManager[User, str]):
     ) -> None:
         from datetime import datetime
         user.last_login_at = datetime.utcnow()
-        # v1.1.11:Lazy backfill — 確保每位登入的 user 都有自己的 personal org。
-        # 涵蓋以下歷史情境:
-        # * Admin 用 POST /auth/users 建出來的 user(沒走 /auth/register 的個人 org 流程)
-        # * SSO JIT 在 v1.1.11 之前進來的 user(舊 get_or_provision_via_oidc 沒建)
-        # * 任何 manually inserted 的 user row
-        # set_as_active=False — 不強制把當前 active org 改掉,user 可能正在用某個共享 org;
-        # 真的「退出所有外部 project」會由前端 _maybeSwitchBackToPersonalOrgAfterLeave 切。
-        try:
-            from app.auth.personal_org import ensure_personal_org
-            await ensure_personal_org(
-                self.user_db.session, user, set_as_active=False  # type: ignore[attr-defined]
-            )
-        except Exception as e:
-            import logging
-            logging.getLogger(__name__).warning(
-                "personal_org backfill on login failed for user=%s: %s",
-                user.username, e,
-            )
 
 
 async def get_user_manager(

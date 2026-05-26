@@ -12,7 +12,6 @@ from app.auth.project_membership import ensure_project_member
 from app.database import get_db
 from app.models.group import Group, GroupMembership
 from app.models.org_membership import OrgMembership
-from app.models.organization import Organization
 from app.models.project import Project
 from app.models.project_member import ProjectMember
 from app.models.role import Role
@@ -690,15 +689,6 @@ async def leave_project(
     proj = await db.get(Project, project_id)
     if proj is None:
         raise HTTPException(404, "找不到專案")
-    # v1.1.11:不能退出自己的 personal org 內專案 — 那是 user 的「私人工作空間」,
-    # 退出後就沒有地方可以回去,會永遠卡在別人的 org 看 read-only banner。
-    from app.auth.personal_org import personal_org_slug
-    org = await db.get(Organization, proj.organization_id) if proj.organization_id else None
-    if org and org.slug == personal_org_slug(user.username):
-        raise HTTPException(
-            400,
-            "這是您個人工作空間內的專案,無法退出。若要刪除請改用「刪除專案」",
-        )
     pm = (
         await db.execute(
             select(ProjectMember)
