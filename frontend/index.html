@@ -23510,6 +23510,18 @@ curl -X POST http://localhost:8000/api/defects \\
             const isChild = depth > 0;
             const hasChildren = !isTodo && (s._children?.length || 0) > 0;
             const isCollapsed = hasChildren && _tsCollapsedSet.has(s.id);
+            // v1.1.11.2 後續:Sprint / Backlog / 子任務 各自有 badge,user 一眼分得出。
+            // - Sprint (depth=0 非 todo)     → 黃色「Sprint」chip
+            // - Backlog 孤兒 todo (depth=0, isTodo) → 灰色「Backlog」chip,未排入任何 Sprint
+            // - Sprint 內 child todo (depth=1) → 不額外加 badge,縮排 + ↳ 已表達歸屬
+            let scopeBadgeHtml = '';
+            if (!isChild) {
+                if (isTodo) {
+                    scopeBadgeHtml = `<span class="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-600 border border-slate-200 rounded font-mono uppercase mr-1.5 shrink-0 inline-flex items-center gap-1" title="未排入任何 Sprint(Backlog)"><i class="fa-solid fa-inbox text-[10px]"></i>Backlog</span>`;
+                } else {
+                    scopeBadgeHtml = `<span class="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 border border-amber-200 rounded font-mono uppercase mr-1.5 shrink-0 inline-flex items-center gap-1" title="Sprint"><i class="fa-solid fa-calendar-week text-[10px]"></i>Sprint</span>`;
+                }
+            }
             const caretHtml = hasChildren
                 ? `<button type="button" onclick="event.stopPropagation(); _tsToggleChildren('${s.id}')"
                        class="ts-expand-caret w-5 h-5 shrink-0 inline-flex items-center justify-center text-slate-400 hover:text-amber-600 transition"
@@ -23535,7 +23547,9 @@ curl -X POST http://localhost:8000/api/defects \\
                     <div class="shrink-0 border-r border-slate-200 px-3 py-3 flex items-start gap-1.5" style="width:${LEFT_W_NAME}px;padding-left:${12 + indentPx}px">
                         ${isChild ? '<span class="w-3 shrink-0 inline-flex items-center text-slate-300 text-sm">↳</span>' : caretHtml}
                         <div class="flex-1 min-w-0 flex flex-col gap-1 justify-center">
-                            <div class="${isChild ? 'text-xs text-slate-600' : 'text-sm font-semibold text-slate-800'} leading-tight line-clamp-2" title="${escapeHtml(s.name)}">${escapeHtml(s.name)}</div>
+                            <div class="${isChild ? 'text-xs text-slate-600' : 'text-sm font-semibold text-slate-800'} leading-tight flex items-center" title="${escapeHtml(s.name)}">
+                                ${scopeBadgeHtml}<span class="truncate">${escapeHtml(s.name)}</span>
+                            </div>
                             ${s.description ? `<div class="text-[10px] text-slate-400 truncate leading-tight" title="${escapeHtml(s.description)}">${escapeHtml(s.description)}</div>` : ''}
                             ${progressBarHtml}
                         </div>
