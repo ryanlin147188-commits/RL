@@ -21929,7 +21929,10 @@ curl -X POST http://localhost:8000/api/defects \\
             <div class="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded px-2 py-1.5">
                 <span class="text-[10px] px-1.5 py-0.5 bg-white border border-slate-200 rounded font-mono uppercase text-slate-600">${escapeHtml(l.target_type)}</span>
                 <span class="text-xs text-slate-700 flex-1 truncate" title="${escapeHtml(l.target_id)}">${escapeHtml(l.label || l.target_id)}</span>
-                <button type="button" onclick="_todoCreateRemovePendingLink(${i})" class="text-rose-500 hover:text-rose-700 text-xs"><i class="fa-solid fa-xmark"></i></button>
+                <button type="button" title="移除連結" onclick="_todoCreateRemovePendingLink(${i})"
+                    class="w-6 h-6 inline-flex items-center justify-center rounded text-rose-500 hover:bg-rose-100 hover:text-rose-700 transition shrink-0">
+                    <i class="fa-solid fa-xmark text-sm"></i>
+                </button>
             </div>`).join('');
     }
 
@@ -22049,7 +22052,10 @@ curl -X POST http://localhost:8000/api/defects \\
                     <span class="text-[10px] px-1.5 py-0.5 bg-white border border-slate-200 rounded font-mono uppercase text-slate-600">${escapeHtml(l.target_type)}</span>
                     <span class="text-sm text-slate-700 flex-1 truncate">${escapeHtml(l.target_code ? `${l.target_code} · ${l.target_title||''}` : (l.target_title || l.target_id.slice(0,8)))}</span>
                     ${l.note ? `<span class="text-[10px] text-slate-500 italic">${escapeHtml(l.note)}</span>` : ''}
-                    <button type="button" title="移除連結" onclick="_todoRemoveLink('${l.id}')" class="text-rose-500 hover:text-rose-700 text-xs"><i class="fa-solid fa-xmark"></i></button>
+                    <button type="button" title="移除連結" onclick="_todoRemoveLink('${l.id}')"
+                        class="w-6 h-6 inline-flex items-center justify-center rounded text-rose-500 hover:bg-rose-100 hover:text-rose-700 transition shrink-0">
+                        <i class="fa-solid fa-xmark text-sm"></i>
+                    </button>
                 </div>`).join('');
         document.getElementById('todoDetailBody').innerHTML = `
             <div>
@@ -22227,7 +22233,8 @@ curl -X POST http://localhost:8000/api/defects \\
     }
 
     async function _todoRemoveLink(linkId) {
-        if (!_todoCurrent || !confirm('移除這個連結?')) return;
+        // v1.1.11.2:即點即移,不再 confirm() — 跟新增待辦 modal 的 X 體驗一致
+        if (!_todoCurrent) return;
         try {
             await apiFetch(`/api/todos/${_todoCurrent.id}/links/${linkId}`, { method: 'DELETE', raw: true });
             _todoCurrentLinks = _todoCurrentLinks.filter(l => l.id !== linkId);
