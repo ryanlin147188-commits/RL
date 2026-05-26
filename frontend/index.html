@@ -1342,10 +1342,10 @@
                         </select>
                     </div>
                     <div>
-                        <!-- v1.1.11.2:歸屬到某個 Sprint(test_schedules)。空值 = Backlog -->
-                        <label class="block text-sm font-medium text-slate-700 mb-1">Sprint <span class="text-slate-400 text-xs font-normal">(選填)</span></label>
-                        <select id="todoCreateScheduleId" class="w-full border border-slate-300 rounded p-2 text-sm bg-white">
-                            <option value="">(Backlog,不掛 Sprint)</option>
+                        <!-- v1.1.11.2:歸屬到某個 Sprint(test_schedules);必填,沒 Sprint 不能建待辦 -->
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Sprint <span class="text-rose-500">*</span></label>
+                        <select id="todoCreateScheduleId" required class="w-full border border-slate-300 rounded p-2 text-sm bg-white">
+                            <option value="">(請選擇 Sprint)</option>
                         </select>
                     </div>
                 </div>
@@ -21962,6 +21962,9 @@ curl -X POST http://localhost:8000/api/defects \\
     async function submitTodoCreate() {
         const title = document.getElementById('todoCreateTitle').value.trim();
         if (!title) { showToast?.('標題必填', 'error'); return; }
+        // v1.1.11.2:Sprint 必填,未選則擋下
+        const scheduleId = document.getElementById('todoCreateScheduleId')?.value || '';
+        if (!scheduleId) { showToast?.('請先選擇 Sprint', 'error'); return; }
         const payload = {
             project_id: currentProjectId,
             title,
@@ -21973,8 +21976,8 @@ curl -X POST http://localhost:8000/api/defects \\
             assigned_to: document.getElementById('todoCreateAssignee').value || null,
             assigned_to_type: 'user',
             description: document.getElementById('todoCreateDescription').value || null,
-            // v1.1.11.2:歸屬到某個 Sprint(test_schedules);空值 → Backlog
-            schedule_id: document.getElementById('todoCreateScheduleId')?.value || null,
+            // v1.1.11.2:歸屬到某個 Sprint(test_schedules);必填
+            schedule_id: scheduleId,
         };
         try {
             const created = await apiFetch('/api/todos', { method: 'POST', body: payload });
@@ -22036,7 +22039,8 @@ curl -X POST http://localhost:8000/api/defects \\
     function _renderTodoDetail() {
         const t = _todoCurrent;
         if (!t) return;
-        document.getElementById('todoDetailHeader').textContent = t.title || '(無標題)';
+        // v1.1.11.2:header 固定「編輯待辦」(待辦標題已在 body 內的 input 顯示+可編輯)
+        document.getElementById('todoDetailHeader').textContent = '編輯待辦';
         const typeInfo = _TODO_TYPE_PILL[t.item_type] || _TODO_TYPE_PILL.Task;
         const linksHtml = _todoCurrentLinks.length === 0
             ? '<p class="text-xs text-slate-400 italic">(尚無連結項目)</p>'
@@ -22079,11 +22083,20 @@ curl -X POST http://localhost:8000/api/defects \\
                     <input type="date" id="todoEditDueDate" value="${t.due_date || ''}" class="w-full border border-slate-300 rounded p-2 text-sm">
                 </div>
             </div>
-            <div>
-                <label class="block text-sm font-medium text-slate-700 mb-1">指派</label>
-                <select id="todoEditAssignee" class="w-full border border-slate-300 rounded p-2 text-sm bg-white">
-                    <option value="">(未指派)</option>
-                </select>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">指派</label>
+                    <select id="todoEditAssignee" class="w-full border border-slate-300 rounded p-2 text-sm bg-white">
+                        <option value="">(未指派)</option>
+                    </select>
+                </div>
+                <div>
+                    <!-- v1.1.11.2:歸屬 Sprint(test_schedules) 必填 -->
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Sprint <span class="text-rose-500">*</span></label>
+                    <select id="todoEditScheduleId" required class="w-full border border-slate-300 rounded p-2 text-sm bg-white">
+                        <option value="">(請選擇 Sprint)</option>
+                    </select>
+                </div>
             </div>
             <div>
                 <label class="block text-sm font-medium text-slate-700 mb-1">描述 / 每日進度</label>
@@ -22127,9 +22140,13 @@ curl -X POST http://localhost:8000/api/defects \\
             </div>
         `;
         _todoLoadAssigneeOptions('todoEditAssignee');
+        _todoLoadScheduleOptions('todoEditScheduleId');  // v1.1.11.2:載入 Sprint 選項
         setTimeout(() => {
             const sel = document.getElementById('todoEditAssignee');
             if (sel) sel.value = t.assigned_to || '';
+            // 編輯 mode 把當前 schedule_id 選回去
+            const schedSel = document.getElementById('todoEditScheduleId');
+            if (schedSel && t.schedule_id) schedSel.value = t.schedule_id;
         }, 50);
         // detail modal 每次 re-render 都拉一次「目標」下拉,跟著當前 type 走
         _todoPopulateLinkTargets('todoLinkType', 'todoLinkTargetId');
@@ -22149,6 +22166,9 @@ curl -X POST http://localhost:8000/api/defects \\
 
     async function _todoSaveEdit() {
         if (!_todoCurrent) return;
+        // v1.1.11.2:Sprint 必填
+        const scheduleId = document.getElementById('todoEditScheduleId')?.value || '';
+        if (!scheduleId) { showToast?.('請先選擇 Sprint', 'error'); return; }
         const payload = {
             title:        document.getElementById('todoEditTitle').value.trim(),
             // 類型已從 UI 拿掉,固定 Task(跟 create modal 一致)
@@ -22160,6 +22180,7 @@ curl -X POST http://localhost:8000/api/defects \\
             assigned_to:  document.getElementById('todoEditAssignee').value || null,
             assigned_to_type: 'user',
             description:  document.getElementById('todoEditDescription').value || null,
+            schedule_id:  scheduleId,
         };
         if (!payload.title) { showToast?.('標題必填','error'); return; }
         try {
