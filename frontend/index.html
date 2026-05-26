@@ -22014,11 +22014,30 @@ curl -X POST http://localhost:8000/api/defects \\
     let _todoCurrent = null;
     let _todoCurrentLinks = [];
 
+    // v1.1.11.2:用 event delegation 處理連結 X 點擊;比 inline onclick 對動態
+    // 重繪 HTML 更穩定,也不會被任何 stopPropagation 攔住。modal 載入第一次就掛。
+    let _todoLinkDelegationWired = false;
+    function _wireTodoLinkDelegation() {
+        if (_todoLinkDelegationWired) return;
+        const body = document.getElementById('todoDetailBody');
+        if (!body) return;
+        body.addEventListener('click', (ev) => {
+            const btn = ev.target.closest('[data-remove-link-id]');
+            if (!btn) return;
+            ev.preventDefault();
+            ev.stopPropagation();
+            const linkId = btn.getAttribute('data-remove-link-id');
+            if (linkId) _todoRemoveLink(linkId);
+        });
+        _todoLinkDelegationWired = true;
+    }
+
     async function openTodoDetail(todoId) {
         document.getElementById('todoDetailModal').classList.remove('hidden');
         document.getElementById('todoDetailHeader').textContent = '載入中…';
         document.getElementById('todoDetailBody').innerHTML = '<p class="text-slate-400">載入中…</p>';
         document.getElementById('todoDetailFooter').innerHTML = '';
+        _wireTodoLinkDelegation();
         try {
             const [todo, links] = await Promise.all([
                 apiFetch(`/api/todos/${todoId}`),
@@ -22052,9 +22071,9 @@ curl -X POST http://localhost:8000/api/defects \\
                     <span class="text-[10px] px-1.5 py-0.5 bg-white border border-slate-200 rounded font-mono uppercase text-slate-600">${escapeHtml(l.target_type)}</span>
                     <span class="text-sm text-slate-700 flex-1 truncate">${escapeHtml(l.target_code ? `${l.target_code} · ${l.target_title||''}` : (l.target_title || l.target_id.slice(0,8)))}</span>
                     ${l.note ? `<span class="text-[10px] text-slate-500 italic">${escapeHtml(l.note)}</span>` : ''}
-                    <button type="button" title="移除連結" onclick="_todoRemoveLink('${l.id}')"
-                        class="w-6 h-6 inline-flex items-center justify-center rounded text-rose-500 hover:bg-rose-100 hover:text-rose-700 transition shrink-0">
-                        <i class="fa-solid fa-xmark text-sm"></i>
+                    <button type="button" title="移除連結" data-remove-link-id="${escapeHtml(l.id)}"
+                        class="w-7 h-7 inline-flex items-center justify-center rounded text-rose-500 hover:bg-rose-100 hover:text-rose-700 transition shrink-0 cursor-pointer">
+                        <i class="fa-solid fa-xmark text-sm pointer-events-none"></i>
                     </button>
                 </div>`).join('');
         document.getElementById('todoDetailBody').innerHTML = `
@@ -22234,14 +22253,18 @@ curl -X POST http://localhost:8000/api/defects \\
 
     async function _todoRemoveLink(linkId) {
         // v1.1.11.2:即點即移,不再 confirm() — 跟新增待辦 modal 的 X 體驗一致
-        if (!_todoCurrent) return;
+        // 拿掉 raw:true:api.js 的 raw 路徑會 short-circuit 在 !resp.ok 檢查前回 Response,
+        // DELETE 失敗(eg 404 / 403)會被靜默吞掉 → 視覺上 X 看起來「點了沒反應」。
+        if (!_todoCurrent || !linkId) return;
         try {
-            await apiFetch(`/api/todos/${_todoCurrent.id}/links/${linkId}`, { method: 'DELETE', raw: true });
+            await apiFetch(`/api/todos/${_todoCurrent.id}/links/${linkId}`, { method: 'DELETE' });
             _todoCurrentLinks = _todoCurrentLinks.filter(l => l.id !== linkId);
             _renderTodoDetail();
             if (typeof showToast === 'function') showToast('已移除連結', 'success');
         } catch (e) {
-            showToast?.('移除失敗:' + (e.message||e), 'error');
+            const detail = e?.detail || e?.message || String(e);
+            showToast?.('移除失敗:' + detail, 'error');
+            console.error('[_todoRemoveLink] failed', e);
         }
     }
 
