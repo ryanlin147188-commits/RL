@@ -10517,6 +10517,11 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             try { _maybeAutoRedeemInvite(); } catch (_) {}
             // Phase 4 多組織:抓使用者所屬的所有組織,只在 ≥ 2 個時才顯示切換器。
             try { renderOrgSwitcher(); } catch (_) {}
+            // v1.1.11:Boot-time 檢查 — 若當前 active org 不是 personal、且這個 org
+            // 裡 user 已經沒有任何 project(例如過去退完外部專案但 auto-switch 沒跑),
+            // 自動切回 personal org 避免使用者卡在別人的 org 看 read-only banner。
+            // _maybeSwitchBackToPersonalOrgAfterLeave 邏輯已經涵蓋這個 case,直接重用。
+            try { _maybeSwitchBackToPersonalOrgAfterLeave(); } catch (_) {}
             initProjects(projReq).then(() => {
                 // Hash-aware initial dispatch — preserves the view across
                 // reload. Falls back to showHomeView when hash is empty
@@ -15873,20 +15878,33 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         // ─── 退出專案(v1.1.10)— 個人設定 → 登入資訊下方那塊 ────────────
         // 列出 user 所屬的所有 project(GET /api/projects 已 server-side 過濾為
         // user 是 ProjectMember 的 project)。退出 endpoint 會擋「最後一個成員
-        // 退出」,所以這裡不必前端 filter。
+        // 退出」。
+        // v1.1.11:過濾掉「自己 personal org 內」的 project — 那是自家工作空間,
+        // 不能退出(後端 leave_project 也擋,前端先過濾避免畫出無意義的按鈕)。
         async function loadJoinedExternalProjects() {
             const wrap = document.getElementById('leaveProjectsList');
             if (!wrap) return;
             wrap.innerHTML = '<div class="text-xs text-stone-400 text-center py-4">載入中…</div>';
             try {
-                const projsRes = await fetch('/api/projects');
+                const [projsRes, orgsRes] = await Promise.all([
+                    fetch('/api/projects'),
+                    fetch('/api/auth/me/orgs'),
+                ]);
                 if (!projsRes.ok) throw new Error('HTTP ' + projsRes.status);
                 const projs = await projsRes.json();
-                if (!Array.isArray(projs) || !projs.length) {
-                    wrap.innerHTML = '<div class="text-xs text-stone-400 text-center py-4">您目前沒有加入任何專案</div>';
+                let personalOrgId = null;
+                if (orgsRes.ok) {
+                    const orgs = await orgsRes.json();
+                    const personal = (Array.isArray(orgs) ? orgs : []).find(o => (o.slug || '').startsWith('personal-'));
+                    if (personal) personalOrgId = personal.organization_id;
+                }
+                const external = (Array.isArray(projs) ? projs : [])
+                    .filter(p => !personalOrgId || p.organization_id !== personalOrgId);
+                if (!external.length) {
+                    wrap.innerHTML = '<div class="text-xs text-stone-400 text-center py-4">您目前沒有加入任何外部專案</div>';
                     return;
                 }
-                wrap.innerHTML = projs.map(p => `
+                wrap.innerHTML = external.map(p => `
                     <div class="flex items-center justify-between gap-3 bg-stone-50 rounded-lg p-3 border border-stone-100">
                         <div class="min-w-0">
                             <div class="font-medium text-stone-700 text-sm truncate">${_esc(p.name)}</div>
@@ -15944,8 +15962,13 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             }
         }
 
-        // 退完所有專案後,若 user 有 personal org 且當前 active org 不是它,自動切回去。
-        // user 沒 personal org(例如 admin 建出來的帳號)→ no-op。
+        // 退完(任一)外部 project 後,若 user 有 personal org 且當前 active org
+        // 是別人的 org 且該 org 內已經沒有 user 是 member 的 project 了 → 自動切回 personal。
+        // v1.1.11 修正:
+        // * 原本用「全部 project 數 == 0」當條件 — 但 user 在自己 personal org 一定有 project,
+        //   永遠 ≥ 1,所以這個 gate 永遠擋住。改成「當前 active org 內的 project 數 == 0」。
+        // * lazy backfill 已經保證每個 user 都有 personal org,所以 `!personal` 路徑只剩
+        //   極端錯誤(backfill 失敗等),保留 early return 不變。
         async function _maybeSwitchBackToPersonalOrgAfterLeave() {
             try {
                 const orgsRes = await fetch('/api/auth/me/orgs');
@@ -15958,12 +15981,15 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 if (!personal || !current) return;
                 // 已經在 personal org 上就不必切
                 if (current.organization_id === personal.organization_id) return;
-                // 還剩多少 project?(剛退完了應該少一個)
+                // 當前 active org 內還剩多少屬於 user 的 project?
                 const projsRes = await fetch('/api/projects');
                 if (!projsRes.ok) return;
                 const projs = await projsRes.json();
-                if ((projs || []).length > 0) return;
-                // 全退完 + 有 personal + 不在 personal → 切回 personal
+                const remainingInCurrent = (projs || []).filter(
+                    p => p.organization_id === current.organization_id,
+                );
+                if (remainingInCurrent.length > 0) return;
+                // 當前 org 已無 user 的 project + 有 personal + 不在 personal → 切回 personal
                 const sw = await fetch('/api/auth/switch-org', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
