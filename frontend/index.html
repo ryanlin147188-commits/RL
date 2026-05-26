@@ -23517,9 +23517,9 @@ curl -X POST http://localhost:8000/api/defects \\
             let scopeBadgeHtml = '';
             if (!isChild) {
                 if (isTodo) {
-                    scopeBadgeHtml = `<span class="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-600 border border-slate-200 rounded font-mono uppercase mr-1.5 shrink-0 inline-flex items-center gap-1" title="未排入任何 Sprint(Backlog)"><i class="fa-solid fa-inbox text-[10px]"></i>Backlog</span>`;
+                    scopeBadgeHtml = `<span class="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-600 border border-slate-200 rounded font-mono uppercase shrink-0 inline-flex items-center gap-1" title="未排入任何 Sprint(Backlog)"><i class="fa-solid fa-inbox text-[10px]"></i>Backlog</span>`;
                 } else {
-                    scopeBadgeHtml = `<span class="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 border border-amber-200 rounded font-mono uppercase mr-1.5 shrink-0 inline-flex items-center gap-1" title="Sprint"><i class="fa-solid fa-calendar-week text-[10px]"></i>Sprint</span>`;
+                    scopeBadgeHtml = `<span class="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 border border-amber-200 rounded font-mono uppercase shrink-0 inline-flex items-center gap-1" title="Sprint"><i class="fa-solid fa-calendar-week text-[10px]"></i>Sprint</span>`;
                 }
             }
             const caretHtml = hasChildren
@@ -23547,14 +23547,13 @@ curl -X POST http://localhost:8000/api/defects \\
                     <div class="shrink-0 border-r border-slate-200 px-3 py-3 flex items-start gap-1.5" style="width:${LEFT_W_NAME}px;padding-left:${12 + indentPx}px">
                         ${isChild ? '<span class="w-3 shrink-0 inline-flex items-center text-slate-300 text-sm">↳</span>' : caretHtml}
                         <div class="flex-1 min-w-0 flex flex-col gap-1 justify-center">
-                            <div class="${isChild ? 'text-xs text-slate-600' : 'text-sm font-semibold text-slate-800'} leading-tight flex items-center" title="${escapeHtml(s.name)}">
-                                ${scopeBadgeHtml}<span class="truncate">${escapeHtml(s.name)}</span>
-                            </div>
+                            <div class="${isChild ? 'text-xs text-slate-600' : 'text-sm font-semibold text-slate-800'} leading-tight truncate" title="${escapeHtml(s.name)}">${escapeHtml(s.name)}</div>
                             ${s.description ? `<div class="text-[10px] text-slate-400 truncate leading-tight" title="${escapeHtml(s.description)}">${escapeHtml(s.description)}</div>` : ''}
                             ${progressBarHtml}
                         </div>
                     </div>
-                    <div class="shrink-0 border-r border-slate-200 px-3 py-3 flex items-center" style="width:${LEFT_W_STATUS}px">
+                    <div class="shrink-0 border-r border-slate-200 px-3 py-3 flex flex-col items-start justify-center gap-1" style="width:${LEFT_W_STATUS}px">
+                        ${scopeBadgeHtml}
                         <span class="inline-flex items-center gap-1 px-2 py-1 ${statusPill} rounded-md text-xs font-medium">
                             <i class="fa-solid ${statusIcon} text-[10px]"></i>${statusZh}
                         </span>
