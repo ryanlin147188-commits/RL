@@ -689,6 +689,17 @@ async def leave_project(
     proj = await db.get(Project, project_id)
     if proj is None:
         raise HTTPException(404, "找不到專案")
+    # v1.1.11:不能退出自己 personal org 內的專案 — 那是 user 的私人工作空間,
+    # 退出後就沒地方可回去。要刪請改走「刪除專案」。
+    from app.auth.personal_org import personal_org_slug
+    from app.models.organization import Organization as _Org
+    if proj.organization_id:
+        proj_org = await db.get(_Org, proj.organization_id)
+        if proj_org and proj_org.slug == personal_org_slug(user.username):
+            raise HTTPException(
+                400,
+                "這是您個人工作空間內的專案,無法退出。若要刪除請改用「刪除專案」",
+            )
     pm = (
         await db.execute(
             select(ProjectMember)

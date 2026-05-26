@@ -172,6 +172,20 @@ class UserManager(BaseUserManager[User, str]):
             # 同步最新 display_name
             if display_name and user.display_name != display_name:
                 user.display_name = display_name
+            # v1.1.11:既有 SSO user(binding 上的或之前已綁定的)順便補建 personal org
+            # 讓他退完所有外部專案後有地方可回去當 admin。set_as_active=False 不擾動
+            # 他目前的 active org context。
+            try:
+                from app.auth.personal_org import ensure_personal_org
+                await ensure_personal_org(
+                    self.user_db.session, user, set_as_active=False  # type: ignore[attr-defined]
+                )
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(
+                    "ensure_personal_org backfill failed for user=%s: %s",
+                    user.username, e,
+                )
             return user
 
         # 3) JIT 新建。密碼 hash 走 fastapi-users PasswordHelper(argon2)。
@@ -199,6 +213,19 @@ class UserManager(BaseUserManager[User, str]):
         # — SSO 進來的人不必首登改密碼,所以 SSO 路徑要把 flag 拔掉)
         await self.on_after_register(new_user)
         new_user.must_change_password = False
+        # v1.1.11:新 SSO user 第一次進來,直接把 active org 落在自己的 personal org,
+        # 不要莫名其妙落到 Default Organization 看 read-only banner。
+        try:
+            from app.auth.personal_org import ensure_personal_org
+            await ensure_personal_org(
+                self.user_db.session, new_user, set_as_active=True  # type: ignore[attr-defined]
+            )
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(
+                "ensure_personal_org for new SSO user=%s failed: %s",
+                new_user.username, e,
+            )
         # 仁慈模式:把新 user 加進該 org 的所有 active project_members,
         # 否則 list_projects 的 INNER JOIN ProjectMember 會把所有 project 過濾掉。
         # 若 user.organization_id 還沒被 on_after_register 設好,helper 內部會 return 0。
@@ -224,6 +251,21 @@ class UserManager(BaseUserManager[User, str]):
     ) -> None:
         from datetime import datetime
         user.last_login_at = datetime.utcnow()
+        # v1.1.11 Lazy backfill — 每次登入都確保 user 有 personal org。
+        # 涵蓋:admin POST /auth/users 建的歷史帳號、v1.1.11 之前 SSO 進來的 user、
+        # 任何 manually inserted 的 user row。set_as_active=False 避免擾動使用者
+        # 當前 active org context(boot-time 前端會視情況自動切回 personal)。
+        try:
+            from app.auth.personal_org import ensure_personal_org
+            await ensure_personal_org(
+                self.user_db.session, user, set_as_active=False  # type: ignore[attr-defined]
+            )
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(
+                "personal_org backfill on login failed for user=%s: %s",
+                user.username, e,
+            )
 
 
 async def get_user_manager(

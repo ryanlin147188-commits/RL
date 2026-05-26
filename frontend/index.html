@@ -1030,17 +1030,12 @@
                     class="hidden text-xs text-amber-700 hover:text-amber-900 px-1" title="本機模式設定說明">
                     <i class="fa-solid fa-circle-question"></i>
                 </button>
-                <div id="orgSwitcher" class="hidden relative">
-                    <button type="button" id="orgSwitcherBtn" onclick="toggleOrgSwitcherMenu(event)"
-                        class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-stone-200 hover:bg-stone-50 hover:border-amber-300 transition text-xs"
-                        title="切換組織" aria-label="切換組織" aria-haspopup="true" aria-expanded="false">
-                        <i class="fa-solid fa-building text-amber-600 text-[12px]"></i>
-                        <span id="orgSwitcherLabel" class="font-semibold text-stone-700 max-w-[140px] truncate">—</span>
-                        <i class="fa-solid fa-caret-down text-stone-400 text-[10px]"></i>
-                    </button>
-                    <div id="orgSwitcherMenu" class="hidden absolute right-0 top-full mt-1 w-64 bg-white rounded-lg shadow-xl border border-stone-200 py-1 z-[200] max-h-[60vh] overflow-y-auto">
-                        <!-- 動態填充 -->
-                    </div>
+                <!-- v1.1.11:Org badge(只讀)— 顯示「當前 active 專案」所屬 organization 名稱。
+                     切專案會 reload + 切 backend active org;沒任何專案 → boot-time 自動切回 personal。-->
+                <div id="orgBadge" class="hidden flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-stone-200 bg-stone-50 text-xs select-none cursor-default"
+                     title="當前所屬組織(由選中的專案決定)">
+                    <i class="fa-solid fa-building text-amber-600 text-[12px]"></i>
+                    <span id="orgBadgeLabel" class="font-semibold text-stone-700 max-w-[160px] truncate">—</span>
                 </div>
                 <!-- 通知鈴鐺(toggleNotifPanel) — onclick stopPropagation 後切換 #notifPanel -->
                 <div class="relative inline-block">
@@ -7973,10 +7968,21 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                     return;
                 }
                 for (const p of list) {
-                    projectsData[p.id] = { name: p.name, treeData: [] };
+                    // v1.1.11:把 organization_id 一併存進 projectsData,switchProject 拿來比對。
+                    projectsData[p.id] = { name: p.name, organization_id: p.organization_id, treeData: [] };
                     sel.innerHTML += `<option value="${p.id}">${p.name}</option>`;
                 }
-                const keep = currentProjectId && projectsData[currentProjectId] ? currentProjectId : list[0].id;
+                // v1.1.11:reload 後若 sessionStorage 有 postReloadProjectId(來自 switchProject
+                // 觸發 org 切換前 stash 的),優先選回那個專案;其次 currentProjectId;最後 list[0]。
+                let stashed = null;
+                try {
+                    stashed = sessionStorage.getItem('postReloadProjectId');
+                    if (stashed) sessionStorage.removeItem('postReloadProjectId');
+                } catch (_) {}
+                const keep =
+                    (stashed && projectsData[stashed]) ? stashed
+                    : (currentProjectId && projectsData[currentProjectId]) ? currentProjectId
+                    : list[0].id;
                 sel.value = keep;
                 // goHome:false — let the caller's hash-router (window.onload
                 // → _dispatchFromHash) decide which view to land on. Without
@@ -7998,6 +8004,25 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             // home view before _dispatchFromHash takes them back to e.g.
             // 待辦清單/缺陷管理.
             const goHome = !opts || opts.goHome !== false;
+            // v1.1.11:Org sync — 切到的 project 若屬於其他 organization,先切 backend
+            // active org 再 reload,reload 後 initProjects 會用 sessionStorage 把這個
+            // project 選回來。沒 _meOrgsCache 或拿不到 project.organization_id 時 fallback
+            // 到舊行為(不切 org,直接 load 樹)。
+            if (pid) {
+                const projMeta = projectsData[pid];
+                const projOrgId = projMeta && projMeta.organization_id;
+                const currentOrg = (Array.isArray(_meOrgsCache) ? _meOrgsCache : []).find(o => o.is_current);
+                const currentOrgId = currentOrg ? currentOrg.organization_id : null;
+                if (projOrgId && currentOrgId && projOrgId !== currentOrgId) {
+                    const targetOrg = (_meOrgsCache || []).find(o => o.organization_id === projOrgId);
+                    const targetName = targetOrg ? (targetOrg.name || targetOrg.slug) : '目標組織';
+                    await _switchActiveOrgAndReload(projOrgId, {
+                        stashProjectId: pid,
+                        toastMsg: `已切到「${targetName}」,重新載入中...`,
+                    });
+                    return;   // reload 接手後續流程
+                }
+            }
             currentProjectId = pid;
             currentTestCase = null;
             // Phase 6:切換專案時清掉 assignable users / groups cache,讓
@@ -10287,71 +10312,56 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         // 任何其他 org 走 /api/auth/switch-org 拿新 JWT 後整頁 reload。
         // 注意:不要叫 _orgsCache(會跟既有 renderOrgsList 的 superuser 全 org 列表 cache 撞名)。
         let _meOrgsCache = null;
-        async function renderOrgSwitcher() {
-            const wrap = document.getElementById('orgSwitcher');
-            const label = document.getElementById('orgSwitcherLabel');
-            const menu = document.getElementById('orgSwitcherMenu');
-            if (!wrap || !label || !menu) return;
+        // v1.1.11:orgSwitcher dropdown 改成只讀 badge。
+        // 取代過去 ≥ 2 orgs 才顯示的下拉選單,改成永遠顯示當前 active org 名稱,
+        // 由「選中的專案」驅動。手動切 org 不再開放(只能透過切 project 觸發)。
+        // 仍維持 `_meOrgsCache` 全域變數讓 `_settingsTabApplyReadOnlyBanner` 等 callers reuse。
+        async function renderOrgBadge() {
+            const wrap = document.getElementById('orgBadge');
+            const label = document.getElementById('orgBadgeLabel');
+            if (!wrap || !label) return;
             try {
                 const r = await fetch('/api/auth/me/orgs');
                 if (!r.ok) { wrap.classList.add('hidden'); return; }
                 const orgs = await r.json();
                 _meOrgsCache = Array.isArray(orgs) ? orgs : [];
-                if (_meOrgsCache.length < 2) {
-                    wrap.classList.add('hidden');
-                    return;
-                }
                 const current = _meOrgsCache.find(o => o.is_current) || _meOrgsCache[0];
+                if (!current) { wrap.classList.add('hidden'); return; }
                 label.textContent = current.name || current.slug || '組織';
-                wrap.title = `當前組織:${current.name}\n你共在 ${_meOrgsCache.length} 個組織`;
-                menu.innerHTML = _meOrgsCache.map(o => {
-                    const isCur = o.is_current;
-                    const cls = isCur
-                        ? 'bg-amber-50 text-amber-800 cursor-default'
-                        : 'hover:bg-stone-50 text-stone-700 cursor-pointer';
-                    return `
-                        <button type="button" ${isCur ? '' : `onclick="switchOrg('${o.organization_id}')"`}
-                            class="w-full flex items-center gap-2.5 px-3 py-2 text-left text-sm ${cls} transition">
-                            <i class="fa-solid ${isCur ? 'fa-circle-check text-amber-600' : 'fa-circle text-stone-300'} text-[10px] mt-0.5 shrink-0"></i>
-                            <div class="flex-1 min-w-0">
-                                <div class="font-semibold truncate">${_esc(o.name)}</div>
-                                <div class="text-[11px] text-stone-500 truncate">
-                                    ${_esc(o.slug)}${o.role_name ? ` · ${_esc(o.role_name)}` : ''}
-                                    ${o.is_default ? ' · <span class="text-emerald-600 font-medium">預設</span>' : ''}
-                                </div>
-                            </div>
-                        </button>
-                    `;
-                }).join('');
+                wrap.title = `當前所屬組織:${current.name}\n(由當前選中的專案決定;沒有專案時自動切回個人工作空間)`;
                 wrap.classList.remove('hidden');
             } catch (e) {
                 wrap.classList.add('hidden');
             }
         }
-        function toggleOrgSwitcherMenu(e) {
-            e.stopPropagation();
-            const menu = document.getElementById('orgSwitcherMenu');
-            const btn = document.getElementById('orgSwitcherBtn');
-            if (!menu) return;
-            const opening = menu.classList.contains('hidden');
-            menu.classList.toggle('hidden');
-            if (btn) btn.setAttribute('aria-expanded', opening ? 'true' : 'false');
-            if (opening) {
-                // click 外面關閉
-                setTimeout(() => {
-                    document.addEventListener('click', _closeOrgMenuOnce, { once: true });
-                }, 0);
-            }
+        // Back-compat — 舊 callsite 還可能呼叫 renderOrgSwitcher;直接 alias 到 renderOrgBadge。
+        const renderOrgSwitcher = renderOrgBadge;
+
+        // v1.1.11:當 user 完全沒有任何 active project 時(首登或退完所有外部專案),
+        // 自動切到 personal org;personal org 內 user 一定是 admin。
+        // 安全條件:
+        //   * window._projectList 必須是空(由 initProjects 寫入)
+        //   * _meOrgsCache 必須有 `personal-*` slug 的 row(即 user 真的有 personal org)
+        //   * 當前 active org 不是 personal org(否則無事可做)
+        async function _maybeSwitchToPersonalWhenNoProject() {
+            const projs = Array.isArray(window._projectList) ? window._projectList : null;
+            if (projs === null || projs.length > 0) return;   // 有專案 → switchProject 已處理
+            const orgs = Array.isArray(_meOrgsCache) ? _meOrgsCache : [];
+            const personal = orgs.find(o => (o.slug || '').startsWith('personal-'));
+            const current = orgs.find(o => o.is_current);
+            if (!personal || !current) return;
+            if (current.organization_id === personal.organization_id) return;
+            await _switchActiveOrgAndReload(personal.organization_id, {
+                toastMsg: `已切回個人工作空間「${personal.name || personal.slug}」`,
+            });
         }
-        function _closeOrgMenuOnce(e) {
-            const menu = document.getElementById('orgSwitcherMenu');
-            const btn = document.getElementById('orgSwitcherBtn');
-            if (menu && !menu.contains(e.target) && !btn.contains(e.target)) {
-                menu.classList.add('hidden');
-                if (btn) btn.setAttribute('aria-expanded', 'false');
-            }
-        }
-        async function switchOrg(orgId) {
+
+        // 共用:切 backend active org → 寫新 JWT → reload。
+        // 給 switchProject 跟 _maybeSwitchToPersonalWhenNoProject 共用。
+        // 帶 stashProjectId → 寫進 sessionStorage,reload 後 initProjects 會優先選中它。
+        async function _switchActiveOrgAndReload(orgId, opts) {
+            const stashProjectId = opts && opts.stashProjectId;
+            const toastMsg = (opts && opts.toastMsg) || '組織已切換,重新載入...';
             try {
                 const r = await fetch('/api/auth/switch-org', {
                     method: 'POST',
@@ -10361,12 +10371,11 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 if (!r.ok) {
                     const j = await r.json().catch(() => ({}));
                     showToast('切換組織失敗:' + (j.detail || r.statusText), 'error');
-                    return;
+                    return false;
                 }
                 const tok = await r.json();
-                // 寫入新 JWT(localStorage 沿用既有 key)
                 if (typeof _authWriteSession === 'function') {
-                    const s = _authReadSession() || {};
+                    const s = (typeof _authReadSession === 'function' ? _authReadSession() : null) || {};
                     _authWriteSession({
                         ...s,
                         access_token: tok.access_token,
@@ -10374,10 +10383,15 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                         access_expires_at: Date.now() + (tok.expires_in || 7200) * 1000,
                     });
                 }
-                showToast('組織已切換,重新載入...', 'success');
+                if (stashProjectId) {
+                    try { sessionStorage.setItem('postReloadProjectId', stashProjectId); } catch (_) {}
+                }
+                showToast(toastMsg, 'success');
                 setTimeout(() => location.reload(), 600);
+                return true;
             } catch (e) {
                 showToast('切換組織失敗:' + (e.message || e), 'error');
+                return false;
             }
         }
 
@@ -10515,9 +10529,16 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             try { applyPermissionGuards(); } catch (_) {}
             // URL 帶 ?invite_code=XXX → 自動兌換(僅登入後跑)
             try { _maybeAutoRedeemInvite(); } catch (_) {}
-            // Phase 4 多組織:抓使用者所屬的所有組織,只在 ≥ 2 個時才顯示切換器。
-            try { renderOrgSwitcher(); } catch (_) {}
-            initProjects(projReq).then(() => {
+            // Phase 4 多組織:抓使用者所屬的所有組織,渲染右上 badge。
+            // v1.1.11:await 這一支讓 _meOrgsCache 在 initProjects 之前 ready,
+            // switchProject 才能正確比對 project.organization_id vs 當前 active org。
+            try { await renderOrgBadge(); } catch (_) {}
+            initProjects(projReq).then(async () => {
+                // v1.1.11:initProjects 跑完 → 若使用者完全沒專案且當前不在 personal org,
+                // 自動切回 personal org;否則 switchProject 已經處理過 org sync。
+                try { await _maybeSwitchToPersonalWhenNoProject(); } catch (_) {}
+                // (原本的 hash dispatch — 仍然要跑)
+                try {
                 // Hash-aware initial dispatch — preserves the view across
                 // reload. Falls back to showHomeView when hash is empty
                 // or doesn't map to a known view.

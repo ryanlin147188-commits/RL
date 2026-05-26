@@ -628,6 +628,19 @@ async def me(
     * 有 role_id   → role.permissions_json 直接複製出來
     * 沒 role_id   → ``[]`` (前端 hasPerm fail-safe deny)
     """
+    # v1.1.11:Lazy backfill personal org。`on_after_login` 只在「真的 login」時跑,
+    # cookie-based hydrate(_maybeHydrateOidcSession)不會觸發。但前端啟動都會打 me,
+    # 在這裡 idempotent 確保 personal org 存在,Ryan.lin 這類既有 user 不必重登就能補上。
+    try:
+        from app.auth.personal_org import ensure_personal_org
+        await ensure_personal_org(db, user, set_as_active=False)
+        await db.commit()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(
+            "ensure_personal_org on /me failed for user=%s: %s", user.username, e,
+        )
+        await db.rollback()
     resp = UserResponse.model_validate(user)
     if user.is_superuser:
         resp.permissions = ["*"]
@@ -968,6 +981,19 @@ async def create_user(
             invited_by=user.username,
         ))
         await db.flush()
+    # v1.1.11:admin POST /auth/users 建出來的 user 也要有 personal org,讓他退完
+    # admin org 內所有專案後有地方可回去當 admin。set_as_active=False — admin 是
+    # 把他加進 admin 自己的 org,active org 應保持是該 org(set_as_active=True 會
+    # hijack 走,違反 admin 預期)。前端 boot-time 會視情況自動切回 personal。
+    try:
+        from app.auth.personal_org import ensure_personal_org
+        await ensure_personal_org(db, new_user, set_as_active=False)
+    except Exception as e:
+        import logging as _logging
+        _logging.getLogger(__name__).warning(
+            "ensure_personal_org for admin-created user=%s failed: %s",
+            new_user.username, e,
+        )
     await db.refresh(new_user)
     from app.auth.casbin_sync import schedule_user_resync
     schedule_user_resync(new_user.username)
