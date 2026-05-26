@@ -618,7 +618,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="AutoTest v1.1 API",
     description="企業級自動化測試平台後端 API",
-    version="1.1.1",
+    version="1.1.12",
     lifespan=lifespan,
 )
 
