@@ -1342,10 +1342,10 @@
                         </select>
                     </div>
                     <div>
-                        <!-- v1.1.11.2:歸屬到某個 Sprint(test_schedules);必填,沒 Sprint 不能建待辦 -->
-                        <label class="block text-sm font-medium text-slate-700 mb-1">Sprint <span class="text-rose-500">*</span></label>
-                        <select id="todoCreateScheduleId" required class="w-full border border-slate-300 rounded p-2 text-sm bg-white">
-                            <option value="">(請選擇 Sprint)</option>
+                        <!-- v1.1.11.2 後續:Sprint 改回選填 — 空值代表 Backlog(不掛 Sprint) -->
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Sprint <span class="text-slate-400 text-xs font-normal">(選填)</span></label>
+                        <select id="todoCreateScheduleId" class="w-full border border-slate-300 rounded p-2 text-sm bg-white">
+                            <option value="">(Backlog,不掛 Sprint)</option>
                         </select>
                     </div>
                 </div>
@@ -22065,9 +22065,8 @@ curl -X POST http://localhost:8000/api/defects \\
     async function submitTodoCreate() {
         const title = document.getElementById('todoCreateTitle').value.trim();
         if (!title) { showToast?.('標題必填', 'error'); return; }
-        // v1.1.11.2:Sprint 必填,未選則擋下
-        const scheduleId = document.getElementById('todoCreateScheduleId')?.value || '';
-        if (!scheduleId) { showToast?.('請先選擇 Sprint', 'error'); return; }
+        // v1.1.11.2 後續:Sprint 改回選填 — 空字串 → 後端寫 NULL,代表 Backlog
+        const scheduleId = document.getElementById('todoCreateScheduleId')?.value || null;
         const payload = {
             project_id: currentProjectId,
             title,
@@ -22079,7 +22078,7 @@ curl -X POST http://localhost:8000/api/defects \\
             assigned_to: document.getElementById('todoCreateAssignee').value || null,
             assigned_to_type: 'user',
             description: document.getElementById('todoCreateDescription').value || null,
-            // v1.1.11.2:歸屬到某個 Sprint(test_schedules);必填
+            // v1.1.11.2:歸屬到某個 Sprint(test_schedules);null = Backlog
             schedule_id: scheduleId,
         };
         try {
@@ -22216,10 +22215,10 @@ curl -X POST http://localhost:8000/api/defects \\
                     </select>
                 </div>
                 <div>
-                    <!-- v1.1.11.2:歸屬 Sprint(test_schedules) 必填 -->
-                    <label class="block text-sm font-medium text-slate-700 mb-1">Sprint <span class="text-rose-500">*</span></label>
-                    <select id="todoEditScheduleId" required class="w-full border border-slate-300 rounded p-2 text-sm bg-white">
-                        <option value="">(請選擇 Sprint)</option>
+                    <!-- v1.1.11.2 後續:Sprint 改回選填 — 空值代表 Backlog(不掛 Sprint) -->
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Sprint <span class="text-slate-400 text-xs font-normal">(選填)</span></label>
+                    <select id="todoEditScheduleId" class="w-full border border-slate-300 rounded p-2 text-sm bg-white">
+                        <option value="">(Backlog,不掛 Sprint)</option>
                     </select>
                 </div>
             </div>
@@ -22292,9 +22291,8 @@ curl -X POST http://localhost:8000/api/defects \\
 
     async function _todoSaveEdit() {
         if (!_todoCurrent) return;
-        // v1.1.11.2:Sprint 必填
-        const scheduleId = document.getElementById('todoEditScheduleId')?.value || '';
-        if (!scheduleId) { showToast?.('請先選擇 Sprint', 'error'); return; }
+        // v1.1.11.2 後續:Sprint 改回選填 — null 代表 Backlog
+        const scheduleId = document.getElementById('todoEditScheduleId')?.value || null;
         const payload = {
             title:        document.getElementById('todoEditTitle').value.trim(),
             // 類型已從 UI 拿掉,固定 Task(跟 create modal 一致)
