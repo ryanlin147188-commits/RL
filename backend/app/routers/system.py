@@ -59,7 +59,7 @@ def _read_disk() -> dict[str, Any] | None:
             "available_gb": round(avail / (1024 ** 3), 2),
             "percent": round(used * 100 / total, 1) if total else 0.0,
         }
-    except Exception:
+    except Exception:  # noqa: BLE001
         return None
 
 
@@ -88,7 +88,7 @@ def _calc_cpu_percent(container_id: str, stats: dict[str, Any]) -> float:
         sys_total = sys_usage - int(pre_sys)
         if cpu_total > 0 and sys_total > 0:
             return round((cpu_total / sys_total) * online * 100.0, 1)
-    except Exception:
+    except Exception:  # noqa: BLE001
         pass
     return 0.0
 
@@ -129,9 +129,9 @@ def _collect_platform_stats() -> dict[str, Any]:
             except TypeError:
                 try:
                     s = c.stats(stream=False)
-                except Exception:
+                except Exception:  # noqa: BLE001
                     continue
-            except Exception:
+            except Exception:  # noqa: BLE001
                 continue
             cpu = _calc_cpu_percent(c.id, s)
             mem_usage = int(s.get("memory_stats", {}).get("usage", 0))
@@ -160,7 +160,7 @@ def _collect_platform_stats() -> dict[str, Any]:
             result["mem_percent"] = round(total_mem * 100 / mem_total, 1)
         result["net_rx_bytes"] = total_rx
         result["net_tx_bytes"] = total_tx
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         result["error"] = str(e)[:120]
     return result
 
@@ -218,7 +218,7 @@ def _read_docker() -> tuple[dict[str, Any], dict[str, Any]]:
             "total_mem_mb": round(int(info.get("MemTotal", 0)) / (1024 ** 2), 0) if info.get("MemTotal") else 0,
         }
         return docker_info, host_info
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return (
             {"status": "unknown", "error": str(e)[:120], "containers_running": None, "images": None},
             {"os": "unknown", "cores": 0, "total_mem_mb": 0},
@@ -246,7 +246,7 @@ def _protected_image_presence() -> dict[str, bool]:
                 repo = tag.split(":", 1)[0]
                 if repo in out:
                     out[repo] = True
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.warning("protected-image presence check failed: %s", e)
     return out
 
@@ -291,7 +291,7 @@ def cleanup_storage(user: User = Depends(get_current_user)) -> dict[str, Any]:
             ir = client.images.prune(filters={"dangling": True})
             summary["images_deleted_count"] = len(ir.get("ImagesDeleted") or [])
             summary["images_reclaimed_bytes"] = int(ir.get("SpaceReclaimed", 0) or 0)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             summary["errors"].append(f"images.prune: {e}")
 
         # 2) 停止的 containers
@@ -299,17 +299,17 @@ def cleanup_storage(user: User = Depends(get_current_user)) -> dict[str, Any]:
             cr = client.containers.prune()
             summary["containers_deleted_count"] = len(cr.get("ContainersDeleted") or [])
             summary["containers_reclaimed_bytes"] = int(cr.get("SpaceReclaimed", 0) or 0)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             summary["errors"].append(f"containers.prune: {e}")
 
         # 3) Build cache
         try:
             br = client.api.prune_builds()
             summary["build_cache_reclaimed_bytes"] = int(br.get("SpaceReclaimed", 0) or 0)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             summary["errors"].append(f"prune_builds: {e}")
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         raise HTTPException(500, f"docker client init failed: {e}")
 
     # 事後驗證 — 動態 spawn 用的 image 仍在

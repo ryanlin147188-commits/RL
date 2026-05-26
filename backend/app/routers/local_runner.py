@@ -46,7 +46,7 @@ def _publish_ws(task_id: str, message: dict[str, Any]) -> None:
         r = _redis.from_url(settings.REDIS_URL)
         r.publish(f"task:{task_id}:logs", json.dumps(message))
         r.close()
-    except Exception:
+    except Exception:  # noqa: BLE001
         pass
 
 router = APIRouter()

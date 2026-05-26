@@ -124,7 +124,7 @@ def shutdown_enforcer() -> None:
         engine = getattr(adapter, "_engine", None) or getattr(adapter, "engine", None)
         if engine is not None:
             engine.dispose()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.warning("Casbin adapter dispose failed: %s", e)
     _enforcer = None
 

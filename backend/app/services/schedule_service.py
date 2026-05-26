@@ -147,7 +147,7 @@ async def _trigger_schedule(
             parsed = _json.loads(raw_ids)
             if isinstance(parsed, list):
                 node_ids = [n for n in parsed if isinstance(n, str) and n]
-        except Exception:
+        except Exception:  # noqa: BLE001
             node_ids = []
     if not node_ids:
         node_ids = [schedule.node_id] if schedule.node_id else []
@@ -191,7 +191,7 @@ async def _trigger_schedule(
             related_entity_type="report",
             related_entity_id=report.id,
         )
-    except Exception:
+    except Exception:  # noqa: BLE001
         logger.exception("notify schedule.fired failed (schedule=%s)", schedule.id)
 
     # local 模式：不送 Celery，改由本機 agent 透過 /api/local-runner/claim 認領
@@ -210,7 +210,7 @@ async def _trigger_schedule(
                 "testcase_ids": testcase_ids,
             },
         )
-    except Exception as exc:  # Celery 不可用時別讓排程整個壞掉
+    except Exception as exc:  # Celery 不可用時別讓排程整個壞掉  # noqa: BLE001
         logger.error("Schedule %s 送入 Celery 失敗：%s", schedule.id, exc)
 
     return report.id
@@ -301,7 +301,7 @@ async def scheduler_loop():
                     logger.info("本輪觸發 %d 個排程", fired)
             async with AsyncSessionLocal() as session:
                 await _reap_stale_running_reports(session)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.exception("Scheduler tick 失敗：%s", exc)
         try:
             await asyncio.sleep(SCHEDULER_TICK_SECONDS)

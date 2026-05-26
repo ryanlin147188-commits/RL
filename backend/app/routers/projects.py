@@ -125,7 +125,7 @@ async def create_project(
     try:
         from app.auth.project_membership import ensure_project_has_all_org_users
         await ensure_project_has_all_org_users(db, project)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         import logging
         logging.getLogger(__name__).warning("ensure_project_has_all_org_users failed: %s", e)
     await db.refresh(project)
@@ -914,7 +914,7 @@ def _send_invite_email(
             html_body=html, text_body=text,
             organization_id=organization_id,
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         _invite_logger.warning("invite email failed (non-fatal): %s", e)
 
 
@@ -1001,7 +1001,7 @@ async def create_project_invite(
                 redeem_url=redeem_url,
                 organization_id=invite.organization_id,
             )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         _invite_logger.warning("invite email send failed: %s", e)
 
     return invite

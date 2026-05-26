@@ -51,6 +51,9 @@ _PUBLIC_PATTERNS: list[re.Pattern] = [
     re.compile(r"^/docs$"),
     re.compile(r"^/redoc$"),
     re.compile(r"^/openapi\.json$"),
+    # v1.1.13:gateway 把 /api/healthz 視為 public,backend 也要對齊,
+    # 否則啟用 BACKEND_TRUST_GATEWAY_ONLY 後外部 healthcheck 會 401。
+    re.compile(r"^/api/healthz$"),
     re.compile(r"^/api/auth/login$"),
     re.compile(r"^/api/auth/refresh$"),
     re.compile(r"^/api/auth/register$"),
@@ -167,6 +170,18 @@ def _payload_to_context(payload: dict | None, request: Request):
 # 環境變數讀一次,避免 hot path 每個 request 都 os.environ.get
 _GW_SHARED_SECRET: Optional[str] = os.environ.get("GATEWAY_BACKEND_SHARED_SECRET") or None
 _GW_TIMESTAMP_TOLERANCE_SEC = 30
+# v1.1.13:啟用後缺少合法 gateway HMAC 直接 401,不退回 JWT 直驗。
+# 生產要設 True + backend 8000 不對外。預設 False 維持舊部署相容。
+_GW_TRUST_GATEWAY_ONLY: bool = (
+    os.environ.get("BACKEND_TRUST_GATEWAY_ONLY", "").strip().lower()
+    in {"1", "true", "yes", "on"}
+)
+if _GW_TRUST_GATEWAY_ONLY and not _GW_SHARED_SECRET:
+    raise RuntimeError(
+        "BACKEND_TRUST_GATEWAY_ONLY=True 但未設 GATEWAY_BACKEND_SHARED_SECRET — "
+        "無 secret 無法驗 gateway HMAC,所有 /api/* 將永遠 401。"
+        "請設定 secret 或把 BACKEND_TRUST_GATEWAY_ONLY 改回 False。"
+    )
 
 
 def _verify_gateway_hmac(request: Request) -> Optional[dict]:
@@ -239,6 +254,13 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # ── Gateway short-circuit ──
         # Gateway 已驗 JWT → 跳過 decode + revocation,直接拿 X-Gateway-* 當權威
         gw_payload = _verify_gateway_hmac(request)
+        if gw_payload is None and _GW_TRUST_GATEWAY_ONLY:
+            # 設為「只信 gateway」模式:沒帶合法 HMAC 一律 401,
+            # 不允許退回獨立 JWT 驗證(防止繞 gateway 直打 backend)。
+            return JSONResponse(
+                {"detail": "未授權:此 backend 僅接受 gateway 經 HMAC 簽章的請求"},
+                status_code=401,
+            )
         if gw_payload is not None:
             # 即使 short-circuit,下游 ``Depends(get_current_user)``(fastapi-users
             # BearerTransport)仍從 Authorization header 取 token。SPA 在 OIDC 後

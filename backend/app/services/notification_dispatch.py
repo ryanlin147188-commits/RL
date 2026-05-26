@@ -196,15 +196,15 @@ def notify_broadcast_sync(
                     organization_id=organization_id,
                 )
                 sent += 1
-            except Exception:
+            except Exception:  # noqa: BLE001
                 log.exception("notify_broadcast_sync: email enqueue failed for %s", u.username)
         sync_db.commit()
         return sent
-    except Exception:
+    except Exception:  # noqa: BLE001
         log.exception("notify_broadcast_sync failed: event=%s org=%s", event_key, organization_id)
         try:
             sync_db.rollback()
-        except Exception:
+        except Exception:  # noqa: BLE001
             pass
         return 0
 

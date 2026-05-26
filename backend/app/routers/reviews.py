@@ -281,7 +281,7 @@ async def _resolve_entity_names(
             try:
                 from urllib.parse import urlparse
                 host = urlparse(row.target_url).netloc or row.target_url[:40]
-            except Exception:
+            except Exception:  # noqa: BLE001
                 host = str(row.target_url)[:40]
             dt = row.created_at
             ts = f"{dt.year}{str(dt.month).zfill(2)}{str(dt.day).zfill(2)}{str(dt.hour).zfill(2)}{str(dt.minute).zfill(2)}{str(dt.second).zfill(2)}"

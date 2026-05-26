@@ -220,7 +220,7 @@ async def oidc_callback(
             email=claims.get("email"),
             display_name=claims.get("display_name"),
         )
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         logger.warning("OIDC JIT provisioning failed: %s", exc)
         return RedirectResponse(
             f"/?oidc_error=provision&desc={str(exc)[:200]}", status_code=302,

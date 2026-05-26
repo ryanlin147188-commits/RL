@@ -60,7 +60,7 @@ async def revoke(jti: str, exp: Optional[int] = None) -> None:
     try:
         client = await _get_async_redis()
         await client.setex(f"{_KEY_PREFIX}{jti}", ttl, "1")
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         # Don't let cache errors break logout; log and move on. The token
         # will still expire naturally.
         log.warning("token revocation cache write failed: %s", exc)
@@ -77,6 +77,6 @@ async def is_revoked(jti: Optional[str]) -> bool:
     try:
         client = await _get_async_redis()
         return bool(await client.exists(f"{_KEY_PREFIX}{jti}"))
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         log.warning("token revocation cache read failed (fail-open): %s", exc)
         return False

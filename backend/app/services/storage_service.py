@@ -81,7 +81,7 @@ class _S3Storage:
         try:
             obj = self._client.get_object(Bucket=bucket, Key=key)
             return obj["Body"].read()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             raise HTTPException(404, f"object not found: {bucket}/{key} ({e})")
 
 

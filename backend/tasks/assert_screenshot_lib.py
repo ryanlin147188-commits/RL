@@ -60,7 +60,7 @@ def _download_baseline(step_uuid: str) -> Optional[bytes]:
     try:
         obj = s3.get_object(Bucket="results", Key=key)
         return obj["Body"].read()
-    except Exception:
+    except Exception:  # noqa: BLE001
         return None
 
 

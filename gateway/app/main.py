@@ -169,11 +169,11 @@ async def _check_auth(request: Request) -> dict | None:
     if is_public_path(path):
         # public path 仍嘗試 decode 一下(失敗不擋,讓 backend 處理)
         try:
-            return verify_jwt(request)
+            return await verify_jwt(request)
         except AuthError:
             return None
     # 非 public 一定要有效 token
-    return verify_jwt(request)
+    return await verify_jwt(request)
 
 
 # ── Forward routes ──────────────────────────────────────────────

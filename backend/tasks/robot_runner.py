@@ -221,7 +221,7 @@ def _eval_dsl(body: str, ctx: dict) -> str:
     # 算 main expr
     try:
         result = _safe_eval(py_expr, names) if py_expr.strip() else ""
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         # DSL 評估失敗 → 保留原 raw 字串(避免整個 step 爆掉)
         return f"<<DSL error: {e}>>"
 
@@ -229,7 +229,7 @@ def _eval_dsl(body: str, ctx: dict) -> str:
     for f in filters:
         try:
             result = _apply_filter(result, f)
-        except Exception:
+        except Exception:  # noqa: BLE001
             pass
 
     return str(result)
@@ -1287,7 +1287,7 @@ def run_testcase(
 
         save_bytes(robot_text.encode("utf-8"), robot_key, bucket="results", content_type="text/plain")
         publish_log("INFO", f"  ⬆ .robot 上傳至 SeaweedFS key={robot_key}")
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         publish_log("ERROR", f"  💥 .robot 上傳 SeaweedFS 失敗: {e}")
         return [CaseResult(passed=False, steps=[], duration_ms=0)]
 
@@ -1334,7 +1334,7 @@ def run_testcase(
             remove=False,  # auto_remove=True 會搶在 wait() 之前把容器砍掉拿不到 exit code
             name=f"robot-{task_id[:8]}-{case_tag[:8]}",
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         publish_log("ERROR", f"  💥 docker run 失敗: {e}")
         return [CaseResult(
             passed=False,
@@ -1359,7 +1359,7 @@ def run_testcase(
         while True:
             try:
                 container.reload()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 # proxy / docker daemon 連線瞬斷:再試一次,別直接判逾時
                 publish_log("WARN", f"  ⚠ docker reload 失敗,重試: {e}")
                 time.sleep(poll_interval)
@@ -1377,7 +1377,7 @@ def run_testcase(
                 timed_out = True
                 try:
                     container.kill()
-                except Exception:
+                except Exception:  # noqa: BLE001
                     pass
                 break
             time.sleep(poll_interval)
@@ -1387,11 +1387,11 @@ def run_testcase(
             tail = container.logs(tail=30).decode("utf-8", errors="replace")
             for line in tail.splitlines()[-30:]:
                 publish_log("INFO", f"  ┃ {line}")
-        except Exception:
+        except Exception:  # noqa: BLE001
             pass
         try:
             container.remove(force=True)
-        except Exception:
+        except Exception:  # noqa: BLE001
             pass
 
     case_dur = int((time.time() - case_start) * 1000)
@@ -1411,7 +1411,7 @@ def run_testcase(
         )
         obj = s3.get_object(Bucket="results", Key=result_key)
         step_records = json.loads(obj["Body"].read().decode("utf-8"))
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         publish_log("ERROR", f"  💥 下載 step_results.json 失敗: {e}")
 
     if not step_records:
@@ -1523,7 +1523,7 @@ def run_testcase(
 def _safe_cleanup(path: str) -> None:
     try:
         shutil.rmtree(path, ignore_errors=True)
-    except Exception:
+    except Exception:  # noqa: BLE001
         pass
 
 
@@ -1566,7 +1566,7 @@ def _resolve_screenshot_url(
                 data = fh.read()
             key = f"screenshots/{report_id}/{os.path.basename(candidate)}"
             return save_bytes(data, key, bucket="results", content_type="image/png")
-    except Exception:
+    except Exception:  # noqa: BLE001
         pass
 
     rel = os.path.basename(candidate)

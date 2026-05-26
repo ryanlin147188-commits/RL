@@ -41,7 +41,7 @@ def _parse_node_ids(raw: Optional[str]) -> list[str]:
         return []
     try:
         parsed = json.loads(raw)
-    except Exception:
+    except Exception:  # noqa: BLE001
         return []
     if not isinstance(parsed, list):
         return []
@@ -234,7 +234,7 @@ async def execute_round(
                     "ddt_expand": False,
                 },
             )
-        except Exception:
+        except Exception:  # noqa: BLE001
             # 不擋；前端會看到 RUNNING 但不會有進度（Celery 掛了）
             pass
     # local 模式：agent 認領時會用 report.source_node_id 還原；但我們只存了 nids[0]。

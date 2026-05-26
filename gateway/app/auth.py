@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import logging
 import re
 import time
 from typing import Any, Optional
@@ -21,6 +22,17 @@ import jwt as pyjwt
 from fastapi import Request
 
 from .config import settings
+
+_log = logging.getLogger("gateway.auth")
+
+# Backend revocation 用的同一個 key 前綴(backend/app/auth/revocation.py:_KEY_PREFIX)。
+# 兩邊必須一致 — 此值變更時 backend 也要同步調整。
+_REVOCATION_KEY_PREFIX = "jwt:revoked:"
+
+# In-process LRU cache:避免每個 request 都打 Valkey;只快取「未撤銷」結果。
+# 撤銷結果不快取(撤銷必須立即生效)。10 秒 TTL 已足以吸收正常流量。
+_REVOCATION_CACHE_TTL_SEC = 10
+_revocation_negative_cache: dict[str, float] = {}
 
 
 class AuthError(Exception):
@@ -116,12 +128,58 @@ def decode_token(token: str) -> dict[str, Any]:
     return payload
 
 
-def verify_jwt(request: Request) -> dict[str, Any]:
-    """從 request 取 token 並 decode,回 payload。沒 token raise AuthError。"""
+async def is_jwt_revoked(jti: Optional[str]) -> bool:
+    """檢查 jti 是否在撤銷名單內(Valkey-backed,共用 rate_limit 的 client)。
+
+    Fail-open 對齊 backend ``app.auth.revocation.is_revoked`` 設計:Valkey 故障時
+    return False 並 log warning;token 自然過期仍是上限保險。
+    """
+    if not jti:
+        return False
+    # 先吃 10 秒 negative cache(只快取「未撤銷」結果)
+    now = time.time()
+    cached_until = _revocation_negative_cache.get(jti)
+    if cached_until is not None and cached_until > now:
+        return False
+    # 共用 rate_limit 的 Redis client,避免新開連線池
+    try:
+        from .rate_limit import limiter
+        client = await limiter.get_redis()
+    except Exception as exc:
+        _log.warning("revocation: failed to acquire redis client (fail-open): %s", exc)
+        return False
+    if client is None:
+        # 沒設 redis_url 或連線失敗 — fail-open 跟 backend 行為一致
+        return False
+    try:
+        revoked = bool(await client.exists(f"{_REVOCATION_KEY_PREFIX}{jti}"))
+    except Exception as exc:
+        _log.warning("revocation cache read failed (fail-open): %s", exc)
+        return False
+    if not revoked:
+        _revocation_negative_cache[jti] = now + _REVOCATION_CACHE_TTL_SEC
+        # 防無限增長:超過 1 萬筆就清過期
+        if len(_revocation_negative_cache) > 10_000:
+            cutoff = now
+            for k in [k for k, v in _revocation_negative_cache.items() if v < cutoff]:
+                _revocation_negative_cache.pop(k, None)
+    return revoked
+
+
+async def verify_jwt(request: Request) -> dict[str, Any]:
+    """從 request 取 token 並 decode,回 payload。沒 token raise AuthError。
+
+    v1.1.13:在 gateway 端就檢查 revocation,撤銷的 token 立即在 gateway 被擋,
+    不再依賴 backend 第二層才生效(部分部署 backend 走 X-Gateway-Verified
+    短路會跳過 backend revocation 檢查)。
+    """
     token = extract_token(request)
     if not token:
         raise AuthError("未授權:缺少 Authorization Bearer token", code="no_token")
-    return decode_token(token)
+    payload = decode_token(token)
+    if await is_jwt_revoked(payload.get("jti")):
+        raise AuthError("Token 已撤銷,請重新登入", code="token_revoked")
+    return payload
 
 
 # ── Gateway → Backend HMAC ────────────────────────────────────────

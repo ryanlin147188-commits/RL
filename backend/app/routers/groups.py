@@ -278,7 +278,7 @@ async def get_group_usage(
                 .where(model.assigned_to_type == "group")
             )).scalar_one() or 0
             breakdown[label] = int(cnt)
-        except Exception:
+        except Exception:  # noqa: BLE001
             breakdown[label] = 0
 
     linked_assignments_count = sum(breakdown.values())

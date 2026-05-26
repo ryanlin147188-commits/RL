@@ -57,7 +57,7 @@ def verify_password(plain: str, hashed: str) -> bool:
         # 我們不在這支接口提供 rehash;Phase 5 cutover 後若想啟用,改在
         # UserManager.on_after_login 裡持久化新 hash。
         return bool(verified)
-    except Exception:
+    except Exception:  # noqa: BLE001
         return False
 
 

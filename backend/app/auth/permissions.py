@@ -83,7 +83,7 @@ def require_permission(*needed: str) -> Callable:
         if _casbin.is_shadow_enabled() and _casbin.get_enforcer() is not None:
             try:
                 _shadow_compare(user, needed, legacy_allow)
-            except Exception:
+            except Exception:  # noqa: BLE001
                 # shadow 路徑出錯絕不擋住正常請求 — 它只是 log。
                 _shadow_logger.exception("shadow compare crashed")
 

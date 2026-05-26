@@ -180,7 +180,7 @@ class UserManager(BaseUserManager[User, str]):
                 await ensure_personal_org(
                     self.user_db.session, user, set_as_active=False  # type: ignore[attr-defined]
                 )
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 import logging
                 logging.getLogger(__name__).warning(
                     "ensure_personal_org backfill failed for user=%s: %s",
@@ -220,7 +220,7 @@ class UserManager(BaseUserManager[User, str]):
             await ensure_personal_org(
                 self.user_db.session, new_user, set_as_active=True  # type: ignore[attr-defined]
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             import logging
             logging.getLogger(__name__).warning(
                 "ensure_personal_org for new SSO user=%s failed: %s",
@@ -234,7 +234,7 @@ class UserManager(BaseUserManager[User, str]):
             await ensure_user_in_org_projects(
                 self.user_db.session, new_user, user_obj=new_user  # type: ignore[attr-defined]
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             import logging
             logging.getLogger(__name__).warning("ensure_user_in_org_projects failed: %s", e)
         return new_user
@@ -260,7 +260,7 @@ class UserManager(BaseUserManager[User, str]):
             await ensure_personal_org(
                 self.user_db.session, user, set_as_active=False  # type: ignore[attr-defined]
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             import logging
             logging.getLogger(__name__).warning(
                 "personal_org backfill on login failed for user=%s: %s",

@@ -31,7 +31,7 @@ class LogConnectionManager:
         for ws in list(self._connections.get(task_id, [])):
             try:
                 await ws.send_json(payload)
-            except Exception:
+            except Exception:  # noqa: BLE001
                 dead.append(ws)
         for ws in dead:
             self.disconnect(task_id, ws)

@@ -1,0 +1,27 @@
+# Backend ruff/lint 設定。
+# v1.1.13 起把 BLE001(blind-except)與 TRY400(use logging.exception)納入 lint,
+# 強制新寫的 except 必須有 logger.exception(或 logger.warning)而非默默吞掉。
+#
+# Baseline:存量 122 處 `except Exception` 中尚未逐一檢視的位置,以 # noqa: BLE001
+# 標記為「已知技術債」;新增 bare except 一律會被 CI 擋下。
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+extend-exclude = ["alembic/versions", "migrations/versions"]
+
+[tool.ruff.lint]
+# 只啟用我們真的想 enforce 的規則,避免一次引入全部 ruff default 造成大量 noise。
+select = [
+    "BLE",   # flake8-blind-except - BLE001
+    "TRY",   # tryceratops - TRY400 (use logging.exception in except blocks)
+]
+# 暫時 ignore 的子規則(在收完所有 BLE001 後再開):
+ignore = [
+    "TRY003",  # 訊息過長 — 我們確實會在 raise 時帶長訊息
+    "TRY301",  # raise 抽 helper — 不總是合適
+]
+
+[tool.ruff.lint.per-file-ignores]
+# 測試裡 bare except 通常是「我故意吞掉」的 cleanup,放鬆規則
+"tests/**/*.py" = ["BLE001", "TRY400"]
+"backend/tests/**/*.py" = ["BLE001", "TRY400"]

@@ -55,13 +55,13 @@ def _build_fernet() -> MultiFernet:
     if primary:
         try:
             keys.append(Fernet(primary.encode() if isinstance(primary, str) else primary))
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             log.error("AUTOTEST_FERNET_KEY 無效：%s；回退到 JWT_SECRET 衍生", e)
     alt = os.environ.get("AUTOTEST_FERNET_KEY_ALT")
     if alt:
         try:
             keys.append(Fernet(alt.encode() if isinstance(alt, str) else alt))
-        except Exception:
+        except Exception:  # noqa: BLE001
             pass
     if not keys:
         # 沒設環境變數 → 用 JWT_SECRET 衍生；正式環境請務必獨立設定

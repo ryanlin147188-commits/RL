@@ -110,7 +110,7 @@ def run_tests(
                     related_entity_type="report",
                     related_entity_id=report_id,
                 )
-        except Exception:
+        except Exception:  # noqa: BLE001
             logger.exception("notify run.started failed (task=%s)", task_id)
 
         # 延遲 import：runner 載入會 import robot framework，未安裝時給出明確訊息
@@ -452,10 +452,10 @@ def run_tests(
                     related_entity_type="report",
                     related_entity_id=report_id,
                 )
-        except Exception:
+        except Exception:  # noqa: BLE001
             logger.exception("notify run.passed/run.failed failed (task=%s)", task_id)
 
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         publish_log("ERROR", f"💥 執行器異常: {exc}")
         _pub_done(r, channel, "FAILED")
         logger.exception("Task %s failed", task_id)

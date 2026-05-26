@@ -89,6 +89,28 @@ jobs:
         #   B310 — recordings.py urlopen 有外層 allowlist + sanitize
         run: bandit -r backend/app -ll -ii --skip B104,B108,B310 --exclude backend/app/tests
 
+  ruff-lint:
+    name: Ruff lint (BLE001 + TRY400)
+    runs-on: ubuntu-latest
+    # v1.1.13:存量 122 處 BLE001 已逐一檢視並加 # noqa: BLE001 baseline,
+    # 新增的 bare except 沒帶 noqa 會被 CI 擋下。詳見 PR #5-#8 commit log。
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install ruff
+        run: python -m pip install --upgrade pip "ruff==0.7.4"
+
+      - name: Run ruff(BLE001 / TRY400)
+        # 規則設定在 backend/pyproject.toml。
+        run: ruff check backend/
+
   sync-async-boundary:
     name: DB-session boundary lints
     runs-on: ubuntu-latest

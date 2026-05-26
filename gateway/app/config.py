@@ -12,7 +12,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+_WEAK_SECRETS = {"changeme", "secret", "password", "admin123", ""}
 
 
 class Settings(BaseSettings):
@@ -28,9 +32,22 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
 
     # ── Gateway ↔ Backend HMAC ─────────────────────────
-    gateway_backend_shared_secret: Optional[str] = None
+    # v1.1.13:從 Optional[str]=None 改為強制必填。無 secret 等於信任邊界破洞,
+    # 攻擊者繞 gateway 直打 backend 可跳過限流 / revocation 檢查(若 backend
+    # 開了 BACKEND_TRUST_GATEWAY_ONLY 則完全不擋)。
+    gateway_backend_shared_secret: str = Field(..., min_length=32)
     # HMAC timestamp tolerance(秒)— 超過就拒,防 replay
     hmac_timestamp_tolerance_seconds: int = 30
+
+    @field_validator("gateway_backend_shared_secret")
+    @classmethod
+    def _reject_weak_shared_secret(cls, v: str) -> str:
+        if v.strip().lower() in _WEAK_SECRETS:
+            raise ValueError(
+                "GATEWAY_BACKEND_SHARED_SECRET 不可為已知弱值,"
+                "請用 `openssl rand -hex 32` 產生隨機 secret"
+            )
+        return v
 
     # ── CORS ────────────────────────────────────────────────
     # 跟 backend 同一份 env,gateway 接管 CORS handling

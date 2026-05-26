@@ -198,7 +198,7 @@ async def verify_api_key(
     try:
         ak.last_used_at = datetime.utcnow()
         await db.commit()
-    except Exception:
+    except Exception:  # noqa: BLE001
         await db.rollback()
 
     owner = await db.get(User, ak.user_id)

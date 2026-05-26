@@ -96,7 +96,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
                 )
                 session.add(row)
                 await session.commit()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             # 審計失敗絕不能影響 request；只記 server log
             log.warning("audit middleware failed: %s", e)
         return response

@@ -109,7 +109,7 @@ async def get_db():
         try:
             yield session
             await session.commit()
-        except Exception:
+        except Exception:  # noqa: BLE001
             await session.rollback()
             raise
         finally:

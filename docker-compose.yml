@@ -232,10 +232,21 @@ services:
       # CASBIN_ENABLED=True 且已跑過 ``python -m app.cli seed-casbin``。
       CASBIN_SHADOW_ENABLED: ${CASBIN_SHADOW_ENABLED:-False}
       # ── Gateway short-circuit(v1.1.10)──
-      # 跟 gateway 共享的 HMAC secret;設了之後 AuthMiddleware 看到
-      # X-Gateway-Verified header 就跳過 JWT decode 直接信任 gateway。
-      # 沒設(空字串)→ 短路關閉,backend 仍會獨立驗每個 token(雙層保留)。
-      GATEWAY_BACKEND_SHARED_SECRET: ${GATEWAY_BACKEND_SHARED_SECRET:-}
+      # 跟 gateway 共享的 HMAC secret。v1.1.13 起改為強制必填(無 secret
+      # 會讓繞 gateway 直打 backend 的請求跳過限流/revocation 檢查)。
+      # 用 `docker compose --profile init run --rm bootstrap` 自動產生。
+      GATEWAY_BACKEND_SHARED_SECRET: ${GATEWAY_BACKEND_SHARED_SECRET:?GATEWAY_BACKEND_SHARED_SECRET is required - run docker compose --profile init run --rm bootstrap}
+      # v1.1.13:設 True 後缺合法 gateway HMAC 一律 401(不退回 JWT 直驗)。
+      # 預設 True 完成信任邊界收斂:browser → nginx:80 → gateway:9000 → backend:8000
+      # 是唯一允許路徑;backend 8000 在這份 compose 從未對外 publish(見下方註解),
+      # 配合此旗標可確保「即使有人能進 host 也無法繞 gateway 打 backend」。
+      # 本機開發要直接 curl backend(例如 debug)時,在 .env 加一行
+      # BACKEND_TRUST_GATEWAY_ONLY=False 覆蓋。
+      # 受影響的路徑:
+      #   - /healthz、/pics/、/results/、/api/recordings/.../upload(-har) 等 public
+      #     path 仍照 _PUBLIC_PATTERNS 放行(recorder 容器 curl 上傳不受影響)
+      #   - 其他 /api/* 一律需帶合法 X-Gateway-Verified HMAC(由 gateway 簽)
+      BACKEND_TRUST_GATEWAY_ONLY: ${BACKEND_TRUST_GATEWAY_ONLY:-True}
     # /healthz 是公開、無需 auth 的就緒探測;讓 frontend(depends_on backend)
     # 等到 backend 的 lifespan 跑完(含 alembic upgrade head)才往下走。
     healthcheck:
@@ -244,8 +255,11 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
-    # 不對外 publish 8000;所有外部流量必須經 frontend nginx → backend。
+    # v1.1.13 信任邊界收斂:`ports:` 段刻意不存在(不對 host publish 8000)。
+    # 對外流量唯一允許路徑: browser → frontend nginx:80/443 → gateway:9000 → backend:8000
     # 同網路內(celery / frontend / recorder)以 backend:8000 解析,不需 host port。
+    # 配合 BACKEND_TRUST_GATEWAY_ONLY=True 後,即使 host 上有人能存取 backend
+    # 容器網路,沒帶 gateway HMAC 也是 401。
     # 動態錄製容器會 publish 到 host 的 6080-6200 區段 port,不在 backend 區塊另外 expose。
 
   celery:
@@ -313,8 +327,8 @@ services:
       BACKEND_URL: http://backend:8000
       # JWT secret 跟 backend 共享(同一份 .env 變數),gateway 用它 decode 上行 JWT
       AUTOTEST_JWT_SECRET: ${AUTOTEST_JWT_SECRET:?AUTOTEST_JWT_SECRET is required - run docker compose --profile init run --rm bootstrap}
-      # Gateway↔Backend HMAC(沒設就 short-circuit 關閉,雙層各自驗 JWT)
-      GATEWAY_BACKEND_SHARED_SECRET: ${GATEWAY_BACKEND_SHARED_SECRET:-}
+      # Gateway↔Backend HMAC — v1.1.13 起強制必填(供應商繞 gateway 直連 backend 防護)
+      GATEWAY_BACKEND_SHARED_SECRET: ${GATEWAY_BACKEND_SHARED_SECRET:?GATEWAY_BACKEND_SHARED_SECRET is required - run docker compose --profile init run --rm bootstrap}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost}
       # 限速 storage(Commit 3 才用到,先預埋)
       REDIS_URL: redis://valkey:6379/2
@@ -418,6 +432,9 @@ services:
         AUTOTEST_JWT_SECRET=$$JWT
         AUTOTEST_FERNET_KEY=$$FERNET
         GATEWAY_BACKEND_SHARED_SECRET=$$GW_SECRET
+        # v1.1.13:信任邊界 = gateway,backend 一律要求 gateway HMAC。
+        # 本機要直接 curl backend 除錯時改 False。
+        BACKEND_TRUST_GATEWAY_ONLY=True
         REPLICA_USER=replicator
         REPLICA_PASSWORD=$$REPLICA_PWD
         BACKUP_KEEP_DAYS=7

@@ -1,4 +1,8 @@
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+_FORBIDDEN_DEFAULTS = {"admin123", "changeme", "password", "secret"}
 
 
 class Settings(BaseSettings):
@@ -6,7 +10,8 @@ class Settings(BaseSettings):
     DB_HOST: str = "localhost"
     DB_PORT: int = 5432
     DB_USER: str = "admin"
-    DB_PASSWORD: str = "admin123"
+    # 必填:啟動前環境變數須提供,且不可為已知弱值。
+    DB_PASSWORD: str = Field(..., min_length=8)
     DB_NAME: str = "autotest_db"
 
     # 快取 / Celery broker（Valkey；wire-protocol 與 Redis 100% 相容）
@@ -27,7 +32,8 @@ class Settings(BaseSettings):
     STORAGE_BACKEND: str = "s3"
     S3_ENDPOINT: str = "http://seaweedfs:8333"
     S3_ACCESS_KEY: str = "admin"
-    S3_SECRET_KEY: str = "admin123"
+    # 必填:由 docker-compose 從 S3_ROOT_PASSWORD 映射而來,本機 dev 須手動設。
+    S3_SECRET_KEY: str = Field(..., min_length=8)
 
     # 應用程式
     APP_HOST: str = "0.0.0.0"
@@ -36,6 +42,12 @@ class Settings(BaseSettings):
     # 開發時用 `AUTOTEST_DEBUG=True docker compose up -d --force-recreate backend`
     # 啟用,或在本機 .env 設 DEBUG=True。
     DEBUG: bool = False
+
+    # v1.1.13:啟用後 backend 對 /api/* 強制要求合法 X-Gateway-Verified HMAC,
+    # 缺少或驗章失敗一律 401(不再退回獨立 JWT 直驗)。
+    # 生產環境應設為 True 並把 backend 8000 port 從對外網路移除,只讓 gateway
+    # 內網存取,把信任邊界收斂到 gateway 一層。預設 False 以利舊部署平滑升級。
+    BACKEND_TRUST_GATEWAY_ONLY: bool = False
 
     # ─── Docker 模式錄製 ─────────────────────────────────────────────
     # v1.1.9 起 recorder / recorder-api / mcp 三個 image 合併成一份
@@ -80,6 +92,37 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    @field_validator("DB_PASSWORD", "S3_SECRET_KEY")
+    @classmethod
+    def _reject_known_weak_secret(cls, v: str, info) -> str:
+        if v.strip().lower() in _FORBIDDEN_DEFAULTS:
+            raise ValueError(
+                f"{info.field_name} 不可使用已知弱密碼(admin123 / changeme / password / secret),"
+                "請改用 `openssl rand -hex 24` 等隨機值"
+            )
+        return v
+
+    @field_validator("BASE_URL")
+    @classmethod
+    def _base_url_https_in_prod(cls, v: str) -> str:
+        """BASE_URL 在公網部署必須使用 HTTPS。
+        OIDC redirect_uri 由此推導,純 HTTP 會讓授權碼可被 MitM 截取。
+        localhost 與 RFC1918 私有網段(10/8、172.16/12、192.168/16)在純內網
+        部署常見,風險可控,允許 http。"""
+        from urllib.parse import urlparse
+
+        from app.auth._network import is_private_or_localhost_host
+
+        parsed = urlparse(v)
+        if parsed.scheme not in {"http", "https"}:
+            raise ValueError(f"BASE_URL 必須以 http:// 或 https:// 開頭,目前是 {v}")
+        if parsed.scheme == "http" and not is_private_or_localhost_host(parsed.hostname or ""):
+            raise ValueError(
+                f"BASE_URL 在公網部署必須使用 HTTPS,目前是 {v}。"
+                " 純 HTTP 在公網會讓 OIDC 授權碼被 MitM 截取(內網 IP 例外)。"
+            )
+        return v
 
 
 settings = Settings()

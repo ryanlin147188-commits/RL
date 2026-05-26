@@ -64,7 +64,7 @@ class HarDump:
         if resp.raw_content and len(resp.raw_content) <= 1_000_000:
             try:
                 body_text = resp.get_text(strict=False)
-            except Exception:
+            except Exception:  # noqa: BLE001
                 body_text = base64.b64encode(resp.raw_content).decode("ascii")
                 encoding = "base64"
         return {
@@ -93,7 +93,7 @@ class HarDump:
                 if flow.request.timestamp_start
                 else datetime.now(timezone.utc)
             )
-        except Exception:
+        except Exception:  # noqa: BLE001
             started = datetime.now(timezone.utc)
 
         time_ms = 0
@@ -102,7 +102,7 @@ class HarDump:
                 time_ms = int(
                     (flow.response.timestamp_end - flow.request.timestamp_start) * 1000
                 )
-        except Exception:
+        except Exception:  # noqa: BLE001
             pass
 
         self.har["log"]["entries"].append({
@@ -125,7 +125,7 @@ class HarDump:
             tmp = Path(HAR_OUTPUT).with_suffix(".har.tmp")
             tmp.write_text(json.dumps(self.har, ensure_ascii=False), encoding="utf-8")
             os.replace(tmp, HAR_OUTPUT)
-        except Exception:
+        except Exception:  # noqa: BLE001
             pass
 
 

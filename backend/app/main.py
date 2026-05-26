@@ -183,8 +183,10 @@ async def _migrate_legacy_roles() -> None:
                 .where(OrgMembership.role_id.in_(legacy_ids))
                 .values(role_id=None)
             )
-        except Exception:
-            pass
+        except Exception:  # noqa: BLE001 - legacy role migration best-effort
+            logging.getLogger(__name__).exception(
+                "legacy role migration: clearing OrgMembership.role_id failed"
+            )
         try:
             from app.models.project_member import ProjectMember
             await session.execute(
@@ -192,8 +194,10 @@ async def _migrate_legacy_roles() -> None:
                 .where(ProjectMember.role_id.in_(legacy_ids))
                 .values(role_id=None)
             )
-        except Exception:
-            pass
+        except Exception:  # noqa: BLE001 - legacy role migration best-effort
+            logging.getLogger(__name__).exception(
+                "legacy role migration: clearing ProjectMember.role_id failed"
+            )
 
         # 最後刪除舊角色
         await session.execute(delete(Role).where(Role.id.in_(legacy_ids)))
@@ -352,9 +356,10 @@ async def _seed_default_org_and_backfill() -> None:
                     text(f"UPDATE {tbl} SET organization_id = :oid WHERE organization_id IS NULL"),
                     {"oid": org.id},
                 )
-            except Exception:
-                # 表還不存在或欄位還沒 ALTER 上去
-                pass
+            except Exception as exc:  # noqa: BLE001 - 表還不存在或欄位還沒 ALTER 上去
+                logging.getLogger(__name__).debug(
+                    "default-org backfill skipped for %s: %s", tbl, exc
+                )
         await session.commit()
 
 
@@ -513,24 +518,24 @@ async def lifespan(app: FastAPI):
         from app.services.storage_service import ensure_buckets
 
         await asyncio.to_thread(ensure_buckets)
-    except Exception:
+    except Exception:  # noqa: BLE001
         logging.getLogger(__name__).exception(
             "ensure_buckets failed during startup; S3 backend may not be ready yet"
         )
     await init_db()
     try:
         await _seed_default_roles()
-    except Exception as e:  # 不要因為 seed 失敗而擋住服務啟動
+    except Exception as e:  # 不要因為 seed 失敗而擋住服務啟動  # noqa: BLE001
         logging.getLogger(__name__).warning("seed default roles failed: %s", e)
     # Phase 1 role simplification:把舊 7 個角色合併成 admin / user
     # 這個 step idempotent;migrate 完之後每次 startup 都 no-op。
     try:
         await _migrate_legacy_roles()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logging.getLogger(__name__).warning("legacy role migration failed: %s", e)
     try:
         await _seed_default_org_and_backfill()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         # Used to swallow as warning. Promoted to logger.exception so the
         # stack trace lands in container logs — a missing default org
         # cascades into 500s on /api/auth/register, so silent failures
@@ -543,7 +548,7 @@ async def lifespan(app: FastAPI):
     # user (例如本次 ryan 透過 OIDC 綁定前是密碼帳號) 也能看到 admin 建的 project。
     try:
         await _backfill_org_wide_project_members()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logging.getLogger(__name__).warning("org-wide project_members backfill failed: %s", e)
     # NOTE: previous versions ran `_heal_admin_user()` here to keep the
     # built-in `admin` account in working state across restarts. That's
@@ -555,7 +560,7 @@ async def lifespan(app: FastAPI):
     # ops want to re-enable self-heal — just call it from here.
     try:
         await _ensure_default_admin()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logging.getLogger(__name__).exception(
             "default admin bootstrap failed: %s", e,
         )
@@ -565,7 +570,7 @@ async def lifespan(app: FastAPI):
     # idempotent:已存在 (entity_type=defect, entity_id=X) 的 review_record 跳過。
     try:
         await _backfill_defect_reviews()
-    except Exception:
+    except Exception:  # noqa: BLE001
         logging.getLogger(__name__).exception("defect review backfill failed")
     # Casbin enforcer(opt-in via CASBIN_ENABLED=True)— 進程內單例,首個
     # request 進來前必須完成 init 否則 require_casbin 一律 deny。adapter 在
@@ -575,7 +580,7 @@ async def lifespan(app: FastAPI):
 
         if _casbin.is_enabled():
             await asyncio.to_thread(_casbin.init_enforcer)
-    except Exception:
+    except Exception:  # noqa: BLE001
         logging.getLogger(__name__).exception(
             "Casbin enforcer init failed; falling back to require_permission only"
         )
@@ -587,7 +592,7 @@ async def lifespan(app: FastAPI):
         from app.auth.user_id_dualwrite import register_user_id_dualwrite_listeners
 
         register_user_id_dualwrite_listeners()
-    except Exception:
+    except Exception:  # noqa: BLE001
         logging.getLogger(__name__).exception(
             "user_id dual-write listener registration failed"
         )
@@ -596,7 +601,7 @@ async def lifespan(app: FastAPI):
     try:
         from app.services.schedule_service import scheduler_loop
         scheduler_task = asyncio.create_task(scheduler_loop())
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logging.getLogger(__name__).warning("scheduler_loop 啟動失敗: %s", e)
     try:
         yield
@@ -610,7 +615,7 @@ async def lifespan(app: FastAPI):
         try:
             from app.auth import casbin as _casbin
             _casbin.shutdown_enforcer()
-        except Exception:
+        except Exception:  # noqa: BLE001
             logging.getLogger(__name__).exception("casbin shutdown_enforcer failed")
 
 
@@ -699,7 +704,10 @@ async def root():
 #   /readyz   — readiness with DB + Valkey check. K8s readinessProbe; an
 #               unready replica is yanked from the LB but not restarted.
 @app.get("/healthz", tags=["Health"], include_in_schema=False)
+@app.get("/api/healthz", tags=["Health"], include_in_schema=False)
 async def healthz():
+    """v1.1.13:同時 expose 在 /healthz 與 /api/healthz。前者給容器內 healthcheck
+    使用、後者經 gateway 對外 — 兩條都 public(_PUBLIC_PATTERNS 已覆蓋)。"""
     return {"status": "ok"}
 
 

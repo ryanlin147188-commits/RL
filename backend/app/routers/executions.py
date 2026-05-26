@@ -1,10 +1,13 @@
 import asyncio
 import json
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from sqlalchemy import insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
 
 from app.auth.dependencies import get_current_user
 from app.auth.scope import ensure_project_in_scope
@@ -100,9 +103,11 @@ async def run_execution(
                 "enable_recording": bool(payload.enable_recording),
             },
         )
-    except Exception:
-        # Celery / Redis 未啟動時不阻擋 API 回應(開發期友善提示)
-        pass
+    except Exception:  # noqa: BLE001 - Celery/Redis 連不上仍要回 API,僅 log
+        logger.warning(
+            "celery dispatch failed for task=%s (Celery/Redis unreachable?)",
+            task_id, exc_info=True,
+        )
 
     return ExecutionRunResponse(
         task_id=task_id,
@@ -174,9 +179,8 @@ async def cancel_execution(
         from tasks.celery_app import celery_app
 
         celery_app.control.revoke(task_id, terminate=True, signal="SIGTERM")
-    except Exception:
-        # Celery 無法連線也不要擋 API；至少先把 DB 狀態修好
-        pass
+    except Exception:  # noqa: BLE001 - Celery 連不上仍續走;至少把 DB 狀態修好
+        logger.warning("celery revoke failed for task=%s", task_id, exc_info=True)
 
     # 1b. 砍掉這個 task 派生的 robot-runner 容器(SIGTERM 殺 celery worker
     # 不會自動把 docker run 出來的容器也帶走 → 否則就會變成孤兒容器繼續跑、
@@ -193,13 +197,13 @@ async def cancel_execution(
                     c.kill()
                     try:
                         c.remove(force=True)
-                    except Exception:
-                        pass
+                    except Exception:  # noqa: BLE001 - container 已經 gone 即可
+                        logger.debug("container remove failed: %s", c.name, exc_info=True)
                     killed_containers.append(c.name)
-                except Exception:
-                    pass
-    except Exception:
-        pass
+                except Exception:  # noqa: BLE001
+                    logger.warning("container kill failed: %s", c.name, exc_info=True)
+    except Exception:  # noqa: BLE001 - docker daemon 不可用;略過清孤兒容器
+        logger.warning("docker daemon unreachable; orphan container cleanup skipped", exc_info=True)
 
     # 2. 更新 report 狀態
     if report.status.value == "RUNNING":
@@ -253,7 +257,7 @@ async def cancel_execution(
             )
         r.publish(f"task:{task_id}:logs", _json.dumps({"type": "done", "status": "CANCELLED"}))
         r.close()
-    except Exception:
+    except Exception:  # noqa: BLE001
         pass
 
     return {"ok": True, "task_id": task_id, "status": "FAILED", "killed_runners": killed_containers}
@@ -287,7 +291,7 @@ async def websocket_logs(task_id: str, websocket: WebSocket):
                 data: str = message["data"]
                 try:
                     await websocket.send_text(data)
-                except Exception:
+                except Exception:  # noqa: BLE001
                     break
                 payload = json.loads(data)
                 if payload.get("type") == "done":
@@ -304,7 +308,7 @@ async def websocket_logs(task_id: str, websocket: WebSocket):
                             await websocket.send_json({"type": "pong"})
                     except asyncio.TimeoutError:
                         continue
-                    except Exception:
+                    except Exception:  # noqa: BLE001
                         break
             finally:
                 done.set()
@@ -329,5 +333,5 @@ async def websocket_logs(task_id: str, websocket: WebSocket):
     finally:
         try:
             await websocket.close()
-        except Exception:
+        except Exception:  # noqa: BLE001
             pass

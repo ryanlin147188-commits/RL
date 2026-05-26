@@ -460,7 +460,7 @@ async def upload_recording(
             raise HTTPException(413, "Script too large (>1MB)")
         try:
             session.script_text = content.decode("utf-8", errors="replace")
-        except Exception:
+        except Exception:  # noqa: BLE001 - utf-8 decode 罕見失敗,退回 latin-1
             session.script_text = content.decode("latin-1", errors="replace")
         # script_text 已存 DB,不需另外寫到本地檔(會跟著 RecordingSession 一起)
 
@@ -1046,7 +1046,7 @@ def _get_docker_client():
         )
     try:
         return docker.from_env()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - docker SDK 各種連線錯誤統一回 500
         raise HTTPException(
             500,
             f"無法連到 docker daemon:{e};"
@@ -1065,7 +1065,7 @@ def _recorder_image_exists() -> bool:
     try:
         client.images.get(settings.RECORDER_IMAGE)
         return True
-    except Exception:
+    except Exception:  # noqa: BLE001 - image 不存在/daemon 暫不可用,呼叫端會處理
         return False
 
 
@@ -1091,7 +1091,8 @@ def _build_recorder_image_sync() -> None:
         api = docker.APIClient(
             base_url=os.environ.get("DOCKER_HOST", "unix:///var/run/docker.sock")
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - docker SDK 連線失敗各種錯,寫進 state 給前端
+        log.warning("recorder build: docker APIClient init failed: %s", e)
         state["status"] = "error"
         state["error"] = f"連不上 docker daemon:{e}"
         state["finished_at"] = datetime.utcnow()
@@ -1143,7 +1144,7 @@ def _build_recorder_image_sync() -> None:
             state["status"] = "error"
             state["error"] = "build 結束但 image 不存在(未知原因)"
         state["finished_at"] = datetime.utcnow()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - docker build 任何錯都要進 state 給前端 polling
         log.exception("recorder image build failed")
         _append_build_log(f"[exception] {type(e).__name__}: {e}")
         state["status"] = "error"
@@ -1251,8 +1252,8 @@ async def docker_start(
         try:
             c = docker_client.containers.get(old["container_id"])
             c.remove(force=True)
-        except Exception:
-            pass
+        except Exception as exc:  # noqa: BLE001 - 舊容器已被 reap,清不到是預期
+            log.debug("recorder old-container cleanup skipped: %s", exc)
 
     vnc_password = secrets.token_urlsafe(12)
     # session-bound capability token:容器內 anonymous curl 用 ?token=<...> 帶上,
@@ -1311,7 +1312,7 @@ async def docker_start(
                 "autotest.session_id": session_id,
             },
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - docker SDK 各種啟容失敗統一接
         msg = str(e)
         if "No such image" in msg or "not found" in msg.lower():
             # 罕見:images.get 過了但 run 又說 missing(image 中途被刪)→ 觸發 rebuild
@@ -1333,8 +1334,8 @@ async def docker_start(
         # 啟容器但 port 沒映射成功 → 回收
         try:
             container.remove(force=True)
-        except Exception:
-            pass
+        except Exception as exc:  # noqa: BLE001 - 容器清不到不影響回 500
+            log.debug("recorder port-binding rollback failed: %s", exc)
         raise HTTPException(500, "容器啟動但 6080 port 未對外映射,請檢查 docker daemon 設定")
     host_port = int(port_info[0]["HostPort"])
 
@@ -1461,8 +1462,8 @@ async def docker_stop(
         # lost — exactly the bug we're chasing.
         try:
             await asyncio.to_thread(c.stop, timeout=90)
-        except Exception:
-            pass
+        except Exception as exc:  # noqa: BLE001 - 已 SIGKILL/容器消失,繼續抓 log
+            log.debug("docker_stop:c.stop raised (already terminating): %s", exc)
         # Diagnostic: dump the recorder's stdout/stderr (entrypoint logs the
         # upload HTTP code + curl errors) into backend log so we can see
         # exactly why upload failed.
@@ -1475,7 +1476,7 @@ async def docker_stop(
                 "recorder.container.logs session=%s container=%s\n----- BEGIN -----\n%s\n----- END -----",
                 session_id, info.get("container_name"), tail,
             )
-        except Exception as _e:
+        except Exception as _e:  # noqa: BLE001 - 容器已 reap 拿不到 logs
             log.warning(
                 "recorder.container.logs.unavailable session=%s container=%s err=%s",
                 session_id, info.get("container_name"), _e,
@@ -1483,10 +1484,10 @@ async def docker_stop(
         # Now actually remove the container (auto_remove=False above).
         try:
             await asyncio.to_thread(c.remove, force=True)
-        except Exception as _re:
+        except Exception as _re:  # noqa: BLE001 - 已自然 reap
             log.info("docker_stop:remove failed (already gone?) %s: %s",
                      info.get("container_name"), _re)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - container daemon 看不到此 id
         # 容器可能已被 daemon 移除過(罕見),不算錯誤
         log.info("docker_stop:container %s already gone: %s",
                  info.get("container_name"), e)
@@ -1550,7 +1551,7 @@ async def api_docker_start(
     # 同一份 image 靠 RECORDER_MODE env 切 entrypoint。
     try:
         docker_client.images.get(settings.RECORDER_IMAGE)
-    except Exception:
+    except Exception:  # noqa: BLE001 - image 不存在/daemon 暫不可用,統一 425
         raise HTTPException(
             status_code=425,
             detail={
@@ -1570,8 +1571,8 @@ async def api_docker_start(
         try:
             c = docker_client.containers.get(old["container_id"])
             c.remove(force=True)
-        except Exception:
-            pass
+        except Exception as exc:  # noqa: BLE001 - 舊容器已被 reap
+            log.debug("api_docker old-container cleanup skipped: %s", exc)
 
     # session-bound capability token(同 WEB 模式邏輯)— 容器內 anonymous curl
     # 透過 ?token=<...> 帶上,後端 authorize_recorder_upload 驗證才放行。
@@ -1605,7 +1606,7 @@ async def api_docker_start(
                 "autotest.session_id": session_id,
             },
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - docker SDK 啟容失敗統一 500
         raise HTTPException(500, f"啟動 mitmproxy 容器失敗:{e}")
 
     container.reload()
@@ -1615,8 +1616,8 @@ async def api_docker_start(
     if not proxy_info or not web_info:
         try:
             container.remove(force=True)
-        except Exception:
-            pass
+        except Exception as exc:  # noqa: BLE001 - 容器清不到不影響回 500
+            log.debug("api_docker port-binding rollback failed: %s", exc)
         raise HTTPException(500, "容器啟動但 8080/8081 未對外映射")
     proxy_port = int(proxy_info[0]["HostPort"])
     web_port = int(web_info[0]["HostPort"])
@@ -1673,8 +1674,8 @@ async def api_docker_stop(session_id: str, db: AsyncSession = Depends(get_db)):
             # gets killed mid-flight. asyncio.to_thread for the same
             # event-loop-deadlock reason: the trap's curl needs the loop free.
             await asyncio.to_thread(c.stop, timeout=90)
-        except Exception:
-            pass
+        except Exception as exc:  # noqa: BLE001 - 已 SIGKILL/容器消失,繼續抓 log
+            log.debug("api_docker_stop:c.stop raised (already terminating): %s", exc)
         try:
             raw = await asyncio.to_thread(
                 c.logs, tail=400, stdout=True, stderr=True,
@@ -1684,17 +1685,17 @@ async def api_docker_stop(session_id: str, db: AsyncSession = Depends(get_db)):
                 "recorder.api.container.logs session=%s container=%s\n----- BEGIN -----\n%s\n----- END -----",
                 session_id, info.get("container_name"), tail,
             )
-        except Exception as _e:
+        except Exception as _e:  # noqa: BLE001 - 容器已 reap 拿不到 logs
             log.warning(
                 "recorder.api.container.logs.unavailable session=%s container=%s err=%s",
                 session_id, info.get("container_name"), _e,
             )
         try:
             await asyncio.to_thread(c.remove, force=True)
-        except Exception as _re:
+        except Exception as _re:  # noqa: BLE001 - 容器已自然 reap
             log.info("api_docker_stop:remove failed %s: %s",
                      info.get("container_name"), _re)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - container daemon 看不到此 id
         log.info("api_docker_stop:container %s already gone: %s",
                  info.get("container_name"), e)
     # 容器 stop 完成後才 pop(token 此時已經用完)
@@ -1716,7 +1717,8 @@ async def api_docker_status(session_id: str):
         if c.status not in ("running", "created"):
             _recorder_containers.pop(_api_key(session_id), None)
             return None
-    except Exception:
+    except Exception as exc:  # noqa: BLE001 - daemon 不可用或容器消失,當作沒了
+        log.debug("api_docker_status: container missing, cleanup map: %s", exc)
         _recorder_containers.pop(_api_key(session_id), None)
         return None
     return ApiRecorderResponse(
@@ -1761,7 +1763,7 @@ async def upload_har(
         from app.services.storage_service import save_bytes
         key = f"recordings/{session_id}/flows.har"
         save_bytes(raw, key, bucket="pic", content_type="application/json")
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - S3 暫不可用不擋上傳;HAR 仍會寫進 DB
         log.warning("HAR storage failed: %s", e)
 
     # 把 HAR JSON 整段塞進 script_text 讓 /convert 端點能解析(API 模式判定:
@@ -1771,7 +1773,7 @@ async def upload_har(
         _ = _json.loads(raw.decode("utf-8", errors="replace"))
         session.script_text = raw.decode("utf-8", errors="replace")
         session.status = "UPLOADED"
-    except Exception:
+    except Exception:  # noqa: BLE001 - JSON 不合法統一 400
         raise HTTPException(400, "HAR JSON 解析失敗,可能容器內 addon 出錯")
     await db.flush()
     return {"ok": True, "size": len(raw)}
@@ -1782,7 +1784,8 @@ def _parse_har_to_steps(har_json: str) -> list[GeneratedStep]:
     import json as _json
     try:
         data = _json.loads(har_json)
-    except Exception:
+    except Exception as exc:  # noqa: BLE001 - HAR 可能是 truncated/不是合法 JSON
+        log.debug("_parse_har_to_steps: not a HAR json: %s", exc)
         return []
     entries = (data.get("log") or {}).get("entries") or []
     steps: list[GeneratedStep] = []
@@ -1845,11 +1848,12 @@ async def docker_status(session_id: str):
             # docker_stop never ran. Reap it now so we don't leak.
             try:
                 await asyncio.to_thread(c.remove, force=True)
-            except Exception:
-                pass
+            except Exception as exc:  # noqa: BLE001 - 已自然 reap
+                log.debug("docker_status: orphan reap failed: %s", exc)
             _recorder_containers.pop(session_id, None)
             return None
-    except Exception:
+    except Exception as exc:  # noqa: BLE001 - daemon 不可用或容器消失,當作沒了
+        log.debug("docker_status: container missing, cleanup map: %s", exc)
         _recorder_containers.pop(session_id, None)
         return None
     return DockerRecorderResponse(

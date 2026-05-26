@@ -24,11 +24,41 @@ import os
 import secrets
 from dataclasses import dataclass
 from typing import Any, Optional
+from urllib.parse import urlparse
 
 import httpx
 from httpx_oauth.oauth2 import BaseOAuth2, GetAccessTokenError
 
+from app.auth._network import is_private_or_localhost_host
+from app.config import settings
+
 logger = logging.getLogger(__name__)
+
+
+def _resolve_redirect_uri(provider_name: str, override_env_var: str, path: str) -> str:
+    """從 settings.BASE_URL 推導 redirect_uri,公網強制 HTTPS。
+
+    優先序:
+      1. 環境變數 ``override_env_var`` 若設,以此為準。
+      2. 否則用 ``settings.BASE_URL`` + ``path`` 組出來。
+
+    Localhost / RFC1918 私有網段允許 http(MitM 風險可控);公網 IP / 公網
+    域名強制 https,否則啟動 raise RuntimeError。
+    """
+    explicit = os.environ.get(override_env_var, "").strip()
+    candidate = explicit or f"{settings.BASE_URL.rstrip('/')}{path}"
+
+    parsed = urlparse(candidate)
+    if parsed.scheme not in {"http", "https"}:
+        raise RuntimeError(
+            f"{provider_name} redirect_uri 無效:{candidate}(僅支援 http/https)"
+        )
+    if parsed.scheme == "http" and not is_private_or_localhost_host(parsed.hostname or ""):
+        raise RuntimeError(
+            f"{provider_name} redirect_uri 在公網必須使用 HTTPS,目前是 {candidate}。"
+            f" 請設定 {override_env_var}=https://your-domain{path},或把 BASE_URL 改為 https://"
+        )
+    return candidate
 
 
 @dataclass(frozen=True)
@@ -65,10 +95,14 @@ ZOHO = OIDCProvider(
     # AaaServer.profile.READ 需要才能拉 /oauth/user/info 拿 Display_Name / Email。
     # openid 在 Zoho OIDC 端也吃,但 id_token 我們不靠 — JIT 走 userinfo 即可。
     scope="AaaServer.profile.READ email openid",
-    redirect_uri=os.environ.get(
-        "ZOHO_REDIRECT_URL",
-        "http://localhost/api/auth/zoho/callback",
-    ).strip(),
+    # v1.1.13:由 BASE_URL 推導,非 localhost 強制 HTTPS。仍可用
+    # ZOHO_REDIRECT_URL 覆蓋(例如 backend 走容器內部 hostname,但對外 callback
+    # 域名與 BASE_URL 不同的部署情境),但 http:// 在非 localhost 會直接 raise。
+    redirect_uri=_resolve_redirect_uri(
+        provider_name="zoho",
+        override_env_var="ZOHO_REDIRECT_URL",
+        path="/api/auth/zoho/callback",
+    ),
 )
 
 
@@ -140,7 +174,7 @@ async def exchange_code_for_token(provider: OIDCProvider, code: str) -> dict[str
         token = await client.get_access_token(code, provider.redirect_uri)
     except GetAccessTokenError as exc:
         raise RuntimeError(f"{provider.name} token exchange failed: {exc}") from exc
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         # httpx 連線層級錯誤等;統一回 RuntimeError。
         raise RuntimeError(f"{provider.name} token exchange failed: {exc}") from exc
     return dict(token)

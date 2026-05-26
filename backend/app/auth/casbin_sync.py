@@ -299,7 +299,7 @@ def schedule_user_resync(username: str) -> None:
         try:
             async with AsyncSessionLocal() as session:
                 await rebuild_user_grants(session, username)
-        except Exception:
+        except Exception:  # noqa: BLE001
             logger.exception("schedule_user_resync(%s) failed", username)
 
     try:
@@ -323,7 +323,7 @@ def schedule_full_resync() -> None:
         try:
             async with AsyncSessionLocal() as session:
                 await rebuild_all_policies(session)
-        except Exception:
+        except Exception:  # noqa: BLE001
             logger.exception("schedule_full_resync failed")
 
     try:

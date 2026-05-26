@@ -96,7 +96,7 @@ def task_context(
     try:
         yield session
         session.commit()
-    except Exception:
+    except Exception:  # noqa: BLE001
         session.rollback()
         raise
     finally:

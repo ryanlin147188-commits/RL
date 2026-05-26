@@ -83,7 +83,7 @@ def main() -> int:
     print(f"[robot_container] Downloading robot file: {robot_key}", flush=True)
     try:
         _download_from_minio(robot_key, robot_file)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"[robot_container] ERROR downloading robot file: {e}", flush=True)
         return 3
 
@@ -148,7 +148,7 @@ def main() -> int:
             )
             try:
                 os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 print(f"[robot_container] ERROR SIGTERM 失敗: {e}", flush=True)
             try:
                 rc = proc.wait(timeout=graceful_kill_sec)
@@ -165,7 +165,7 @@ def main() -> int:
                 )
                 try:
                     os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
-                except Exception:
+                except Exception:  # noqa: BLE001
                     pass
                 proc.wait()
                 rc = 124
@@ -181,7 +181,7 @@ def main() -> int:
             with open(result_json, "rb") as fh:
                 save_bytes(fh.read(), result_key, bucket="results", content_type="application/json")
             print(f"[robot_container] Uploaded result JSON to {result_key}", flush=True)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"[robot_container] ERROR uploading result JSON: {e}", flush=True)
     else:
         print(f"[robot_container] WARN result_json missing: {result_json}", flush=True)
@@ -189,7 +189,7 @@ def main() -> int:
     # 5) 清理 workdir
     try:
         shutil.rmtree(workdir, ignore_errors=True)
-    except Exception:
+    except Exception:  # noqa: BLE001
         pass
 
     return rc

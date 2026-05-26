@@ -362,7 +362,7 @@ def run_step(page: Page, step: dict[str, Any], ctx: dict[str, str]) -> tuple[boo
 
     except PWTimeout as exc:
         return False, f"timeout: {exc}"
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         return False, f"{type(exc).__name__}: {exc}"
 
 
@@ -380,7 +380,7 @@ def upload_screenshot_bytes(server: str, report_id: str, filename: str, img_byte
         )
         resp.raise_for_status()
         return resp.json().get("url")
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         log(f"上傳截圖失敗（{filename}）：{exc}", "WARN")
         return None
 
@@ -389,7 +389,7 @@ def safe_screenshot(page: Page) -> Optional[bytes]:
     """嘗試 page.screenshot()；失敗時吞錯回 None（例如 page 已關）。"""
     try:
         return page.screenshot(full_page=False, type="png", timeout=5000)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         log(f"截圖失敗：{exc}", "WARN")
         return None
 
@@ -416,7 +416,7 @@ def highlight_element(page: Page, step: dict[str, Any], ctx: dict[str, str]) -> 
         return False
     try:
         bb = pw_locator(page, locator_raw).first.bounding_box(timeout=2000)
-    except Exception:
+    except Exception:  # noqa: BLE001
         return False
     if not bb:
         return False
@@ -442,7 +442,7 @@ def highlight_element(page: Page, step: dict[str, Any], ctx: dict[str, str]) -> 
             {"x": bb["x"], "y": bb["y"], "width": bb["width"], "height": bb["height"]},
         )
         return True
-    except Exception:
+    except Exception:  # noqa: BLE001
         return False
 
 
@@ -452,7 +452,7 @@ def remove_highlights(page: Page) -> None:
         page.evaluate(
             "document.querySelectorAll('.__autotest_hl').forEach(e => e.remove())"
         )
-    except Exception:
+    except Exception:  # noqa: BLE001
         pass
 
 
@@ -578,7 +578,7 @@ def process_job(job: dict[str, Any], server: str) -> None:
                         if is_setup:
                             setup_failed = True
                             log(f"🛑 前置案例 {tc_id[:8]} 失敗,後續主案例跳過", "ERROR")
-                except Exception as exc:  # 單一 case 異常不整體中止
+                except Exception as exc:  # 單一 case 異常不整體中止  # noqa: BLE001
                     failed += 1
                     log(f"💥 案例 {idx} 執行器例外:{exc}", "ERROR")
                     traceback.print_exc()
@@ -618,7 +618,7 @@ def process_job(job: dict[str, Any], server: str) -> None:
         )
         r.raise_for_status()
         log(f"📤 已回報 backend（report_id={report_id}，共 {len(all_step_logs)} 步）")
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         log(f"回報失敗：{exc}", "ERROR")
 
 
@@ -652,7 +652,7 @@ def main() -> None:
         except KeyboardInterrupt:
             log("使用者中斷，離開")
             break
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             log(f"主迴圈錯誤：{exc}", "ERROR")
             traceback.print_exc()
             time.sleep(args.interval)

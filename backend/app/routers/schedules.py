@@ -50,7 +50,7 @@ def _get_node_ids(schedule: Schedule) -> list[str]:
                         out.append(nid)
                 if out:
                     return out
-        except Exception:
+        except Exception:  # noqa: BLE001
             pass
     return [schedule.node_id] if schedule.node_id else []
 

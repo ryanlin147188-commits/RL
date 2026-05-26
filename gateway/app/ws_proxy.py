@@ -25,7 +25,7 @@ import websockets
 from fastapi import WebSocket
 from websockets.exceptions import ConnectionClosed
 
-from .auth import AuthError, decode_token, sign_gateway_request
+from .auth import AuthError, decode_token, is_jwt_revoked, sign_gateway_request
 from .config import settings
 
 _log = logging.getLogger("gateway.ws")
@@ -104,6 +104,11 @@ async def proxy_websocket(client_ws: WebSocket, path: str) -> None:
     except AuthError as e:
         await client_ws.close(code=_WS_CLOSE_UNAUTHORIZED, reason=e.code)
         _log.warning("ws auth fail (%s): %s", e.code, client_ws.url.path)
+        return
+    # v1.1.13:WS 連線在 accept 之前也要查 revocation,避免長連線繞過撤銷。
+    if await is_jwt_revoked(payload.get("jti")):
+        await client_ws.close(code=_WS_CLOSE_UNAUTHORIZED, reason="token_revoked")
+        _log.warning("ws auth fail (token_revoked): %s", client_ws.url.path)
         return
 
     # 2) 組 upstream URL + 注 X-Gateway-* extra headers

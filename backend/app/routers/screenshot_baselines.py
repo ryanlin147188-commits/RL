@@ -174,7 +174,7 @@ async def copy_from(
     try:
         obj_get = s3.get_object(Bucket="results", Key=key)
         data = obj_get["Body"].read()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         raise HTTPException(status_code=404, detail=f"無法從 object storage 讀取 source_url: {e}")
 
     new_key = f"baselines/{step_uuid}.png"

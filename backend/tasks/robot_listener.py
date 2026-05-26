@@ -52,7 +52,7 @@ class RTListener:
 
         try:
             self._r = redis.from_url(self._redis_url) if self._redis_url else None
-        except Exception:
+        except Exception:  # noqa: BLE001
             self._r = None
 
         # 當前 step index（由 marker keyword 設定；None = 尚未進入任何 step）
@@ -80,7 +80,7 @@ class RTListener:
                 self._channel,
                 json.dumps({"type": "log", "level": level, "message": f"[{ts}] {message}"}),
             )
-        except Exception:
+        except Exception:  # noqa: BLE001
             pass
 
     def _ensure_buf(self, idx: int) -> dict[str, Any]:
@@ -187,7 +187,7 @@ class RTListener:
                         buf.setdefault("_screenshot_urls", []).append(url)
                 else:
                     self._publish("WARN", f"截圖路徑解析失敗: msg={getattr(result, 'message', '')!r}")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 self._publish("WARN", f"截圖上傳失敗: {e}")
             return
 
@@ -211,10 +211,10 @@ class RTListener:
         # 累計動作 keyword 的耗時與狀態
         try:
             dur = int(result.elapsed_time.total_seconds() * 1000)  # type: ignore[union-attr]
-        except Exception:
+        except Exception:  # noqa: BLE001
             try:
                 dur = int((result.endtime_seconds - result.starttime_seconds) * 1000)  # type: ignore[attr-defined]
-            except Exception:
+            except Exception:  # noqa: BLE001
                 dur = 0
         buf["_action_dur"] += dur
 
@@ -246,7 +246,7 @@ class RTListener:
                     self._handle_screenshot_diff_marker(txt)
                     return
                 self._publish("ERROR" if level in ("ERROR", "FAIL") else level, txt[:500])
-        except Exception:
+        except Exception:  # noqa: BLE001
             pass
 
     def _handle_screenshot_diff_marker(self, txt: str) -> None:
@@ -310,7 +310,7 @@ class RTListener:
         if self._enable_recording and self._is_s3_mode():
             try:
                 self._process_videos_and_traces()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 self._publish("WARN", f"video/trace 處理失敗: {e}")
 
         # 3) 寫入結果 JSON（spawn 模式：寫到本地檔，由 robot_container.py 上傳到 SeaweedFS）
@@ -319,13 +319,13 @@ class RTListener:
                 os.makedirs(os.path.dirname(self._result_path), exist_ok=True)
                 with open(self._result_path, "w", encoding="utf-8") as f:
                     json.dump(self._results, f, ensure_ascii=False)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 self._publish("ERROR", f"寫入 step_results.json 失敗: {e}")
 
         if self._r:
             try:
                 self._r.close()
-            except Exception:
+            except Exception:  # noqa: BLE001
                 pass
 
     # ── video/trace 處理 ─────────────────────────────────
@@ -333,7 +333,7 @@ class RTListener:
         try:
             from app.config import settings  # type: ignore
             return (settings.STORAGE_BACKEND or "").lower() == "s3"
-        except Exception:
+        except Exception:  # noqa: BLE001
             return False
 
     def _process_videos_and_traces(self) -> None:
@@ -423,7 +423,7 @@ class RTListener:
                         )
                         if matches:
                             return matches[-1]
-        except Exception:
+        except Exception:  # noqa: BLE001
             pass
         return None
 
@@ -436,7 +436,7 @@ class RTListener:
                 data = fh.read()
             key = f"screenshots/{self._report_id}/{uuid.uuid4().hex}_{os.path.basename(abs_path)}"
             return save_bytes(data, key, bucket="results", content_type="image/png")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             self._publish("WARN", f"_upload_screenshot 失敗: {e}")
             return None
 
@@ -454,7 +454,7 @@ class RTListener:
                     capture_output=True, timeout=120, check=True
                 )
                 converted = True
-            except Exception:
+            except Exception:  # noqa: BLE001
                 pass
 
             if converted and os.path.exists(mp4_path):
@@ -463,7 +463,7 @@ class RTListener:
                 key = f"videos/{self._report_id}/{test_name}.mp4"
                 try:
                     os.remove(mp4_path)
-                except Exception:
+                except Exception:  # noqa: BLE001
                     pass
                 return save_bytes(data, key, bucket="results", content_type="video/mp4")
 
@@ -472,7 +472,7 @@ class RTListener:
                 data = fh.read()
             key = f"videos/{self._report_id}/{test_name}.webm"
             return save_bytes(data, key, bucket="results", content_type="video/webm")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             self._publish("WARN", f"_upload_video 失敗: {e}")
             return None
 
@@ -484,7 +484,7 @@ class RTListener:
                 data = fh.read()
             key = f"traces/{self._report_id}/{test_name}.zip"
             return save_bytes(data, key, bucket="results", content_type="application/zip")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             self._publish("WARN", f"_upload_trace 失敗: {e}")
             return None
 
@@ -501,6 +501,6 @@ class RTListener:
                 data = fh.read()
             key = f"screenshots/{os.path.basename(abs_path)}"
             return save_bytes(data, key, bucket="results", content_type="image/png")
-        except Exception:
+        except Exception:  # noqa: BLE001
             pass
         return None

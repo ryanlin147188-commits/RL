@@ -23,3 +23,8 @@ os.environ.setdefault(
 os.environ.setdefault("ALLOWED_ORIGINS", "http://test")
 os.environ.setdefault("DEBUG", "False")
 os.environ.setdefault("AUTOTEST_TEST_MODE", "1")
+# config.py 的 DB_PASSWORD / S3_SECRET_KEY 自 v1.1.13 起為必填;測試用隨機值
+# 避免雖然 unit test 不連 DB 但 import app.config 時觸發 ValidationError。
+# integration testcontainer fixture 會再以實際 container password 覆寫。
+os.environ.setdefault("DB_PASSWORD", secrets.token_hex(16))
+os.environ.setdefault("S3_SECRET_KEY", secrets.token_hex(16))

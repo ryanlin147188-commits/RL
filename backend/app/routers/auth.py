@@ -637,7 +637,7 @@ async def me(
         from app.auth.personal_org import ensure_personal_org
         await ensure_personal_org(db, user, set_as_active=False)
         await db.commit()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         import logging
         logging.getLogger(__name__).warning(
             "ensure_personal_org on /me failed for user=%s: %s", user.username, e,
@@ -961,7 +961,7 @@ async def create_user(
     try:
         await user_manager.get_by_username(payload.username)
         raise HTTPException(409, f"帳號「{payload.username}」已存在")
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         # get_by_username 不存在時會 raise UserNotExists,正是我們要的
         from fastapi_users.exceptions import UserNotExists
         if not isinstance(exc, UserNotExists):
@@ -1005,7 +1005,7 @@ async def create_user(
     try:
         from app.auth.personal_org import ensure_personal_org
         await ensure_personal_org(db, new_user, set_as_active=False)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         import logging as _logging
         _logging.getLogger(__name__).warning(
             "ensure_personal_org for admin-created user=%s failed: %s",
@@ -1047,7 +1047,7 @@ async def create_user(
                 "register-email: enqueued welcome email for new user=%s",
                 new_user.username,
             )
-        except Exception:
+        except Exception:  # noqa: BLE001
             logger.exception(
                 "register-email: enqueue failed for new user=%s",
                 new_user.username,
