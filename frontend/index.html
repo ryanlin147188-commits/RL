@@ -996,7 +996,7 @@
             <div class="flex-1"></div>
             <nav id="topNavRow" class="overflow-x-auto flex items-center gap-1 whitespace-nowrap min-w-0" style="-ms-overflow-style:none;scrollbar-width:none;">
                 <button type="button" data-nav-hash="#testcases"    onclick="showTestCasesView()"    title="測試案例" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-list-check text-blue-600"></i><span class="nav-label" data-i18n="nav.testCases">測試案例</span></button>
-                <button type="button" data-nav-hash="#testschedule" onclick="showTestScheduleView()" title="測試時程" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-calendar-week text-amber-600"></i><span class="nav-label" data-i18n="nav.testSchedule">測試時程</span></button>
+                <button type="button" data-nav-hash="#testschedule" onclick="showTestScheduleView()" title="Sprint" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-calendar-week text-amber-600"></i><span class="nav-label" data-i18n="nav.testSchedule">Sprint</span></button>
                 <button type="button" data-nav-hash="#testdatasets" onclick="showTestDataSetsView()" title="測試資料" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-table text-violet-600"></i><span class="nav-label" data-i18n="nav.dataSets">測試資料</span></button>
                 <button type="button" data-nav-hash="#envvars"      onclick="showEnvVarsView()"      title="環境變數" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-key text-emerald-600"></i><span class="nav-label" data-i18n="nav.envVars">環境變數</span></button>
                 <button type="button" data-nav-hash="#devices"      onclick="showDevicesView()"      title="設備資訊" class="topnav-pill hover:bg-stone-100"><i class="fa-solid fa-mobile-screen text-rose-600"></i><span class="nav-label" data-i18n="nav.devices">設備資訊</span></button>
@@ -1406,7 +1406,7 @@
              onclick="event.stopPropagation()">
             <div class="p-4 border-b border-slate-200 flex items-center gap-2 flex-shrink-0">
                 <i class="fa-solid fa-calendar-week text-amber-500"></i>
-                <h3 id="tsModalTitle" class="text-lg font-bold text-slate-800 flex-1">新增時程</h3>
+                <h3 id="tsModalTitle" class="text-lg font-bold text-slate-800 flex-1">新增 Sprint</h3>
                 <button type="button" onclick="closeTsModal()" aria-label="關閉" class="text-slate-400 hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <form id="tsModalForm" onsubmit="event.preventDefault(); submitTsModal();"
@@ -1454,29 +1454,21 @@
                     <textarea id="tsEditDescription" rows="3" placeholder="這個階段要涵蓋什麼測試 / 範圍 / 完成標準..."
                         class="w-full border border-slate-300 rounded p-2 text-sm resize-none"></textarea>
                 </div>
-                <!-- 連結項目 — v1.1.9+ 改 polymorphic(支援 testcase/report/defect/test_round/project)-->
+                <!-- 連結項目 — v1.1.11+ M:N 多連結 (sprint_links 表)。
+                     舊版單一 polymorphic input 保留為 hidden 不寫(讓 submit 不破舊欄位);
+                     editor 編輯模式時把既有 linked_target_* 顯示為「legacy」row,不可編輯。 -->
+                <input type="hidden" id="tsEditLinkType" value="">
+                <input type="hidden" id="tsEditLinkTargetId" value="">
                 <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">連結項目 <span class="text-slate-400 text-xs font-normal">(選填)</span></label>
-                    <div class="grid grid-cols-2 gap-2 bg-slate-50/70 border border-slate-200 rounded p-2">
-                        <div>
-                            <label class="block text-[11px] text-slate-500 mb-0.5">類型</label>
-                            <select id="tsEditLinkType"
-                                onchange="_tsPopulateLinkTargets()"
-                                class="w-full border border-slate-300 rounded p-1.5 text-sm bg-white">
-                                <option value="">(不連結)</option>
-                                <option value="testcase">測試案例</option>
-                                <option value="report">執行報告</option>
-                                <option value="defect">缺陷</option>
-                                <option value="test_round">TestRun</option>
-                                <option value="project">專案</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-[11px] text-slate-500 mb-0.5">目標</label>
-                            <select id="tsEditLinkTargetId" class="w-full border border-slate-300 rounded p-1.5 text-sm bg-white">
-                                <option value="">(先選類型)</option>
-                            </select>
-                        </div>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="block text-sm font-medium text-slate-700">連結項目 <span class="text-slate-400 text-xs font-normal">(可多個)</span></label>
+                        <button type="button" onclick="_tsAddLinkRow()"
+                            class="text-xs px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-300 rounded font-medium flex items-center gap-1">
+                            <i class="fa-solid fa-plus"></i> 新增連結
+                        </button>
+                    </div>
+                    <div id="tsLinksContainer" class="space-y-2 bg-slate-50/70 border border-slate-200 rounded p-2 min-h-[44px]">
+                        <p id="tsLinksEmptyHint" class="text-xs text-slate-400 italic text-center py-2">尚未連結任何項目;按右上「+ 新增連結」加入測試案例、執行報告、缺陷、TestRun 或看板任務。</p>
                     </div>
                 </div>
             </form>
@@ -4474,12 +4466,12 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 <div class="flex flex-wrap items-center gap-2 mb-4">
                     <div class="flex items-center gap-2">
                         <i class="fa-solid fa-calendar-week text-amber-600"></i>
-                        <h2 class="font-bold text-slate-700">測試時程</h2>
+                        <h2 class="font-bold text-slate-700">Sprint</h2>
                     </div>
                     <div class="flex-1"></div>
                     <button type="button" onclick="openTsCreateModal()"
                         class="text-xs px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded font-medium flex items-center gap-1 shadow-sm">
-                        <i class="fa-solid fa-plus"></i> 新增時程
+                        <i class="fa-solid fa-plus"></i> 新增 Sprint
                     </button>
                     <button type="button" onclick="loadTestSchedules()" title="重新整理"
                         class="text-xs px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-300 rounded font-medium text-slate-600 flex items-center gap-1">
@@ -4525,7 +4517,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 </div>
                 <div id="tsEmptyState" class="hidden text-center py-20 text-slate-400">
                     <i class="fa-solid fa-calendar-plus text-4xl mb-3 block"></i>
-                    <p>還沒有時程規劃。點右上「新增時程」開始安排 Sprint / 階段 / 里程碑。</p>
+                    <p>還沒有 Sprint。點右上「新增 Sprint」開始安排 Sprint / 階段 / 里程碑。</p>
                 </div>
                 <!-- Gantt-style timeline -->
                 <div id="tsGantt" class="bg-white border border-slate-200 rounded-lg shadow-sm overflow-x-auto">
@@ -4850,7 +4842,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             fileCompareWorkspace:  '檔案比對',
             testKanbanWorkspace:   '測試看版',
             defectsWorkspace:      '缺陷管理',
-            testScheduleWorkspace: '測試時程',
+            testScheduleWorkspace: 'Sprint',
             mockWorkspace:         'Mock',
         };
 
@@ -8387,7 +8379,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             'nav.recorder': { 'zh-TW': '測試錄製', 'en': 'Recorder' },
             'nav.reports': { 'zh-TW': '測試報告', 'en': 'Reports' },
             'nav.testKanban': { 'zh-TW': '測試看版', 'en': 'Task Board' },
-            'nav.testSchedule': { 'zh-TW': '測試時程', 'en': 'Schedule' },
+            'nav.testSchedule': { 'zh-TW': 'Sprint', 'en': 'Sprint' },
             'nav.defects': { 'zh-TW': '缺陷管理', 'en': 'Defects' },
             'nav.review': { 'zh-TW': '審核', 'en': 'Review' },
             // 環境切換
@@ -9019,7 +9011,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         '新增待辦': 'Add to-do',
         '新增排程': 'New schedule',
         '新增文件': 'New document',
-        '新增時程': 'New milestone',
+        '新增 Sprint': 'New Sprint',
         '新增案例': 'New case',
         '新增步驟': 'Add step',
         '新增TestRun': 'New test round',
@@ -23029,6 +23021,7 @@ curl -X POST http://localhost:8000/api/defects \\
     let _tsView = 'day';
     let _tsRows = [];
     let _tsEditingId = null;  // null = 新增,有值 = 編輯
+    const _tsExpandedSet = new Set();  // v1.1.11:目前展開的 schedule id 集合
 
     function _tsSetView(view) {
         if (!['day','week','month'].includes(view)) return;
@@ -23272,12 +23265,32 @@ curl -X POST http://localhost:8000/api/defects \\
             const clickHandler = isTodo ? `openTodoDetail('${s._todoId}')` : `openTsEditModal('${s.id}')`;
             const srcBadge = isTodo ? '<span class="text-[8px] px-1 py-0 bg-white/30 rounded mr-1 font-mono">TODO</span>' : '';
 
+            // v1.1.11+:非 todo source 的 schedule row 加可展開 caret;
+            // 點 caret 顯示該 sprint 的 sprint_links 一覽(stop propagation 避免觸發 row click)
+            const canExpand = !isTodo;
+            const isExpanded = canExpand && _tsExpandedSet.has(s.id);
+            const caretHtml = canExpand
+                ? `<button type="button" onclick="event.stopPropagation(); _tsToggleExpand('${s.id}')"
+                       class="ts-expand-caret w-5 h-5 shrink-0 inline-flex items-center justify-center text-slate-400 hover:text-amber-600 transition"
+                       title="${isExpanded ? '收起連結項目' : '展開連結項目'}" aria-expanded="${isExpanded}">
+                       <i class="fa-solid ${isExpanded ? 'fa-caret-down' : 'fa-caret-right'} text-sm"></i>
+                   </button>`
+                : '<span class="w-5 h-5 shrink-0 inline-block"></span>';
+            const expandedHtml = isExpanded
+                ? `<div class="border-b border-slate-100 bg-amber-50/30 px-4 py-3" data-ts-expanded="${s.id}">
+                       <div id="tsExpanded_${s.id}" class="text-xs text-slate-500"><i class="fa-solid fa-spinner fa-spin"></i> 載入中…</div>
+                   </div>`
+                : '';
+
             return `
-                <div class="flex items-stretch border-b border-slate-100 hover:bg-amber-50/20 cursor-pointer"
+                <div class="flex items-stretch border-b border-slate-100 hover:bg-amber-50/20 cursor-pointer" data-ts-row="${s.id}"
                      onclick="${clickHandler}">
-                    <div class="shrink-0 border-r border-slate-200 px-3 py-3 flex flex-col gap-1 justify-center" style="width:${LEFT_W_NAME}px">
-                        <div class="text-sm font-semibold text-slate-800 leading-tight line-clamp-2" title="${escapeHtml(s.name)}">${escapeHtml(s.name)}</div>
-                        ${s.description ? `<div class="text-[10px] text-slate-400 truncate leading-tight" title="${escapeHtml(s.description)}">${escapeHtml(s.description)}</div>` : ''}
+                    <div class="shrink-0 border-r border-slate-200 px-3 py-3 flex items-start gap-1.5" style="width:${LEFT_W_NAME}px">
+                        ${caretHtml}
+                        <div class="flex-1 min-w-0 flex flex-col gap-1 justify-center">
+                            <div class="text-sm font-semibold text-slate-800 leading-tight line-clamp-2" title="${escapeHtml(s.name)}">${escapeHtml(s.name)}</div>
+                            ${s.description ? `<div class="text-[10px] text-slate-400 truncate leading-tight" title="${escapeHtml(s.description)}">${escapeHtml(s.description)}</div>` : ''}
+                        </div>
                     </div>
                     <div class="shrink-0 border-r border-slate-200 px-3 py-3 flex items-center" style="width:${LEFT_W_STATUS}px">
                         <span class="inline-flex items-center gap-1 px-2 py-1 ${statusPill} rounded-md text-xs font-medium">
@@ -23296,7 +23309,8 @@ curl -X POST http://localhost:8000/api/defects \\
                                 ${srcBadge}<span class="truncate">${escapeHtml(s.name)}</span>
                             </div>` : ''}
                     </div>
-                </div>`;
+                </div>
+                ${expandedHtml}`;
         }).join('');
 
         // 今日垂直紅虛線 — absolute 疊在右側 timeline 上方
@@ -23326,6 +23340,17 @@ curl -X POST http://localhost:8000/api/defects \\
                 </div>
             </div>`;
     }
+    // v1.1.11+:Sprint 多連結 buffer + cache
+    // _tsLinksOriginal:open modal 時從 GET /links 拿的原始 snapshot,submit 時跟
+    //   _tsLinksBuffer diff 出要 POST/DELETE 的差集。
+    // _tsLinksBuffer:modal 內目前的連結清單(可能有 draft / committed 兩種狀態)。
+    //   committed row 有 id(realLinkId);draft row 只有 (target_type,target_id),
+    //   submit 時整批 POST。
+    // _tsLinksCache:Gantt 展開 UI lazy cache,schedule_id → links array。
+    let _tsLinksOriginal = [];
+    let _tsLinksBuffer = [];
+    const _tsLinksCache = {};
+
     // 新增/編輯 modal handlers
     function openTsCreateModal() {
         if (!currentProjectId) {
@@ -23333,7 +23358,7 @@ curl -X POST http://localhost:8000/api/defects \\
             return;
         }
         _tsEditingId = null;
-        document.getElementById('tsModalTitle').textContent = '新增時程';
+        document.getElementById('tsModalTitle').textContent = '新增 Sprint';
         document.getElementById('tsModalDeleteBtn').classList.add('hidden');
         document.getElementById('tsEditName').value = '';
         // default: 今天 → 兩週後
@@ -23347,8 +23372,9 @@ curl -X POST http://localhost:8000/api/defects \\
         document.getElementById('tsEditAssignee').value = '';
         document.getElementById('tsEditDescription').value = '';
         document.getElementById('tsEditProgress').value = 0;
-        document.getElementById('tsEditLinkType').value = '';
-        document.getElementById('tsEditLinkTargetId').innerHTML = '<option value="">(先選類型)</option>';
+        _tsLinksOriginal = [];
+        _tsLinksBuffer = [];
+        _tsRenderLinksInModal();
         _tsLoadAssigneeOptions();
         document.getElementById('testScheduleModal').classList.remove('hidden');
         setTimeout(() => document.getElementById('tsEditName').focus(), 50);
@@ -23358,7 +23384,7 @@ curl -X POST http://localhost:8000/api/defects \\
         const sched = _tsRows.find(s => s.id === id);
         if (!sched) return;
         _tsEditingId = id;
-        document.getElementById('tsModalTitle').textContent = '編輯時程';
+        document.getElementById('tsModalTitle').textContent = '編輯 Sprint';
         document.getElementById('tsModalDeleteBtn').classList.remove('hidden');
         document.getElementById('tsEditName').value = sched.name || '';
         document.getElementById('tsEditStartDate').value = sched.start_date || '';
@@ -23375,21 +23401,247 @@ curl -X POST http://localhost:8000/api/defects \\
         document.getElementById('testScheduleModal').classList.remove('hidden');
         await _tsLoadAssigneeOptions();
         document.getElementById('tsEditAssignee').value = sched.assigned_to || '';
-        // 連結項目:先填類型,再 load 目標 list,最後選回原本連的
-        const linkType = sched.linked_target_type || '';
-        const linkId = sched.linked_target_id || '';
-        document.getElementById('tsEditLinkType').value = linkType;
-        if (linkType) {
-            await _tsPopulateLinkTargets();
-            document.getElementById('tsEditLinkTargetId').value = linkId;
-        } else {
-            document.getElementById('tsEditLinkTargetId').innerHTML = '<option value="">(先選類型)</option>';
-        }
+        // 載入既有的所有連結(包含 legacy 那筆)
+        _tsLinksBuffer = [];
+        _tsLinksOriginal = [];
+        try {
+            const links = await apiFetch(`/api/test-schedules/${id}/links`).catch(() => []);
+            _tsLinksOriginal = (links || []).map(l => ({ ...l }));
+            _tsLinksBuffer = (links || []).map(l => ({ ...l }));
+        } catch (_) {}
+        _tsRenderLinksInModal();
     }
 
     function closeTsModal() {
         document.getElementById('testScheduleModal').classList.add('hidden');
         _tsEditingId = null;
+        _tsLinksOriginal = [];
+        _tsLinksBuffer = [];
+    }
+
+    // ── v1.1.11 multi-link picker helpers ──────────────────────────────
+    const _TS_LINK_TYPE_META = {
+        testcase:   { label: '測試案例', icon: 'fa-flask',          cls: 'text-blue-600' },
+        report:     { label: '執行報告', icon: 'fa-chart-pie',       cls: 'text-emerald-600' },
+        defect:     { label: '缺陷',     icon: 'fa-bug',             cls: 'text-rose-600' },
+        test_round: { label: 'TestRun',  icon: 'fa-layer-group',     cls: 'text-purple-600' },
+        todo:       { label: '看板任務', icon: 'fa-clipboard-check', cls: 'text-amber-600' },
+        project:    { label: '專案',     icon: 'fa-folder',          cls: 'text-slate-600' },
+    };
+
+    function _tsRenderLinksInModal() {
+        const wrap = document.getElementById('tsLinksContainer');
+        const hint = document.getElementById('tsLinksEmptyHint');
+        if (!wrap) return;
+        // 清掉舊內容,但保留 hint element 用 hidden 控制
+        Array.from(wrap.children).forEach(c => { if (c.id !== 'tsLinksEmptyHint') c.remove(); });
+        const hasContent = _tsLinksBuffer.length > 0;
+        if (hint) hint.classList.toggle('hidden', hasContent);
+        _tsLinksBuffer.forEach((link, idx) => {
+            const meta = _TS_LINK_TYPE_META[link.target_type] || { label: link.target_type, icon: 'fa-link', cls: 'text-slate-500' };
+            const isDraft = link._draft === true;
+            const isLegacy = link.is_legacy === true;
+            const row = document.createElement('div');
+            row.className = 'flex items-center gap-2 bg-white border border-slate-200 rounded px-2 py-1.5 text-sm';
+            if (isDraft) {
+                // draft row:type select + target select
+                row.innerHTML = `
+                    <select onchange="_tsDraftTypeChange(${idx}, this.value)" class="border border-slate-300 rounded px-1.5 py-1 text-xs bg-white">
+                        <option value="">(類型)</option>
+                        <option value="testcase">測試案例</option>
+                        <option value="report">執行報告</option>
+                        <option value="defect">缺陷</option>
+                        <option value="test_round">TestRun</option>
+                        <option value="todo">看板任務</option>
+                    </select>
+                    <select id="tsDraftTarget_${idx}" onchange="_tsDraftTargetChange(${idx}, this)" class="flex-1 border border-slate-300 rounded px-1.5 py-1 text-xs bg-white">
+                        <option value="">(先選類型)</option>
+                    </select>
+                    <button type="button" onclick="_tsRemoveLinkRow(${idx})" title="取消" class="text-slate-400 hover:text-rose-600 px-1"><i class="fa-solid fa-xmark"></i></button>`;
+                // 設目前已選的 type(若有)
+                if (link.target_type) {
+                    row.querySelector('select').value = link.target_type;
+                    // 觸發載入 target list(非同步)
+                    queueMicrotask(() => _tsDraftTypeChange(idx, link.target_type, /*keepTargetId*/ link.target_id || ''));
+                }
+            } else {
+                // committed row:icon + label + title/code + remove
+                const titleStr = link.target_title || link.target_id || '(未知)';
+                const codeStr = link.target_code ? ` <span class="text-[10px] text-slate-400 font-mono">${escapeHtml(link.target_code)}</span>` : '';
+                const legacyBadge = isLegacy ? ' <span class="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">legacy</span>' : '';
+                const removeBtn = isLegacy
+                    ? '<span class="text-[10px] text-slate-400 px-1" title="舊欄位連結;清掉請另走 schedule PATCH">—</span>'
+                    : `<button type="button" onclick="_tsRemoveLinkRow(${idx})" title="移除連結" class="text-slate-400 hover:text-rose-600 px-1"><i class="fa-solid fa-xmark"></i></button>`;
+                row.innerHTML = `
+                    <i class="fa-solid ${meta.icon} ${meta.cls} text-sm shrink-0"></i>
+                    <span class="text-xs text-slate-500 shrink-0">${meta.label}</span>
+                    <span class="flex-1 truncate text-slate-700">${escapeHtml(titleStr)}${codeStr}${legacyBadge}</span>
+                    ${removeBtn}`;
+            }
+            wrap.appendChild(row);
+        });
+    }
+
+    function _tsAddLinkRow() {
+        _tsLinksBuffer.push({ _draft: true, target_type: '', target_id: '' });
+        _tsRenderLinksInModal();
+    }
+
+    function _tsRemoveLinkRow(idx) {
+        if (idx < 0 || idx >= _tsLinksBuffer.length) return;
+        _tsLinksBuffer.splice(idx, 1);
+        _tsRenderLinksInModal();
+    }
+
+    async function _tsDraftTypeChange(idx, type, keepTargetId) {
+        if (!_tsLinksBuffer[idx]) return;
+        _tsLinksBuffer[idx].target_type = type;
+        _tsLinksBuffer[idx].target_id = '';
+        // 重新 load target list(reuse _tsPopulateLinkTargets 邏輯 inline)
+        const sel = document.getElementById(`tsDraftTarget_${idx}`);
+        if (!sel) return;
+        if (!type) {
+            sel.innerHTML = '<option value="">(先選類型)</option>';
+            return;
+        }
+        sel.innerHTML = '<option value="">(載入中…)</option>';
+        try {
+            let items = [];
+            if (type === 'testcase') {
+                const tree = await apiFetch(`/api/projects/${currentProjectId}/tree`).catch(() => []);
+                const walk = (nodes, path) => {
+                    nodes?.forEach(n => {
+                        const p = path ? path + ' / ' + (n.name || n.title) : (n.name || n.title);
+                        if (n.level_type === 'TESTCASE') items.push({ id: n.id, label: p });
+                        if (n.children) walk(n.children, p);
+                    });
+                };
+                walk(tree, '');
+            } else if (type === 'report') {
+                const rows = await apiFetch(`/api/reports?project_id=${encodeURIComponent(currentProjectId)}&limit=200`).catch(() => []);
+                const arr = Array.isArray(rows) ? rows : (rows?.items || []);
+                items = arr.map(r => ({ id: r.id, label: (r.name || r.id.slice(0,8)) + ' · ' + (r.status || '') }));
+            } else if (type === 'defect') {
+                const rows = await apiFetch(`/api/defects?project_id=${encodeURIComponent(currentProjectId)}&limit=200`).catch(() => []);
+                const arr = Array.isArray(rows) ? rows : (rows?.items || []);
+                items = arr.map(d => ({ id: d.id, label: (d.code || d.id.slice(0,8)) + ' · ' + (d.title || '') }));
+            } else if (type === 'test_round') {
+                const rows = await apiFetch(`/api/rounds?project_id=${encodeURIComponent(currentProjectId)}`).catch(() => []);
+                items = (rows || []).map(r => ({ id: r.id, label: r.name || r.id.slice(0,8) }));
+            } else if (type === 'todo') {
+                const rows = await apiFetch(`/api/todos?project_id=${encodeURIComponent(currentProjectId)}&limit=300`).catch(() => []);
+                const arr = Array.isArray(rows) ? rows : (rows?.items || []);
+                items = arr.map(t => ({ id: t.id, label: (t.item_type || '') + ' · ' + (t.title || t.id.slice(0,8)) }));
+            }
+            sel.innerHTML = '<option value="">(請選擇)</option>' +
+                items.map(it => `<option value="${escapeHtml(it.id)}">${escapeHtml(it.label)}</option>`).join('');
+            if (!items.length) sel.innerHTML = '<option value="">(此類型沒有可用項目)</option>';
+            if (keepTargetId) sel.value = keepTargetId;
+        } catch (_) {
+            sel.innerHTML = '<option value="">(載入失敗)</option>';
+        }
+    }
+
+    function _tsDraftTargetChange(idx, selEl) {
+        if (!_tsLinksBuffer[idx]) return;
+        const targetId = selEl.value;
+        if (!targetId) return;
+        const type = _tsLinksBuffer[idx].target_type;
+        const targetLabel = selEl.options[selEl.selectedIndex]?.text || '';
+        // commit: 把 draft 轉成 committed,儲存 target_title 給 render 用
+        _tsLinksBuffer[idx] = {
+            _draft: false,
+            target_type: type,
+            target_id: targetId,
+            target_title: targetLabel,
+            link_kind: 'relates_to',
+            is_legacy: false,
+        };
+        _tsRenderLinksInModal();
+    }
+
+    async function _tsCommitLinkDiff(scheduleId) {
+        // 比對 _tsLinksOriginal vs _tsLinksBuffer:
+        // - 在 original 但不在 buffer → DELETE
+        // - 在 buffer 但 id 為空 / draft 已 committed 但無 id → POST
+        // legacy 連結不能透過此端點刪(後端會擋);user 不能移除 legacy row(UI 已禁)
+        const origKey = (l) => `${l.target_type}|${l.target_id}|${l.link_kind || 'relates_to'}`;
+        const origMap = new Map(_tsLinksOriginal.filter(l => !l.is_legacy).map(l => [origKey(l), l]));
+        const bufKey = new Set(_tsLinksBuffer.filter(l => !l.is_legacy && !l._draft).map(origKey));
+
+        // DELETE 不在 buffer 的舊連結
+        for (const [k, orig] of origMap.entries()) {
+            if (!bufKey.has(k)) {
+                try {
+                    await apiFetch(`/api/test-schedules/links/${orig.id}`, { method: 'DELETE', raw: true });
+                } catch (e) { /* swallow,後續 toast 統一處理 */ }
+            }
+        }
+        // POST 在 buffer 但 original 沒有的新連結
+        for (const link of _tsLinksBuffer) {
+            if (link.is_legacy || link._draft) continue;
+            const k = origKey(link);
+            if (!origMap.has(k)) {
+                try {
+                    await apiFetch(`/api/test-schedules/${scheduleId}/links`, {
+                        method: 'POST',
+                        body: {
+                            target_type: link.target_type,
+                            target_id: link.target_id,
+                            link_kind: link.link_kind || 'relates_to',
+                        },
+                    });
+                } catch (e) { /* swallow */ }
+            }
+        }
+        // 失效 Gantt 展開 cache
+        delete _tsLinksCache[scheduleId];
+    }
+
+    // v1.1.11+:Gantt row 展開 / 收起連結項目
+    async function _tsToggleExpand(scheduleId) {
+        if (_tsExpandedSet.has(scheduleId)) {
+            _tsExpandedSet.delete(scheduleId);
+        } else {
+            _tsExpandedSet.add(scheduleId);
+        }
+        _tsRenderGantt();  // 重繪整個 Gantt — 加 caret 切換 + 加 / 收起 expand row
+        // 展開時 lazy load 連結
+        if (_tsExpandedSet.has(scheduleId)) {
+            const slot = document.getElementById(`tsExpanded_${scheduleId}`);
+            if (!slot) return;
+            try {
+                let links = _tsLinksCache[scheduleId];
+                if (!links) {
+                    links = await apiFetch(`/api/test-schedules/${scheduleId}/links`).catch(() => []);
+                    _tsLinksCache[scheduleId] = links || [];
+                }
+                slot.innerHTML = _tsRenderExpandedLinks(links || []);
+            } catch (e) {
+                slot.innerHTML = `<span class="text-rose-500">載入失敗:${escapeHtml(e?.message || '')}</span>`;
+            }
+        }
+    }
+
+    function _tsRenderExpandedLinks(links) {
+        if (!links.length) {
+            return '<span class="text-slate-400 italic">尚未連結任何項目;按 row 進編輯 → 「+ 新增連結」加入測試案例 / 報告 / 缺陷 / TestRun / 看板任務。</span>';
+        }
+        // 用既有的 type meta + escapeHtml render 卡片清單
+        return `<div class="flex flex-wrap gap-2">
+            ${links.map(l => {
+                const meta = _TS_LINK_TYPE_META[l.target_type] || { label: l.target_type, icon: 'fa-link', cls: 'text-slate-500' };
+                const titleStr = l.target_title || l.target_id || '(未知)';
+                const codeStr = l.target_code ? ` <span class="text-[10px] text-slate-400 font-mono">${escapeHtml(l.target_code)}</span>` : '';
+                const legacyBadge = l.is_legacy ? ' <span class="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-1 rounded">legacy</span>' : '';
+                return `<span class="inline-flex items-center gap-1 bg-white border border-slate-200 rounded px-2 py-1 text-xs">
+                    <i class="fa-solid ${meta.icon} ${meta.cls} text-[11px]"></i>
+                    <span class="text-slate-500">${meta.label}</span>
+                    <span class="text-slate-700 truncate max-w-[260px]" title="${escapeHtml(titleStr)}">${escapeHtml(titleStr)}</span>
+                    ${codeStr}${legacyBadge}
+                </span>`;
+            }).join('')}
+        </div>`;
     }
 
     async function _tsLoadAssigneeOptions() {
@@ -23458,10 +23710,7 @@ curl -X POST http://localhost:8000/api/defects \\
         if (!name) { showToast?.('名稱必填', 'error'); return; }
         if (!start || !end) { showToast?.('開始 / 結束日期必填', 'error'); return; }
         if (end < start) { showToast?.('結束日期必須晚於開始日期', 'error'); return; }
-        const linkType = document.getElementById('tsEditLinkType').value || null;
-        const linkId = document.getElementById('tsEditLinkTargetId').value || null;
-        // type 跟 id 必須一起有或一起沒(否則後端孤兒 type / id)
-        const validLink = linkType && linkId;
+        // v1.1.11+:不再從 modal 寫 linked_target_*,改走 sprint_links 表(_tsCommitLinkDiff)
         const payload = {
             name,
             start_date: start,
@@ -23471,18 +23720,21 @@ curl -X POST http://localhost:8000/api/defects \\
             progress: parseInt(document.getElementById('tsEditProgress').value, 10) || 0,
             description: document.getElementById('tsEditDescription').value || null,
             assigned_to: document.getElementById('tsEditAssignee').value || null,
-            linked_target_type: validLink ? linkType : null,
-            linked_target_id: validLink ? linkId : null,
         };
         try {
+            let scheduleId;
             if (_tsEditingId) {
                 await apiFetch(`/api/test-schedules/${_tsEditingId}`, { method: 'PATCH', body: payload });
+                scheduleId = _tsEditingId;
                 showToast?.('已更新', 'success');
             } else {
                 payload.project_id = currentProjectId;
-                await apiFetch('/api/test-schedules', { method: 'POST', body: payload });
+                const created = await apiFetch('/api/test-schedules', { method: 'POST', body: payload });
+                scheduleId = created?.id;
                 showToast?.('已建立', 'success');
             }
+            // 連結項目 diff + batch CRUD
+            if (scheduleId) await _tsCommitLinkDiff(scheduleId);
             closeTsModal();
             await loadTestSchedules();
         } catch (e) {
@@ -23495,7 +23747,7 @@ curl -X POST http://localhost:8000/api/defects \\
     async function _tsConfirmDelete() {
         if (!_tsEditingId) return;
         const sched = _tsRows.find(s => s.id === _tsEditingId);
-        if (!confirm(`確定刪除時程「${sched?.name || _tsEditingId}」?此操作無法復原。`)) return;
+        if (!confirm(`確定刪除 Sprint「${sched?.name || _tsEditingId}」?此操作無法復原。`)) return;
         try {
             await apiFetch(`/api/test-schedules/${_tsEditingId}`, { method: 'DELETE', raw: true });
             closeTsModal();

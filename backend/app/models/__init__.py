@@ -45,6 +45,7 @@ from .test_version import TestVersion, VersionPlatform, VersionStatus
 from .testcase_content import TestcaseContent
 from .testcase_env_binding import TestcaseEnvBinding
 from .testcase_precondition_link import TestcasePreconditionLink
+from .sprint_link import ALLOWED_TARGET_TYPES as SPRINT_LINK_ALLOWED_TARGET_TYPES, SprintLink
 from .todo_item import TodoItem, TodoItemType, TodoPriority, TodoStatus
 from .todo_link import ALLOWED_TARGET_TYPES, TodoLink
 from .tree_node import LevelType, TreeNode
@@ -72,6 +73,7 @@ __all__ = [
     "Role", "NotificationPreference", "Notification", "EmailConfig",
     "TodoItem", "TodoItemType", "TodoStatus", "TodoPriority",
     "TodoLink", "ALLOWED_TARGET_TYPES",
+    "SprintLink", "SPRINT_LINK_ALLOWED_TARGET_TYPES",
     "User",
     # Multi-tenancy + audit
     "Organization", "AuditLog", "OrgInvite", "OrgMembership",

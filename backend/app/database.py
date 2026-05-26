@@ -86,6 +86,7 @@ async def init_db() -> None:
         project_device,
         project_env_var,
         recording,
+        sprint_link,
         step_screenshot_baseline,
         test_round,
         testcase_content,
