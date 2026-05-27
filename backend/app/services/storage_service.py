@@ -34,6 +34,48 @@ from app.config import settings
 ALLOWED_MIME = {"image/png", "image/jpeg", "image/webp"}
 MAX_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB
 
+# v1.1.15 P2-3:圖片檔頭簽章。client-side 宣告的 content_type 可任意偽造,
+# 上傳檔案前要從實際 byte 推回真實格式,避免「.png 宣告但實際是 PHP shell」
+# 之類的攻擊。表格 keyed by canonical MIME。
+#
+# 格式:
+#   * bytes  → 從 offset 0 開始比對的固定 prefix
+#   * tuple  → (prefix, offset, tail) 用於 RIFF / WEBP 這類兩段式 magic
+_IMAGE_MAGIC: dict[str, object] = {
+    "image/png":  b"\x89PNG\r\n\x1a\n",
+    "image/jpeg": b"\xff\xd8\xff",            # JPEG SOI marker(後 byte 為 markers E0/E1/...)
+    "image/webp": (b"RIFF", 8, b"WEBP"),      # RIFF + 4 bytes size + "WEBP"
+    "image/gif":  b"GIF8",                    # GIF87a / GIF89a 共通開頭
+}
+
+
+def _matches_magic(data: bytes, magic: object) -> bool:
+    if isinstance(magic, bytes):
+        return data.startswith(magic)
+    if isinstance(magic, tuple):
+        prefix, offset, tail = magic  # type: ignore[misc]
+        return data.startswith(prefix) and data[offset:offset + len(tail)] == tail
+    return False
+
+
+def detect_image_type(data: bytes, allowed_types: set[str]) -> str:
+    """從 byte 內容推回真實 MIME。不在 ``allowed_types`` 中 → 415。
+
+    v1.1.15 P2-3:不信任 client 宣告的 content_type,改從 magic bytes 推。
+    撞到偽造副檔名 / MIME 攻擊時直接擋。
+    """
+    if not data:
+        raise HTTPException(status_code=400, detail="檔案為空")
+    for ct, magic in _IMAGE_MAGIC.items():
+        if ct not in allowed_types:
+            continue
+        if _matches_magic(data, magic):
+            return ct
+    raise HTTPException(
+        status_code=415,
+        detail=f"檔案內容不符任何允許的圖片格式({', '.join(sorted(allowed_types))})",
+    )
+
 BucketName = Literal["pic", "results"]
 _BUCKET_TO_URL_PREFIX: dict[str, str] = {"pic": "/pics", "results": "/results"}
 
@@ -125,17 +167,19 @@ def ensure_buckets() -> None:
 
 
 async def save_screenshot(file: UploadFile) -> str:
-    """Validate + persist user-uploaded screenshot, return public relative URL."""
-    if file.content_type not in ALLOWED_MIME:
-        raise HTTPException(
-            status_code=415,
-            detail=f"不支援的檔案類型：{file.content_type}，請上傳 PNG / JPEG / WebP",
-        )
+    """Validate + persist user-uploaded screenshot, return public relative URL.
 
+    v1.1.15 P2-3:不再相信 client 宣告的 ``file.content_type``,改讀 byte
+    用 magic bytes 推真實格式;偽造 MIME 上傳 PHP shell 之類的會在這層被擋。
+    """
+    raw = await file.read()
+    if len(raw) > MAX_SIZE_BYTES:
+        raise HTTPException(status_code=413, detail="檔案超過 10 MB 上限")
+    real_ct = detect_image_type(raw, ALLOWED_MIME)
     ext_map = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
-    ext = ext_map[file.content_type]  # type: ignore[index]
+    ext = ext_map[real_ct]
     key = f"{uuid.uuid4()}{ext}"
-    return await _backend.put_upload(file, "pic", key)
+    return _backend.put_bytes(raw, "pic", key, real_ct)
 
 
 def save_bytes(data: bytes, key: str, *, bucket: BucketName = "results", content_type: str = "application/octet-stream") -> str:

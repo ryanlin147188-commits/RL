@@ -24,6 +24,12 @@ RUN pip install -r requirements.txt
 COPY app/ ./app/
 COPY routes.yaml .
 
+# v1.1.14 P1-3:Gateway 容器降權。Gateway 是流量入口,降權可降低 RCE 後逃逸風險。
+# uid 10002 與 backend(10001)區分開,容器間共享 volume 時 uid 不衝突。
+RUN useradd --create-home --uid 10002 --shell /usr/sbin/nologin appuser \
+    && chown -R appuser:appuser /app
+USER appuser
+
 EXPOSE 9000
 
 # 單 worker(請求多再 docker compose scale=N);uvloop + httptools 走 uvicorn standard

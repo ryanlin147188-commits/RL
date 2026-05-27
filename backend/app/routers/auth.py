@@ -34,6 +34,7 @@ from app.auth.security import (
     ACCESS_TOKEN_TTL_MINUTES,
     ACTIVE_ORG_COOKIE_NAME,
     ACTIVE_ORG_COOKIE_TTL_DAYS,
+    REFRESH_TOKEN_TTL_DAYS,
     create_access_token,
     create_refresh_token,
     decode_token,
@@ -81,12 +82,57 @@ EMAIL_VERIFY_TTL_HOURS = 24
 router = APIRouter()
 
 
+def _set_auth_cookies(
+    response: Response,
+    request: Request,
+    access_token: str,
+    refresh_token: Optional[str] = None,
+) -> None:
+    """Set HttpOnly cookies for access (+ optional refresh) tokens.
+
+    v1.1.14 P1-5:對齊 OIDC callback 的 cookie 配置,讓密碼登入 / refresh /
+    switch-org 都把 token 設成 HttpOnly cookie,讓 JS / XSS 無法直接讀走 token。
+
+    - access_token:path=/(全站皆帶);TTL 同 JWT exp
+    - refresh_token:path=/api/auth/refresh(只送到 refresh endpoint,降低洩漏面)
+    - SameSite=Lax(允許 top-level navigation 帶 cookie,擋 CSRF 寫操作)
+    - Secure 動態:HTTP scheme(localhost LAN)放行,HTTPS 強制 Secure
+    """
+    is_https = request.url.scheme == "https"
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        max_age=ACCESS_TOKEN_TTL_MINUTES * 60,
+        httponly=True,
+        samesite="lax",
+        secure=is_https,
+        path="/",
+    )
+    if refresh_token:
+        response.set_cookie(
+            key="refresh_token",
+            value=refresh_token,
+            max_age=REFRESH_TOKEN_TTL_DAYS * 24 * 3600,
+            httponly=True,
+            samesite="lax",
+            secure=is_https,
+            path="/api/auth/refresh",
+        )
+
+
+def _clear_auth_cookies(response: Response) -> None:
+    """Logout 對應的清理:把 access_token / refresh_token cookie 即時失效。"""
+    response.delete_cookie("access_token", path="/")
+    response.delete_cookie("refresh_token", path="/api/auth/refresh")
+
+
 @router.post("/auth/login", response_model=TokenResponse, tags=["U · 認證"])
 # v1.1.10:gateway routes.yaml 主擋 100/minute,backend 這層放寬到 200/minute
 # 只擋「繞過 gateway 直打 backend」的攻擊。日常瀏覽器流量被 gateway 先攔。
 @limiter.limit("200/minute")
 async def login(
     request: Request,
+    response: Response,
     payload: LoginRequest,
     user_manager: UserManager = Depends(get_user_manager),
 ):
@@ -99,6 +145,10 @@ async def login(
       v1.1.7 之前的(sub=username, org_id, is_superuser),SPA / Casbin 不變。
     - refresh token 維持手刻(fastapi-users 13 沒有 refresh 概念);
       ``must_change_password`` 跟 ``user`` object 也手動補進 response 給 SPA。
+
+    v1.1.14 P1-5:同步 Set-Cookie(HttpOnly access_token + refresh_token)。
+    JSON body 也照舊回 token 給舊 SDK / curl 客戶端;前端 SPA 改靠 cookie
+    自動帶,不再從 JSON 取出存 localStorage。
     """
     user = await user_manager.authenticate_by_username(
         payload.username, payload.password
@@ -108,9 +158,11 @@ async def login(
     # on_after_login hook(寫 last_login_at)
     await user_manager.on_after_login(user, request=request)
     access_token = await get_jwt_strategy().write_token(user)
+    refresh = create_refresh_token(user.username)
+    _set_auth_cookies(response, request, access_token, refresh)
     return TokenResponse(
         access_token=access_token,
-        refresh_token=create_refresh_token(user.username),
+        refresh_token=refresh,
         expires_in=ACCESS_TOKEN_TTL_MINUTES * 60,
         must_change_password=bool(user.must_change_password),
     )
@@ -581,9 +633,24 @@ async def reset_password(
 
 
 @router.post("/auth/refresh", response_model=TokenResponse, tags=["U · 認證"])
-async def refresh_token(payload: RefreshRequest, db: AsyncSession = Depends(get_db)):
+async def refresh_token(
+    request: Request,
+    response: Response,
+    payload: RefreshRequest = RefreshRequest(),
+    db: AsyncSession = Depends(get_db),
+):
+    """v1.1.14 P1-5:refresh_token 可從 body 或 HttpOnly cookie 取。
+
+    優先用 cookie(SPA 路徑);若無 cookie,fallback 到 body 的
+    ``refresh_token``(舊 SDK / curl)。兩者都沒有 → 401。
+    """
+    token_str = (request.cookies.get("refresh_token") or "").strip()
+    if not token_str and payload and payload.refresh_token:
+        token_str = payload.refresh_token.strip()
+    if not token_str:
+        raise HTTPException(401, "未提供 refresh token")
     try:
-        decoded = decode_token(payload.refresh_token)
+        decoded = decode_token(token_str)
     except pyjwt.ExpiredSignatureError:
         raise HTTPException(401, "Refresh token 已過期，請重新登入")
     except pyjwt.PyJWTError:
@@ -597,15 +664,22 @@ async def refresh_token(payload: RefreshRequest, db: AsyncSession = Depends(get_
     if not user or not user.is_active:
         raise HTTPException(401, "使用者不存在或已停用")
     extra = {"org_id": user.organization_id, "is_superuser": user.is_superuser}
+    new_access = create_access_token(user.username, extra=extra)
+    new_refresh = create_refresh_token(user.username)
+    _set_auth_cookies(response, request, new_access, new_refresh)
     return TokenResponse(
-        access_token=create_access_token(user.username, extra=extra),
-        refresh_token=create_refresh_token(user.username),
+        access_token=new_access,
+        refresh_token=new_refresh,
         expires_in=ACCESS_TOKEN_TTL_MINUTES * 60,
     )
 
 
 @router.post("/auth/logout", status_code=204, tags=["U · 認證"])
-async def logout(request: Request, user: User = Depends(get_current_user)):
+async def logout(
+    request: Request,
+    response: Response,
+    user: User = Depends(get_current_user),
+):
     """Revoke the access token used for this request.
 
     The token is added to the Valkey blocklist with a TTL equal to its
@@ -613,9 +687,14 @@ async def logout(request: Request, user: User = Depends(get_current_user)):
     refresh token is NOT revoked here — to invalidate everything for a user
     rotate their password (drives a separate cascade) or have an admin
     deactivate the account.
+
+    v1.1.14 P1-5:同步清除 HttpOnly access_token / refresh_token cookies。
+    browser 端離開後即使 localStorage 殘留(舊 SPA 路徑),也已沒有 cookie 可用;
+    middleware 在沒有有效 token 時一律 401。
     """
     payload = getattr(request.state, "user_payload", None) or {}
     await revoke_jti(payload.get("jti"), payload.get("exp"))
+    _clear_auth_cookies(response)
     return None
 
 
@@ -752,9 +831,14 @@ async def switch_org(
         secure=request.url.scheme == "https",
     )
     extra = {"org_id": target_org_id, "is_superuser": user.is_superuser}
+    new_access = create_access_token(user.username, extra=extra)
+    new_refresh = create_refresh_token(user.username)
+    # v1.1.14 P1-5:切 org 後 access/refresh token 都重新發,cookie 也要對應更新
+    # 不然 SPA 後續打 API 帶的還是舊 org 的 token,middleware 會用舊 org_id。
+    _set_auth_cookies(response, request, new_access, new_refresh)
     return TokenResponse(
-        access_token=create_access_token(user.username, extra=extra),
-        refresh_token=create_refresh_token(user.username),
+        access_token=new_access,
+        refresh_token=new_refresh,
         expires_in=ACCESS_TOKEN_TTL_MINUTES * 60,
     )
 
@@ -795,27 +879,27 @@ async def upload_avatar(
 ):
     """上傳大頭貼到 SeaweedFS pic bucket;路徑格式 avatars/<username>/<uuid>.<ext>。
 
-    限制:
-    - MIME type 必須是 image/*
+    限制(v1.1.15 P2-3 強化):
     - 檔案 ≤ 5 MB
+    - 從 magic bytes 推回真實 MIME(png/jpeg/webp/gif),宣告的 content_type
+      會被忽略,避免偽造 .png 但實際是 PHP / SVG with script payload。
     - 不刪舊檔(歷史保留;之後想清乾淨可另開 cleanup task)
     """
-    if not (file.content_type or "").startswith("image/"):
-        raise HTTPException(400, "請上傳圖片檔(image/*)")
+    from app.services.storage_service import detect_image_type
+
     raw = await file.read()
     if len(raw) > 5 * 1024 * 1024:
         raise HTTPException(400, "檔案過大(≤ 5 MB)")
-    if not raw:
-        raise HTTPException(400, "檔案為空")
-    # 副檔名(從 content-type 推;沒推到就用 jpg)
-    ct = file.content_type or "image/jpeg"
-    ext = ct.split("/")[-1].split(";")[0].strip().lower()
-    if ext == "jpeg":
-        ext = "jpg"
-    if ext not in {"jpg", "png", "webp", "gif"}:
-        ext = "jpg"
+    real_ct = detect_image_type(
+        raw, {"image/png", "image/jpeg", "image/webp", "image/gif"}
+    )
+    ext_map = {
+        "image/png": "png", "image/jpeg": "jpg",
+        "image/webp": "webp", "image/gif": "gif",
+    }
+    ext = ext_map[real_ct]
     key = f"avatars/{user.username}/{uuid.uuid4().hex}.{ext}"
-    url = save_bytes(raw, key, bucket="pic", content_type=ct)
+    url = save_bytes(raw, key, bucket="pic", content_type=real_ct)
     user.avatar_url = url
     await db.flush()
     await db.refresh(user)

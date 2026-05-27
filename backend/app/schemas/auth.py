@@ -21,7 +21,10 @@ class TokenResponse(BaseModel):
 
 
 class RefreshRequest(BaseModel):
-    refresh_token: str
+    # v1.1.14 P1-5:refresh_token 變 Optional。前端改走 HttpOnly cookie 流程後,
+    # POST /auth/refresh 不會帶 body;舊 client(curl / SDK)仍可走 body。
+    # endpoint 內部會優先讀 cookie,fallback 到 body。
+    refresh_token: Optional[str] = None
 
 
 class UserResponse(BaseModel):

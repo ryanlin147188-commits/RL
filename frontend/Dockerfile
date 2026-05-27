@@ -14,7 +14,15 @@ RUN cp -r /tmp/pw/node_modules/playwright-core/lib/vite/traceViewer /trace-viewe
 RUN ls /trace-viewer/index.html
 
 # === Stage 2:主 nginx image ===
-FROM nginx:1.27-alpine
+# v1.1.14 P1-3:改 base image 為 nginxinc/nginx-unprivileged。
+# - 整個 process(含 master)以 uid 101(nginx)跑,不再以 root 啟動
+# - 預設 listen port 改 8080/8443(非特權 port);docker-compose 端
+#   把 host 80/443 對應到 container 8080/8443
+# - cert 路徑改 /etc/nginx/certs(nginx user 可讀);build 階段切到 root
+#   裝 openssl + 產 cert,完成後切回 nginx user
+FROM nginxinc/nginx-unprivileged:1.27-alpine
+
+USER root
 
 # 反代設定(把 /api/、/pics/、/results/、/ws/ 反代到 backend / SeaweedFS)
 COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
@@ -38,6 +46,7 @@ RUN echo '{"name":"Playwright Trace Viewer","short_name":"Trace","start_url":"./
 # 瀏覽器只在 secure context(HTTPS 或 localhost)放行 SAB。LAN 部署沒辦法
 # 弄真的 CA-signed cert,改 build-time 產 10 年自簽,使用者第一次連 https
 # 接受警告即可,之後就能用 trace viewer + 一切需要 SAB 的功能。
+# 產出後 chown 給 nginx user 才能讀。
 RUN apk add --no-cache openssl \
     && mkdir -p /etc/nginx/certs \
     && openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
@@ -45,6 +54,9 @@ RUN apk add --no-cache openssl \
         -out /etc/nginx/certs/server.crt \
         -subj "/CN=autotest-platform" \
         -addext "subjectAltName=DNS:localhost,IP:127.0.0.1,IP:0.0.0.0" \
-    && chmod 600 /etc/nginx/certs/server.key
+    && chmod 600 /etc/nginx/certs/server.key \
+    && chown -R nginx:nginx /etc/nginx/certs /usr/share/nginx/html
 
-EXPOSE 80 443
+USER nginx
+
+EXPOSE 8080 8443

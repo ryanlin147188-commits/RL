@@ -100,7 +100,14 @@ def _is_public(path: str) -> bool:
 def _extract_token(request: Request) -> str | None:
     auth = request.headers.get("authorization") or request.headers.get("Authorization")
     if auth and auth.lower().startswith("bearer "):
-        return auth.split(" ", 1)[1].strip()
+        raw = auth.split(" ", 1)[1].strip()
+        # v1.1.14 P1-5:過濾「Bearer 」+ 空值 / 字串 "null" / "undefined"。
+        # SPA 在 cookie-first 流程下,index.html 內 inline ``authGetAccessToken()``
+        # 仍會把 localStorage(可能已 null)組成 ``Authorization: Bearer null``
+        # 送出。若不過濾,middleware 會 decode "null" → PyJWTError → 401,
+        # 反而吞掉了瀏覽器自動帶的 HttpOnly cookie。落到下方 cookie fallback 才對。
+        if raw and raw.lower() not in {"null", "undefined"}:
+            return raw
     # query param fallback（給檔案下載連結用）
     qp = request.query_params.get("access_token")
     if qp:

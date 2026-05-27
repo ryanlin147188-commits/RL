@@ -23,6 +23,14 @@ COPY . /app
 # PIC 資料夾掛 volume
 RUN mkdir -p /app/PIC
 
+# v1.1.14 P1-3:容器降權,不再以 root 跑 uvicorn。
+# 若 RCE 進到 backend 也只能拿到 uid=10001 的 shell,降低後續橫向移動空間;
+# docker-socket-proxy 已限制 docker.sock,即使是 root 也已無法直接呼叫
+# 高權限 docker API,但縱深防禦補上一層仍有意義。
+RUN useradd --create-home --uid 10001 --shell /usr/sbin/nologin appuser \
+    && chown -R appuser:appuser /app
+USER appuser
+
 EXPOSE 8000
 
 # 啟動 FastAPI（生產用 uvicorn，不開 reload）

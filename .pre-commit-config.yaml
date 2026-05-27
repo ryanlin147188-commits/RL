@@ -1,0 +1,58 @@
+# v1.1.15 P3-1 / P3-4:本地 pre-commit hooks。
+#
+# 設計目標:在 commit 階段就攔下「不該進 repo」的內容,降低 CI 來回成本。
+# CI 端(.github/workflows/ci.yml + security.yml)有重複的 gate 作為最後一道。
+#
+# 安裝(一次性,每位開發者本機):
+#     pip install pre-commit
+#     pre-commit install
+# 跑全部 hooks(可選):
+#     pre-commit run --all-files
+#
+# 跳過(緊急用,需 PR 說明):
+#     SKIP=gitleaks git commit ...
+
+repos:
+  # ── P3-4:Secret 掃描(gitleaks)──
+  # 攔阻 .env / private key / API key 等敏感字串被誤 commit。
+  # 預設規則庫已涵蓋 AWS / GCP / Azure / Stripe / OpenAI / Slack 等。
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
+
+  # ── P3-1 補:bandit Python SAST(快速版,只跑 high severity)──
+  # CI 端跑完整 bandit -ll;這裡只跑 high 避免拖慢 commit。
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.8.0
+    hooks:
+      - id: bandit
+        args: ["-r", "backend/app", "-lll", "-iii", "--skip=B104,B108,B310"]
+        files: ^backend/app/.*\.py$
+
+  # ── Ruff:跟 CI 一致(BLE001 + TRY400 + 既有 lint 規則)──
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.7.4
+    hooks:
+      - id: ruff
+        args: [--fix]
+        files: ^backend/.*\.py$
+
+  # ── 通用衛生 hooks ──
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: '\.md$'
+      - id: end-of-file-fixer
+        exclude: '\.md$'
+      - id: check-yaml
+        # docker-compose.yml 用了 ${VAR:?error} 語法,標準 YAML parser 沒問題;
+        # 但 GitHub Actions 的 workflow_dispatch 矩陣 / on: schedule 偶爾會誤判,
+        # 故排除 .github/workflows。
+        exclude: '^\.github/workflows/.*'
+      - id: check-json
+      - id: check-added-large-files
+        args: [--maxkb=2000]
+      - id: detect-private-key
+      - id: check-merge-conflict

@@ -364,13 +364,14 @@ async def _seed_default_org_and_backfill() -> None:
 
 
 async def _ensure_default_admin() -> None:
-    """確保「預設系統管理員」一定存在;不存在就用 admin/admin123 種出來,
+    """確保「預設系統管理員」一定存在;不存在就用環境變數設的密碼種出來,
     並打開 must_change_password 旗標,使用者第一次登入會被前端強制改密碼。
 
     決策:
-      * 帳號名固定 ``admin``;預設密碼來自 env ``AUTOTEST_DEFAULT_ADMIN_PASSWORD``
-        (預設 ``admin123``)。Prod 環境可在 .env 設更強的初始密碼,容器
-        起來後第一次登入仍會被強制改一次。
+      * 帳號名固定 ``admin``;初始密碼來自 env ``AUTOTEST_DEFAULT_ADMIN_PASSWORD``。
+        v1.1.14 P1-4 移除 ``admin123`` fallback:env 未設 / 為空 / 為已知弱值
+        會在 lifespan 提早 ``RuntimeError``,避免維運不小心用弱密碼上線。
+        bootstrap service 會自動產 32 字元隨機 hex 並寫入 .env。
       * 既有 ``admin`` row 不會被覆蓋(連 must_change_password / password_hash
         都不動),避免重啟意外重置密碼。
       * 一併把 admin 掛到 default org + Admin role + is_superuser=True,
@@ -380,12 +381,24 @@ async def _ensure_default_admin() -> None:
     import os
     from sqlalchemy import select
     from app.auth.security import hash_password
+    from app.config import _FORBIDDEN_DEFAULTS
     from app.database import AsyncSessionLocal
 
     logger = logging.getLogger(__name__)
-    default_password = (
-        os.environ.get("AUTOTEST_DEFAULT_ADMIN_PASSWORD") or "admin123"
-    )
+    default_password = os.environ.get("AUTOTEST_DEFAULT_ADMIN_PASSWORD", "").strip()
+    if not default_password:
+        raise RuntimeError(
+            "AUTOTEST_DEFAULT_ADMIN_PASSWORD is required (v1.1.14 P1-4: "
+            "admin123 fallback removed). Run `docker compose --profile init "
+            "run --rm bootstrap` or set the value manually in .env."
+        )
+    # 共用 config 的弱密碼黑名單(admin123 / changeme / password / secret),
+    # 拒絕已知容易被 scanner 試到的值。raise → lifespan 即停,人類不會誤拿到。
+    if default_password.lower() in _FORBIDDEN_DEFAULTS:
+        raise RuntimeError(
+            "AUTOTEST_DEFAULT_ADMIN_PASSWORD 不可使用已知弱密碼"
+            "(admin123 / changeme / password / secret),請改用 `openssl rand -hex 16` 等隨機值"
+        )
 
     async with AsyncSessionLocal() as session:
         admin = (
@@ -416,9 +429,8 @@ async def _ensure_default_admin() -> None:
             session.add(admin)
             await session.commit()
             logger.warning(
-                "Default admin created: username=admin password=%s "
-                "(must change password on first login)",
-                "admin123" if default_password == "admin123" else "<from env>",
+                "Default admin created: username=admin password=<from "
+                "AUTOTEST_DEFAULT_ADMIN_PASSWORD env, must change on first login>"
             )
             return
 
@@ -623,7 +635,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="AutoTest v1.1 API",
     description="企業級自動化測試平台後端 API",
-    version="1.1.12",
+    version="1.1.15",
     lifespan=lifespan,
 )
 

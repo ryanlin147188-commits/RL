@@ -28,3 +28,6 @@ os.environ.setdefault("AUTOTEST_TEST_MODE", "1")
 # integration testcontainer fixture 會再以實際 container password 覆寫。
 os.environ.setdefault("DB_PASSWORD", secrets.token_hex(16))
 os.environ.setdefault("S3_SECRET_KEY", secrets.token_hex(16))
+# v1.1.14 P1-4:lifespan 內 _ensure_default_admin() 需要 admin 初始密碼,
+# 不能為 admin123 / changeme / password / secret 等弱值。隨機 hex 用於 integration test。
+os.environ.setdefault("AUTOTEST_DEFAULT_ADMIN_PASSWORD", secrets.token_hex(16))

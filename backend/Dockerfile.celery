@@ -45,7 +45,12 @@ COPY . /app
 
 RUN mkdir -p /app/PIC
 
-# 啟動 Celery worker；透過 celery_entrypoint.sh 先拉起 Xvfb 虛擬顯示，
-# 再 exec celery，確保 headed Chromium 有可用 $DISPLAY。
-RUN chmod +x /app/celery_entrypoint.sh
+# v1.1.14 P1-3:Celery 容器降權。Xvfb / Chromium 不需要 root 也能跑(Playwright
+# 官方 image 預設沿用了 root,因此手動加 USER)。Celery worker 透過 docker-proxy
+# 起 robot-runner / recorder 容器,本身不需要寫系統路徑;檔案產出走 /app/PIC
+# (上面 chown 確保 appuser 可寫)。
+RUN chmod +x /app/celery_entrypoint.sh \
+    && useradd --create-home --uid 10001 --shell /usr/sbin/nologin appuser \
+    && chown -R appuser:appuser /app /ms-playwright || true
+USER appuser
 CMD ["/app/celery_entrypoint.sh"]

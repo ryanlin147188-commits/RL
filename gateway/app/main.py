@@ -58,7 +58,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="AutoTest API Gateway",
-    version="1.1.10",
+    version="1.1.15",
     docs_url=None,   # gateway 不暴露 swagger(backend 的 /api/docs 才是真實 schema)
     redoc_url=None,
     openapi_url=None,
