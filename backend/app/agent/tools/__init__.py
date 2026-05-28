@@ -9,6 +9,8 @@
 """
 from app.agent.tools.base import Tool, ToolContext, ToolResult
 from app.agent.tools.create_defect import CreateDefectTool
+from app.agent.tools.create_project import CreateProjectTool
+from app.agent.tools.create_tree_node import CreateTreeNodeTool
 from app.agent.tools.manage_schedule import CreateScheduleTool, QuerySchedulesTool
 from app.agent.tools.query_defect import QueryDefectTool
 from app.agent.tools.query_report import QueryReportTool
@@ -26,6 +28,8 @@ def _bootstrap() -> None:
         RunTestCaseTool,
         QueryDefectTool,
         CreateDefectTool,
+        CreateProjectTool,
+        CreateTreeNodeTool,
         StartRecordingTool,
         QuerySchedulesTool,
         CreateScheduleTool,
@@ -44,7 +48,9 @@ __all__ = [
     "ToolRegistry",
     "ToolResult",
     "CreateDefectTool",
+    "CreateProjectTool",
     "CreateScheduleTool",
+    "CreateTreeNodeTool",
     "QueryDefectTool",
     "QueryReportTool",
     "QueryStepLogsTool",

@@ -314,24 +314,38 @@
             }
             for (const s of sessions) {
                 const isCurrent = s.id === state.sessionId;
+                // 主內容 + 右側刪除按鈕,共用 row container(group hover 顯示按鈕)
+                const titleEl = el("div", {
+                    class: "text-xs font-semibold text-stone-700 truncate",
+                }, s.title || "未命名對話");
+                const metaEl = el("div", {
+                    class: "text-[10px] text-stone-400",
+                }, [
+                    s.model || "預設模型",
+                    " · ",
+                    formatRelativeTime(s.updated_at),
+                ].join(""));
+                const mainCol = el("div", { class: "flex-1 min-w-0" }, [titleEl, metaEl]);
+                const delBtn = el("button", {
+                    type: "button",
+                    class: "shrink-0 p-1 text-stone-300 hover:text-rose-500 hover:bg-rose-50 rounded opacity-0 transition",
+                    title: "刪除此對話",
+                    style: "opacity:0; transition:opacity .15s",
+                }, [el("i", { class: "fa-solid fa-trash text-xs" })]);
+                delBtn.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    deleteSessionFromSidebar(s.id, s.title || "未命名對話");
+                });
                 const row = el("div", {
                     class:
-                        "px-3 py-2 border-b border-stone-100 cursor-pointer " +
-                        "hover:bg-amber-50 " +
+                        "flex items-start gap-2 px-3 py-2 border-b border-stone-100 " +
+                        "cursor-pointer hover:bg-amber-50 " +
                         (isCurrent ? "bg-amber-50" : ""),
                     onclick: () => switchToSession(s.id),
-                }, [
-                    el("div", {
-                        class: "text-xs font-semibold text-stone-700 truncate",
-                    }, s.title || "未命名對話"),
-                    el("div", {
-                        class: "text-[10px] text-stone-400",
-                    }, [
-                        s.model || "預設模型",
-                        " · ",
-                        formatRelativeTime(s.updated_at),
-                    ].join("")),
-                ]);
+                }, [mainCol, delBtn]);
+                // hover 才顯示刪除按鈕(避免誤觸)
+                row.addEventListener("mouseenter", () => { delBtn.style.opacity = "1"; });
+                row.addEventListener("mouseleave", () => { delBtn.style.opacity = "0"; });
                 refs.sidebarBody.appendChild(row);
             }
         } catch (e) {
@@ -351,6 +365,39 @@
         if (sec < 3600) return `${Math.floor(sec / 60)} 分鐘前`;
         if (sec < 86400) return `${Math.floor(sec / 3600)} 小時前`;
         return `${Math.floor(sec / 86400)} 天前`;
+    }
+
+    async function deleteSessionFromSidebar(sessionId, title) {
+        if (state.sending) return;
+        if (!confirm(`確定刪除對話「${title}」?\n所有訊息會被一併刪除(不可復原)。`)) return;
+        try {
+            await api(`/api/agent/sessions/${encodeURIComponent(sessionId)}`, {
+                method: "DELETE",
+            });
+            // 刪到的是當前 session → 清掉狀態,自動跳到別的或建新
+            if (sessionId === state.sessionId) {
+                state.sessionId = null;
+                state.sessionTitle = null;
+                state.sessionModel = null;
+                state.messages = [];
+                state.totalCostUsd = 0;
+                state.pendingActions.clear();
+                for (const ws of state.taskSockets.values()) {
+                    try { ws.close(); } catch (_) { /* */ }
+                }
+                state.taskSockets.clear();
+                state.taskProgress.clear();
+                _updateModelLabel();
+                refs.body.replaceChildren();
+                renderCost();
+                // 重新從 sessions list 抓最近一個或自動建新
+                await ensureSessionThenRefresh();
+            }
+            // 重整 sidebar 列表
+            await refreshSessionsList();
+        } catch (e) {
+            renderSystemMessage(`刪除失敗:${e.message || e}`, "error");
+        }
     }
 
     async function switchToSession(sessionId) {
