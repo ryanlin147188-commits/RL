@@ -628,7 +628,21 @@
             // 拿掉 optimistic
             state.messages = state.messages.filter(m => !m.__optimistic);
             renderAll();
-            renderSystemMessage(`送出失敗:${e.message}`, "rose");
+            // 對「未設定 LLM API key」這類 400,給明確指引而非泛用「送出失敗」
+            const msg = String(e.message || "");
+            const noKey =
+                /無可用的 LLM provider|未設定 API key|未設定.*API|無可用.*provider/i.test(msg);
+            if (noKey) {
+                renderSystemMessage(
+                    "⚠ 尚未設定 LLM API key,因此無法對話。\n" +
+                    "請聯絡管理員設定 Anthropic / OpenAI / Google 任一家的 key。\n" +
+                    "(superuser 可呼叫 PUT /api/admin/llm-providers/global/{provider},\n" +
+                    " 或 org admin 呼叫 PUT /api/settings/llm-providers/{provider})",
+                    "warn"
+                );
+            } else {
+                renderSystemMessage(`送出失敗:${msg}`, "error");
+            }
         } finally {
             state.sending = false;
             updateUiBusy();
@@ -901,9 +915,23 @@
         return wrap;
     }
 
-    function renderSystemMessage(text, color = "stone") {
+    // level: "info"(灰) / "warn"(琥珀) / "error"(紅) — 改 inline 避免動態 tailwind class 缺漏
+    const SYSTEM_MSG_COLORS = {
+        info:  { fg: "#78716c", bg: "transparent",    border: "transparent" },  // stone-500
+        warn:  { fg: "#b45309", bg: "#fffbeb",        border: "#fde68a" },      // amber
+        error: { fg: "#be123c", bg: "#fff1f2",        border: "#fecdd3" },      // rose
+    };
+    function renderSystemMessage(text, level = "info") {
+        // 兼容舊呼叫:傳 "rose" / "amber" / "stone" → 映射
+        const legacy = { rose: "error", amber: "warn", stone: "info" };
+        if (legacy[level]) level = legacy[level];
+        const c = SYSTEM_MSG_COLORS[level] || SYSTEM_MSG_COLORS.info;
         const node = el("div", {
-            class: `text-center text-xs text-${color}-500 italic py-1`,
+            class: "text-center text-xs italic",
+            style:
+                `color:${c.fg}; background:${c.bg}; border:1px solid ${c.border};` +
+                " border-radius:6px; padding:6px 10px; margin:4px 0;" +
+                " white-space:pre-wrap;",
         }, text);
         refs.body.appendChild(node);
         refs.body.scrollTop = refs.body.scrollHeight;
