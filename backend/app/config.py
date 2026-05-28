@@ -63,6 +63,31 @@ class Settings(BaseSettings):
     # 預設 idle 多久後自動回收 recorder 容器(分鐘)
     RECORDER_IDLE_TIMEOUT_MIN: int = 30
 
+    # ─── AI Agent / LLM providers ────────────────────────────────────
+    # Phase 0:Provider API key 從環境變數讀,沒設定就那一家不可用。
+    # Phase 0 後半段會改成從 llm_provider_configs 表讀(Fernet 加密),
+    # 環境變數仍保留作 fallback / 部署期 bootstrap。
+    # 空字串 = 該供應商停用,呼叫端會在 chat 時 raise LLMAuthError。
+    ANTHROPIC_API_KEY: str = ""
+    OPENAI_API_KEY: str = ""
+    GOOGLE_API_KEY: str = ""
+    # 若要接 OpenAI-compatible 本地推論(vLLM / Ollama / LM Studio),
+    # 覆寫成 ``http://your-host:11434/v1/chat/completions`` 等。空 = 用官方。
+    OPENAI_BASE_URL: str = ""
+    # 整個 agent 系統的預設模型;呼叫端可在 chat() 時 override。
+    AGENT_DEFAULT_MODEL: str = "claude-opus-4-7"
+    # 單次 chat 的 token 上限與 temperature。Phase 1+ 可改成 per-session。
+    AGENT_MAX_TOKENS: int = 4096
+    AGENT_TEMPERATURE: float = 0.7
+    # LLM HTTP 整體 timeout(秒)。長 tool 走 Celery 非同步,不在這 block。
+    LLM_HTTP_TIMEOUT_SEC: float = 60.0
+    # Phase 2 風險紅線:每 organization 每月 LLM 用量上限(USD)。<=0 = 不檢查。
+    # 預設 50 — 自主 agent 燒 token 比對話快,設保守值。planner / analyzer
+    # 走獨立 cap(乘以 multiplier),避免 chat 還活著但自主 agent 已撞牆。
+    AGENT_BUDGET_USD_PER_MONTH: float = 50.0
+    # planner / analyzer 因為 iteration 較多,allow 用 chat 上限的 N 倍。
+    AGENT_AUTONOMOUS_BUDGET_MULTIPLIER: float = 2.0
+
     @property
     def DATABASE_URL(self) -> str:
         """Async URL 供 FastAPI / SQLAlchemy asyncio 使用（PostgreSQL via asyncpg）"""

@@ -19,11 +19,14 @@
     <link rel="modulepreload" href="/js/core/auth.js">
     <link rel="modulepreload" href="/js/core/api.js">
     <link rel="modulepreload" href="/js/core/store.js">
+    <link rel="modulepreload" href="/js/modules/agent-chat.js">
     <script type="module">
         import "/js/core/auth.js";
         import { apiFetch, ApiError } from "/js/core/api.js";
         import "/js/core/store.js";
         import { getAccessToken, getRefreshToken, setTokens, clearTokens } from "/js/core/auth.js";
+        // Phase 1c-3:AI 助手浮動聊天框(IIFE 自掛載,不需要再下任何 init call)
+        import "/js/modules/agent-chat.js";
         // Perf B4: 把 modular apiFetch 暴露給 inline script 區塊內的 30+ callsite。
         // 這版會自動帶 Bearer token + 401 silent refresh,解掉 token 過期後的
         // silent-401 bug;同時刪除 index.html 內重複的 inline apiFetch。

@@ -14,7 +14,11 @@ from .requirement import (
     RequirementTestcaseLink,
 )
 from .audit_log import AuditLog
+from .agent_session import AgentMessage, AgentSession
+from .agent_token_usage import AgentTokenUsage
+from .pending_action import PendingAction
 from .email_config import EmailConfig
+from .llm_provider_config import LlmProviderConfig
 from .entity_version import EntityVersion
 from .group import Group, GroupMembership
 from .mock_endpoint import MockEndpoint
@@ -71,6 +75,8 @@ __all__ = [
     "TestDataSet", "DataSetCategory",
     # Settings + todos
     "Role", "NotificationPreference", "Notification", "EmailConfig",
+    "LlmProviderConfig", "AgentTokenUsage",
+    "AgentSession", "AgentMessage", "PendingAction",
     "TodoItem", "TodoItemType", "TodoStatus", "TodoPriority",
     "TodoLink", "ALLOWED_TARGET_TYPES",
     "SprintLink", "SPRINT_LINK_ALLOWED_TARGET_TYPES",

@@ -17,7 +17,7 @@ logging.basicConfig(
 
 from app.config import settings
 from app.database import init_db
-from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings, local_runner, test_rounds, project_settings, screenshot_baselines, system, test_data_sets, settings as app_settings, todos, todo_links, auth, audit_logs, organizations, notifications, mock_endpoints, groups, reviews, artifacts, entity_versions, oidc_auth, project_role_permissions, shell_exec, schedules, defects, test_schedules, sprint_links, api_keys
+from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings, local_runner, test_rounds, project_settings, screenshot_baselines, system, test_data_sets, settings as app_settings, todos, todo_links, auth, audit_logs, organizations, notifications, mock_endpoints, groups, reviews, artifacts, entity_versions, oidc_auth, project_role_permissions, shell_exec, schedules, defects, test_schedules, sprint_links, api_keys, llm_providers, agent
 # v1.1.5:Casdoor sidecar 下架,OIDC 改 in-process(authlib + Zoho),由
 # ``oidc_auth`` router 承接。舊的 ``oidc`` / ``casdoor_*`` 模組已刪除。
 # 確保新增 model 在 init_db() 前已 import 註冊到 Base.metadata
@@ -615,6 +615,16 @@ async def lifespan(app: FastAPI):
         scheduler_task = asyncio.create_task(scheduler_loop())
     except Exception as e:  # noqa: BLE001
         logging.getLogger(__name__).warning("scheduler_loop 啟動失敗: %s", e)
+    # Phase 1c-3 收尾:Agent auto-continuation listener。
+    # 每 10 秒掃 agent_messages.task_id 對應 ExecutionReport 是否進入終態(PASSED/FAILED),
+    # 是的話 update tool message + 跑 follow-up LLM chat 給使用者一個總結。
+    # 失敗不影響其他 startup 流程。
+    auto_cont_task = None
+    try:
+        from app.agent.auto_continuation import listen_loop as agent_auto_cont_loop
+        auto_cont_task = asyncio.create_task(agent_auto_cont_loop())
+    except Exception as e:  # noqa: BLE001
+        logging.getLogger(__name__).warning("auto_continuation 啟動失敗: %s", e)
     try:
         yield
     finally:
@@ -622,6 +632,12 @@ async def lifespan(app: FastAPI):
             scheduler_task.cancel()
             try:
                 await scheduler_task
+            except asyncio.CancelledError:
+                pass
+        if auto_cont_task:
+            auto_cont_task.cancel()
+            try:
+                await auto_cont_task
             except asyncio.CancelledError:
                 pass
         try:
@@ -687,6 +703,8 @@ app.include_router(system.router,          prefix="/api", tags=["K · 系統狀�
 app.include_router(shell_exec.router,      prefix="/api", tags=["L · Shell 執行"])
 app.include_router(test_data_sets.router,  prefix="/api", tags=["P · 測試資料集 (DDT)"])
 app.include_router(app_settings.router,    prefix="/api", tags=["S · 設定"])
+app.include_router(llm_providers.router,   prefix="/api", tags=["S · 設定"])
+app.include_router(agent.router,           prefix="/api", tags=["AE · Agent"])
 app.include_router(todos.router,           prefix="/api", tags=["T · 待辦"])
 app.include_router(todo_links.router,      prefix="/api", tags=["T · 待辦"])
 app.include_router(auth.router,            prefix="/api", tags=["U · 認證"])
