@@ -111,7 +111,44 @@ services:
       timeout: 3s
       retries: 5
 
-  # ── Docker API proxy：backend/celery 只連受限 TCP proxy，不直接掛 docker.sock ──
+  # ── Qdrant 向量資料庫(v1.2.x mem0 後端) ────────────────────────────────────
+  # mem0 需要 vector store 做 semantic search;Qdrant 是輕量單一 binary。
+  # 純內網用,不對 host 公開 port;只透過 docker network 給 mem0-sidecar 連。
+  qdrant:
+    image: qdrant/qdrant:v1.12.0
+    container_name: autotest-qdrant
+    restart: unless-stopped
+    volumes:
+      - qdrant_data:/qdrant/storage
+    # qdrant image 是 distroless,沒 sh/curl 可做 healthcheck;
+    # 改在 mem0-sidecar 端用 startup retry 處理,這裡只判斷 service_started。
+
+  # ── mem0 sidecar(v1.2.x 跨 session 長期記憶) ─────────────────────────────
+  # FastAPI 包 mem0ai 套件;backend 透過 X-Sidecar-Auth header 呼叫。
+  # 每次 API call 由 backend 帶該 org 的 LLM config(reuse RL 的 LlmProviderConfig)
+  # — 不必在 sidecar 環境變數塞 OPENAI key,單一 sidecar 服務多 org。
+  mem0-sidecar:
+    build:
+      context: .
+      dockerfile: mem0-sidecar/Dockerfile
+    image: autotest-mem0-sidecar:${AUTOTEST_TAG:-1.2.0}
+    container_name: autotest-mem0
+    restart: unless-stopped
+    environment:
+      MEM0_SIDECAR_AUTH: ${MEM0_SIDECAR_AUTH:?MEM0_SIDECAR_AUTH is required}
+      QDRANT_HOST: qdrant
+      QDRANT_PORT: 6333
+    depends_on:
+      qdrant:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:7900/healthz', timeout=2)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ── Docker API proxy:backend/celery 只連受限 TCP proxy,不直接掛 docker.sock ──
   docker-proxy:
     image: tecnativa/docker-socket-proxy:0.3.0
     container_name: autotest-docker-proxy
@@ -220,6 +257,10 @@ services:
       RECORDER_NETWORK: ${RECORDER_NETWORK:-autotest_default}
       RECORDER_INTERNAL_BASE_URL: http://backend:8000
       RECORDER_IDLE_TIMEOUT_MIN: 30
+      # ── mem0 跨 session 長期記憶(v1.2.x)─────────────────────────────
+      # 留空 → MemoryClient 走 fail-open(send_message 仍正常,只是無 memory)
+      MEM0_SIDECAR_URL: ${MEM0_SIDECAR_URL:-http://mem0-sidecar:7900}
+      MEM0_SIDECAR_AUTH: ${MEM0_SIDECAR_AUTH:-}
       DOCKER_HOST: tcp://docker-proxy:2375
       # ── Zoho OIDC(v1.1.5,authlib in-process)──
       # 不設 client_id / secret 時 ``/api/auth/zoho/login`` 回 503,SPA 自動隱藏
@@ -467,6 +508,7 @@ volumes:
   seaweedfs_data:
   postgres_replica_data:
   backup_data:
+  qdrant_data:
 
 # SeaweedFS S3 IAM 設定:從 .env 注入,docker compose 會在啟動時做變數替換。
 # 修改後須 docker compose down -v 並 up 才能重新生效(SeaweedFS 啟動時讀一次)。

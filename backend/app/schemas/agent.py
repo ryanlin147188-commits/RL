@@ -25,9 +25,11 @@ class AgentSessionCreate(BaseModel):
 
 
 class AgentSessionUpdate(BaseModel):
-    """目前只支援改 title;model / system_prompt 不改(對話中換 model 會破壞 cache)。"""
+    """目前支援改 title 與 memory_enabled。model / system_prompt 不改
+    (對話中換 model 會破壞 cache;system_prompt 由 mode 與 mem0 recall 動態決定)。"""
 
     title: Optional[str] = Field(default=None, max_length=120)
+    memory_enabled: Optional[bool] = Field(default=None, description="True/False;None = 不動既有值")
 
 
 class AgentSessionResponse(BaseModel):
@@ -39,6 +41,7 @@ class AgentSessionResponse(BaseModel):
     title: Optional[str]
     model: Optional[str]
     system_prompt: Optional[str]
+    memory_enabled: bool = True
     created_at: datetime
     updated_at: datetime
 

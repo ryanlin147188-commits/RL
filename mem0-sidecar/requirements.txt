@@ -1,0 +1,10 @@
+# mem0 sidecar 依賴 — 故意只 pin 必要套件,讓 mem0ai 自己拉相關 transitive
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+pydantic==2.9.2
+mem0ai==0.1.114
+qdrant-client==1.12.1
+# mem0ai 預設用 openai 做 embedding;Anthropic / Google 走自家 SDK 路徑時也要
+openai==1.55.3
+anthropic==0.39.0
+google-generativeai==0.8.3

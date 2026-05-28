@@ -44,6 +44,7 @@ from app.schemas.pending_action import (
 from app.services import (
     agent_budget_service,
     agent_service,
+    memory_client,
     pending_action_service,
 )
 
@@ -58,6 +59,7 @@ def _session_to_response(s: AgentSession) -> dict:
         "title": s.title,
         "model": s.model,
         "system_prompt": s.system_prompt,
+        "memory_enabled": bool(getattr(s, "memory_enabled", True)),
         "created_at": s.created_at,
         "updated_at": s.updated_at,
     }
@@ -214,6 +216,9 @@ async def update_session(
     row = await _get_own_session_or_404(db, session_id, user)
     if payload.title is not None:
         await agent_service.update_session_title(db, row, payload.title)
+    if payload.memory_enabled is not None:
+        row.memory_enabled = bool(payload.memory_enabled)
+        await db.flush()
     return _session_to_response(row)
 
 
@@ -385,6 +390,65 @@ async def approve_pending_action(
         tool_message=_msg_to_response(tool_msg),
         assistant_message=_msg_to_response(follow_up),
     )
+
+
+# ── v1.2.x:mem0 跨 session 長期記憶管理 ──────────────────────────
+
+
+@router.get(
+    "/agent/memories",
+    tags=["AE · Agent"],
+)
+async def list_user_memories(
+    user: User = Depends(get_current_user),
+):
+    """列出該使用者所有跨 session 記憶(GDPR-friendly 介面)。
+
+    mem0 sidecar 不通(or 未啟用)時回空 list,前端 UI 也會顯示「未啟用」提示。
+    """
+    items = await memory_client.list_memories(
+        organization_id=user.organization_id, user_id=user.id
+    )
+    return {
+        "enabled": memory_client.is_enabled(),
+        "count": len(items),
+        "memories": items,
+    }
+
+
+@router.delete(
+    "/agent/memories/{memory_id}",
+    status_code=204,
+    tags=["AE · Agent"],
+)
+async def delete_one_memory(
+    memory_id: str = Path(...),
+    user: User = Depends(get_current_user),
+):
+    # 我們不額外做「這個 memory_id 是不是該 user 的」檢查 — sidecar 內 memory
+    # 是 per-namespace 隔離,而 mem0 OSS 的 memory_id 是 UUID 不易被猜中;
+    # 若想嚴格驗證,Phase 後續可加「先查 list 確認 memory_id 屬該 namespace」。
+    ok = await memory_client.delete_memory(memory_id=memory_id)
+    if not ok:
+        raise HTTPException(502, "mem0 sidecar 未啟用或刪除失敗")
+    return None
+
+
+@router.delete(
+    "/agent/memories",
+    status_code=204,
+    tags=["AE · Agent"],
+)
+async def delete_all_user_memories(
+    user: User = Depends(get_current_user),
+):
+    """清掉該使用者所有 mem0 記憶 — GDPR / 重新開始用。"""
+    ok = await memory_client.delete_all_for_user(
+        organization_id=user.organization_id, user_id=user.id
+    )
+    if not ok:
+        raise HTTPException(502, "mem0 sidecar 未啟用或刪除失敗")
+    return None
 
 
 # ── Phase 2:自主 agent endpoints ────────────────────────────────

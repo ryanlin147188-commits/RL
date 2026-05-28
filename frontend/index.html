@@ -3394,6 +3394,7 @@ driver.swipe(100, 800, 100, 200, 500)"
                         <button id="setTabProjectMembers" onclick="settingsSwitchTab('projectMembers')" class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-users text-amber-500"></i> 專案協作成員</button>
                         <button id="setTabRoles"   onclick="settingsSwitchTab('roles')"   class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-shield-halved text-violet-500"></i> 角色與權限</button>
                         <button id="setTabAi"      onclick="settingsSwitchTab('ai')"      class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-wand-magic-sparkles text-amber-500"></i> <span data-i18n="settings.tab.ai">AI Token</span></button>
+                        <button id="setTabMemory"  onclick="settingsSwitchTab('memory')" class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-brain text-indigo-500"></i> AI 記憶</button>
                         <!-- 設定頁右上角:本月 LLM 用量/上限提示條(任何 tab 都看得到) -->
                         <div class="ml-auto flex items-center gap-2 text-xs text-stone-500 px-2 self-center" title="本月該組織的 LLM 用量 / 月度上限">
                             <i class="fa-solid fa-gauge-high text-amber-500"></i>
@@ -4027,6 +4028,35 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                             </section>
                         </template>
                     </div>  <!-- /setPaneAi -->
+
+                    <!-- ─── Pane Memory:mem0 跨 session 記憶管理 ─── -->
+                    <div id="setPaneMemory" class="hidden space-y-4">
+                        <section class="bg-white rounded-xl border border-indigo-100 shadow-sm p-4 sm:p-6">
+                            <h3 class="font-bold text-stone-700 text-base mb-3 flex items-center gap-2">
+                                <i class="fa-solid fa-brain text-indigo-500"></i>
+                                <span>AI 跨 session 長期記憶</span>
+                                <span id="memoryStatusBadge" class="text-xs px-2 py-0.5 rounded bg-stone-100 text-stone-500">載入中…</span>
+                                <button type="button" onclick="memoryRefresh()" class="ml-auto text-xs text-indigo-600 hover:underline"><i class="fa-solid fa-rotate"></i> 重新整理</button>
+                            </h3>
+                            <p class="text-xs text-stone-600 leading-relaxed">
+                                mem0 會從你跟 AI 的對話自動摘錄「事實 / 偏好 / 慣例」存進記憶,下次對話時 AI 會看到。
+                                記憶**只屬於你個人**(不跨 user 分享),儲存在我們的私有 Qdrant 向量庫,不會送到 mem0 雲端。
+                            </p>
+                            <p class="text-xs text-stone-500 mt-2 leading-relaxed">
+                                <i class="fa-solid fa-shield-halved"></i> 你可以隨時點 ✕ 刪掉單筆,或下方「全部清空」一次清掉。Anthropic-only 設定的 org 因為缺自家 embedding 模型,目前不支援(請至少設一把 OpenAI / Google key 給 mem0 用)。
+                            </p>
+                        </section>
+
+                        <section class="bg-white rounded-xl border border-stone-200 shadow-sm p-4 sm:p-6">
+                            <div class="flex items-center mb-3">
+                                <h4 class="font-semibold text-stone-700 text-sm">目前已記住的事 <span id="memoryCount" class="text-stone-400 font-normal">(0)</span></h4>
+                                <button type="button" id="memoryDeleteAllBtn" onclick="memoryDeleteAll()" class="ml-auto text-xs px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded">
+                                    <i class="fa-solid fa-trash"></i> 全部清空
+                                </button>
+                            </div>
+                            <div id="memoryList" class="space-y-2"></div>
+                        </section>
+                    </div>  <!-- /setPaneMemory -->
 
                 </div>  <!-- /max-w-5xl mx-auto -->
             </div>  <!-- /userSettingsWorkspace -->
@@ -18847,7 +18877,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
 
         // ─── 設定（Settings）── user / notif / email / projectMembers / roles tabs
         // 後三個 admin-only,settingsTabsApplyVisibility() 載入時依 hasPerm 隱藏。
-        const _SETTINGS_TABS = ['user','notif','email','projectMembers','roles','ai'];
+        const _SETTINGS_TABS = ['user','notif','email','projectMembers','roles','ai','memory'];
         const _SETTINGS_TAB_BTN_ON  = 'px-3 py-1.5 text-sm font-medium rounded text-amber-700 bg-amber-50 border border-amber-300';
         const _SETTINGS_TAB_BTN_OFF = 'px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50';
         function settingsSwitchTab(name) {
@@ -18875,6 +18905,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             if (name === 'projectMembers') { try { pmReload(); } catch (_) {} }
             if (name === 'roles') rolesLoadList();
             if (name === 'ai') { try { aiSettingsInit(); } catch (e) { console.error('aiSettingsInit', e); } }
+            if (name === 'memory') { try { memoryRefresh(); } catch (e) { console.error('memoryRefresh', e); } }
         }
 
         // v1.1.10:settings 內四個進階 tab(notif / email / projectMembers / roles)
@@ -18887,6 +18918,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             projectMembers: 'user.manage',
             roles: 'role.manage',
             ai: 'settings.write',  // 設 LLM key 屬機敏設定
+            // memory tab 不需 settings.write — 純 per-user 自己刪自己的記憶
         };
         function _settingsTabApplyReadOnlyBanner(name) {
             const perm = _SETTINGS_TAB_PERM[name];
@@ -18921,10 +18953,112 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         // 過去依 hasPerm 動態 hidden;現在按 user 要求改成「按鈕都看得到,沒權限的 tab
         // 在進入後以 read-only banner 標示」。其他地方還在呼叫此 function,保留空殼。
         function settingsTabsApplyVisibility() {
-            ['setTabRoles', 'setTabNotif', 'setTabEmail', 'setTabProjectMembers', 'setTabAi'].forEach(id => {
+            ['setTabRoles', 'setTabNotif', 'setTabEmail', 'setTabProjectMembers', 'setTabAi', 'setTabMemory'].forEach(id => {
                 const btn = document.getElementById(id);
                 if (btn) btn.classList.remove('hidden');
             });
+        }
+
+        // ── AI 記憶(mem0)管理分頁 ──────────────────────────────────────
+
+        async function memoryRefresh() {
+            const badge = document.getElementById('memoryStatusBadge');
+            const list = document.getElementById('memoryList');
+            const count = document.getElementById('memoryCount');
+            const delAllBtn = document.getElementById('memoryDeleteAllBtn');
+            if (!badge || !list) return;
+
+            badge.textContent = '載入中…';
+            badge.className = 'text-xs px-2 py-0.5 rounded bg-stone-100 text-stone-500';
+            try {
+                const resp = await window.apiFetch('/api/agent/memories');
+                if (!resp.enabled) {
+                    badge.textContent = '未啟用';
+                    badge.className = 'text-xs px-2 py-0.5 rounded bg-stone-200 text-stone-600';
+                    list.replaceChildren();
+                    const tip = document.createElement('div');
+                    tip.className = 'text-xs text-stone-500 italic p-3 bg-stone-50 rounded';
+                    tip.textContent = 'mem0 sidecar 未啟用(MEM0_SIDECAR_AUTH 沒設或 sidecar 連不上)。請聯絡管理員啟用 mem0 服務。';
+                    list.appendChild(tip);
+                    count.textContent = '(N/A)';
+                    if (delAllBtn) delAllBtn.disabled = true;
+                    return;
+                }
+                badge.textContent = '已啟用';
+                badge.className = 'text-xs px-2 py-0.5 rounded bg-emerald-100 text-emerald-700';
+                if (delAllBtn) delAllBtn.disabled = false;
+                count.textContent = '(' + (resp.count || 0) + ')';
+                _memoryRenderList(resp.memories || []);
+            } catch (e) {
+                badge.textContent = '載入失敗';
+                badge.className = 'text-xs px-2 py-0.5 rounded bg-rose-100 text-rose-700';
+                list.replaceChildren();
+                const err = document.createElement('div');
+                err.className = 'text-xs text-rose-600 italic p-3 bg-rose-50 rounded';
+                err.textContent = '錯誤:' + (e.message || e);
+                list.appendChild(err);
+            }
+        }
+
+        function _memoryRenderList(items) {
+            const list = document.getElementById('memoryList');
+            if (!list) return;
+            list.replaceChildren();
+            if (!items || items.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'text-xs text-stone-400 italic p-3 bg-stone-50 rounded text-center';
+                empty.textContent = '尚無記憶。送幾條對話後,mem0 會自動摘錄事實存進來。';
+                list.appendChild(empty);
+                return;
+            }
+            items.forEach(m => {
+                const row = document.createElement('div');
+                row.className = 'flex items-start gap-3 p-3 bg-stone-50 border border-stone-200 rounded hover:bg-indigo-50 transition';
+                const icon = document.createElement('i');
+                icon.className = 'fa-solid fa-circle-info text-indigo-400 mt-0.5';
+                const text = document.createElement('div');
+                text.className = 'flex-1 text-sm text-stone-700';
+                // mem0 result 結構:{id, memory, score, created_at, ...}
+                text.textContent = m.memory || m.text || JSON.stringify(m);
+                const meta = document.createElement('div');
+                meta.className = 'text-[10px] text-stone-400 mt-1';
+                const parts = [];
+                if (m.score != null) parts.push('相關度 ' + (Number(m.score) * 100).toFixed(0) + '%');
+                if (m.created_at) parts.push(new Date(m.created_at).toLocaleString());
+                meta.textContent = parts.join(' · ');
+                if (parts.length) text.appendChild(meta);
+                const delBtn = document.createElement('button');
+                delBtn.type = 'button';
+                delBtn.className = 'text-rose-500 hover:bg-rose-100 rounded p-1';
+                delBtn.title = '刪除';
+                delBtn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+                delBtn.onclick = () => memoryDelete(m.id);
+                row.appendChild(icon);
+                row.appendChild(text);
+                row.appendChild(delBtn);
+                list.appendChild(row);
+            });
+        }
+
+        async function memoryDelete(memoryId) {
+            if (!memoryId) return;
+            if (!confirm('確定刪除這條記憶?(不可復原)')) return;
+            try {
+                await window.apiFetch('/api/agent/memories/' + encodeURIComponent(memoryId), { method: 'DELETE' });
+                await memoryRefresh();
+            } catch (e) {
+                alert('刪除失敗:' + (e.message || e));
+            }
+        }
+
+        async function memoryDeleteAll() {
+            if (!confirm('確定清空你所有的 AI 記憶?(不可復原,AI 之後不會記得任何過去事實)')) return;
+            try {
+                await window.apiFetch('/api/agent/memories', { method: 'DELETE' });
+                await memoryRefresh();
+            } catch (e) {
+                alert('清空失敗:' + (e.message || e));
+            }
         }
 
         // ── AI Token 設定分頁(v1.2.0) ─────────────────────────────────────

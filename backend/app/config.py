@@ -88,6 +88,15 @@ class Settings(BaseSettings):
     # planner / analyzer 因為 iteration 較多,allow 用 chat 上限的 N 倍。
     AGENT_AUTONOMOUS_BUDGET_MULTIPLIER: float = 2.0
 
+    # ── mem0 跨 session 長期記憶(v1.2.x) ────────────────────────────
+    # 空 = 不啟用 mem0;MemoryClient 走 fail-open(chat 仍正常,只是無記憶)
+    MEM0_SIDECAR_URL: str = "http://mem0-sidecar:7900"
+    MEM0_SIDECAR_AUTH: str = ""
+    # recall 多少筆塞進 system prompt
+    MEM0_RECALL_LIMIT: int = 5
+    # mem0 sidecar 整體 timeout(秒);recall 在 chat critical path 必須快
+    MEM0_TIMEOUT_SEC: float = 8.0
+
     @property
     def DATABASE_URL(self) -> str:
         """Async URL 供 FastAPI / SQLAlchemy asyncio 使用（PostgreSQL via asyncpg）"""

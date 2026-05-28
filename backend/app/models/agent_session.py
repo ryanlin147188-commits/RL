@@ -21,7 +21,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Optional
 
-from sqlalchemy import DateTime, ForeignKey, Integer, JSON, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base
@@ -54,6 +54,11 @@ class AgentSession(Base):
     # prompt 與 max_iterations,但共用同一個 tool registry。
     mode: Mapped[str] = mapped_column(
         String(16), nullable=False, default="chat", server_default="chat", index=True
+    )
+    # v1.2.x:是否啟用 mem0 跨 session 長期記憶。預設 True(per-session opt-out);
+    # user 在浮動聊天框 toggle 就改這欄。False 時 send_message 不 recall 也不 add。
+    memory_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
     )
     # 系統提示。Phase 1a 預設由 service 填一份;Phase 1b 起 tool 進來時會擴充。
     system_prompt: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
