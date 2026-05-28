@@ -18949,10 +18949,10 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             {
                 key: 'openai',
                 name: 'OpenAI ChatGPT',
-                desc: 'GPT-4o / o-series reasoning;Base URL 留空走官方,填入則接 OpenAI-compatible 本地推論',
+                desc: 'GPT-4o / o-series reasoning;o-series 與 gpt-5 支援 thinking effort',
                 iconClass: 'fa-solid fa-comments text-emerald-500',
                 keyHint: '貼 sk-proj-... 或 sk-... 從 https://platform.openai.com/api-keys 取得',
-                showBaseUrl: true,
+                showBaseUrl: false,  // v1.2.2 移除 UI Base URL 欄;backend 仍接受透過 API 設定本地推論用
             },
             {
                 key: 'google',
@@ -19217,7 +19217,12 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             const enabled = c.querySelector('.ai-prov-enabled').checked;
             const modelSel = c.querySelector('.ai-prov-model');
             const model = modelSel && !modelSel.disabled ? (modelSel.value || null) : null;
-            const baseUrl = def.showBaseUrl ? (c.querySelector('.ai-prov-base-url').value || '').trim() : '';
+            // UI 不顯示 base_url 時,保留既有 row.base_url(不要清掉);顯示時才從 input 拿。
+            // 既有 row 若無設定就是 null。
+            const existingRow = _aiProviderState[providerKey];
+            const baseUrl = def.showBaseUrl
+                ? (c.querySelector('.ai-prov-base-url').value || '').trim()
+                : (existingRow && existingRow.base_url) || '';
             const keyFieldVisible = !c.querySelector('.ai-prov-key-input').classList.contains('hidden');
             const apiKey = keyFieldVisible ? c.querySelector('.ai-prov-key-field').value.trim() : '';
             const thinkingWrap = c.querySelector('.ai-prov-thinking-wrap');

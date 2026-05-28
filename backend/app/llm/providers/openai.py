@@ -70,13 +70,18 @@ class OpenAIProvider(LLMProvider):
         if tools:
             body["tools"] = _to_openai_tools(tools)
             body["tool_choice"] = "auto"
-        # Reasoning effort — 只在 o-series / 支援的 model + level 有效時送
+        # 新 API 系列(o-series / gpt-5+)不接受 ``max_tokens``,必須用
+        # ``max_completion_tokens``;且不允許 custom temperature(只能用預設 1.0)。
+        # 用 model id 前綴判斷,不靠 thinking_level — 因為 user 即使沒開 thinking
+        # 用 o-series 測連線也會觸發 OpenAI 的 "Unsupported parameter" 400 錯誤。
+        m = (model or "").lower()
+        needs_new_param_api = m.startswith(("o1", "o3", "o4", "o5", "gpt-5", "chatgpt-5"))
+        if needs_new_param_api:
+            body["max_completion_tokens"] = body.pop("max_tokens", max_tokens)
+            body.pop("temperature", None)
+        # Reasoning effort — 只在 model 支援 + level 有效時送
         if is_active_level(thinking_level) and supports_thinking("openai", model):
             body["reasoning_effort"] = thinking_level.lower()
-            # o-series 不接受 temperature,改成不送(provider 預設 1.0)
-            body.pop("temperature", None)
-            # o-series 用 max_completion_tokens 而非 max_tokens(新 API)
-            body["max_completion_tokens"] = body.pop("max_tokens", max_tokens)
 
         headers = {
             "Authorization": f"Bearer {self._api_key}",
