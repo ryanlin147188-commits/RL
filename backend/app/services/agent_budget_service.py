@@ -66,6 +66,42 @@ async def get_month_to_date_spend(
     return Decimal(str(val or 0))
 
 
+async def get_month_to_date_summary(
+    db: AsyncSession,
+    *,
+    organization_id: Optional[str],
+    now: Optional[datetime] = None,
+) -> dict:
+    """完整的本月用量摘要,給 AI Token 設定頁顯示。
+
+    回傳含:cost_usd_total / input_tokens / output_tokens / cache_read_tokens /
+    cache_write_tokens / call_count(該月幾次 LLM 呼叫)。
+    """
+    start = _month_start_utc(now)
+    stmt = select(
+        func.coalesce(func.sum(AgentTokenUsage.cost_usd), 0),
+        func.coalesce(func.sum(AgentTokenUsage.input_tokens), 0),
+        func.coalesce(func.sum(AgentTokenUsage.output_tokens), 0),
+        func.coalesce(func.sum(AgentTokenUsage.cache_read_tokens), 0),
+        func.coalesce(func.sum(AgentTokenUsage.cache_write_tokens), 0),
+        func.count(AgentTokenUsage.id),
+    ).where(AgentTokenUsage.created_at >= start)
+    if organization_id is None:
+        stmt = stmt.where(AgentTokenUsage.organization_id.is_(None))
+    else:
+        stmt = stmt.where(AgentTokenUsage.organization_id == organization_id)
+    row = (await db.execute(stmt)).one()
+    return {
+        "cost_usd_total": Decimal(str(row[0] or 0)),
+        "input_tokens": int(row[1] or 0),
+        "output_tokens": int(row[2] or 0),
+        "cache_read_tokens": int(row[3] or 0),
+        "cache_write_tokens": int(row[4] or 0),
+        "call_count": int(row[5] or 0),
+        "month_start": start.isoformat(),
+    }
+
+
 async def check_budget(
     db: AsyncSession,
     *,

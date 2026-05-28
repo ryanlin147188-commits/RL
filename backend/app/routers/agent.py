@@ -19,6 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
+from app.config import settings
 from app.database import get_db
 from app.llm.errors import LLMError
 from app.models.agent_session import AgentMessage, AgentSession
@@ -101,6 +102,47 @@ async def _get_own_session_or_404(
     if row is None:
         raise HTTPException(404, "session 不存在或非本人所有")
     return row
+
+
+# ── Budget / usage ────────────────────────────────────────────────
+
+
+@router.get(
+    "/agent/budget/status",
+    tags=["AE · Agent"],
+)
+async def get_budget_status(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """本月該 org 的 LLM 用量與成本上限資訊。任何登入 user 都可看自己 org 的數字。
+
+    回傳:
+        {
+          spent_usd, call_count, input_tokens, output_tokens,
+          cache_read_tokens, cache_write_tokens,
+          limit_usd_chat, limit_usd_autonomous, multiplier,
+          month_start
+        }
+    """
+    summary = await agent_budget_service.get_month_to_date_summary(
+        db, organization_id=user.organization_id
+    )
+    chat_limit = float(settings.AGENT_BUDGET_USD_PER_MONTH)
+    multiplier = float(settings.AGENT_AUTONOMOUS_BUDGET_MULTIPLIER)
+    return {
+        # Decimal 轉 str 避免 JSON 浮點誤差(前端可 Number(value) 後 toFixed)
+        "spent_usd": str(summary["cost_usd_total"]),
+        "call_count": summary["call_count"],
+        "input_tokens": summary["input_tokens"],
+        "output_tokens": summary["output_tokens"],
+        "cache_read_tokens": summary["cache_read_tokens"],
+        "cache_write_tokens": summary["cache_write_tokens"],
+        "limit_usd_chat": chat_limit,
+        "limit_usd_autonomous": chat_limit * multiplier,
+        "autonomous_multiplier": multiplier,
+        "month_start": summary["month_start"],
+    }
 
 
 # ── Sessions ────────────────────────────────────────────────────────

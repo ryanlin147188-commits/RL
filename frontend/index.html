@@ -3393,6 +3393,14 @@ driver.swipe(100, 800, 100, 200, 500)"
                              會自動加上 read-only banner;以該 org 內 admin 設定為主。 -->
                         <button id="setTabProjectMembers" onclick="settingsSwitchTab('projectMembers')" class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-users text-amber-500"></i> 專案協作成員</button>
                         <button id="setTabRoles"   onclick="settingsSwitchTab('roles')"   class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-shield-halved text-violet-500"></i> 角色與權限</button>
+                        <button id="setTabAi"      onclick="settingsSwitchTab('ai')"      class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-wand-magic-sparkles text-amber-500"></i> <span data-i18n="settings.tab.ai">AI Token</span></button>
+                        <!-- 設定頁右上角:本月 LLM 用量/上限提示條(任何 tab 都看得到) -->
+                        <div class="ml-auto flex items-center gap-2 text-xs text-stone-500 px-2 self-center" title="本月該組織的 LLM 用量 / 月度上限">
+                            <i class="fa-solid fa-gauge-high text-amber-500"></i>
+                            <span>本月 LLM</span>
+                            <span id="aiBudgetMini" class="font-mono text-amber-700">—</span>
+                            <span id="aiBudgetMiniRatio" class="text-stone-400"></span>
+                        </div>
                     </div>
 
                     <!-- ─── Pane 1: 使用者設定（保留原本內容） ─── -->
@@ -3895,6 +3903,116 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                             </div>
                         </section>
                     </div>  <!-- /setPaneRoles -->
+
+                    <!-- ─── Pane AI:LLM Provider 設定(per-org) ─── -->
+                    <div id="setPaneAi" class="hidden space-y-4">
+                        <!-- 本月用量摘要(從 GET /api/agent/budget/status 載入) -->
+                        <section class="bg-white rounded-xl border border-amber-100 shadow-sm p-4 sm:p-6">
+                            <h3 class="font-bold text-stone-700 text-base mb-3 flex items-center gap-2">
+                                <i class="fa-solid fa-gauge-high text-amber-500"></i>
+                                <span>本月 LLM 用量</span>
+                                <span class="text-xs text-stone-400 font-normal" id="aiBudgetMonthStart"></span>
+                                <button type="button" onclick="aiBudgetRefresh()" class="ml-auto text-xs text-amber-600 hover:underline"><i class="fa-solid fa-rotate"></i> 重新整理</button>
+                            </h3>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                <div class="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                                    <div class="text-[10px] text-stone-500 uppercase tracking-wider">本月成本(USD)</div>
+                                    <div class="text-xl font-bold text-amber-700 font-mono" id="aiBudgetSpent">$0.0000</div>
+                                    <div class="text-[10px] text-stone-500 mt-1">上限 <span id="aiBudgetLimit">—</span> / 自主模式 <span id="aiBudgetLimitAuto">—</span></div>
+                                </div>
+                                <div class="p-3 bg-stone-50 border border-stone-200 rounded-lg">
+                                    <div class="text-[10px] text-stone-500 uppercase tracking-wider">呼叫次數</div>
+                                    <div class="text-xl font-bold text-stone-700 font-mono" id="aiBudgetCalls">0</div>
+                                </div>
+                                <div class="p-3 bg-stone-50 border border-stone-200 rounded-lg">
+                                    <div class="text-[10px] text-stone-500 uppercase tracking-wider">Input tokens</div>
+                                    <div class="text-xl font-bold text-stone-700 font-mono" id="aiBudgetInput">0</div>
+                                    <div class="text-[10px] text-stone-500 mt-1">cache_read <span id="aiBudgetCacheRead" class="font-mono">0</span></div>
+                                </div>
+                                <div class="p-3 bg-stone-50 border border-stone-200 rounded-lg">
+                                    <div class="text-[10px] text-stone-500 uppercase tracking-wider">Output tokens</div>
+                                    <div class="text-xl font-bold text-stone-700 font-mono" id="aiBudgetOutput">0</div>
+                                </div>
+                            </div>
+                            <div class="mt-3">
+                                <div class="h-2 bg-stone-200 rounded-full overflow-hidden">
+                                    <div id="aiBudgetBar" class="h-full bg-gradient-to-r from-amber-400 to-orange-500 transition-all" style="width:0%"></div>
+                                </div>
+                                <div class="text-[10px] text-stone-400 mt-1 text-right" id="aiBudgetBarLabel">0% of $0 budget</div>
+                            </div>
+                        </section>
+
+                        <!-- 三家 provider 卡片(JS 動態填入,模板在下方) -->
+                        <div id="aiProvidersList" class="space-y-4"></div>
+
+                        <!-- 安全提示 -->
+                        <section class="bg-stone-50 border border-stone-200 rounded-xl p-4 text-xs text-stone-600 space-y-1">
+                            <p><i class="fa-solid fa-shield-halved text-stone-400"></i> API key 寫入 DB 用 <b>Fernet 對稱加密</b>,UI 永遠只看得到前後段遮罩(例:<code class="bg-stone-100 px-1 rounded">sk-ant-a***XyZw</code>)。</p>
+                            <p><i class="fa-solid fa-users text-stone-400"></i> 此頁設定屬「<b>組織層</b>」— 你 organization 內所有成員都可以用同一份 key 跑 agent。</p>
+                            <p><i class="fa-solid fa-circle-info text-stone-400"></i> Anthropic Claude 啟用 <b>prompt caching</b> 可省 90% input cost,建議優先設定。</p>
+                            <p><i class="fa-solid fa-triangle-exclamation text-amber-500"></i> 超過月度上限會收到 HTTP 402,聊天框會暫停直到下個月或調高 cap(<code class="bg-stone-100 px-1 rounded">AGENT_BUDGET_USD_PER_MONTH</code> env)。</p>
+                        </section>
+
+                        <!-- Provider 卡片模板(JS 用 cloneNode 複製填入) -->
+                        <template id="aiProviderCardTpl">
+                            <section class="bg-white rounded-xl border shadow-sm p-4 sm:p-6 ai-provider-card" data-provider="">
+                                <div class="flex items-center gap-3 mb-3">
+                                    <i class="fa-solid fa-circle-dot text-2xl ai-prov-icon"></i>
+                                    <div class="flex-1">
+                                        <h3 class="font-bold text-stone-800 ai-prov-name">Provider</h3>
+                                        <p class="text-[11px] text-stone-500 ai-prov-desc">說明</p>
+                                    </div>
+                                    <span class="text-xs px-2 py-1 rounded ai-prov-status-badge">未啟用</span>
+                                </div>
+
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-xs font-semibold text-stone-600 mb-1">API Key</label>
+                                        <div class="ai-prov-key-display hidden">
+                                            <div class="flex items-center gap-2">
+                                                <code class="flex-1 px-3 py-2 bg-stone-50 border border-stone-200 rounded-md text-xs font-mono text-stone-700 ai-prov-key-prefix">—</code>
+                                                <button type="button" class="text-xs px-2 py-1 text-amber-600 hover:bg-amber-50 rounded ai-prov-change-btn"><i class="fa-solid fa-pen"></i> 變更</button>
+                                                <button type="button" class="text-xs px-2 py-1 text-rose-600 hover:bg-rose-50 rounded ai-prov-delete-btn"><i class="fa-solid fa-trash"></i> 移除</button>
+                                            </div>
+                                            <p class="text-[10px] text-stone-400 mt-1">已加密儲存於 DB,如需更換請按變更重新輸入。</p>
+                                        </div>
+                                        <div class="ai-prov-key-input">
+                                            <div class="relative">
+                                                <input type="password" autocomplete="new-password" placeholder="貼上 API key…" class="w-full pl-3 pr-10 py-2 border border-stone-300 rounded-md text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-400 ai-prov-key-field">
+                                                <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-stone-400 hover:text-amber-600 ai-prov-key-toggle" title="顯示/隱藏 key" aria-label="顯示或隱藏 API key">
+                                                    <i class="fa-regular fa-eye"></i>
+                                                </button>
+                                            </div>
+                                            <p class="text-[10px] text-stone-400 mt-1 ai-prov-key-hint">—</p>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-xs font-semibold text-stone-600 mb-1">預設模型</label>
+                                        <select class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 ai-prov-model"></select>
+                                        <p class="text-[10px] text-stone-400 mt-1">送訊息時可在浮動聊天框 model picker 另外覆寫。</p>
+                                    </div>
+
+                                    <div class="ai-prov-base-url-wrap hidden md:col-span-2">
+                                        <label class="block text-xs font-semibold text-stone-600 mb-1">Base URL <span class="text-stone-400 font-normal">(只在 OpenAI-compatible 本地推論時填)</span></label>
+                                        <input type="text" placeholder="http://ollama:11434/v1/chat/completions" class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-400 ai-prov-base-url">
+                                    </div>
+
+                                    <label class="flex items-center gap-2 cursor-pointer md:col-span-2">
+                                        <input type="checkbox" class="ai-prov-enabled rounded border-stone-300 text-amber-500 focus:ring-amber-400">
+                                        <span class="text-sm text-stone-700">啟用此 provider</span>
+                                        <span class="text-[11px] text-stone-400">(僅啟用 + 有 key 時聊天框才會選用)</span>
+                                    </label>
+                                </div>
+
+                                <div class="flex items-center gap-2 mt-4 pt-3 border-t border-stone-100">
+                                    <button type="button" class="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded ai-prov-save-btn"><i class="fa-solid fa-save"></i> 儲存變更</button>
+                                    <button type="button" class="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 text-sm font-semibold rounded ai-prov-test-btn"><i class="fa-solid fa-flask"></i> 測試連線</button>
+                                    <span class="ml-2 text-xs ai-prov-status-text"></span>
+                                </div>
+                            </section>
+                        </template>
+                    </div>  <!-- /setPaneAi -->
 
                 </div>  <!-- /max-w-5xl mx-auto -->
             </div>  <!-- /userSettingsWorkspace -->
@@ -18715,7 +18833,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
 
         // ─── 設定（Settings）── user / notif / email / projectMembers / roles tabs
         // 後三個 admin-only,settingsTabsApplyVisibility() 載入時依 hasPerm 隱藏。
-        const _SETTINGS_TABS = ['user','notif','email','projectMembers','roles'];
+        const _SETTINGS_TABS = ['user','notif','email','projectMembers','roles','ai'];
         const _SETTINGS_TAB_BTN_ON  = 'px-3 py-1.5 text-sm font-medium rounded text-amber-700 bg-amber-50 border border-amber-300';
         const _SETTINGS_TAB_BTN_OFF = 'px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50';
         function settingsSwitchTab(name) {
@@ -18742,6 +18860,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             if (name === 'email') loadEmailConfig();
             if (name === 'projectMembers') { try { pmReload(); } catch (_) {} }
             if (name === 'roles') rolesLoadList();
+            if (name === 'ai') { try { aiSettingsInit(); } catch (e) { console.error('aiSettingsInit', e); } }
         }
 
         // v1.1.10:settings 內四個進階 tab(notif / email / projectMembers / roles)
@@ -18753,6 +18872,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             email: 'settings.write',
             projectMembers: 'user.manage',
             roles: 'role.manage',
+            ai: 'settings.write',  // 設 LLM key 屬機敏設定
         };
         function _settingsTabApplyReadOnlyBanner(name) {
             const perm = _SETTINGS_TAB_PERM[name];
@@ -18787,10 +18907,315 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         // 過去依 hasPerm 動態 hidden;現在按 user 要求改成「按鈕都看得到,沒權限的 tab
         // 在進入後以 read-only banner 標示」。其他地方還在呼叫此 function,保留空殼。
         function settingsTabsApplyVisibility() {
-            ['setTabRoles', 'setTabNotif', 'setTabEmail', 'setTabProjectMembers'].forEach(id => {
+            ['setTabRoles', 'setTabNotif', 'setTabEmail', 'setTabProjectMembers', 'setTabAi'].forEach(id => {
                 const btn = document.getElementById(id);
                 if (btn) btn.classList.remove('hidden');
             });
+        }
+
+        // ── AI Token 設定分頁(v1.2.0) ─────────────────────────────────────
+        // 對應 backend Phase 0 後半段做的 endpoints:
+        //   GET    /api/settings/llm-providers
+        //   PUT    /api/settings/llm-providers/{provider}
+        //   DELETE /api/settings/llm-providers/{provider}
+        //   POST   /api/settings/llm-providers/{provider}/test
+        //   GET    /api/agent/budget/status
+
+        const _AI_PROVIDERS_DEF = [
+            {
+                key: 'anthropic',
+                name: 'Anthropic Claude',
+                desc: 'Prompt caching 收益最大;預設 model 為 Phase 0 設計選的 Claude Opus 4.7',
+                iconClass: 'fa-solid fa-brain text-orange-500',
+                keyHint: '貼 sk-ant-api03-xxx... key,從 https://console.anthropic.com/settings/keys 取得',
+                showBaseUrl: false,
+                models: [
+                    { id: 'claude-opus-4-7', label: 'Claude Opus 4.7(最強)' },
+                    { id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6(平衡)' },
+                    { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5(便宜快)' },
+                ],
+            },
+            {
+                key: 'openai',
+                name: 'OpenAI ChatGPT',
+                desc: '官方 GPT-4o / 4o-mini;Base URL 留空走官方,填入則接 OpenAI-compatible 本地推論',
+                iconClass: 'fa-solid fa-comments text-emerald-500',
+                keyHint: '貼 sk-proj-... 或 sk-... 從 https://platform.openai.com/api-keys 取得',
+                showBaseUrl: true,
+                models: [
+                    { id: 'gpt-4o', label: 'GPT-4o' },
+                    { id: 'gpt-4o-mini', label: 'GPT-4o mini(便宜)' },
+                    { id: 'gpt-4.1', label: 'GPT-4.1' },
+                    { id: 'gpt-4.1-mini', label: 'GPT-4.1 mini' },
+                    { id: 'o3-mini', label: 'o3-mini' },
+                ],
+            },
+            {
+                key: 'google',
+                name: 'Google Gemini',
+                desc: 'Gemini 2.5 Pro / Flash;Flash 是三家中最便宜的',
+                iconClass: 'fa-solid fa-microchip text-blue-500',
+                keyHint: '貼 AIza... 從 https://aistudio.google.com/apikey 取得',
+                showBaseUrl: false,
+                models: [
+                    { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
+                    { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash(便宜)' },
+                    { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
+                ],
+            },
+        ];
+
+        // state:provider key → backend row data(或 null 表示未設)
+        const _aiProviderState = { anthropic: null, openai: null, google: null };
+
+        async function aiSettingsInit() {
+            // 第一次切到 AI 分頁時 build cards;每次都 refresh budget + providers list
+            const listEl = document.getElementById('aiProvidersList');
+            if (listEl && listEl.children.length === 0) {
+                _aiBuildProviderCards();
+            }
+            await Promise.all([aiBudgetRefresh(), aiProvidersRefresh()]);
+        }
+
+        function _aiBuildProviderCards() {
+            const tpl = document.getElementById('aiProviderCardTpl');
+            const list = document.getElementById('aiProvidersList');
+            _AI_PROVIDERS_DEF.forEach(def => {
+                const node = tpl.content.firstElementChild.cloneNode(true);
+                node.dataset.provider = def.key;
+                node.querySelector('.ai-prov-icon').className = 'fa-solid fa-circle-dot text-2xl ai-prov-icon ' + def.iconClass.split(' ').filter(c => c.startsWith('text-')).join(' ');
+                // 用 def.iconClass 整段覆寫(避免兩個 fa-* class 衝突)
+                const iconEl = node.querySelector('.ai-prov-icon');
+                iconEl.className = def.iconClass + ' text-2xl ai-prov-icon';
+                node.querySelector('.ai-prov-name').textContent = def.name;
+                node.querySelector('.ai-prov-desc').textContent = def.desc;
+                node.querySelector('.ai-prov-key-hint').textContent = def.keyHint;
+                if (def.showBaseUrl) {
+                    node.querySelector('.ai-prov-base-url-wrap').classList.remove('hidden');
+                }
+                const modelSel = node.querySelector('.ai-prov-model');
+                def.models.forEach(m => {
+                    const opt = document.createElement('option');
+                    opt.value = m.id;
+                    opt.textContent = m.label;
+                    modelSel.appendChild(opt);
+                });
+                // 綁事件
+                node.querySelector('.ai-prov-key-toggle').addEventListener('click', () => _aiToggleKeyVisibility(node));
+                node.querySelector('.ai-prov-save-btn').addEventListener('click', () => aiProviderSave(def.key));
+                node.querySelector('.ai-prov-test-btn').addEventListener('click', () => aiProviderTest(def.key));
+                node.querySelector('.ai-prov-change-btn').addEventListener('click', () => _aiSwitchToInputMode(node));
+                node.querySelector('.ai-prov-delete-btn').addEventListener('click', () => aiProviderDelete(def.key));
+                list.appendChild(node);
+            });
+        }
+
+        function _aiToggleKeyVisibility(cardEl) {
+            const field = cardEl.querySelector('.ai-prov-key-field');
+            const icon = cardEl.querySelector('.ai-prov-key-toggle i');
+            if (field.type === 'password') {
+                field.type = 'text';
+                icon.className = 'fa-regular fa-eye-slash';
+            } else {
+                field.type = 'password';
+                icon.className = 'fa-regular fa-eye';
+            }
+        }
+
+        function _aiSwitchToInputMode(cardEl) {
+            cardEl.querySelector('.ai-prov-key-display').classList.add('hidden');
+            cardEl.querySelector('.ai-prov-key-input').classList.remove('hidden');
+            cardEl.querySelector('.ai-prov-key-field').focus();
+        }
+
+        function _aiSwitchToDisplayMode(cardEl, keyPrefix) {
+            cardEl.querySelector('.ai-prov-key-display').classList.remove('hidden');
+            cardEl.querySelector('.ai-prov-key-input').classList.add('hidden');
+            cardEl.querySelector('.ai-prov-key-prefix').textContent = keyPrefix || '(已加密儲存)';
+        }
+
+        function _aiCardFor(providerKey) {
+            return document.querySelector('.ai-provider-card[data-provider="' + providerKey + '"]');
+        }
+
+        async function aiProvidersRefresh() {
+            const card = _aiCardFor;  // alias
+            try {
+                const rows = await window.apiFetch('/api/settings/llm-providers');
+                const byKey = {};
+                (rows || []).forEach(r => { byKey[r.provider] = r; });
+                _AI_PROVIDERS_DEF.forEach(def => {
+                    const row = byKey[def.key] || null;
+                    _aiProviderState[def.key] = row;
+                    const c = card(def.key);
+                    if (!c) return;
+                    // 啟用 toggle
+                    c.querySelector('.ai-prov-enabled').checked = !!(row && row.enabled);
+                    // model
+                    const modelSel = c.querySelector('.ai-prov-model');
+                    if (row && row.default_model) modelSel.value = row.default_model;
+                    // base URL
+                    const baseInput = c.querySelector('.ai-prov-base-url');
+                    if (baseInput) baseInput.value = (row && row.base_url) || '';
+                    // key 顯示模式
+                    if (row && row.has_api_key) {
+                        _aiSwitchToDisplayMode(c, row.key_prefix);
+                    } else {
+                        _aiSwitchToInputMode(c);
+                        c.querySelector('.ai-prov-key-field').value = '';
+                    }
+                    // status badge
+                    const badge = c.querySelector('.ai-prov-status-badge');
+                    if (row && row.enabled && row.has_api_key) {
+                        badge.textContent = '已啟用';
+                        badge.className = 'text-xs px-2 py-1 rounded ai-prov-status-badge bg-emerald-100 text-emerald-700';
+                    } else if (row && row.has_api_key) {
+                        badge.textContent = '已設定(未啟用)';
+                        badge.className = 'text-xs px-2 py-1 rounded ai-prov-status-badge bg-amber-100 text-amber-700';
+                    } else {
+                        badge.textContent = '未設定';
+                        badge.className = 'text-xs px-2 py-1 rounded ai-prov-status-badge bg-stone-100 text-stone-600';
+                    }
+                    // border 顏色配合 status
+                    c.classList.remove('border-emerald-200', 'border-amber-200', 'border-stone-200');
+                    c.classList.add(row && row.enabled && row.has_api_key ? 'border-emerald-200'
+                        : row && row.has_api_key ? 'border-amber-200' : 'border-stone-200');
+                });
+            } catch (e) {
+                console.error('aiProvidersRefresh', e);
+                showToast('AI Token 設定載入失敗:' + (e.message || e), 'error');
+            }
+        }
+
+        async function aiProviderSave(providerKey) {
+            const c = _aiCardFor(providerKey);
+            if (!c) return;
+            const def = _AI_PROVIDERS_DEF.find(d => d.key === providerKey);
+            const enabled = c.querySelector('.ai-prov-enabled').checked;
+            const model = c.querySelector('.ai-prov-model').value || null;
+            const baseUrl = def.showBaseUrl ? (c.querySelector('.ai-prov-base-url').value || '').trim() : '';
+            const keyFieldVisible = !c.querySelector('.ai-prov-key-input').classList.contains('hidden');
+            const apiKey = keyFieldVisible ? c.querySelector('.ai-prov-key-field').value.trim() : '';
+            const statusEl = c.querySelector('.ai-prov-status-text');
+            statusEl.textContent = '儲存中…';
+            statusEl.className = 'ml-2 text-xs text-stone-500 ai-prov-status-text';
+
+            // 啟用 + 既無 key 又沒輸入新 key → 攔下
+            const existing = _aiProviderState[providerKey];
+            if (enabled && !(existing && existing.has_api_key) && !apiKey) {
+                statusEl.textContent = '⚠ 啟用前必須先輸入 API key';
+                statusEl.className = 'ml-2 text-xs text-rose-600 ai-prov-status-text';
+                return;
+            }
+
+            const payload = {
+                provider: providerKey,
+                enabled: enabled,
+                default_model: model,
+                base_url: baseUrl || null,
+                api_key: apiKey || null,  // 空 = 不動既有(backend 已處理)
+            };
+            try {
+                await window.apiFetch('/api/settings/llm-providers/' + providerKey, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+                statusEl.textContent = '✓ 已儲存';
+                statusEl.className = 'ml-2 text-xs text-emerald-600 ai-prov-status-text';
+                await aiProvidersRefresh();
+                await aiBudgetRefresh();
+            } catch (e) {
+                statusEl.textContent = '✗ 儲存失敗:' + (e.message || e);
+                statusEl.className = 'ml-2 text-xs text-rose-600 ai-prov-status-text';
+            }
+        }
+
+        async function aiProviderTest(providerKey) {
+            const c = _aiCardFor(providerKey);
+            const statusEl = c.querySelector('.ai-prov-status-text');
+            statusEl.textContent = '測試中…';
+            statusEl.className = 'ml-2 text-xs text-stone-500 ai-prov-status-text';
+            try {
+                const model = c.querySelector('.ai-prov-model').value || null;
+                const resp = await window.apiFetch(
+                    '/api/settings/llm-providers/' + providerKey + '/test',
+                    { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ model: model, prompt: 'ping' }) },
+                );
+                if (resp.ok) {
+                    statusEl.textContent =
+                        '✓ ' + resp.model + ' · ' + resp.input_tokens + '/' + resp.output_tokens + ' tokens · $' + Number(resp.cost_usd).toFixed(6);
+                    statusEl.className = 'ml-2 text-xs text-emerald-600 ai-prov-status-text';
+                } else {
+                    statusEl.textContent = '✗ ' + (resp.error || '未知錯誤');
+                    statusEl.className = 'ml-2 text-xs text-rose-600 ai-prov-status-text';
+                }
+            } catch (e) {
+                statusEl.textContent = '✗ 測試失敗:' + (e.message || e);
+                statusEl.className = 'ml-2 text-xs text-rose-600 ai-prov-status-text';
+            }
+        }
+
+        async function aiProviderDelete(providerKey) {
+            if (!confirm('確定要移除 ' + providerKey + ' 的 API key 與設定嗎?(此操作不可復原,需要重新貼入 key)')) return;
+            const c = _aiCardFor(providerKey);
+            const statusEl = c.querySelector('.ai-prov-status-text');
+            try {
+                await window.apiFetch('/api/settings/llm-providers/' + providerKey, { method: 'DELETE' });
+                statusEl.textContent = '已移除';
+                statusEl.className = 'ml-2 text-xs text-stone-500 ai-prov-status-text';
+                await aiProvidersRefresh();
+            } catch (e) {
+                statusEl.textContent = '✗ 移除失敗:' + (e.message || e);
+                statusEl.className = 'ml-2 text-xs text-rose-600 ai-prov-status-text';
+            }
+        }
+
+        async function aiBudgetRefresh() {
+            try {
+                const data = await window.apiFetch('/api/agent/budget/status');
+                const spent = Number(data.spent_usd || 0);
+                const limit = Number(data.limit_usd_chat || 0);
+                const limitAuto = Number(data.limit_usd_autonomous || 0);
+                const pct = limit > 0 ? Math.min(100, (spent / limit) * 100) : 0;
+
+                // pane 內 summary card
+                const setText = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+                setText('aiBudgetSpent', '$' + spent.toFixed(4));
+                setText('aiBudgetLimit', '$' + limit.toFixed(2));
+                setText('aiBudgetLimitAuto', '$' + limitAuto.toFixed(2));
+                setText('aiBudgetCalls', String(data.call_count || 0));
+                setText('aiBudgetInput', _fmtNumK(data.input_tokens));
+                setText('aiBudgetOutput', _fmtNumK(data.output_tokens));
+                setText('aiBudgetCacheRead', _fmtNumK(data.cache_read_tokens));
+                setText('aiBudgetBarLabel', pct.toFixed(1) + '% of $' + limit.toFixed(0) + ' budget');
+                setText('aiBudgetMonthStart', '(自 ' + new Date(data.month_start).toLocaleDateString() + ' 起)');
+                const bar = document.getElementById('aiBudgetBar');
+                if (bar) {
+                    bar.style.width = pct + '%';
+                    // 80%+ 變紅色警告
+                    if (pct >= 80) {
+                        bar.className = 'h-full bg-gradient-to-r from-rose-500 to-red-600 transition-all';
+                    } else {
+                        bar.className = 'h-full bg-gradient-to-r from-amber-400 to-orange-500 transition-all';
+                    }
+                }
+
+                // 設定頁右上角 mini 提示
+                setText('aiBudgetMini', '$' + spent.toFixed(4) + ' / $' + limit.toFixed(0));
+                setText('aiBudgetMiniRatio', '(' + pct.toFixed(0) + '%)');
+            } catch (e) {
+                // 沒登入 / 沒權限就靜靜失敗,不擋 UI
+                console.warn('aiBudgetRefresh', e);
+            }
+        }
+
+        function _fmtNumK(n) {
+            n = Number(n || 0);
+            if (n < 1000) return String(n);
+            if (n < 1_000_000) return (n / 1000).toFixed(1) + 'K';
+            return (n / 1_000_000).toFixed(2) + 'M';
         }
 
         // ─── 角色與權限管理 ────────────────────────────────────────────────
