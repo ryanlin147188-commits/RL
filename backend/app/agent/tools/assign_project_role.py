@@ -13,6 +13,7 @@ from typing import Any
 from sqlalchemy import select
 
 from app.agent.tools.base import Tool, ToolContext, ToolResult
+from app.agent.tools.role_guard import ensure_role_assignable
 from app.auth.permissions_catalog import P
 from app.models.project import Project
 from app.models.project_member import ProjectMember
@@ -53,14 +54,25 @@ class AssignProjectRoleTool(Tool):
                 llm_visible="project_id 與 username 為必填。",
             )
 
-        # 驗 project 存在且屬該 org(IDOR 防護)
+        # 驗 project 存在且屬該 org(IDOR 防護 fail-closed:
+        # 任何 proj.organization_id is None 或對不上 ctx.organization_id 一律 404)
         proj = await ctx.db.get(Project, project_id)
-        if proj is None or (proj.organization_id and proj.organization_id != ctx.organization_id):
-            if not ctx.user.is_superuser:
+        if not ctx.user.is_superuser:
+            if (
+                proj is None
+                or not proj.organization_id
+                or not ctx.organization_id
+                or proj.organization_id != ctx.organization_id
+            ):
                 return ToolResult.fail(
                     "project_not_found",
                     llm_visible=f"project {project_id} 不存在或非你所屬 org。",
                 )
+        elif proj is None:
+            return ToolResult.fail(
+                "project_not_found",
+                llm_visible=f"project {project_id} 不存在。",
+            )
 
         # 驗 role 存在(若有指定)
         if role_id:
@@ -70,6 +82,9 @@ class AssignProjectRoleTool(Tool):
                     f"invalid_role_id: {role_id}",
                     llm_visible=f"role {role_id} 不存在。",
                 )
+            guard_err = await ensure_role_assignable(ctx, role)
+            if guard_err is not None:
+                return guard_err
 
         pm = (await ctx.db.execute(
             select(ProjectMember)

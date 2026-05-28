@@ -494,12 +494,16 @@ services:
         BACKUP_KEEP_DAYS=7
         EOF
         echo "[OK] .env created with random secrets"
+        # 不再 echo 密碼到 stdout(會被 docker logs / 中央 log 收走)。
+        # 改寫到 600 權限的檔案,並只提示維運讀檔。
+        printf 'admin\n%s\n' "$$ADMIN_PWD" > /work/.admin_initial_password
+        chmod 600 /work/.admin_initial_password 2>/dev/null || true
         echo ""
         echo "  ╔══════════════════════════════════════════════════════════════════╗"
-        echo "  ║  Initial admin credentials — RECORD THIS NOW (shown only once): ║"
-        echo "  ║    Username: admin                                               ║"
-        echo "  ║    Password: $$ADMIN_PWD"
-        echo "  ║  You will be forced to change it on first login.                 ║"
+        echo "  ║  Initial admin credentials written to file (read once, then    ║"
+        echo "  ║  delete the file). First-login forces password change.         ║"
+        echo "  ║    File: .admin_initial_password  (chmod 600)                   ║"
+        echo "  ║    cat .admin_initial_password                                  ║"
         echo "  ╚══════════════════════════════════════════════════════════════════╝"
     restart: "no"
 

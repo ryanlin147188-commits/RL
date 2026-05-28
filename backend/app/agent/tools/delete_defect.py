@@ -11,6 +11,7 @@ from app.agent.tools.base import Tool, ToolContext, ToolResult
 from app.auth.permissions_catalog import P
 from app.auth.tenant import TenantQuery
 from app.models.defect import Defect
+from app.services import defect_service
 
 
 class DeleteDefectTool(Tool):
@@ -48,7 +49,9 @@ class DeleteDefectTool(Tool):
 
         code = defect.code
         title = defect.title
-        await ctx.db.delete(defect)
+        # 用 service.hard_delete 一併清掉指向此 defect 的 review_records,
+        # 避免 dangling review record 造成前端 500
+        await defect_service.hard_delete(ctx.db, defect)
         await ctx.db.commit()
 
         payload = {

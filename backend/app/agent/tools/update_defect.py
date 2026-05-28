@@ -21,6 +21,7 @@ from app.models.defect import (
     DefectSeverity,
     DefectStatus,
 )
+from app.models.user import User
 from app.routers.defects import _validate_transition  # 重用 router 內 transition table
 
 
@@ -77,12 +78,42 @@ class UpdateDefectTool(Tool):
         applied: dict[str, Any] = {}
         for key in (
             "title", "description", "steps_to_reproduce",
-            "expected_result", "actual_result", "assignee",
+            "expected_result", "actual_result",
         ):
             v = kwargs.get(key)
             if v is not None:
                 setattr(defect, key, v)
                 applied[key] = "set"
+
+        # assignee 必須真存在且同 org(對齊 submit_review 的 assignee 防呆 —
+        # 避免 LLM 幻覺出 typo username 造成孤兒指派)
+        if kwargs.get("assignee") is not None:
+            new_assignee = (kwargs["assignee"] or "").strip()
+            if new_assignee:
+                target = (
+                    await ctx.db.execute(
+                        select(User).where(User.username == new_assignee)
+                    )
+                ).scalar_one_or_none()
+                if target is None:
+                    return ToolResult.fail(
+                        "assignee_not_found",
+                        llm_visible=f"指派對象 {new_assignee} 不存在,請先確認 username。",
+                    )
+                if (
+                    not ctx.user.is_superuser
+                    and target.organization_id is not None
+                    and ctx.organization_id is not None
+                    and target.organization_id != ctx.organization_id
+                ):
+                    return ToolResult.fail(
+                        "assignee_cross_org",
+                        llm_visible=f"指派對象 {new_assignee} 不在你的 organization。",
+                    )
+                defect.assignee = new_assignee
+            else:
+                defect.assignee = None  # 清空指派
+            applied["assignee"] = "set"
 
         # Enum 欄位
         if kwargs.get("severity") is not None:

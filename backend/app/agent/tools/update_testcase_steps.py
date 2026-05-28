@@ -19,6 +19,7 @@ from sqlalchemy import select
 
 from app.agent.tools.base import Tool, ToolContext, ToolResult
 from app.auth.permissions_catalog import P
+from app.auth.scope import ensure_project_writable
 from app.models.review import ReviewableEntityType
 from app.models.testcase_content import TestcaseContent
 from app.models.tree_node import LevelType, TreeNode
@@ -67,6 +68,15 @@ class UpdateTestcaseStepsTool(Tool):
                     f"node {node_id} 是 {node.level_type.value if hasattr(node.level_type,'value') else node.level_type},"
                     " 不是 TESTCASE 葉節點。請先用 create_tree_node 建一個 TESTCASE 節點。"
                 ),
+            )
+
+        # IDOR + 寫權限防護(對齊 router PUT /api/testcases/{node_id})
+        try:
+            await ensure_project_writable(ctx.db, node.project_id, ctx.user)
+        except HTTPException as e:
+            return ToolResult.fail(
+                "not_writable",
+                llm_visible=str(e.detail) if e.detail else "此 testcase 不在你的可寫範圍。",
             )
 
         # 鎖:approved 的不可改(沿用 router 邏輯)

@@ -24,6 +24,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.storage_service import save_bytes
 
 from app.auth.dependencies import get_current_user
+from app.auth import login_throttle
+from app.auth.password_policy import validate_or_raise as validate_password
 from app.auth.fastapi_users_integration import (
     UserManager,
     get_jwt_strategy,
@@ -39,6 +41,7 @@ from app.auth.security import (
     create_refresh_token,
     decode_token,
     hash_password,
+    should_use_secure_cookie,
     sign_active_org_cookie,
     verify_password,
 )
@@ -98,14 +101,16 @@ def _set_auth_cookies(
     - SameSite=Lax(允許 top-level navigation 帶 cookie,擋 CSRF 寫操作)
     - Secure 動態:HTTP scheme(localhost LAN)放行,HTTPS 強制 Secure
     """
-    is_https = request.url.scheme == "https"
+    # 用 should_use_secure_cookie 取代直接讀 request.url.scheme — backend 沒有
+    # --proxy-headers,scheme 永遠是 http,production 會錯誤地把 Secure flag 設 False
+    is_secure = should_use_secure_cookie(request)
     response.set_cookie(
         key="access_token",
         value=access_token,
         max_age=ACCESS_TOKEN_TTL_MINUTES * 60,
         httponly=True,
         samesite="lax",
-        secure=is_https,
+        secure=is_secure,
         path="/",
     )
     if refresh_token:
@@ -115,7 +120,7 @@ def _set_auth_cookies(
             max_age=REFRESH_TOKEN_TTL_DAYS * 24 * 3600,
             httponly=True,
             samesite="lax",
-            secure=is_https,
+            secure=is_secure,
             path="/api/auth/refresh",
         )
 
@@ -150,11 +155,27 @@ async def login(
     JSON body 也照舊回 token 給舊 SDK / curl 客戶端;前端 SPA 改靠 cookie
     自動帶,不再從 JSON 取出存 localStorage。
     """
+    # 帳號層級登入失敗鎖定(防 botnet 分散式爆破單一帳號 — IP rate limit 擋不住)
+    lock_remaining = await login_throttle.is_locked(payload.username)
+    if lock_remaining:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "account_locked",
+                "message": f"此帳號因連續登入失敗已鎖定,請於 {lock_remaining} 秒後再試。",
+                "retry_after": lock_remaining,
+            },
+            headers={"Retry-After": str(lock_remaining)},
+        )
+
     user = await user_manager.authenticate_by_username(
         payload.username, payload.password
     )
     if user is None or not user.is_active:
+        await login_throttle.record_failure(payload.username)
         raise HTTPException(status_code=401, detail="帳號或密碼錯誤")
+    # 成功登入:清掉 throttle counter
+    await login_throttle.clear_on_success(payload.username)
     # on_after_login hook(寫 last_login_at)
     await user_manager.on_after_login(user, request=request)
     access_token = await get_jwt_strategy().write_token(user)
@@ -215,6 +236,9 @@ async def register(
 
     if "@" not in email:
         raise HTTPException(422, "Email 格式錯誤")
+
+    # 密碼複雜度檢查(register 走自助流程,必須擋住弱密碼)
+    validate_password(payload.password, field_name="password")
 
     # username 衝突 → 直接告知(無法 silent,user 必須改名)
     existing_username = (
@@ -589,8 +613,7 @@ async def reset_password(
     """
     if not payload.token:
         raise HTTPException(400, "缺少 token")
-    if not payload.new_password or len(payload.new_password) < 6:
-        raise HTTPException(400, "新密碼至少 6 字元")
+    validate_password(payload.new_password or "", field_name="new_password")
 
     prt = (
         await db.execute(
@@ -828,7 +851,7 @@ async def switch_org(
         max_age=ACTIVE_ORG_COOKIE_TTL_DAYS * 24 * 3600,
         httponly=True,
         samesite="lax",
-        secure=request.url.scheme == "https",
+        secure=should_use_secure_cookie(request),
     )
     extra = {"org_id": target_org_id, "is_superuser": user.is_superuser}
     new_access = create_access_token(user.username, extra=extra)
@@ -926,10 +949,9 @@ async def change_password(
 ):
     if not verify_password(payload.old_password, user.password_hash):
         raise HTTPException(400, "目前密碼不正確")
-    if not payload.new_password or len(payload.new_password) < 6:
-        raise HTTPException(400, "新密碼至少 6 字元")
     if payload.new_password == payload.old_password:
         raise HTTPException(400, "新密碼不可與目前密碼相同")
+    validate_password(payload.new_password or "", field_name="new_password")
     user.password_hash = hash_password(payload.new_password)
     # 走完強制改密碼流程後解閘,後續 API 才能正常呼叫
     user.must_change_password = False
@@ -976,8 +998,7 @@ async def profile_setup(
         raise HTTPException(400, "顯示名稱必填,長度 1-120 字元")
     if not email or "@" not in email or len(email) > 255:
         raise HTTPException(400, "email 必填且需有效格式")
-    if not new_password or len(new_password) < 6:
-        raise HTTPException(400, "新密碼至少 6 字元")
+    validate_password(new_password, field_name="new_password")
 
     user.display_name = display_name
     user.email = email
@@ -1040,8 +1061,7 @@ async def create_user(
     _require_superuser(user)
     if not payload.username or not payload.password:
         raise HTTPException(400, "帳號 / 密碼必填")
-    if len(payload.password) < 6:
-        raise HTTPException(400, "密碼至少 6 字元")
+    validate_password(payload.password, field_name="password")
     try:
         await user_manager.get_by_username(payload.username)
         raise HTTPException(409, f"帳號「{payload.username}」已存在")
@@ -1213,8 +1233,7 @@ async def admin_reset_password(
     保證使用者下次登入被擋下,管理員不會看到最終密碼。
     """
     _require_superuser(user)
-    if not payload.new_password or len(payload.new_password) < 6:
-        raise HTTPException(400, "新密碼至少 6 字元")
+    validate_password(payload.new_password or "", field_name="new_password")
     from fastapi_users.exceptions import UserNotExists
     try:
         target = await user_manager.get_by_username(username)

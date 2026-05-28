@@ -40,7 +40,9 @@ cryptography==43.0.1   # Fernet 對稱加密：DB 內存密碼/AI key 用
 # authlib 1.3.x 提供 ``AsyncOAuth2Client`` 給 httpx-based async OAuth2 / OIDC
 # code flow + id_token verify;Zoho 走 authlib,其他 provider(GitHub / Google)
 # 改走 httpx-oauth 跟 fastapi-users 的 OAuth router 整合得比較緊。
-authlib>=1.3,<2
+# Pin 下限到 1.3.2 — CVE-2024-37568(OAuth2 state 驗證)在 1.3.2 修補,
+# 早期 1.3.0/1.3.1 仍受影響。upper bound 留 <2 維持 minor 自由升級。
+authlib>=1.3.2,<2
 
 # RBAC / ABAC：Casbin 進程內 enforcer + SQLAlchemy adapter(把 policy 落地到
 # autotest-postgres 的 casbin_rule 表)。

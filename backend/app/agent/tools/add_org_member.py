@@ -20,6 +20,7 @@ from typing import Any
 from sqlalchemy import select, update
 
 from app.agent.tools.base import Tool, ToolContext, ToolResult
+from app.agent.tools.role_guard import ensure_role_assignable
 from app.auth.permissions_catalog import P
 from app.models.org_membership import OrgMembership
 from app.models.organization import Organization
@@ -73,16 +74,14 @@ class AddOrgMemberTool(Tool):
                 llm_visible="organization_id 必填(或呼叫者必須有 active org)。",
             )
 
-        # IDOR 防護:除 superuser 外只能加進自己所在 org
-        if (
-            not ctx.user.is_superuser
-            and ctx.organization_id is not None
-            and organization_id != ctx.organization_id
-        ):
-            return ToolResult.fail(
-                "cross_org_forbidden",
-                llm_visible="不能把使用者加進你不屬於的組織。",
-            )
+        # IDOR 防護:除 superuser 外,呼叫者必須有 active org 且要等於目標 org
+        # (fail-closed:ctx.organization_id is None 時直接拒絕,不再短路放行)
+        if not ctx.user.is_superuser:
+            if not ctx.organization_id or organization_id != ctx.organization_id:
+                return ToolResult.fail(
+                    "cross_org_forbidden",
+                    llm_visible="不能把使用者加進你不屬於的組織。",
+                )
 
         org = await ctx.db.get(Organization, organization_id)
         if org is None:
@@ -91,7 +90,10 @@ class AddOrgMemberTool(Tool):
                 llm_visible=f"organization {organization_id} 不存在。",
             )
 
-        target = await ctx.db.get(User, username)
+        # User PK 是 UUID (id),不是 username — 必須用 select 查
+        target = (
+            await ctx.db.execute(select(User).where(User.username == username))
+        ).scalar_one_or_none()
         if target is None:
             return ToolResult.fail(
                 "user_not_found",
@@ -105,6 +107,10 @@ class AddOrgMemberTool(Tool):
                     f"invalid_role_id: {role_id}",
                     llm_visible=f"role {role_id} 不存在。",
                 )
+            # 防止權限提升:任何含 *.manage 的 role 僅 superuser 可指派
+            guard_err = await ensure_role_assignable(ctx, role)
+            if guard_err is not None:
+                return guard_err
 
         # 已存在 → 409
         existing = (

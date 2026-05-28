@@ -301,53 +301,119 @@
         }
     }
 
+    // sidebar 搜尋過濾 — 即時 filter,記住 sessions cache 避免重打 API
+    let _sidebarSessionsCache = [];
+    let _sidebarFilter = "";
+
+    function _renderSidebarRows() {
+        refs.sidebarBody.replaceChildren();
+        const filter = _sidebarFilter.trim().toLowerCase();
+        const filtered = !filter
+            ? _sidebarSessionsCache
+            : _sidebarSessionsCache.filter(s => (s.title || "").toLowerCase().includes(filter));
+        if (filtered.length === 0) {
+            refs.sidebarBody.appendChild(
+                el("div", { class: "text-xs text-stone-400 italic p-3" },
+                    filter ? "沒有符合的對話" : "尚無歷史對話")
+            );
+            return;
+        }
+        // 依日期分群:今天 / 昨天 / 本週 / 更早
+        const now = Date.now();
+        const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+        const yesterdayStart = todayStart.getTime() - 86400_000;
+        const weekStart = todayStart.getTime() - 6 * 86400_000;
+        const groups = { today: [], yesterday: [], week: [], older: [] };
+        for (const s of filtered) {
+            const t = s.updated_at ? new Date(s.updated_at).getTime() : 0;
+            if (t >= todayStart.getTime()) groups.today.push(s);
+            else if (t >= yesterdayStart) groups.yesterday.push(s);
+            else if (t >= weekStart) groups.week.push(s);
+            else groups.older.push(s);
+        }
+        const groupLabels = { today: "今天", yesterday: "昨天", week: "本週", older: "更早" };
+        for (const key of ["today", "yesterday", "week", "older"]) {
+            if (!groups[key].length) continue;
+            refs.sidebarBody.appendChild(
+                el("div", { class: "text-[10px] uppercase font-semibold text-stone-400 px-3 pt-3 pb-1" },
+                    groupLabels[key])
+            );
+            for (const s of groups[key]) {
+                refs.sidebarBody.appendChild(_buildSessionRow(s));
+            }
+        }
+    }
+
+    function _buildSessionRow(s) {
+        const isCurrent = s.id === state.sessionId;
+        const titleEl = el("div", {
+            class: "text-xs font-semibold text-stone-700 truncate",
+        }, s.title || "未命名對話");
+        const metaEl = el("div", {
+            class: "text-[10px] text-stone-400",
+        }, [
+            s.model || "預設模型",
+            " · ",
+            formatRelativeTime(s.updated_at),
+        ].join(""));
+        const mainCol = el("div", { class: "flex-1 min-w-0" }, [titleEl, metaEl]);
+        const delBtn = el("button", {
+            type: "button",
+            class: "shrink-0 p-1 text-stone-300 hover:text-rose-500 hover:bg-rose-50 rounded transition",
+            title: "刪除此對話",
+            "aria-label": `刪除對話 ${s.title || "未命名"}`,
+            // 修 a11y:鍵盤 focus 時也顯示(原本只 hover 顯示,鍵盤族看不到)
+            style: "opacity:0; transition:opacity .15s",
+        }, [el("i", { class: "fa-solid fa-trash text-xs", "aria-hidden": "true" })]);
+        delBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            deleteSessionFromSidebar(s.id, s.title || "未命名對話");
+        });
+        delBtn.addEventListener("focus", () => { delBtn.style.opacity = "1"; });
+        delBtn.addEventListener("blur", () => { delBtn.style.opacity = "0"; });
+        const row = el("div", {
+            class:
+                "flex items-start gap-2 px-3 py-2 border-b border-stone-100 " +
+                "cursor-pointer hover:bg-amber-50 focus:outline-amber-300 " +
+                (isCurrent ? "bg-amber-50" : ""),
+            tabindex: "0",
+            role: "button",
+            "aria-current": isCurrent ? "true" : "false",
+            onclick: () => switchToSession(s.id),
+        }, [mainCol, delBtn]);
+        row.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                switchToSession(s.id);
+            } else if (e.key === "Delete" || e.key === "Backspace") {
+                e.preventDefault();
+                deleteSessionFromSidebar(s.id, s.title || "未命名對話");
+            }
+        });
+        row.addEventListener("mouseenter", () => { delBtn.style.opacity = "1"; });
+        row.addEventListener("mouseleave", () => { if (document.activeElement !== delBtn) delBtn.style.opacity = "0"; });
+        return row;
+    }
+
     async function refreshSessionsList() {
         try {
             const sessions = await api("/api/agent/sessions?limit=50");
-            refs.sidebarBody.replaceChildren();
-            if (!sessions || sessions.length === 0) {
-                refs.sidebarBody.appendChild(
-                    el("div", { class: "text-xs text-stone-400 italic p-3" },
-                        "尚無歷史對話")
-                );
-                return;
-            }
-            for (const s of sessions) {
-                const isCurrent = s.id === state.sessionId;
-                // 主內容 + 右側刪除按鈕,共用 row container(group hover 顯示按鈕)
-                const titleEl = el("div", {
-                    class: "text-xs font-semibold text-stone-700 truncate",
-                }, s.title || "未命名對話");
-                const metaEl = el("div", {
-                    class: "text-[10px] text-stone-400",
-                }, [
-                    s.model || "預設模型",
-                    " · ",
-                    formatRelativeTime(s.updated_at),
-                ].join(""));
-                const mainCol = el("div", { class: "flex-1 min-w-0" }, [titleEl, metaEl]);
-                const delBtn = el("button", {
-                    type: "button",
-                    class: "shrink-0 p-1 text-stone-300 hover:text-rose-500 hover:bg-rose-50 rounded opacity-0 transition",
-                    title: "刪除此對話",
-                    style: "opacity:0; transition:opacity .15s",
-                }, [el("i", { class: "fa-solid fa-trash text-xs" })]);
-                delBtn.addEventListener("click", (e) => {
-                    e.stopPropagation();
-                    deleteSessionFromSidebar(s.id, s.title || "未命名對話");
+            _sidebarSessionsCache = Array.isArray(sessions) ? sessions : [];
+            // 加搜尋框(只加一次)
+            if (!refs.sidebarBody.parentElement.querySelector("[data-sidebar-search]")) {
+                const search = document.createElement("input");
+                search.type = "search";
+                search.placeholder = "搜尋對話標題…";
+                search.setAttribute("data-sidebar-search", "1");
+                search.setAttribute("aria-label", "搜尋對話");
+                search.className = "w-[calc(100%-1.5rem)] mx-3 mt-2 mb-1 px-2 py-1 text-xs border border-stone-200 rounded focus:outline-amber-400";
+                search.addEventListener("input", () => {
+                    _sidebarFilter = search.value || "";
+                    _renderSidebarRows();
                 });
-                const row = el("div", {
-                    class:
-                        "flex items-start gap-2 px-3 py-2 border-b border-stone-100 " +
-                        "cursor-pointer hover:bg-amber-50 " +
-                        (isCurrent ? "bg-amber-50" : ""),
-                    onclick: () => switchToSession(s.id),
-                }, [mainCol, delBtn]);
-                // hover 才顯示刪除按鈕(避免誤觸)
-                row.addEventListener("mouseenter", () => { delBtn.style.opacity = "1"; });
-                row.addEventListener("mouseleave", () => { delBtn.style.opacity = "0"; });
-                refs.sidebarBody.appendChild(row);
+                refs.sidebarBody.parentElement.insertBefore(search, refs.sidebarBody);
             }
+            _renderSidebarRows();
         } catch (e) {
             refs.sidebarBody.replaceChildren(
                 el("div", { class: "text-xs text-rose-500 p-3" },
@@ -369,7 +435,18 @@
 
     async function deleteSessionFromSidebar(sessionId, title) {
         if (state.sending) return;
-        if (!confirm(`確定刪除對話「${title}」?\n所有訊息會被一併刪除(不可復原)。`)) return;
+        const confirmFn = (typeof window !== 'undefined' && window.confirmDialog) || null;
+        if (confirmFn) {
+            const ok = await confirmFn({
+                title: '刪除對話',
+                body: `確定刪除對話「${title}」?\n所有訊息會被一併刪除(不可復原)。`,
+                confirmLabel: '刪除',
+                danger: true,
+            });
+            if (!ok) return;
+        } else if (!confirm(`確定刪除對話「${title}」?\n所有訊息會被一併刪除(不可復原)。`)) {
+            return;
+        }
         try {
             await api(`/api/agent/sessions/${encodeURIComponent(sessionId)}`, {
                 method: "DELETE",
@@ -691,6 +768,25 @@
 
     // ── 二次確認 modal ──────────────────────────────────────────
 
+    // destructive tool 視覺強調 — 命中以下 prefix 一律標紅 + 預設 focus 在「拒絕」,
+    // 避免使用者習慣性按 Enter 誤觸 destructive action。
+    const DESTRUCTIVE_TOOL_PREFIXES = [
+        "delete_", "remove_", "drop_", "purge_", "wipe_", "reset_",
+        "move_", "submit_review",  // submit_review 會鎖死 entity → 等同 destructive
+    ];
+    function _isDestructiveTool(name) {
+        const n = String(name || "").toLowerCase();
+        return DESTRUCTIVE_TOOL_PREFIXES.some(p => n.startsWith(p));
+    }
+    function _formatArgValue(v) {
+        // arg value 用 textContent 渲染(已是純文字),但對 nested object 用 JSON 美化
+        if (v === null || v === undefined) return "(空)";
+        if (typeof v === "string") return v;
+        if (typeof v === "number" || typeof v === "boolean") return String(v);
+        try { return JSON.stringify(v, null, 0); } catch (_) { return String(v); }
+    }
+
+    let _confirmCountdownTimer = null;
     function openConfirmModal(msg) {
         const actionId = msg.pending_action_id;
         if (!actionId) return;
@@ -704,61 +800,108 @@
             info.expires_at = parsed.expires_at || null;
         } catch (_) { /* ignore */ }
 
-        const argsList = el("ul", { class: "text-xs text-stone-600 mt-2 space-y-1" });
-        for (const [k, v] of Object.entries(info.arguments).slice(0, 8)) {
-            argsList.appendChild(el("li", {}, [
-                el("span", { class: "font-semibold text-stone-700" }, k + ": "),
-                document.createTextNode(JSON.stringify(v)),
-            ]));
+        // backend 已把 __integrity__ HMAC 從 response 剝掉;這裡再防禦性過濾一次
+        if (info.arguments && typeof info.arguments === "object" && "__integrity__" in info.arguments) {
+            const { __integrity__, ...rest } = info.arguments;
+            info.arguments = rest;
+        }
+        const destructive = _isDestructiveTool(info.tool_name);
+
+        // arguments key-value table(取代 raw JSON dump)
+        const argsList = el("ul", { class: "text-xs text-stone-700 mt-2 space-y-1" });
+        const entries = Object.entries(info.arguments).slice(0, 12);
+        if (entries.length === 0) {
+            argsList.appendChild(el("li", { class: "text-stone-400 italic" }, "(無參數)"));
+        } else {
+            for (const [k, v] of entries) {
+                const row = el("li", { class: "flex gap-2" }, [
+                    el("span", { class: "font-semibold text-stone-700 shrink-0" }, k + ":"),
+                ]);
+                const vSpan = el("span", { class: "text-stone-600 break-all" });
+                vSpan.textContent = _formatArgValue(v);
+                row.appendChild(vSpan);
+                argsList.appendChild(row);
+            }
         }
 
+        // 倒數計時 — 顯示剩餘秒數,到期自動 reject(後端標 expired,UI 顯示 "已過期")
+        const countdownEl = el("p", {
+            class: destructive ? "text-[11px] text-rose-600 mt-2 font-semibold" : "text-[11px] text-amber-600 mt-2",
+        }, "");
+        function _tickCountdown() {
+            if (!info.expires_at) { countdownEl.textContent = ""; return; }
+            const remain = Math.max(0, Math.floor((new Date(info.expires_at).getTime() - Date.now()) / 1000));
+            if (remain <= 0) {
+                countdownEl.textContent = "⏱ 已過期;請重新請求";
+                if (_confirmCountdownTimer) { clearInterval(_confirmCountdownTimer); _confirmCountdownTimer = null; }
+                // 自動關閉 modal
+                setTimeout(() => closeConfirmModal(), 1500);
+                return;
+            }
+            const mm = String(Math.floor(remain / 60)).padStart(1, "0");
+            const ss = String(remain % 60).padStart(2, "0");
+            countdownEl.textContent = `⏱ 剩餘 ${mm}:${ss} 後自動取消`;
+        }
+        _tickCountdown();
+        if (_confirmCountdownTimer) clearInterval(_confirmCountdownTimer);
+        if (info.expires_at) _confirmCountdownTimer = setInterval(_tickCountdown, 1000);
+
         const onApprove = async () => {
+            if (_confirmCountdownTimer) { clearInterval(_confirmCountdownTimer); _confirmCountdownTimer = null; }
             await resolvePending(actionId, "approve");
             closeConfirmModal();
         };
         const onReject = async () => {
+            if (_confirmCountdownTimer) { clearInterval(_confirmCountdownTimer); _confirmCountdownTimer = null; }
             await resolvePending(actionId, "reject");
             closeConfirmModal();
         };
 
+        const rejectBtn = el("button", {
+            type: "button",
+            class:
+                "flex-1 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 " +
+                "rounded text-sm font-semibold border border-stone-300",
+            onclick: onReject,
+        }, "拒絕");
+        const approveBtn = el("button", {
+            type: "button",
+            class: destructive
+                ? "flex-1 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded text-sm font-semibold shadow-sm"
+                : "flex-1 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded text-sm font-semibold",
+            onclick: onApprove,
+        }, destructive ? "仍要執行" : "同意執行");
+
         refs.confirmBackdrop.style.display = "flex";
+        refs.confirmDialog.setAttribute("role", "alertdialog");
+        refs.confirmDialog.setAttribute("aria-modal", "true");
         refs.confirmDialog.replaceChildren(
             el("div", { class: "flex items-center gap-2 mb-2" }, [
-                el("i", { class: "fa-solid fa-shield-halved text-amber-500 text-lg" }),
-                el("h3", { class: "text-base font-bold text-stone-800" }, "需要確認"),
+                el("i", {
+                    class: destructive
+                        ? "fa-solid fa-triangle-exclamation text-rose-600 text-lg"
+                        : "fa-solid fa-shield-halved text-amber-500 text-lg",
+                    "aria-hidden": "true",
+                }),
+                el("h3", {
+                    class: destructive
+                        ? "text-base font-bold text-rose-700"
+                        : "text-base font-bold text-stone-800",
+                }, destructive ? "即將執行破壞性操作" : "需要確認"),
             ]),
-            el("p", { class: "text-sm text-stone-600 leading-relaxed" },
-                `AI 想要執行 `,
-            ),
-            el("p", { class: "text-sm font-mono bg-stone-100 px-2 py-1 rounded my-2" },
-                info.tool_name,
-            ),
+            el("p", { class: "text-sm text-stone-600 leading-relaxed" }, "AI 想要執行"),
+            el("p", { class: "text-sm font-mono bg-stone-100 px-2 py-1 rounded my-2" }, info.tool_name),
             argsList,
-            info.expires_at
-                ? el("p", { class: "text-[10px] text-stone-400 mt-2" },
-                    `到期時間:${new Date(info.expires_at).toLocaleString()}`)
-                : null,
-            el("div", { class: "flex gap-2 mt-4" }, [
-                el("button", {
-                    type: "button",
-                    class:
-                        "flex-1 py-2 bg-rose-100 hover:bg-rose-200 text-rose-700 " +
-                        "rounded text-sm font-semibold",
-                    onclick: onReject,
-                }, "拒絕"),
-                el("button", {
-                    type: "button",
-                    class:
-                        "flex-1 py-2 bg-amber-500 hover:bg-amber-600 text-white " +
-                        "rounded text-sm font-semibold",
-                    onclick: onApprove,
-                }, "同意執行"),
-            ]),
+            countdownEl,
+            el("div", { class: "flex gap-2 mt-4" }, [rejectBtn, approveBtn]),
         );
+        // 預設 focus:destructive 落在「拒絕」,一般在「同意執行」
+        requestAnimationFrame(() => (destructive ? rejectBtn : approveBtn).focus());
         // 已在函式頂端設 display:flex,這裡 no-op(保留結構讓 git diff 清楚)
     }
 
     function closeConfirmModal() {
+        if (_confirmCountdownTimer) { clearInterval(_confirmCountdownTimer); _confirmCountdownTimer = null; }
         refs.confirmBackdrop.style.display = "none";
     }
 

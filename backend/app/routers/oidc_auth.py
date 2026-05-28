@@ -48,6 +48,7 @@ from app.auth.security import (
     JWT_SECRET,
     REFRESH_TOKEN_TTL_DAYS,
     create_refresh_token,
+    should_use_secure_cookie as _should_use_secure_cookie,
     sign_active_org_cookie,
 )
 from app.database import get_db
@@ -57,6 +58,31 @@ router = APIRouter()
 
 _STATE_COOKIE_NAME = "autotest_oidc_state"
 _STATE_TTL_SECONDS = 600  # 10 分鐘
+
+
+def _safe_redirect_path(raw: Optional[str]) -> str:
+    """限制 redirect_to 必須是 same-origin 的 path,擋 open redirect。
+
+    合法:``/``、``/projects``、``/projects/abc``、``/page?x=1``
+    不合法:absolute URL(``http://``、``https://``、``//evil.com``)、
+    含 CR/LF、scheme 偽裝(``javascript:``、``data:``)、反斜線繞過(``/\\evil``)
+
+    任何不合法輸入一律退回 ``"/"``,不 raise — 對使用者來說登入仍然成功,
+    只是落地頁回首頁。
+    """
+    if not raw or not isinstance(raw, str):
+        return "/"
+    target = raw.strip()
+    # 控制字元 → 拒絕
+    if any(c in target for c in ("\r", "\n", "\t", "\0")):
+        return "/"
+    # 必須以單斜線開頭(``/`` 但不是 ``//`` — 後者瀏覽器會視為 protocol-relative)
+    if not target.startswith("/") or target.startswith("//"):
+        return "/"
+    # 反斜線繞過(IE/某些 proxy 把 ``\\`` 還原成 ``//``)
+    if target.startswith("/\\"):
+        return "/"
+    return target
 
 
 def _sign_state(state: str, provider: str, redirect_to: str) -> str:
@@ -114,6 +140,9 @@ async def oidc_login(
     if not p or not p.is_enabled():
         raise HTTPException(503, f"{provider} 登入未啟用(client_id / secret 未配)")
 
+    # 擋 open redirect:redirect_to 必須是 same-origin path,不接受 absolute URL
+    safe_redirect = _safe_redirect_path(redirect_to)
+
     state = _oidc.make_state()
     # v1.1.7 Phase 6:build_authorize_url 改成 async(httpx-oauth signature)
     authorize_url = await _oidc.build_authorize_url(p, state)
@@ -126,11 +155,11 @@ async def oidc_login(
     # 不會多開攻擊面。
     resp.set_cookie(
         _STATE_COOKIE_NAME,
-        _sign_state(state, provider, redirect_to),
+        _sign_state(state, provider, safe_redirect),
         max_age=_STATE_TTL_SECONDS,
         httponly=True,
         samesite="lax",
-        secure=request.url.scheme == "https",
+        secure=_should_use_secure_cookie(request),
         path="/",
     )
     return resp
@@ -233,12 +262,14 @@ async def oidc_callback(
     access = await get_jwt_strategy().write_token(user)
     refresh = create_refresh_token(user.username)
 
-    target = decoded.get("redirect_to") or "/"
+    # 二次校驗 redirect_to(state cookie 本身雖然簽過,但若簽密鑰不慎洩漏,
+    # 攻擊者可能偽造 cookie;這層 path-only 過濾是縱深防禦)
+    target = _safe_redirect_path(decoded.get("redirect_to"))
     if "#" in target:
         target = target.split("#")[0]
     target = f"{target}#oidc_login=1"
     resp = RedirectResponse(target, status_code=302)
-    is_https = request.url.scheme == "https"
+    is_https = _should_use_secure_cookie(request)
     resp.set_cookie(
         "access_token", access,
         max_age=ACCESS_TOKEN_TTL_MINUTES * 60,

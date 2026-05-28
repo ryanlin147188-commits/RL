@@ -539,24 +539,39 @@ async def _find_usage_row(
     return (await db.execute(stmt)).scalar_one_or_none()
 
 
-# 舊版 DEFAULT_SYSTEM_PROMPT 的特徵字串。如果 session.system_prompt 含這段,
-# 就視為「v1.2.0 之前建的 session」自動 in-place 升級到新版,避免 LLM
-# 看到舊提示後說「目前還不能執行任何測試」。
+# 舊版 DEFAULT_SYSTEM_PROMPT 的特徵字串。如果 session.system_prompt **同時**:
+#   (a) 命中下列任一 stale marker,以及
+#   (b) 不含任何「新版才有的章節標記」(_CURRENT_PROMPT_SIGNATURES)
+# 就視為「v1.2.0 之前建的 session」自動 in-place 升級到新版。
+#
+# 「同時要求兩個條件」是為了避免 user 自訂 prompt 內**引用**這些 marker(例如
+# "請不要說『目前還不能執行任何測試』")時被誤判為 stale 而整段被覆寫。
+# 新版預設 prompt 內含特定章節 emoji + 標題,user 一旦自訂(改寫整段 prompt)
+# 通常不會原封不動保留這些 signature,所以這條檢查能可靠分辨「未升級的舊預設」
+# vs 「user 自訂內容」。
 _STALE_PROMPT_MARKERS = (
     "目前還不能執行任何測試",
     "目前還不能執行任何工具",
     "只能回答關於平台、測試方法",
+)
+_CURRENT_PROMPT_SIGNATURES = (
+    "📖 查詢 / 匯出類",
+    "📋 審核流程",
+    "requires_confirmation=true",
 )
 
 
 async def _refresh_session_prompt_if_stale(
     db: AsyncSession, session: AgentSession
 ) -> None:
-    """既有 session 若 system_prompt 是舊版「會否定 tool 能力」的版本,
-    自動升級到 mode 對應的當前 prompt。新建 session 不會撞到(create_session
-    已用最新 prompt)。"""
+    """既有 session 若 system_prompt 是**未經修改的**舊版預設,自動升級到 mode
+    對應的當前 prompt。user 自訂 prompt(即使引用了 stale marker 字串)不會被
+    覆寫;新建 session 不會撞到(create_session 已用最新 prompt)。"""
     current = session.system_prompt or ""
     if not any(marker in current for marker in _STALE_PROMPT_MARKERS):
+        return
+    # 已含任何新版章節 signature → 視為已升級或 user 自訂,不動
+    if any(sig in current for sig in _CURRENT_PROMPT_SIGNATURES):
         return
     new_prompt = system_prompt_for(session.mode or "chat")
     if new_prompt == current:
@@ -951,6 +966,27 @@ async def _execute_tool_after_approval(
             llm_visible=f"工具 {action.tool_name} 已被移除,無法執行原本的請求。",
         )
 
+    # HMAC 驗證:確保 PendingAction.arguments 自 create 後沒被竄改。
+    # 任何 mismatch / missing 一律拒絕執行 — 避免「modal 顯示舊內容,DB
+    # 已被改成新內容」的攻擊情境(包含 SQL injection / 子服務寫權限濫用 /
+    # second-order injection 等)。
+    from app.services.pending_action_integrity import verify_and_strip
+    safe_args = verify_and_strip(
+        tool_name=action.tool_name,
+        tool_call_id=action.tool_call_id,
+        session_id=session.id,
+        arguments=action.arguments,
+    )
+    if safe_args is None:
+        await release_concurrency(user, tool)
+        return ToolResult.fail(
+            "integrity_check_failed",
+            llm_visible=(
+                "此操作的參數簽章驗證失敗(可能被竄改或為舊版資料),"
+                "為安全起見已拒絕執行。請重新提出請求。"
+            ),
+        )
+
     # permission re-check(approve 期間 role / Casbin 可能被改了)
     try:
         await check_tool_permission(db, user, tool)
@@ -965,7 +1001,7 @@ async def _execute_tool_after_approval(
         session_id=session.id,
     )
     try:
-        result = await tool.execute(ctx, **(action.arguments or {}))
+        result = await tool.execute(ctx, **safe_args)
     except Exception as e:  # noqa: BLE001
         log.exception("approved tool %s execute raised", action.tool_name)
         result = ToolResult.fail(
@@ -980,7 +1016,7 @@ async def _execute_tool_after_approval(
         user_id=user.id,
         session_id=session.id,
         tool_name=action.tool_name,
-        arguments=action.arguments or {},
+        arguments=safe_args,
         ok=result.error is None,
         error=result.error,
     )

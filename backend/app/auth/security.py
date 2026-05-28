@@ -104,6 +104,47 @@ def create_refresh_token(username: str) -> str:
 ACTIVE_ORG_COOKIE_NAME: str = "active_org_id"
 ACTIVE_ORG_COOKIE_TTL_DAYS: int = REFRESH_TOKEN_TTL_DAYS  # 對齊 refresh token
 
+# Cookie Secure flag 判定 — 解決「實際走 HTTPS 但 backend 看到 http scheme」問題
+#
+# 背景:典型部署是 ``browser → nginx(443) → gateway → backend(http)``。Backend
+# 的 ``request.url.scheme`` 永遠是 ``http``,如果直接拿來決定 ``Secure``,
+# Set-Cookie 永遠不帶 Secure flag,等於把 token 暴露在「萬一誤打 HTTP」時的
+# MitM 風險下。
+#
+# 解法:Production 一律強制 ``Secure=True``。Production 判定如下:
+#   1. 環境變數 ``AUTOTEST_FORCE_SECURE_COOKIES=1`` → 強制 True
+#   2. ``settings.BASE_URL`` 是 ``https://...`` → True
+#   3. ``request.url.scheme == "https"`` 或 X-Forwarded-Proto=https → True
+#   4. 其他(純內網 / 開發機 / localhost)→ False
+#
+# 注意:gateway 已經有設 X-Forwarded-Proto,但 backend uvicorn 沒裝
+# ``--proxy-headers`` → 看不到。我們直接讀 header 自己處理,避免改 entrypoint。
+_FORCE_SECURE_COOKIES = os.environ.get("AUTOTEST_FORCE_SECURE_COOKIES", "").strip() in ("1", "true", "yes")
+
+
+def should_use_secure_cookie(request) -> bool:
+    """Determine whether Set-Cookie should carry the ``Secure`` flag.
+
+    See module docstring above for the decision tree. Pass the FastAPI/Starlette
+    ``Request`` so we can inspect headers + scheme — but DO NOT trust
+    ``request.url.scheme`` alone behind a reverse proxy.
+    """
+    if _FORCE_SECURE_COOKIES:
+        return True
+    try:
+        from app.config import settings as _settings
+        if (_settings.BASE_URL or "").lower().startswith("https://"):
+            return True
+    except Exception:  # noqa: BLE001
+        pass
+    if request is None:
+        return False
+    # X-Forwarded-Proto 由 gateway 設;只信 gateway 經手的流量
+    proto = (request.headers.get("x-forwarded-proto") or "").lower()
+    if proto == "https":
+        return True
+    return request.url.scheme == "https"
+
 
 def sign_active_org_cookie(username: str, org_id: str) -> str:
     payload = {

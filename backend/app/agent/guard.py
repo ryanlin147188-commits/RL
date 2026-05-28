@@ -144,14 +144,25 @@ def audit_tool_call(
 
     Phase 1b 暫時走 logger,Phase 1c 改寫進 audit_logs 表(既有 model)。
     這裡只 log,不該 raise:audit 失敗不能阻擋 tool 主流程。
+
+    安全性:用 ``json.dumps`` 確保 control character(``\\n`` / ``\\r``)被
+    escape,避免 LLM-controlled arguments 內含 newline 偽造額外 log 行
+    (log injection / CWE-117)。
     """
+    import json as _json
+    try:
+        args_safe = _json.dumps(arguments, ensure_ascii=False, default=str)
+    except Exception:  # noqa: BLE001
+        args_safe = repr(arguments)
     payload = {
         "user_id": user_id,
         "session_id": session_id,
         "tool": tool_name,
         "ok": ok,
-        "args": arguments,
+        "args": args_safe,  # 已 escape 的 JSON 字串,non-injectable
     }
     if error:
-        payload["error"] = error
-    log.info("tool_call %s", payload)
+        # error 也可能含 LLM-controlled 內容(tool 失敗訊息),同樣 escape
+        payload["error"] = _json.dumps(error, ensure_ascii=False, default=str)
+    # 整個 dict 也以 JSON 形式輸出,避免 dict repr 對 string 不轉義 \n
+    log.info("tool_call %s", _json.dumps(payload, ensure_ascii=False, default=str))

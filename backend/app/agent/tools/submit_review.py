@@ -13,8 +13,12 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from fastapi import HTTPException
+from sqlalchemy import select
+
 from app.agent.tools.base import Tool, ToolContext, ToolResult
 from app.auth.permissions_catalog import P
+from app.auth.scope import ensure_project_in_scope
 from app.auth.tenant import TenantQuery
 from app.models.defect import Defect
 from app.models.review import ReviewableEntityType
@@ -73,7 +77,8 @@ class SubmitReviewTool(Tool):
                 ),
             )
 
-        # 對 testcase / defect 做存在性 + IDOR 驗證
+        # 對 testcase / defect 做存在性 + IDOR 驗證;document/script/report 因為
+        # 沒有 org-scoped tenancy model,目前僅 superuser 可透過 tool 送審。
         if etype == ReviewableEntityType.TESTCASE:
             node = await ctx.db.get(TreeNode, entity_id)
             if node is None:
@@ -89,6 +94,18 @@ class SubmitReviewTool(Tool):
                         f"(level={node.level_type.value})。"
                     ),
                 )
+            try:
+                await ensure_project_in_scope(
+                    ctx.db,
+                    node.project_id,
+                    ctx.user,
+                    not_found_detail="testcase 不在你可見範圍",
+                )
+            except HTTPException as e:
+                return ToolResult.fail(
+                    "out_of_scope",
+                    llm_visible=str(e.detail) if e.detail else "testcase 不在你可見範圍。",
+                )
         elif etype == ReviewableEntityType.DEFECT:
             defect = (
                 await ctx.db.execute(
@@ -100,10 +117,24 @@ class SubmitReviewTool(Tool):
                     "defect_not_found",
                     llm_visible=f"defect {entity_id} 不存在或非你所屬 org。",
                 )
+        else:
+            # document / script / report 三類目前沒有 tenant scope model 可比對 — 為避免
+            # 對任意 UUID 開啟 review record(造成跨 org 操作或 dangling 紀錄),
+            # 僅 superuser 可送審這三類。
+            if not ctx.user.is_superuser:
+                return ToolResult.fail(
+                    "entity_type_requires_superuser",
+                    llm_visible=(
+                        f"entity_type={etype.value} 目前僅 superuser 可透過 AI 送審;"
+                        "請改走 UI 流程。"
+                    ),
+                )
 
         # 若指定 assignee — 對齊 router 的「assignee 必須真存在 + 同 org」防呆
         if assignee:
-            target = await ctx.db.get(User, assignee)
+            target = (
+                await ctx.db.execute(select(User).where(User.username == assignee))
+            ).scalar_one_or_none()
             if target is None:
                 return ToolResult.fail(
                     "assignee_not_found",

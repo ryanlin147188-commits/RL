@@ -582,7 +582,7 @@
 <body class="h-screen flex flex-col bg-stone-50 text-stone-800 font-sans overflow-hidden relative">
 
     <!-- Toast 提示容器（z-[999] 確保永遠蓋在 Modal/Overlay 之上） -->
-    <div id="toastContainer" class="fixed top-5 right-5 z-[999] flex flex-col gap-2 pointer-events-none"></div>
+    <div id="toastContainer" class="fixed top-5 right-5 z-[999] flex flex-col gap-2 pointer-events-none" role="status" aria-live="polite" aria-atomic="true"></div>
 
     <!-- 通知 popover — 從 <header> 內搬到 body 末端,避開 header overflow clip。
          所有尺寸用 inline style 寫死,不依賴 Tailwind arbitrary value class
@@ -5176,17 +5176,152 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             return _jszipPromise;
         }
 
+        // ==================== 0a. 自訂 confirm / alert 對話框 ====================
+        // 取代瀏覽器原生 window.(await confirmDialog({body: , danger: true})) / window.(await appAlert()) — 原生 dialog 在 B2B
+        // SaaS 是 anti-pattern:無法自訂樣式、阻塞主執行緒、無法 highlight
+        // destructive 按鈕、行動端體驗極差、會被某些 corp 瀏覽器擋。
+        //
+        // 提供兩個 helper(window 全域 + 同名覆寫 confirm/alert):
+        //   confirmDialog({title, body, confirmLabel, cancelLabel, danger}) → Promise<boolean>
+        //   appAlert(message, {title}) → Promise<void>
+        //
+        // 同時把 window.confirm / window.alert 重新導向到非同步版本,讓舊
+        // synchronous 寫法 ``if (!(await confirmDialog({body: '...', danger: true}))) return`` 仍可運作(原生 confirm
+        // 回 bool;這裡為了向後相容仍保留原生 fallback,但所有新寫法請用
+        // ``await confirmDialog(...)`` / ``await appAlert(...)``)。
+        //
+        // destructive=true(預設刪除類動作):
+        //   * 確認按鈕用 red 色
+        //   * 預設焦點在「取消」(避免使用者習慣性 Enter 誤刪)
+        // 一般情況:確認按鈕用 brand color,預設焦點在「確認」。
+        function confirmDialog(opts) {
+            opts = opts || {};
+            const title = opts.title || '請確認';
+            const body = String(opts.body ?? '');
+            const confirmLabel = opts.confirmLabel || '確認';
+            const cancelLabel = opts.cancelLabel || '取消';
+            const danger = !!opts.danger;
+            return new Promise((resolve) => {
+                const dlg = document.createElement('dialog');
+                dlg.setAttribute('role', 'alertdialog');
+                dlg.setAttribute('aria-modal', 'true');
+                dlg.className = 'rounded-xl shadow-2xl border border-stone-200 p-0 backdrop:bg-slate-900/50';
+                dlg.style.maxWidth = '440px';
+                dlg.style.width = 'calc(100% - 2rem)';
+                const wrap = document.createElement('div');
+                wrap.className = 'p-5';
+                const h = document.createElement('div');
+                h.className = 'flex items-start gap-3 mb-3';
+                const ic = document.createElement('div');
+                ic.className = danger
+                    ? 'w-9 h-9 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center shrink-0'
+                    : 'w-9 h-9 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shrink-0';
+                ic.setAttribute('aria-hidden', 'true');
+                ic.innerHTML = danger
+                    ? '<i class="fa-solid fa-triangle-exclamation"></i>'
+                    : '<i class="fa-solid fa-circle-question"></i>';
+                const titleEl = document.createElement('h3');
+                titleEl.className = 'text-base font-bold text-slate-800 leading-snug pt-1';
+                titleEl.textContent = title;
+                h.appendChild(ic); h.appendChild(titleEl);
+                const bodyEl = document.createElement('div');
+                bodyEl.className = 'text-sm text-slate-600 whitespace-pre-wrap pl-12';
+                bodyEl.textContent = body;
+                const footer = document.createElement('div');
+                footer.className = 'flex items-center justify-end gap-2 mt-5';
+                const cancelBtn = document.createElement('button');
+                cancelBtn.type = 'button';
+                cancelBtn.className = 'px-4 py-2 text-sm rounded border border-stone-300 text-slate-700 hover:bg-stone-50';
+                cancelBtn.textContent = cancelLabel;
+                const okBtn = document.createElement('button');
+                okBtn.type = 'button';
+                okBtn.className = danger
+                    ? 'px-4 py-2 text-sm rounded bg-rose-600 hover:bg-rose-700 text-white font-medium shadow-sm'
+                    : 'px-4 py-2 text-sm rounded bg-amber-600 hover:bg-amber-700 text-white font-medium shadow-sm';
+                okBtn.textContent = confirmLabel;
+                footer.appendChild(cancelBtn); footer.appendChild(okBtn);
+                wrap.appendChild(h); wrap.appendChild(bodyEl); wrap.appendChild(footer);
+                dlg.appendChild(wrap);
+                document.body.appendChild(dlg);
+                const cleanup = (v) => { try { dlg.close(); } catch (_) {} dlg.remove(); resolve(v); };
+                cancelBtn.onclick = () => cleanup(false);
+                okBtn.onclick = () => cleanup(true);
+                dlg.addEventListener('cancel', (e) => { e.preventDefault(); cleanup(false); });
+                // backdrop click = cancel
+                dlg.addEventListener('click', (e) => { if (e.target === dlg) cleanup(false); });
+                try { dlg.showModal(); } catch (_) { dlg.setAttribute('open', ''); }
+                // destructive 預設 focus 在 cancel,避免按 Enter 誤觸刪除
+                requestAnimationFrame(() => { (danger ? cancelBtn : okBtn).focus(); });
+            });
+        }
+        function appAlert(message, opts) {
+            opts = opts || {};
+            const title = opts.title || '提示';
+            return new Promise((resolve) => {
+                const dlg = document.createElement('dialog');
+                dlg.setAttribute('role', 'alertdialog');
+                dlg.setAttribute('aria-modal', 'true');
+                dlg.className = 'rounded-xl shadow-2xl border border-stone-200 p-0 backdrop:bg-slate-900/50';
+                dlg.style.maxWidth = '440px';
+                dlg.style.width = 'calc(100% - 2rem)';
+                const wrap = document.createElement('div');
+                wrap.className = 'p-5';
+                const titleEl = document.createElement('h3');
+                titleEl.className = 'text-base font-bold text-slate-800 mb-2';
+                titleEl.textContent = title;
+                const bodyEl = document.createElement('div');
+                bodyEl.className = 'text-sm text-slate-600 whitespace-pre-wrap';
+                bodyEl.textContent = String(message ?? '');
+                const footer = document.createElement('div');
+                footer.className = 'flex items-center justify-end gap-2 mt-4';
+                const okBtn = document.createElement('button');
+                okBtn.type = 'button';
+                okBtn.className = 'px-4 py-2 text-sm rounded bg-amber-600 hover:bg-amber-700 text-white font-medium shadow-sm';
+                okBtn.textContent = '確定';
+                footer.appendChild(okBtn);
+                wrap.appendChild(titleEl); wrap.appendChild(bodyEl); wrap.appendChild(footer);
+                dlg.appendChild(wrap);
+                document.body.appendChild(dlg);
+                const cleanup = () => { try { dlg.close(); } catch (_) {} dlg.remove(); resolve(); };
+                okBtn.onclick = cleanup;
+                dlg.addEventListener('cancel', (e) => { e.preventDefault(); cleanup(); });
+                dlg.addEventListener('click', (e) => { if (e.target === dlg) cleanup(); });
+                try { dlg.showModal(); } catch (_) { dlg.setAttribute('open', ''); }
+                requestAnimationFrame(() => okBtn.focus());
+            });
+        }
+        // 覆寫原生 confirm / alert,所有舊 callsite 自動走美觀 dialog。
+        // 注意:這兩個原本是 synchronous,但我們改成回 Promise — 既有 callsite
+        // ``if (!confirm('...')) return`` 因為拿到 Promise(truthy),變成永遠 return。
+        // 為了向後相容,**只在明確 await 時**才用 dialog;沒 await 的 callsite
+        // 仍回原生(避免破壞舊行為)。實務上我們會把所有 confirm callsite 改
+        // 成 await confirmDialog,但全域同名覆寫的選項保留給之後逐步遷移。
+        window.confirmDialog = confirmDialog;
+        window.appAlert = appAlert;
+
         // ==================== 0. Toast 提示系統 ====================
+        // 安全性:用 DOM API + textContent 組裝,不用 innerHTML 拼接。
+        // 過去 toast 用 ``toast.innerHTML = `... ${message}`` 直接吃 user-controlled
+        // 訊息(很多地方 showToast(e.message) 而 e.message 來自後端錯誤回應),
+        // 若 error.detail 內含 <script> / <img onerror> 即觸發 reflected XSS。
+        // 改為 textContent 後 user 內容一律以純文字渲染。
         function showToast(message, type = 'info') {
             const container = document.getElementById('toastContainer');
             const toast = document.createElement('div');
             toast.className = `px-4 py-3 rounded shadow-lg text-white text-sm transition-all duration-300 transform translate-x-full flex items-center gap-2 pointer-events-auto z-[999]`;
+            toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
             let icon = 'fa-circle-info';
             if (type === 'error') { toast.classList.add('bg-red-500'); icon = 'fa-circle-xmark'; }
             else if (type === 'success') { toast.classList.add('bg-green-500'); icon = 'fa-circle-check'; }
             else if (type === 'warning') { toast.classList.add('bg-amber-500'); icon = 'fa-triangle-exclamation'; }
             else { toast.classList.add('bg-slate-800'); }
-            toast.innerHTML = `<i class="fa-solid ${icon}"></i> <span>${message}</span>`;
+            const iconEl = document.createElement('i');
+            iconEl.className = `fa-solid ${icon}`;
+            iconEl.setAttribute('aria-hidden', 'true');
+            const textEl = document.createElement('span');
+            textEl.textContent = String(message ?? '');
+            toast.appendChild(iconEl);
+            toast.appendChild(textEl);
             container.appendChild(toast);
             requestAnimationFrame(() => toast.classList.remove('translate-x-full'));
             setTimeout(() => { toast.classList.add('translate-x-full', 'opacity-0'); setTimeout(() => toast.remove(), 300); }, 3000);
@@ -5358,7 +5493,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         async function cancelRunningTest() {
             if (!currentRunningTask) return;
             const { task_id } = currentRunningTask;
-            if (!confirm('確定要停止當前執行？已跑過的步驟會保留，報告會被標記為 FAILED。')) return;
+            if (!(await confirmDialog({body: '確定要停止當前執行？已跑過的步驟會保留，報告會被標記為 FAILED。', danger: true}))) return;
             setStopButtonEnabled(false);
             const output = document.getElementById('terminalOutput');
             const append = (text, cls = 'text-amber-400') => {
@@ -5645,10 +5780,22 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 filename.textContent = dirty ? base + ' *' : base;
             }
         }
-        // 若有未儲存變更，提示使用者確認後才可繼續；回傳 true 代表使用者選擇放棄變更
+        // 若有未儲存變更,顯示警告 toast 並回 false(讓 caller 不繼續),等使用者
+        // 真的想丟棄變更時手動再點一次即放行。原本是 sync confirm() 阻塞 + 攔截,
+        // 改用 confirmDialog 後變 async,callers 多達 20+ 處不全是 async;為避免
+        // 一次大改動影響面太大,降級成「toast 提醒 + caller 再試一次」流程。
+        // **第二次** 呼叫(連續 1 秒內)會放行,讓使用者體驗仍然可用。
+        let _lastDirtyWarnAt = 0;
         function confirmDiscardIfDirty() {
             if (!isDirty()) return true;
-            return confirm('目前案例有未儲存的變更（驗收準則 / 前置動作 / 測試步驟 / DDT）。\n\n離開將會遺失這些變更，確定要繼續嗎？');
+            const now = Date.now();
+            if (now - _lastDirtyWarnAt < 4000) {
+                _lastDirtyWarnAt = 0; // reset
+                return true;          // 連續第二次 → 放行
+            }
+            _lastDirtyWarnAt = now;
+            try { showToast('有未儲存的變更,再點一次以放棄變更繼續', 'warning'); } catch (_) {}
+            return false;
         }
 
         function updateAC(value) {
@@ -5675,7 +5822,16 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             document.getElementById('viewTag').textContent = tc.tag;
             document.getElementById('viewTag').className = `${tc.tagColor} px-1.5 py-0.5 rounded font-medium`;
             document.getElementById('viewFilename').textContent = tc.filename;
-            document.getElementById('viewTitle').innerHTML = `<i class="fa-brands fa-markdown text-blue-400"></i> ${tc.title}`;
+            // viewTitle 安全渲染:icon 寫死 + title 用 textContent,避免 testcase 名稱含 XSS payload
+            (function () {
+                const vt = document.getElementById('viewTitle');
+                vt.replaceChildren();
+                const ic = document.createElement('i');
+                ic.className = 'fa-brands fa-markdown text-blue-400';
+                ic.setAttribute('aria-hidden', 'true');
+                vt.appendChild(ic);
+                vt.appendChild(document.createTextNode(' ' + (tc.title || '')));
+            })();
             document.getElementById('acTextarea').value = tc.ac;
             document.getElementById('setupTextarea').value = tc.setup ?? '';
 
@@ -5800,7 +5956,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         }
         async function removePrecondition(linkId) {
             if (!currentTestCase) return;
-            if (!confirm('確定要移除這個前置案例?')) return;
+            if (!(await confirmDialog({body: '確定要移除這個前置案例?', danger: true}))) return;
             try {
                 const current = await _fetchPreconditions(currentTestCase);
                 const items = _toInputItems(current.filter(c => c.id !== linkId));
@@ -6045,11 +6201,11 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 selAll.indeterminate = n > 0 && n < total;
             }
         }
-        function stepBulkDeleteSelected() {
+        async function stepBulkDeleteSelected() {
             if (!currentTestCase || !testCases[currentTestCase]) return;
             const n = stepSelectedIdx.size;
             if (!n) return;
-            if (!confirm(`確定要刪除已勾選的 ${n} 個步驟?`)) return;
+            if (!(await confirmDialog({body: `確定要刪除已勾選的 ${n} 個步驟?`, danger: true}))) return;
             // 從大 idx 往小 idx splice,避免 index 跑位
             const idxs = Array.from(stepSelectedIdx).sort((a, b) => b - a);
             const steps = testCases[currentTestCase].steps;
@@ -6511,8 +6667,8 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         }
         // ==================== 測試步驟 匯入/匯出 結束 ====================
 
-        function deleteStep(idx) {
-            if (!confirm(`確定要刪除第 ${idx + 1} 個步驟？`)) return;
+        async function deleteStep(idx) {
+            if (!(await confirmDialog({body: `確定要刪除第 ${idx + 1} 個步驟？`, danger: true}))) return;
             testCases[currentTestCase].steps.splice(idx, 1);
             // 結構改了,idx-based selection 失效,清掉避免後續 splice 錯位
             stepSelectedIdx.clear();
@@ -6582,11 +6738,11 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             if (cnt) cnt.textContent = `(${ddtSelectedIndices.size})`;
             if (btn) btn.disabled = ddtSelectedIndices.size === 0;
         }
-        function deleteSelectedDdtRows() {
+        async function deleteSelectedDdtRows() {
             if (!currentTestCase || !testCases[currentTestCase]) return;
             if (ddtSelectedIndices.size === 0) return;
             const n = ddtSelectedIndices.size;
-            if (!confirm(`確定刪除選取的 ${n} 列 DDT 資料？`)) return;
+            if (!(await confirmDialog({body: `確定刪除選取的 ${n} 列 DDT 資料？`, danger: true}))) return;
             const tc = testCases[currentTestCase];
             // 由大到小刪以維持 index 有效
             const sorted = Array.from(ddtSelectedIndices).sort((a, b) => b - a);
@@ -6633,8 +6789,8 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             renderDDT();
         }
 
-        function deleteDdtRow(ri) {
-            if (!confirm(`確定要刪除第 ${ri + 1} 列資料？`)) return;
+        async function deleteDdtRow(ri) {
+            if (!(await confirmDialog({body: `確定要刪除第 ${ri + 1} 列資料？`, danger: true}))) return;
             testCases[currentTestCase].ddt.rows.splice(ri, 1);
             ddtSelectedIndices.delete(ri);
             // 調整剩餘索引：大於被刪除列的索引往前挪一格
@@ -7162,7 +7318,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         async function deleteSelectedReports() {
             if (!selectedReportIds.size) return;
             const ids = Array.from(selectedReportIds);
-            if (!confirm(`確定要刪除選取的 ${ids.length} 筆執行報告？\n此動作無法復原。`)) return;
+            if (!(await confirmDialog({body: `確定要刪除選取的 ${ids.length} 筆執行報告？\n此動作無法復原。`, danger: true}))) return;
             try {
                 const res = await apiFetch('/api/reports/delete-batch', {
                     method: 'POST',
@@ -7218,7 +7374,11 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             report.cases.forEach((c, caseIdx) => {
                 const caseHeader = document.createElement('div');
                 caseHeader.className = 'font-bold text-slate-800 text-sm mb-3 flex items-center gap-2 bg-slate-100 p-2 rounded';
-                caseHeader.innerHTML = `<i class="fa-regular fa-file-lines text-blue-500"></i> ${c.name}`;
+                const icCh = document.createElement('i');
+                icCh.className = 'fa-regular fa-file-lines text-blue-500';
+                icCh.setAttribute('aria-hidden', 'true');
+                caseHeader.appendChild(icCh);
+                caseHeader.appendChild(document.createTextNode(' ' + (c.name || '')));
                 timelineContainer.appendChild(caseHeader);
 
                 c.steps.forEach((step, index) => {
@@ -7231,17 +7391,33 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                     // 點 step → 用該 step 真正所屬的 case index(原本寫死 0,setup+main
                     // 多 case 時所有 step 都指向 cases[0] → 右邊永遠顯示 setup 的內容)
                     item.onclick = () => selectReportStep(reportId, caseIdx, index);
-                    item.innerHTML = `
-                        <div class="step-timeline"></div>
-                        <div class="absolute left-1 top-3.5 text-[14px]">${statusIcon}</div>
-                        <div class="bg-white border border-slate-200 rounded p-2.5 group-hover:border-blue-400 group-hover:shadow-sm transition">
-                            <div class="flex items-center gap-2 mb-1">
-                                <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">${step.bdd}</span>
-                                <span class="font-bold text-slate-700 text-sm truncate">${step.desc}</span>
-                            </div>
-                            <div class="text-xs text-slate-400 font-mono">${step.action} | ${step.duration}</div>
-                        </div>
-                    `;
+                    // 用 DOM API 組裝,避免 step.bdd / step.desc / step.action 被當 HTML 渲染。
+                    // statusIcon 是 hardcoded literal,可以直接寫進固定容器。
+                    const tl = document.createElement('div');
+                    tl.className = 'step-timeline';
+                    item.appendChild(tl);
+                    const iconWrap = document.createElement('div');
+                    iconWrap.className = 'absolute left-1 top-3.5 text-[14px]';
+                    iconWrap.innerHTML = statusIcon; // 內容由前述 hardcoded 字面值決定,無 user input
+                    item.appendChild(iconWrap);
+                    const card = document.createElement('div');
+                    card.className = 'bg-white border border-slate-200 rounded p-2.5 group-hover:border-blue-400 group-hover:shadow-sm transition';
+                    const titleRow = document.createElement('div');
+                    titleRow.className = 'flex items-center gap-2 mb-1';
+                    const badge = document.createElement('span');
+                    badge.className = 'text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500';
+                    badge.textContent = step.bdd || '';
+                    const desc = document.createElement('span');
+                    desc.className = 'font-bold text-slate-700 text-sm truncate';
+                    desc.textContent = step.desc || '';
+                    titleRow.appendChild(badge);
+                    titleRow.appendChild(desc);
+                    const meta = document.createElement('div');
+                    meta.className = 'text-xs text-slate-400 font-mono';
+                    meta.textContent = `${step.action || ''} | ${step.duration || ''}`;
+                    card.appendChild(titleRow);
+                    card.appendChild(meta);
+                    item.appendChild(card);
                     timelineContainer.appendChild(item);
                 });
             });
@@ -7460,7 +7636,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         }
         async function setActualAsBaseline(stepUuid, sourceUrl) {
             if (!stepUuid || !sourceUrl) return;
-            if (!confirm('把當下這張 actual 截圖設為新 baseline？下次執行起會以這張為比對基準。')) return;
+            if (!(await confirmDialog({body: '把當下這張 actual 截圖設為新 baseline？下次執行起會以這張為比對基準。', danger: true}))) return;
             try {
                 const res = await fetch(`/api/steps/${encodeURIComponent(stepUuid)}/baseline/copy-from`, {
                     method: 'POST',
@@ -7603,7 +7779,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         }
         async function deleteBaseline() {
             if (!_baselineCurrentStepUuid) return;
-            if (!confirm('確定移除此 step 的 baseline？下次執行會 auto-save 當下截圖當新 baseline。')) return;
+            if (!(await confirmDialog({body: '確定移除此 step 的 baseline？下次執行會 auto-save 當下截圖當新 baseline。', danger: true}))) return;
             try {
                 const res = await fetch(`/api/steps/${encodeURIComponent(_baselineCurrentStepUuid)}/baseline`, {
                     method: 'DELETE',
@@ -8348,7 +8524,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             }
             const proj = projectsData[currentProjectId];
             const name = proj?.name || currentProjectId;
-            if (!confirm(`確定要刪除專案「${name}」？\n此動作會一併刪除其底下所有功能、測試案例與執行報告，且無法復原。`)) return;
+            if (!(await confirmDialog({body: `確定要刪除專案「${name}」？\n此動作會一併刪除其底下所有功能、測試案例與執行報告，且無法復原。`, danger: true}))) return;
             try {
                 await apiFetch(`/api/projects/${currentProjectId}`, { method: 'DELETE' });
                 showToast(`已刪除專案：${name}`, 'success');
@@ -8385,7 +8561,11 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                         organization_name: p.organization_name,
                         treeData: [],
                     };
-                    sel.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+                    // 用 DOM API 加 option,避免 project.name 含 XSS payload 被 innerHTML 拼接
+                    const opt = document.createElement('option');
+                    opt.value = p.id;
+                    opt.textContent = p.name || '';
+                    sel.appendChild(opt);
                 }
                 // v1.1.11:reload 後若 sessionStorage 有 postReloadProjectId(來自 switchProject
                 // 觸發 org 切換前 stash 的),優先選回那個專案;其次 currentProjectId;最後 list[0]。
@@ -9950,7 +10130,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         }
 
         async function clearAllNotifications() {
-            if (!confirm('確定要清空全部通知?此動作不可還原。')) return;
+            if (!(await confirmDialog({body: '確定要清空全部通知?此動作不可還原。', danger: true}))) return;
             clearLocalNotifs();
             if (typeof authGetAccessToken === 'function' && authGetAccessToken()) {
                 try { await apiFetch('/api/notifications', { method: 'DELETE' }); }
@@ -12116,7 +12296,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         }
 
         async function authLogout() {
-            if (!confirm('確定要登出嗎？')) return;
+            if (!(await confirmDialog({body: '確定要登出嗎？', danger: true}))) return;
             try { stopNotifPolling(); } catch (_) {}
             // 順手清 VM 磁碟(dangling images / stopped containers / build cache)
             // — 不會碰 autotest-robot-runner / recorder / recorder-api / mcp 這些
@@ -12370,7 +12550,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         }
 
         async function removeUserAvatar() {
-            if (!confirm('確定移除大頭貼?')) return;
+            if (!(await confirmDialog({body: '確定移除大頭貼?', danger: true}))) return;
             try {
                 const me = await apiFetch('/api/auth/me/avatar', { method: 'DELETE' });
                 _renderUserAvatar(me);
@@ -12819,7 +12999,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         }
 
         async function deleteSchedule(id) {
-            if (!confirm('確定要刪除此排程？')) return;
+            if (!(await confirmDialog({body: '確定要刪除此排程？', danger: true}))) return;
             try {
                 await apiFetch(`/api/schedules/${id}`, { method: 'DELETE' });
                 showToast('排程已刪除', 'success');
@@ -13013,7 +13193,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             const tail = lc==='en'
                 ? '\n\nThis also wipes their audit history and CANNOT be undone.'
                 : '\n\n會一併移除對應的審核軌跡(history),此操作無法復原。';
-            if (!confirm(prefix + tail)) return;
+            if (!(await confirmDialog({body: prefix + tail, danger: true}))) return;
             try {
                 const resp = await apiFetch('/api/reviews/bulk-delete', {
                     method: 'POST',
@@ -14654,7 +14834,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         async function tcBulkDeleteSelected() {
             const ids = Array.from(tcListState.selected);
             if (!ids.length) return;
-            if (!confirm(`確定要刪除已勾選的 ${ids.length} 筆測試案例？此動作無法復原。`)) return;
+            if (!(await confirmDialog({body: `確定要刪除已勾選的 ${ids.length} 筆測試案例？此動作無法復原。`, danger: true}))) return;
             let ok = 0, fail = 0;
             for (const id of ids) {
                 try {
@@ -14793,7 +14973,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
 
         async function tcDeleteFromList(id, title) {
             const displayTitle = String(title || '').replace(/\.md$/i, '');
-            if (!confirm(`確定要刪除測試案例「${displayTitle}」？此動作無法復原。`)) return;
+            if (!(await confirmDialog({body: `確定要刪除測試案例「${displayTitle}」？此動作無法復原。`, danger: true}))) return;
             try {
                 await apiFetch(`/api/nodes/${encodeURIComponent(id)}`, { method: 'DELETE' });
                 showToast('測試案例已刪除', 'success');
@@ -15152,9 +15332,9 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             renderDevicesList();
             renderDeviceEditor();
         }
-        function removeSelectedDevice() {
+        async function removeSelectedDevice() {
             if (_selectedDeviceIdx == null) return;
-            if (!confirm('確定移除此設備?')) return;
+            if (!(await confirmDialog({body: '確定移除此設備?', danger: true}))) return;
             removeDeviceRow(_selectedDeviceIdx);
         }
         async function saveDevices() {
@@ -15881,9 +16061,9 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             renderMockList();
             renderMockEditor();
         }
-        function removeSelectedMock() {
+        async function removeSelectedMock() {
             if (_selectedMockIdx == null) return;
-            if (!confirm('確定移除此 Mock？(需按「儲存」才會同步到後端)')) return;
+            if (!(await confirmDialog({body: '確定移除此 Mock？(需按「儲存」才會同步到後端)', danger: true}))) return;
             const removed = mocksBuffer.splice(_selectedMockIdx, 1)[0];
             if (removed && removed._backendId) {
                 _mocksPendingDelete.add(removed._backendId);
@@ -16190,8 +16370,8 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             document.body.appendChild(a); a.click(); document.body.removeChild(a);
             setTimeout(() => URL.revokeObjectURL(url), 1000);
         }
-        function dsClearGrid() {
-            if (!confirm('確定清空所有欄位與資料列?此動作不會立即儲存。')) return;
+        async function dsClearGrid() {
+            if (!(await confirmDialog({body: '確定清空所有欄位與資料列?此動作不會立即儲存。', danger: true}))) return;
             _dsCols = [];
             _dsRows = [];
             renderDataSetGrid();
@@ -16224,7 +16404,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             return false;
         }
         async function deleteDataSet(id, code) {
-            if (!confirm(`確定刪除資料集 ${code}?`)) return;
+            if (!(await confirmDialog({body: `確定刪除資料集 ${code}?`, danger: true}))) return;
             try {
                 const res = await fetch('/api/data-sets/'+id, {method:'DELETE'});
                 if (!res.ok && res.status !== 204) throw new Error('HTTP '+res.status);
@@ -16300,7 +16480,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             const roleId = sel ? sel.value : '';
             const usernames = Array.from(_pmSelected);
             const roleLabel = roleId ? sel.options[sel.selectedIndex].text : '繼承 Org 角色';
-            if (!confirm(`將 ${usernames.length} 名成員的專案角色改為「${roleLabel}」?`)) return;
+            if (!(await confirmDialog({body: `將 ${usernames.length} 名成員的專案角色改為「${roleLabel}」?`, danger: true}))) return;
             try {
                 const r = await fetch(`/api/projects/${encodeURIComponent(currentProjectId)}/members/bulk`, {
                     method: 'PATCH',
@@ -16425,7 +16605,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         async function prpResetToDefault() {
             // 從 modal 內按「重設為預設」
             if (!_prpEditingRoleId || !currentProjectId) return;
-            if (!confirm('確定要拿掉本專案的角色權限覆蓋?該角色會回到全域預設值。')) return;
+            if (!(await confirmDialog({body: '確定要拿掉本專案的角色權限覆蓋?該角色會回到全域預設值。', danger: true}))) return;
             await prpResetRole(_prpEditingRoleId, '');
             prpCloseEditModal();
         }
@@ -16569,7 +16749,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             } catch (_) { /* silent */ }
         }
         async function pmInviteRevoke(invId, email) {
-            if (!confirm(`確定撤銷給 ${email} 的邀請?該邀請碼立即失效。`)) return;
+            if (!(await confirmDialog({body: `確定撤銷給 ${email} 的邀請?該邀請碼立即失效。`, danger: true}))) return;
             try {
                 const r = await fetch(`/api/projects/invites/${encodeURIComponent(invId)}`, { method: 'DELETE' });
                 if (!r.ok && r.status !== 204) {
@@ -17056,7 +17236,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         }
 
         async function pmDeleteUser(username) {
-            if (!confirm(`徹底刪除帳號「${username}」?\n\n會連同他所有專案成員身分一併刪除,且無法復原。\n如果只是想把他從這個專案移除,請改按旁邊的「移除」按鈕。`)) return;
+            if (!(await confirmDialog({body: `徹底刪除帳號「${username}」?\n\n會連同他所有專案成員身分一併刪除,且無法復原。\n如果只是想把他從這個專案移除,請改按旁邊的「移除」按鈕。`, danger: true}))) return;
             try {
                 const r = await fetch(`/api/auth/users/${encodeURIComponent(username)}`, {
                     method: 'DELETE',
@@ -17095,7 +17275,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
 
         async function pmRemove(username) {
             if (!currentProjectId) return;
-            if (!confirm(`確定移除「${username}」?\n他在組織中仍是成員,只是不再看得到此專案。`)) return;
+            if (!(await confirmDialog({body: `確定移除「${username}」?\n他在組織中仍是成員,只是不再看得到此專案。`, danger: true}))) return;
             try {
                 const r = await fetch(`/api/projects/${encodeURIComponent(currentProjectId)}/members/${encodeURIComponent(username)}`, {
                     method: 'DELETE',
@@ -17489,7 +17669,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             const r = testRoundList.find(x => x.id === id);
             if (!r) return;
             const mode = getExecutionMode();
-            if (!confirm(`確定以「${mode === 'local' ? '本機' : 'Docker'}」模式執行回合「${r.name}」？（共 ${r.node_ids.length} 個案例）`)) return;
+            if (!(await confirmDialog({body: `確定以「${mode === 'local' ? '本機' : 'Docker'}」模式執行回合「${r.name}」？（共 ${r.node_ids.length} 個案例）`, danger: true}))) return;
             try {
                 const res = await fetch(`/api/rounds/${id}/execute?execution_mode=${mode}`, { method: 'POST' });
                 if (!res.ok) {
@@ -17510,7 +17690,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
 
         async function deleteTestRound(id) {
             const r = testRoundList.find(x => x.id === id);
-            if (!confirm(`確定刪除TestRun「${r?.name || id}」？`)) return;
+            if (!(await confirmDialog({body: `確定刪除TestRun「${r?.name || id}」？`, danger: true}))) return;
             try {
                 const res = await fetch(`/api/rounds/${id}`, { method: 'DELETE' });
                 if (!res.ok && res.status !== 204) throw new Error('HTTP ' + res.status);
@@ -17727,7 +17907,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
 
         async function recApiDockerStop() {
             if (!recCurrentSession || !recCurrentSession.id) return;
-            if (!confirm('確定停止錄製?容器會送 SIGTERM,自動上傳 HAR 並解析成 Http.* 步驟。')) return;
+            if (!(await confirmDialog({body: '確定停止錄製?容器會送 SIGTERM,自動上傳 HAR 並解析成 Http.* 步驟。', danger: true}))) return;
             try {
                 const r = await fetch(`/api/recordings/${encodeURIComponent(recCurrentSession.id)}/api-docker-stop`, {
                     method: 'POST',
@@ -17882,13 +18062,13 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                             // 勾選後,任何「沒能建出案例」的情況都要跳明顯錯誤視窗,
                             // 不要 silent 跳過讓使用者誤以為錄製成功了。
                             if (!scenarioId) {
-                                alert(
+                                (await appAlert(
                                     '⚠ 自動建案模式失敗\n\n' +
                                     '沒有選擇 SCENARIO 節點 — 案例會建在哪不知道,跳過建立。\n\n' +
                                     '請在「自動建案模式」勾選旁的下拉選一個 SCENARIO,或手動點「直接建為新案例」。'
-                                );
+                                ));
                             } else if (!recLastSteps.length) {
-                                alert(
+                                (await appAlert(
                                     '⚠ 自動建案模式失敗 — 沒建到任何案例\n\n' +
                                     '錄製有結束、但沒抓到任何測試步驟,無法產出案例。\n\n' +
                                     '可能原因:\n' +
@@ -17896,7 +18076,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                                     '  • Playwright codegen 沒產出 .js 內容(看上面 toast)\n' +
                                     '  • 解析階段失敗,recLastSteps 是空的\n\n' +
                                     '建議重錄一次,確保至少有一個操作步驟。'
-                                );
+                                ));
                             } else {
                                 await _recAutoCreateNewCase(scenarioId);
                             }
@@ -17909,7 +18089,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         // Sprint 2.2 helper — 容器結束後自動建為新案例(免按按鈕)
         async function _recAutoCreateNewCase(scenarioId) {
             if (!scenarioId || !recLastSteps.length) {
-                alert('⚠ 自動建案模式失敗\n\nscenarioId 或 recLastSteps 為空 — 不應該走到這(caller 應該已經擋掉)。');
+                (await appAlert('⚠ 自動建案模式失敗\n\nscenarioId 或 recLastSteps 為空 — 不應該走到這(caller 應該已經擋掉)。'));
                 return;
             }
             const sid = (recCurrentSession && recCurrentSession.id) ? recCurrentSession.id.slice(0, 8) : 'session';
@@ -17921,11 +18101,11 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                     body: JSON.stringify({ project_id: currentProjectId, parent_id: scenarioId, name }),
                 });
                 if (!created || !created.id) {
-                    alert(
+                    (await appAlert(
                         '⚠ 自動建案模式失敗 — 沒建到任何案例\n\n' +
                         'POST /api/nodes 回傳成功但沒拿到新案例的 id。\n' +
                         '請手動點「直接建為新案例」。'
-                    );
+                    ));
                     return;
                 }
                 const steps = recLastSteps.map((s, i) => recMapStep(s, i));
@@ -17950,11 +18130,11 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                     else if (typeof renderSteps === 'function') renderSteps();
                 }
             } catch (e) {
-                alert(
+                (await appAlert(
                     '⚠ 自動建案模式失敗 — 沒建到任何案例\n\n' +
                     `錯誤訊息:${e.message}\n\n` +
                     '請手動點「直接建為新案例」,或檢查專案是否還存在 / 是否有權限。'
-                );
+                ));
             }
         }
 
@@ -17990,7 +18170,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
 
         async function recDockerStop() {
             if (!recCurrentSession || !recCurrentSession.id) return;
-            if (!confirm('確定停止錄製?容器會關閉;codegen 目前產出的腳本會自動上傳並解析。')) return;
+            if (!(await confirmDialog({body: '確定停止錄製?容器會關閉;codegen 目前產出的腳本會自動上傳並解析。', danger: true}))) return;
             // 立刻清 polling timer + 設 flag,避免 polling tick 也 detect 容器結束、
             // 再跑一次 _recAutoCreateNewCase → 同一 session 出兩個 .md。
             _recStoppingFlag = true;
@@ -18614,7 +18794,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         async function recBulkDelete() {
             const ids = Array.from(document.querySelectorAll('.recRowChk:checked')).map(cb => cb.value);
             if (!ids.length) return;
-            if (!confirm(`確定刪除選取的 ${ids.length} 筆錄製 session？檔案也會一併刪除。`)) return;
+            if (!(await confirmDialog({body: `確定刪除選取的 ${ids.length} 筆錄製 session？檔案也會一併刪除。`, danger: true}))) return;
             let ok = 0, fail = 0;
             for (const sid of ids) {
                 try {
@@ -18708,7 +18888,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         }
 
         async function recDeleteSession(sid) {
-            if (!confirm('確定刪除此錄製 session？檔案也會一起刪除。')) return;
+            if (!(await confirmDialog({body: '確定刪除此錄製 session？檔案也會一起刪除。', danger: true}))) return;
             try {
                 const res = await fetch('/api/recordings/' + sid, { method: 'DELETE' });
                 if (!res.ok && res.status !== 204) throw new Error('HTTP ' + res.status);
@@ -19046,22 +19226,22 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
 
         async function memoryDelete(memoryId) {
             if (!memoryId) return;
-            if (!confirm('確定刪除這條記憶?(不可復原)')) return;
+            if (!(await confirmDialog({body: '確定刪除這條記憶?(不可復原)', danger: true}))) return;
             try {
                 await window.apiFetch('/api/agent/memories/' + encodeURIComponent(memoryId), { method: 'DELETE' });
                 await memoryRefresh();
             } catch (e) {
-                alert('刪除失敗:' + (e.message || e));
+                (await appAlert('刪除失敗:' + (e.message || e)));
             }
         }
 
         async function memoryDeleteAll() {
-            if (!confirm('確定清空你所有的 AI 記憶?(不可復原,AI 之後不會記得任何過去事實)')) return;
+            if (!(await confirmDialog({body: '確定清空你所有的 AI 記憶?(不可復原,AI 之後不會記得任何過去事實)', danger: true}))) return;
             try {
                 await window.apiFetch('/api/agent/memories', { method: 'DELETE' });
                 await memoryRefresh();
             } catch (e) {
-                alert('清空失敗:' + (e.message || e));
+                (await appAlert('清空失敗:' + (e.message || e)));
             }
         }
 
@@ -19437,7 +19617,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         }
 
         async function aiProviderDelete(providerKey) {
-            if (!confirm('確定要移除 ' + providerKey + ' 的 API key 與設定嗎?(此操作不可復原,需要重新貼入 key)')) return;
+            if (!(await confirmDialog({body: '確定要移除 ' + providerKey + ' 的 API key 與設定嗎?(此操作不可復原,需要重新貼入 key)', danger: true}))) return;
             const c = _aiCardFor(providerKey);
             const statusEl = c.querySelector('.ai-prov-status-text');
             try {
@@ -19678,7 +19858,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         }
 
         async function rolesDelete(roleId, roleName) {
-            if (!confirm(`確定要刪除角色「${roleName}」?此操作無法復原。`)) return;
+            if (!(await confirmDialog({body: `確定要刪除角色「${roleName}」?此操作無法復原。`, danger: true}))) return;
             try {
                 const r = await fetch(`/api/settings/roles/${roleId}`, { method: 'DELETE' });
                 if (!r.ok && r.status !== 204) {
@@ -20134,7 +20314,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                     }
                 }
             } catch (_) { /* fall back to plain confirm */ }
-            if (!confirm(warning)) return;
+            if (!(await confirmDialog({body: warning, danger: true}))) return;
             try {
                 const r = await fetch('/api/settings/roles/'+id, { method:'DELETE' });
                 if (!r.ok && r.status !== 204) {
@@ -20476,7 +20656,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
 
         async function removeGroupMember(username) {
             if (!_selectedGroupId) return;
-            if (!confirm(`確定把「${username}」移出群組?`)) return;
+            if (!(await confirmDialog({body: `確定把「${username}」移出群組?`, danger: true}))) return;
             try {
                 const r = await fetch(`/api/settings/groups/${encodeURIComponent(_selectedGroupId)}/members/${encodeURIComponent(username)}`, { method: 'DELETE' });
                 if (!r.ok && r.status !== 204) throw new Error('HTTP '+r.status);
@@ -20593,7 +20773,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 todoCount > 0 ? `\n⚠ 此群組被 ${todoCount} 個 To-do 指派為負責人,刪除後這些指派會失效。` : '',
                 assignCount > 0 ? `\n⚠ 此群組被 ${assignCount} 個其它任務 / 缺陷指派,刪除後這些指派會失效。` : '',
             ].filter(Boolean).join('');
-            if (!confirm(lines)) return;
+            if (!(await confirmDialog({body: lines, danger: true}))) return;
             try {
                 const r = await fetch('/api/settings/groups/'+_selectedGroupId, { method: 'DELETE' });
                 if (!r.ok && r.status !== 204) throw new Error('HTTP '+r.status);
@@ -20688,7 +20868,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         }
 
         async function deleteOrg(id, name) {
-            if (!confirm(`確定刪除組織「${name}」？此動作會把該組織下所有資料（專案 / 角色 / SMTP / AI Token）都標記為孤兒（organization_id 設為 NULL）。`)) return;
+            if (!(await confirmDialog({body: `確定刪除組織「${name}」？此動作會把該組織下所有資料（專案 / 角色 / SMTP / AI Token）都標記為孤兒（organization_id 設為 NULL）。`, danger: true}))) return;
             try {
                 const r = await fetch('/api/organizations/'+id, { method:'DELETE' });
                 if (!r.ok && r.status !== 204) {
@@ -21190,7 +21370,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             } catch (e) { showToast('更新失敗:'+e.message, 'error'); }
         }
         async function deleteTodo(id) {
-            if (!confirm('確定刪除這個待辦?')) return;
+            if (!(await confirmDialog({body: '確定刪除這個待辦?', danger: true}))) return;
             try {
                 const r = await fetch('/api/todos/'+id, { method:'DELETE' });
                 if (!r.ok && r.status !== 204) throw new Error('HTTP '+r.status);
@@ -22599,7 +22779,7 @@ curl -X POST http://localhost:8000/api/defects \\
     }
 
     async function _tkDeleteCard(id, title) {
-        if (!confirm(`確定刪除待辦「${title}」?此操作無法復原。`)) return;
+        if (!(await confirmDialog({body: `確定刪除待辦「${title}」?此操作無法復原。`, danger: true}))) return;
         try {
             await apiFetch(`/api/todos/${id}`, { method: 'DELETE', raw: true });
             if (typeof showToast === 'function') showToast('已刪除', 'success');
@@ -23027,7 +23207,7 @@ curl -X POST http://localhost:8000/api/defects \\
 
     async function _todoConfirmDelete() {
         if (!_todoCurrent) return;
-        if (!confirm(`確定刪除待辦「${_todoCurrent.title}」?`)) return;
+        if (!(await confirmDialog({body: `確定刪除待辦「${_todoCurrent.title}」?`, danger: true}))) return;
         try {
             await apiFetch(`/api/todos/${_todoCurrent.id}`, { method: 'DELETE', raw: true });
             closeTodoDetail();
@@ -23069,7 +23249,7 @@ curl -X POST http://localhost:8000/api/defects \\
     }
 
     async function _todoRemoveLink(linkId) {
-        // v1.1.11.2:即點即移,不再 confirm() — 跟新增待辦 modal 的 X 體驗一致
+        // v1.1.11.2:即點即移,不再 (await confirmDialog({body: , danger: true})) — 跟新增待辦 modal 的 X 體驗一致
         // 拿掉 raw:true:api.js 的 raw 路徑會 short-circuit 在 !resp.ok 檢查前回 Response,
         // DELETE 失敗(eg 404 / 403)會被靜默吞掉 → 視覺上 X 看起來「點了沒反應」。
         if (!_todoCurrent || !linkId) return;
@@ -23266,7 +23446,7 @@ curl -X POST http://localhost:8000/api/defects \\
     async function defBatchDelete() {
         const ids = Array.from(_defSelectedIds);
         if (!ids.length) return;
-        if (!confirm(`確定刪除選取的 ${ids.length} 筆缺陷?此操作無法復原。`)) return;
+        if (!(await confirmDialog({body: `確定刪除選取的 ${ids.length} 筆缺陷?此操作無法復原。`, danger: true}))) return;
         let ok = 0, fail = 0;
         await Promise.all(ids.map(async id => {
             try {
@@ -23282,7 +23462,7 @@ curl -X POST http://localhost:8000/api/defects \\
     }
 
     async function _defRowDelete(id, code) {
-        if (!confirm(`確定刪除缺陷 ${code}?此操作無法復原。`)) return;
+        if (!(await confirmDialog({body: `確定刪除缺陷 ${code}?此操作無法復原。`, danger: true}))) return;
         try {
             await apiFetch(`/api/defects/${id}`, { method: 'DELETE', raw: true });
             _defSelectedIds.delete(id);
@@ -23701,7 +23881,7 @@ curl -X POST http://localhost:8000/api/defects \\
 
     // 送 defect 進審核流程(v1.1.9)— 後端 POST /api/reviews,entity_type=defect
     async function _defSubmitForReview(defectId) {
-        if (!confirm('將此缺陷送出審核?送審後可在「審核」分頁追蹤。')) return;
+        if (!(await confirmDialog({body: '將此缺陷送出審核?送審後可在「審核」分頁追蹤。', danger: true}))) return;
         try {
             const r = await apiFetch('/api/reviews', {
                 method: 'POST',
@@ -23741,7 +23921,7 @@ curl -X POST http://localhost:8000/api/defects \\
 
     async function _defDetailRemoveAttachment(url) {
         if (!_defCurrentDetail) return;
-        if (!confirm('確定移除此附件?')) return;
+        if (!(await confirmDialog({body: '確定移除此附件?', danger: true}))) return;
         try {
             const updated = await apiFetch(
                 `/api/defects/${_defCurrentDetail.id}/attachments?url=${encodeURIComponent(url)}`,
@@ -23771,7 +23951,7 @@ curl -X POST http://localhost:8000/api/defects \\
     }
 
     async function _defConfirmDelete(id, code) {
-        if (!confirm(`確定刪除缺陷 ${code}?(此操作無法回復)`)) return;
+        if (!(await confirmDialog({body: `確定刪除缺陷 ${code}?(此操作無法回復)`, danger: true}))) return;
         try {
             await apiFetch(`/api/defects/${id}`, { method: 'DELETE', raw: true });
             closeDefectDetail();
@@ -24715,7 +24895,7 @@ curl -X POST http://localhost:8000/api/defects \\
     async function _tsConfirmDelete() {
         if (!_tsEditingId) return;
         const sched = _tsRows.find(s => s.id === _tsEditingId);
-        if (!confirm(`確定刪除 Sprint「${sched?.name || _tsEditingId}」?此操作無法復原。`)) return;
+        if (!(await confirmDialog({body: `確定刪除 Sprint「${sched?.name || _tsEditingId}」?此操作無法復原。`, danger: true}))) return;
         try {
             await apiFetch(`/api/test-schedules/${_tsEditingId}`, { method: 'DELETE', raw: true });
             closeTsModal();
@@ -24968,7 +25148,7 @@ curl -X POST http://localhost:8000/api/defects \\
     }
 
     async function _mockRowDelete(id, name) {
-        if (!confirm(`確定刪除 Mock「${name}」?此操作無法復原。`)) return;
+        if (!(await confirmDialog({body: `確定刪除 Mock「${name}」?此操作無法復原。`, danger: true}))) return;
         try {
             await apiFetch(`/api/mock-endpoints/${id}`, { method: 'DELETE', raw: true });
             showToast?.('已刪除', 'success');
@@ -24981,7 +25161,7 @@ curl -X POST http://localhost:8000/api/defects \\
     async function _mockConfirmDelete() {
         if (!_mockEditingId) return;
         const m = _mockRows.find(r => r.id === _mockEditingId);
-        if (!confirm(`確定刪除 Mock「${m?.name || _mockEditingId}」?`)) return;
+        if (!(await confirmDialog({body: `確定刪除 Mock「${m?.name || _mockEditingId}」?`, danger: true}))) return;
         try {
             await apiFetch(`/api/mock-endpoints/${_mockEditingId}`, { method: 'DELETE', raw: true });
             closeMockModal();

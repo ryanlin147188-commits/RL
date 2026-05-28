@@ -42,6 +42,7 @@ from app.schemas.defect import (
     DefectResponse,
     DefectUpdate,
 )
+from app.services import defect_service
 
 router = APIRouter()
 
@@ -340,7 +341,7 @@ async def delete_defect(
     ).scalar_one_or_none()
     if defect is None:
         raise HTTPException(404, "Defect not found")
-    await db.execute(delete(Defect).where(Defect.id == defect_id))
+    await defect_service.hard_delete(db, defect)
     await db.commit()
 
 

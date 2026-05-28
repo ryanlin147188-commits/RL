@@ -13,10 +13,21 @@ tool 各自走 Casbin。
 """
 from __future__ import annotations
 
+import logging
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+
+log = logging.getLogger(__name__)
+
+
+def _llm_error_detail(exc: LLMError) -> str:
+    """LLM 上游錯誤訊息可能含敏感資訊(API key 後綴、internal endpoint、
+    organization id),不直接回傳給 client。完整錯誤寫 server log,
+    給 client 的是固定訊息 + 錯誤類別,讓前端可以分類顯示但無法窺探。"""
+    log.exception("LLM call failed: %s: %s", type(exc).__name__, exc)
+    return f"LLM 呼叫失敗({type(exc).__name__});詳細錯誤已寫入 server log。"
 
 from app.auth.dependencies import get_current_user
 from app.config import settings
@@ -291,7 +302,7 @@ async def send_message(
         status = 502 if e.retryable else 400
         raise HTTPException(
             status,
-            f"LLM 呼叫失敗 [{type(e).__name__}]: {e}",
+            _llm_error_detail(e),
         ) from e
 
     return SendMessageResponse(
@@ -306,13 +317,17 @@ async def send_message(
 
 
 def _pending_to_response(p) -> dict:
+    # 對外回傳時剝掉 __integrity__ HMAC,前端不需要看到也不該看到
+    args = p.arguments or {}
+    if isinstance(args, dict) and "__integrity__" in args:
+        args = {k: v for k, v in args.items() if k != "__integrity__"}
     return {
         "id": p.id,
         "session_id": p.session_id,
         "user_id": p.user_id,
         "tool_call_id": p.tool_call_id,
         "tool_name": p.tool_name,
-        "arguments": p.arguments,
+        "arguments": args,
         "status": p.status,
         "summary": p.summary,
         "created_at": p.created_at,
@@ -382,7 +397,7 @@ async def approve_pending_action(
     except LLMError as e:
         status_code = 502 if e.retryable else 400
         raise HTTPException(
-            status_code, f"LLM 呼叫失敗 [{type(e).__name__}]: {e}"
+            status_code, _llm_error_detail(e)
         ) from e
 
     return PendingActionResolveResponse(
@@ -425,9 +440,18 @@ async def delete_one_memory(
     memory_id: str = Path(...),
     user: User = Depends(get_current_user),
 ):
-    # 我們不額外做「這個 memory_id 是不是該 user 的」檢查 — sidecar 內 memory
-    # 是 per-namespace 隔離,而 mem0 OSS 的 memory_id 是 UUID 不易被猜中;
-    # 若想嚴格驗證,Phase 後續可加「先查 list 確認 memory_id 屬該 namespace」。
+    # 縱深防禦:先 list 該 user/org namespace,確認 memory_id 真的屬於這個
+    # namespace,再轉發給 sidecar。雖然 mem0 memory_id 是 UUID 不易枚舉,但
+    # log / audit 洩漏 memory_id 後仍可能跨 namespace 刪 — fail-closed 比較穩妥。
+    items = await memory_client.list_memories(
+        organization_id=user.organization_id, user_id=user.id
+    )
+    owned_ids = {
+        (m.get("id") or m.get("memory_id") or "") for m in (items or [])
+    }
+    if memory_id not in owned_ids:
+        # 用 404 而非 403,不洩漏「該 memory_id 是否存在於別人 namespace」
+        raise HTTPException(404, "memory not found")
     ok = await memory_client.delete_memory(memory_id=memory_id)
     if not ok:
         raise HTTPException(502, "mem0 sidecar 未啟用或刪除失敗")
@@ -525,7 +549,7 @@ async def run_planner(
     except LLMError as e:
         status_code = 502 if e.retryable else 400
         raise HTTPException(
-            status_code, f"LLM 呼叫失敗 [{type(e).__name__}]: {e}"
+            status_code, _llm_error_detail(e)
         ) from e
 
     return AutonomousRunResponse(
@@ -569,7 +593,7 @@ async def run_analyzer(
     except LLMError as e:
         status_code = 502 if e.retryable else 400
         raise HTTPException(
-            status_code, f"LLM 呼叫失敗 [{type(e).__name__}]: {e}"
+            status_code, _llm_error_detail(e)
         ) from e
 
     return AutonomousRunResponse(
@@ -608,7 +632,7 @@ async def reject_pending_action(
     except LLMError as e:
         status_code = 502 if e.retryable else 400
         raise HTTPException(
-            status_code, f"LLM 呼叫失敗 [{type(e).__name__}]: {e}"
+            status_code, _llm_error_detail(e)
         ) from e
 
     return PendingActionResolveResponse(

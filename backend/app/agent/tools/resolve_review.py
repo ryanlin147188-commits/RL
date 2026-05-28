@@ -24,6 +24,7 @@ from app.auth.permissions_catalog import P
 from app.auth.tenant import TenantQuery
 from app.models.review import ReviewRecord
 from app.models.role import Role
+from app.routers.reviews import _ensure_can_review
 from app.services import review_service
 
 
@@ -92,15 +93,20 @@ class ResolveReviewTool(Tool):
                 llm_visible=f"review_record {record_id} 不存在或非你所屬 org。",
             )
 
-        # 對齊 router 自審防呆(approve / reject 用)
+        # 對齊 router 完整權限檢查 — 直接呼叫 _ensure_can_review,讓 tool 跟
+        # router 走同一條規則(superuser / Admin role / review.manage + 自審防呆)
         if action in ("approve", "reject"):
-            if (
-                not ctx.user.is_superuser
-                and record.submitted_by == ctx.user.username
-            ):
+            try:
+                await _ensure_can_review(ctx.user, ctx.db, record)
+            except HTTPException as e:
+                detail = e.detail if isinstance(e.detail, str) else (
+                    (e.detail or {}).get("error")
+                    or (e.detail or {}).get("message")
+                    or "permission_denied"
+                )
                 return ToolResult.fail(
-                    "self_review_forbidden",
-                    llm_visible="送審者本人不可審核此筆紀錄。",
+                    f"permission_denied: {detail}",
+                    llm_visible=f"{action} 被拒絕:{detail}",
                 )
 
         # revert 對齊 _ensure_admin:superuser、Admin role、或具 review.manage
@@ -140,7 +146,8 @@ class ResolveReviewTool(Tool):
 
         await ctx.db.commit()
         payload = {
-            "status": action + "d" if action.endswith("e") else action + "ed",
+            "action": action,
+            "result": "ok",
             "review_record_id": record.id,
             "entity_type": record.entity_type.value,
             "entity_id": record.entity_id,

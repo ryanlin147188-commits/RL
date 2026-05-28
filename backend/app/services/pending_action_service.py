@@ -18,6 +18,7 @@ from app.models.pending_action import (
     PENDING_STATUS_REJECTED,
     PendingAction,
 )
+from app.services.pending_action_integrity import stamp as _stamp_args
 
 
 class PendingActionError(Exception):
@@ -46,13 +47,21 @@ async def create(
     arguments: Optional[dict[str, Any]],
     summary: Optional[str] = None,
 ) -> PendingAction:
+    # HMAC-stamp arguments — approve 端會驗;任何在 create 後被竄改的 args 都會
+    # 在 approve 時被偵測並拒絕執行
+    stamped_args = _stamp_args(
+        tool_name=tool_name,
+        tool_call_id=tool_call_id,
+        session_id=session_id,
+        arguments=arguments,
+    )
     row = PendingAction(
         id=str(uuid.uuid4()),
         session_id=session_id,
         user_id=user_id,
         tool_call_id=tool_call_id,
         tool_name=tool_name,
-        arguments=arguments,
+        arguments=stamped_args,
         summary=summary,
     )
     db.add(row)

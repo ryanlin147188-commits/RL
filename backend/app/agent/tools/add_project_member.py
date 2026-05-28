@@ -14,6 +14,7 @@ from typing import Any
 from sqlalchemy import select
 
 from app.agent.tools.base import Tool, ToolContext, ToolResult
+from app.agent.tools.role_guard import ensure_role_assignable
 from app.auth.permissions_catalog import P
 from app.models.org_membership import OrgMembership
 from app.models.project import Project
@@ -57,26 +58,29 @@ class AddProjectMemberTool(Tool):
                 llm_visible="project_id 與 username 為必填。",
             )
 
-        # 驗 project 存在 + IDOR(同 org 才放行;superuser 例外)
+        # 驗 project 存在 + IDOR(fail-closed:只要 organization_id 對不上就拒絕,
+        # 不再因 proj.organization_id is None / ctx.organization_id is None 短路)
         proj = await ctx.db.get(Project, project_id)
         if proj is None:
             return ToolResult.fail(
                 "project_not_found",
                 llm_visible=f"project {project_id} 不存在。",
             )
-        if (
-            not ctx.user.is_superuser
-            and proj.organization_id
-            and ctx.organization_id
-            and proj.organization_id != ctx.organization_id
-        ):
-            return ToolResult.fail(
-                "cross_org_forbidden",
-                llm_visible="不能對你不屬於的 organization 底下的 project 加成員。",
-            )
+        if not ctx.user.is_superuser:
+            if (
+                not proj.organization_id
+                or not ctx.organization_id
+                or proj.organization_id != ctx.organization_id
+            ):
+                return ToolResult.fail(
+                    "project_not_found",
+                    llm_visible=f"project {project_id} 不存在。",
+                )
 
-        # 驗 user 存在
-        target = await ctx.db.get(User, username)
+        # User PK 是 UUID — 必須用 select 查 username
+        target = (
+            await ctx.db.execute(select(User).where(User.username == username))
+        ).scalar_one_or_none()
         if target is None:
             return ToolResult.fail(
                 "user_not_found",
@@ -109,6 +113,9 @@ class AddProjectMemberTool(Tool):
                     f"invalid_role_id: {role_id}",
                     llm_visible=f"role {role_id} 不存在。",
                 )
+            guard_err = await ensure_role_assignable(ctx, role)
+            if guard_err is not None:
+                return guard_err
 
         # 重複加 → 409
         existing = (

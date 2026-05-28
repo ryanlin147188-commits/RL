@@ -2,6 +2,7 @@
 .env
 *.env.local
 backend/.env
+.admin_initial_password
 
 # ── Python ──
 __pycache__/
