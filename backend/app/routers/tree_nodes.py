@@ -99,6 +99,90 @@ async def update_node(
     return {"id": node.id, "name": node.name, "sort_order": node.sort_order, "content_status": node.content_status}
 
 
+# 6.5 POST /api/v1/nodes/{id}/move — v1.3.x:真正搬家(改 parent_id)
+@router.post("/nodes/{node_id}/move")
+async def move_node(
+    node_id: str,
+    payload: dict,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """把 node 搬到 new_parent_id 底下。
+
+    payload: ``{"new_parent_id": "<uuid>" | null}``
+    new_parent_id=null = 搬到 project 根層(那 node 必須是 Feature 才合法)。
+
+    驗證:
+    * node 與 new_parent 必須在同一 project(跨 project move 太複雜,先擋)
+    * hierarchy 規則:new_parent 之下的 expected level **必須等於** node 自己的
+      level_type(例如 Page node 只能搬到 PLATFORM 之下;Feature 只能搬到 root)
+    * 不能搬到自己或自己的子孫底下(cycle 防護)
+    """
+    node = await db.get(TreeNode, node_id)
+    if node is None:
+        raise HTTPException(404, "node not found")
+    await ensure_project_writable(db, node.project_id, user)
+
+    new_parent_id = (payload or {}).get("new_parent_id") or None
+
+    # 不能搬到自己
+    if new_parent_id == node_id:
+        raise HTTPException(400, "不能把 node 搬到自己底下")
+
+    # 同 project 限制 + new_parent 必須存在(若給)
+    if new_parent_id is not None:
+        new_parent = await db.get(TreeNode, new_parent_id)
+        if new_parent is None:
+            raise HTTPException(404, "new_parent_id 不存在")
+        if new_parent.project_id != node.project_id:
+            raise HTTPException(400, "跨 project move 不支援;new_parent 必須在同一 project")
+        # cycle 防護:走 ancestors 鏈,若遇到 node_id 就拒
+        cursor = new_parent
+        while cursor is not None:
+            if cursor.id == node_id:
+                raise HTTPException(400, "不能搬到自己的子孫節點底下(cycle)")
+            if cursor.parent_id is None:
+                break
+            cursor = await db.get(TreeNode, cursor.parent_id)
+
+    # Hierarchy 規則:new_parent 之下的 expected level 必須等於 node.level_type
+    expected_level = await get_expected_level(db, node.project_id, new_parent_id)
+    if expected_level != node.level_type:
+        raise HTTPException(
+            400,
+            f"層級不符:node 是 {node.level_type.value},但 new_parent 底下只能放"
+            f" {expected_level.value if expected_level else 'None'}",
+        )
+
+    old_parent = node.parent_id
+    node.parent_id = new_parent_id
+    await db.flush()
+    await db.refresh(node)
+
+    # Testcase 葉節點 — 結構變更也記一次 snapshot
+    if node.level_type == LevelType.TESTCASE:
+        try:
+            await evs.snapshot(
+                db,
+                entity_type="testcase",
+                entity=node,
+                source=evs.CHANGE_SOURCE_HUMAN,
+                status=evs.CONTENT_STATUS_PENDING,
+                by=user.username,
+            )
+        except Exception:  # noqa: BLE001
+            pass
+
+    return {
+        "id": node.id,
+        "project_id": node.project_id,
+        "old_parent_id": old_parent,
+        "new_parent_id": new_parent_id,
+        "level_type": node.level_type.value,
+        "name": node.name,
+    }
+
+
 # 6. DELETE /api/v1/nodes/{id}
 @router.delete("/nodes/{node_id}", status_code=204)
 async def delete_node(
