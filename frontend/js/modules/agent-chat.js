@@ -129,16 +129,26 @@
     // ── Build UI ──────────────────────────────────────────────────────
 
     function buildFab() {
+        // 不依賴 tailwind 預編譯(那份 tailwind.css 缺 bottom-6 / w-14 / z-[150]
+        // 等 utility class — 用 inline style 寫死關鍵 positioning 與大小,
+        // 確保 FAB 真的在 viewport 右下角,不會退化跑到頁面其他位置。
         const fab = el("button", {
             type: "button",
             "aria-label": "開啟 AI 助手",
-            class:
-                "fixed bottom-6 right-6 z-[150] w-14 h-14 rounded-full " +
-                "bg-gradient-to-br from-amber-500 to-orange-500 text-white " +
-                "shadow-xl hover:scale-105 active:scale-95 transition flex " +
-                "items-center justify-center text-2xl",
+            class: "agent-chat-fab",
+            style:
+                "position:fixed; bottom:24px; right:24px; z-index:2147483640;" +
+                " width:56px; height:56px; border-radius:9999px; border:none;" +
+                " color:#fff; font-size:22px; cursor:pointer;" +
+                " background:linear-gradient(135deg,#f59e0b,#f97316);" +
+                " box-shadow:0 10px 25px rgba(0,0,0,.25);" +
+                " display:flex; align-items:center; justify-content:center;" +
+                " transition:transform .15s ease;",
             onclick: togglePanel,
         }, [el("i", { class: "fa-solid fa-wand-magic-sparkles" })]);
+        // hover / active 縮放 — 也走 inline 避免 tailwind 缺 class
+        fab.addEventListener("mouseenter", () => { fab.style.transform = "scale(1.05)"; });
+        fab.addEventListener("mouseleave", () => { fab.style.transform = "scale(1)"; });
         refs.fab = fab;
         document.body.appendChild(fab);
     }
@@ -147,9 +157,13 @@
         const panel = el("div", {
             id: "agentChatPanel",
             class:
-                "hidden fixed bottom-6 right-6 z-[151] w-[380px] h-[600px] " +
-                "bg-white rounded-2xl shadow-2xl border border-stone-200 " +
-                "flex flex-col overflow-hidden relative",
+                "agent-chat-panel hidden bg-white rounded-2xl shadow-2xl " +
+                "border border-stone-200 flex flex-col overflow-hidden",
+            // 關鍵 positioning + 尺寸 inline,不依賴 tailwind 預編譯
+            style:
+                "position:fixed; bottom:24px; right:24px; z-index:2147483641;" +
+                " width:380px; height:600px; max-width:calc(100vw - 48px);" +
+                " max-height:calc(100vh - 48px);",
             role: "dialog",
             "aria-label": "AI 助手對話",
         });
@@ -250,14 +264,16 @@
     }
 
     function buildSessionSidebar() {
-        // 從 panel 左側滑出的抽屜,蓋在 body 上;點外面收回
+        // 從 panel 左側滑出的抽屜,蓋在 panel 內;點外面收回
         const sidebar = el("div", {
             id: "agentSessionSidebar",
             class:
-                "absolute inset-y-0 left-0 w-[60%] bg-white border-r " +
-                "border-stone-200 shadow-xl translate-x-[-100%] " +
-                "transition-transform duration-200 ease-out z-10 " +
-                "flex flex-col",
+                "agent-chat-sidebar bg-white border-r border-stone-200 " +
+                "shadow-xl flex flex-col",
+            style:
+                "position:absolute; top:0; bottom:0; left:0; width:60%;" +
+                " z-index:10; transform:translateX(-100%);" +
+                " transition:transform .2s ease-out;",
         });
         const sidebarHeader = el("div", {
             class:
@@ -284,14 +300,13 @@
     }
 
     async function toggleSessionSidebar() {
-        const wasHidden = refs.sidebar.classList.contains("translate-x-[-100%]");
+        // 用 inline style 而非 Tailwind class(該 class 在預編譯 tailwind.css 內缺)
+        const wasHidden = refs.sidebar.style.transform.includes("-100%");
         if (wasHidden) {
             await refreshSessionsList();
-            refs.sidebar.classList.remove("translate-x-[-100%]");
-            refs.sidebar.classList.add("translate-x-0");
+            refs.sidebar.style.transform = "translateX(0)";
         } else {
-            refs.sidebar.classList.add("translate-x-[-100%]");
-            refs.sidebar.classList.remove("translate-x-0");
+            refs.sidebar.style.transform = "translateX(-100%)";
         }
     }
 
@@ -384,9 +399,12 @@
                 "border border-stone-200",
         });
         const backdrop = el("div", {
-            class:
-                "hidden fixed inset-0 z-[200] bg-black/40 flex items-center " +
-                "justify-center px-4",
+            class: "agent-chat-confirm-backdrop",
+            style:
+                "position:fixed; top:0; right:0; bottom:0; left:0;" +
+                " z-index:2147483646; background:rgba(0,0,0,.45);" +
+                " display:none; align-items:center; justify-content:center;" +
+                " padding:16px;",
             role: "dialog",
             "aria-label": "二次確認",
         }, [dialog]);
@@ -649,6 +667,7 @@
             closeConfirmModal();
         };
 
+        refs.confirmBackdrop.style.display = "flex";
         refs.confirmDialog.replaceChildren(
             el("div", { class: "flex items-center gap-2 mb-2" }, [
                 el("i", { class: "fa-solid fa-shield-halved text-amber-500 text-lg" }),
@@ -682,11 +701,11 @@
                 }, "同意執行"),
             ]),
         );
-        refs.confirmBackdrop.classList.remove("hidden");
+        // 已在函式頂端設 display:flex,這裡 no-op(保留結構讓 git diff 清楚)
     }
 
     function closeConfirmModal() {
-        refs.confirmBackdrop.classList.add("hidden");
+        refs.confirmBackdrop.style.display = "none";
     }
 
     async function resolvePending(actionId, mode) {
