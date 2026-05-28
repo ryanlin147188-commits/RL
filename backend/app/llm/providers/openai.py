@@ -19,10 +19,18 @@ from typing import Any
 
 import httpx
 
+import logging
+
 from app.llm.base import ChatResult, LLMProvider, Message, Role, ToolCall, ToolSpec, Usage
-from app.llm.model_catalog import is_active_level, supports_thinking
+from app.llm.model_catalog import (
+    is_active_level,
+    supports_reasoning_with_tools_in_chat_completions,
+    supports_thinking,
+)
 from app.llm.pricing import compute_cost_usd
 from app.llm.providers._http import post_json
+
+log = logging.getLogger(__name__)
 
 _ENDPOINT = "https://api.openai.com/v1/chat/completions"
 
@@ -81,7 +89,22 @@ class OpenAIProvider(LLMProvider):
             body.pop("temperature", None)
         # Reasoning effort — 只在 model 支援 + level 有效時送
         if is_active_level(thinking_level) and supports_thinking("openai", model):
-            body["reasoning_effort"] = thinking_level.lower()
+            # OpenAI 限制:gpt-5* 在 /v1/chat/completions 不接受 tools +
+            # reasoning_effort 同時送(需走 /v1/responses 新 API)。Agent 必須
+            # 有 tools 才能呼叫工具,所以這裡優先保留 tools、跳過 reasoning_effort。
+            # User 仍可選 o-series(支援 tools + reasoning)取得「真實思考度」。
+            has_tools = bool(tools)
+            can_combine = supports_reasoning_with_tools_in_chat_completions("openai", model)
+            if has_tools and not can_combine:
+                log.warning(
+                    "openai %s on /v1/chat/completions does not support "
+                    "tools + reasoning_effort together; dropping reasoning_effort. "
+                    "To use thinking with tools choose an o-series model "
+                    "(o3 / o4-mini) in AI Token settings.",
+                    model,
+                )
+            else:
+                body["reasoning_effort"] = thinking_level.lower()
 
         headers = {
             "Authorization": f"Bearer {self._api_key}",

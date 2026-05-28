@@ -95,3 +95,26 @@ def normalize_level(level: Optional[str]) -> Optional[str]:
     if v in ALL_THINKING_LEVELS:
         return v
     return None
+
+
+def supports_reasoning_with_tools_in_chat_completions(
+    provider: str, model_id: str
+) -> bool:
+    """這個 model 在 ``/v1/chat/completions``(或對應的「主流 chat」endpoint)
+    是否能**同時**使用 reasoning_effort/thinking + function tools。
+
+    截至 2026-05 盤點:
+    * OpenAI o-series(o1/o3/o4)→ True(原生支援)
+    * OpenAI gpt-5+(gpt-5/5.x)→ **False**:OpenAI 限制 — 在 chat/completions
+      內 tools + reasoning_effort 衝突,需走 ``/v1/responses`` 新 API
+    * Anthropic(extended thinking)→ True(thinking + tool_use 同個 messages API)
+    * Google(thinkingConfig)→ True(thinking + functionDeclarations 同 endpoint)
+
+    TODO Phase 2.x:加 OpenAI /v1/responses 支援後此函式對 gpt-5* 可回 True。
+    """
+    if provider != "openai":
+        return True
+    m = (model_id or "").lower()
+    if m.startswith("gpt-5"):
+        return False
+    return True
