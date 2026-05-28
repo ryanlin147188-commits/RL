@@ -28,17 +28,10 @@
 (function () {
     "use strict";
 
-    // ── 三家代表 model(後端 router.infer_provider 認得的前綴) ──────────
-    // 沒在這清單但前綴對的 model id user 也能用,只是要透過自訂輸入。
-    const DEFAULT_MODELS = [
-        { id: "claude-opus-4-7", label: "Claude Opus 4.7 (最強)" },
-        { id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6 (平衡)" },
-        { id: "claude-haiku-4-5-20251001", label: "Claude Haiku 4.5 (快速)" },
-        { id: "gpt-4o", label: "OpenAI GPT-4o" },
-        { id: "gpt-4o-mini", label: "OpenAI GPT-4o mini (便宜)" },
-        { id: "gemini-2.5-pro", label: "Google Gemini 2.5 Pro" },
-        { id: "gemini-2.5-flash", label: "Google Gemini 2.5 Flash" },
-    ];
+    // v1.2.x:移除聊天框 model picker — model 由「設定 → AI Token」內各
+    // provider 的 default_model 決定;沒設過時 backend 走 smart default 撈
+    // org enabled provider 的 default_model。聊天框 header 只顯示目前 session
+    // 用的 model 名(唯讀)。
 
     const state = {
         open: false,
@@ -118,7 +111,7 @@
         textarea: null,
         sendBtn: null,
         sessionLabel: null,
-        modelPicker: null,
+        modelLabel: null,  // 唯讀,顯示目前 session 用什麼 model
         costLabel: null,
         confirmBackdrop: null,
         confirmDialog: null,
@@ -172,15 +165,13 @@
         const sessionLabel = el("div", {
             class: "flex-1 truncate text-sm font-semibold text-stone-700",
         }, "AI 助手");
-        const modelPicker = el("select", {
+        // 顯示目前 session 用的 model 名(唯讀)。要換 model 請去「設定 → AI Token」
+        // 改各 provider 的 default_model。
+        const modelLabel = el("span", {
             class:
-                "text-[11px] bg-stone-100 border border-stone-200 rounded " +
-                "px-1.5 py-0.5 max-w-[140px]",
-            title: "選擇 LLM 模型",
-            onchange: onModelChange,
-        }, DEFAULT_MODELS.map(m =>
-            el("option", { value: m.id }, m.label)
-        ));
+                "text-[10px] text-stone-400 font-mono truncate max-w-[160px]",
+            title: "目前 session 使用的模型(由設定 → AI Token 的 default_model 決定)",
+        }, "");
         const historyBtn = el("button", {
             type: "button",
             class: "text-stone-400 hover:text-amber-500 p-1",
@@ -206,13 +197,13 @@
         }, [
             el("i", { class: "fa-solid fa-robot text-amber-500" }),
             sessionLabel,
-            modelPicker,
+            modelLabel,
             historyBtn,
             newBtn,
             closeBtn,
         ]);
         refs.sessionLabel = sessionLabel;
-        refs.modelPicker = modelPicker;
+        refs.modelLabel = modelLabel;
 
         // Body(訊息列表)
         const body = el("div", {
@@ -382,9 +373,7 @@
             state.sessionId = session.id;
             state.sessionTitle = session.title || "對話";
             state.sessionModel = session.model;
-            if (state.sessionModel) {
-                refs.modelPicker.value = state.sessionModel;
-            }
+            _updateModelLabel();
             await refreshMessages();
             await toggleSessionSidebar();
         } catch (e) {
@@ -427,27 +416,25 @@
         }
     }
 
-    function onModelChange() {
-        state.sessionModel = refs.modelPicker.value;
-        // model 改了就強制新開 session(沿用設計:per-session model 不在中途切)
-        // 但只有 user 已有 session 時才提示
-        if (state.sessionId) {
-            startNewSession();
-        }
+    function _updateModelLabel() {
+        if (!refs.modelLabel) return;
+        refs.modelLabel.textContent = state.sessionModel ? "· " + state.sessionModel : "";
     }
 
     async function startNewSession() {
         try {
             state.sending = true;
             updateUiBusy();
-            const model = refs.modelPicker.value || null;
+            // 不指定 model — 讓 backend 走 smart default 撈該 org enabled provider
+            // 的 default_model(設定 → AI Token 內各 provider 的「預設模型」)
             const session = await api("/api/agent/sessions", {
                 method: "POST",
-                body: JSON.stringify({ model }),
+                body: JSON.stringify({}),
             });
             state.sessionId = session.id;
             state.sessionTitle = session.title || "新對話";
             state.sessionModel = session.model;
+            _updateModelLabel();
             state.messages = [];
             state.totalCostUsd = 0;
             state.pendingActions.clear();
@@ -474,9 +461,7 @@
                 state.sessionId = sessions[0].id;
                 state.sessionTitle = sessions[0].title || "對話";
                 state.sessionModel = sessions[0].model;
-                if (state.sessionModel) {
-                    refs.modelPicker.value = state.sessionModel;
-                }
+                _updateModelLabel();
                 await refreshMessages();
             } else {
                 await startNewSession();
@@ -489,9 +474,17 @@
     async function refreshMessages() {
         if (!state.sessionId) return;
         try {
-            const msgs = await api(
-                `/api/agent/sessions/${encodeURIComponent(state.sessionId)}/messages?limit=200`
-            );
+            // 平行抓 session metadata(autofallback 可能改了 model)+ messages
+            const [session, msgs] = await Promise.all([
+                api(`/api/agent/sessions/${encodeURIComponent(state.sessionId)}`)
+                    .catch(() => null),
+                api(`/api/agent/sessions/${encodeURIComponent(state.sessionId)}/messages?limit=200`),
+            ]);
+            if (session) {
+                state.sessionModel = session.model;
+                if (session.title) state.sessionTitle = session.title;
+                _updateModelLabel();
+            }
             state.messages = msgs || [];
             recomputeCost();
             renderAll();
