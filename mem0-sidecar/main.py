@@ -182,7 +182,15 @@ async def list_memories(
         return {"ok": True, "results": []}
     m = next(iter(_memory_cache.values()))
     try:
-        results = m.get_all(user_id=namespace)
+        raw = m.get_all(user_id=namespace)
+        # mem0 OSS 0.1.x 的 get_all 回 {"results": [...], "relations": [...]} dict;
+        # 統一解包成 list 讓 caller 不必處理兩種型別
+        if isinstance(raw, dict):
+            results = raw.get("results") or raw.get("memories") or []
+        elif isinstance(raw, list):
+            results = raw
+        else:
+            results = []
         return {"ok": True, "results": results}
     except Exception as e:  # noqa: BLE001
         log.exception("list failed")

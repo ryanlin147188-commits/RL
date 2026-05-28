@@ -34,13 +34,35 @@ def _llm_config_for_mem0(
 ) -> dict[str, Any]:
     """把 RL 的 LlmProviderConfig 轉成 mem0 sidecar 預期的格式。
 
-    mem0 內部走自家 SDK(openai / anthropic / gemini);model 不指定就用
-    mem0 預設(通常是該家的 cheap model)。
+    mem0 內部用 LLM 做 summarization,**不應該**走 user 設的最強 model
+    (gpt-5.5 / opus-4.7 等)— 那些貴且 mem0 OSS 還在用舊 ``max_tokens``
+    參數,對新 API model 會撞 OpenAI 400 ``Unsupported parameter``。
+
+    對策:**強制覆寫成「mem0 OSS 相容的 cheap model」**,跟 user 對話用的
+    model 解耦。Summarization 品質夠用即可。
     """
     cfg: dict[str, Any] = {"api_key": api_key}
-    if model:
-        cfg["model"] = model
+    safe_model = _safe_mem0_model_for(provider, model)
+    if safe_model:
+        cfg["model"] = safe_model
     return {"provider": provider, "config": cfg}
+
+
+def _safe_mem0_model_for(provider: str, requested: Optional[str]) -> Optional[str]:
+    """挑一個 mem0 OSS 一定能跑的 model — 不管 user 設了什麼。
+
+    * OpenAI:用 gpt-4o-mini(舊 API + 便宜 + 夠用)。即便 user 設 gpt-5.5
+      也覆寫,因為 mem0ai==0.1.114 還用 max_tokens 而非 max_completion_tokens
+    * Google:gemini-1.5-flash(舊穩定;2.5 系列 mem0 內部還沒適配 thinking)
+    * Anthropic:沒用到(沒自家 embedding;memory_client 在 _embedder_config
+      就 raise 跳過)
+    """
+    p = (provider or "").lower()
+    if p == "openai":
+        return "gpt-4o-mini"
+    if p in ("google", "gemini"):
+        return "gemini-1.5-flash"
+    return requested
 
 
 def _embedder_config(
@@ -209,14 +231,23 @@ async def add_messages(
 async def list_memories(
     *, organization_id: Optional[str], user_id: str
 ) -> list[dict[str, Any]]:
-    """列該 user 全部 memories — UI 管理頁用。fail → 空 list。"""
+    """列該 user 全部 memories — UI 管理頁用。fail → 空 list。
+
+    mem0 OSS 0.1.114 的 ``get_all()`` 回 ``{"results": [...], "relations": [...]}``
+    dict,sidecar 直接 forward → backend 拿到的 ``results`` 是 dict。這層
+    解包成 list,讓 caller 不必自己處理。
+    """
     if not is_enabled():
         return []
     ns = _make_namespace(organization_id=organization_id, user_id=user_id)
     data = await _get("/v1/memories", {"namespace": ns})
     if not data or not data.get("ok"):
         return []
-    return data.get("results") or []
+    raw = data.get("results") or []
+    # defensive: mem0 OSS 0.1.x 的 get_all 可能回 list 或 {"results": [...]} dict
+    if isinstance(raw, dict):
+        raw = raw.get("results") or raw.get("memories") or []
+    return raw if isinstance(raw, list) else []
 
 
 async def delete_memory(*, memory_id: str) -> bool:

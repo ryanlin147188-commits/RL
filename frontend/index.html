@@ -19004,6 +19004,10 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             const list = document.getElementById('memoryList');
             if (!list) return;
             list.replaceChildren();
+            // defensive:後端理論上回 list,但 mem0 OSS 偶爾回 {results:[...]} dict
+            if (items && !Array.isArray(items)) {
+                items = items.results || items.memories || [];
+            }
             if (!items || items.length === 0) {
                 const empty = document.createElement('div');
                 empty.className = 'text-xs text-stone-400 italic p-3 bg-stone-50 rounded text-center';
