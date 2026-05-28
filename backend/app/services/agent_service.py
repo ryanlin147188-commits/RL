@@ -107,6 +107,35 @@ def max_iterations_for(mode: str) -> int:
     return MODE_MAX_ITERATIONS.get(mode, MAX_TOOL_ITERATIONS)
 
 
+async def _pick_enabled_default_model(
+    db: AsyncSession, organization_id: Optional[str]
+) -> Optional[str]:
+    """撈該 org 內「enabled + 有 api_key + 有 default_model」的 provider,
+    優先序按 updated_at desc(最近設的優先)。回 default_model 或 None。
+
+    用途:
+    * create_session(model=None) 時的 smart default
+    * send_message 開頭發現 session.model 對應 provider 沒 key 時的 fallback
+    """
+    stmt = (
+        select(LlmProviderConfig)
+        .where(
+            LlmProviderConfig.organization_id == organization_id,
+            LlmProviderConfig.enabled.is_(True),
+        )
+        .order_by(desc(LlmProviderConfig.updated_at))
+    )
+    rows = (await db.execute(stmt)).scalars().all()
+    for row in rows:
+        if row.api_key and row.default_model:
+            return row.default_model
+    # 沒有 default_model 但有 key 的 — 用 settings.AGENT_DEFAULT_MODEL fallback
+    for row in rows:
+        if row.api_key:
+            return None  # caller 自己 fallback 到 settings.AGENT_DEFAULT_MODEL
+    return None
+
+
 # ── Session CRUD ────────────────────────────────────────────────────
 
 
@@ -122,15 +151,24 @@ async def create_session(
 ) -> AgentSession:
     """``mode`` ∈ {"chat", "planner", "analyzer"};未識別退回 "chat"。
     system_prompt 顯式給就用它(planner/analyzer endpoint 會用內建 mode prompt
-    + 自家附加 context),否則走 mode 對應預設。"""
+    + 自家附加 context),否則走 mode 對應預設。
+
+    ``model`` 為 None 時:
+      1. 試撈該 org enabled provider 的 default_model(smart default)
+      2. 再 fallback 到 settings.AGENT_DEFAULT_MODEL
+    避免 user 在設定頁設了 OpenAI 但 session 預設仍走 Anthropic 然後 400 的情況。"""
     if mode not in SYSTEM_PROMPTS_BY_MODE:
         mode = "chat"
+    if not model:
+        model = (
+            await _pick_enabled_default_model(db, organization_id)
+        ) or settings.AGENT_DEFAULT_MODEL
     row = AgentSession(
         id=str(uuid.uuid4()),
         user_id=user_id,
         organization_id=organization_id,
         title=title,
-        model=model or settings.AGENT_DEFAULT_MODEL,
+        model=model,
         system_prompt=system_prompt or system_prompt_for(mode),
         mode=mode,
     )
@@ -453,6 +491,67 @@ async def _find_usage_row(
     return (await db.execute(stmt)).scalar_one_or_none()
 
 
+async def _autofallback_session_model_if_needed(
+    db: AsyncSession, session: AgentSession
+) -> None:
+    """若 session.model 對應的 provider 在該 org 沒設 key,自動換成另一個
+    enabled provider 的 default_model,並寫一條 system tool-msg 提示。
+
+    修兩種情境:
+    1. 既有 session 是 v1.2.0 預設 ``claude-opus-4-7``,但 user 後來只設了
+       OpenAI key — 送訊息時 backend 應該自動切到 gpt-5.x 而非 raise 400
+    2. 原 provider key 被 admin 刪掉,所有 session 自動 fallback 到還活著的家
+    """
+    from app.llm.router import infer_provider
+    from app.services import llm_config_service
+
+    current = session.model or settings.AGENT_DEFAULT_MODEL
+    try:
+        provider_name = infer_provider(current)
+    except ValueError:
+        provider_name = None
+
+    # 先看現有 model 對應的 provider 能不能跑 — 能就 no-op
+    if provider_name:
+        try:
+            await llm_config_service.resolve_provider(
+                db,
+                provider_name=provider_name,
+                organization_id=session.organization_id,
+            )
+            return  # 走得通,不動 session
+        except ValueError:
+            pass  # 進 fallback path
+
+    # 找一個能用的 default_model
+    new_model = await _pick_enabled_default_model(db, session.organization_id)
+    if not new_model:
+        # 該 org 完全沒設 key — 讓後面正常 raise(404 訊息更明確)
+        return
+
+    old_model = current
+    session.model = new_model
+    log.info(
+        "session %s model auto-fallback: %s → %s (org=%s)",
+        session.id, old_model, new_model, session.organization_id,
+    )
+    # 留一條 system message 給 user 看見(用 tool role 比較不會被 LLM 當成
+    # 指示;但 tool role 需要 tool_call_id 配對,容易壞 LLM。改用 role=system
+    # 但加可顯示的 content;LLM 看到也會理解 context)
+    seq = await _next_seq(db, session.id)
+    db.add(AgentMessage(
+        id=str(uuid.uuid4()),
+        session_id=session.id,
+        role=Role.SYSTEM.value,
+        content=(
+            f"[系統] 此對話原本指定的模型 {old_model} 對應的 LLM 供應商"
+            f"目前未在組織中設定 API key,已自動切換為 {new_model}。"
+        ),
+        seq=seq,
+    ))
+    await db.flush()
+
+
 async def _resolve_thinking_level(
     db: AsyncSession, *, organization_id: Optional[str], model: str
 ) -> Optional[str]:
@@ -587,6 +686,13 @@ async def send_message(
         organization_id=session.organization_id,
         limit_usd=_budget_limit_for_mode(session.mode or "chat"),
     )
+
+    # 自動修復:既有 session.model 對應的 provider 沒設 key 時(典型情境:
+    # user 在設定頁切換到不同家 LLM 之前建的 session 仍指向舊家),改用該 org
+    # 目前 enabled 的 provider default_model + 寫進 session.model + 留一條
+    # system message 提示使用者已換 model。
+    await _autofallback_session_model_if_needed(db, session)
+
     user_seq = await _next_seq(db, session.id)
     user_msg = AgentMessage(
         id=str(uuid.uuid4()),
