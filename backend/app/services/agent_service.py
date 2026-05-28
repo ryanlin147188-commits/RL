@@ -62,9 +62,23 @@ MODE_MAX_ITERATIONS = {
 }
 
 DEFAULT_SYSTEM_PROMPT = (
-    "你是 RL 自動化測試平台的助手。回答盡量精簡、用繁體中文。"
-    " 你目前還不能執行任何測試或變更系統狀態,只能回答關於平台、測試方法、"
-    "錯誤分析的問題。"
+    "你是 RL 自動化測試平台的智慧助手。用繁體中文回答,精簡有重點。\n"
+    "\n"
+    "你**有能力**透過提供的 tools 直接操作平台,不要回答「請去 UI 操作」或"
+    "「我不能執行」。可用工具(依當前使用者權限動態決定):\n"
+    "- 查詢類(純讀):query_recent_reports / query_step_logs / query_defects /"
+    " query_schedules\n"
+    "- 建立類(寫入):create_project / create_tree_node(建測試樹節點:"
+    " Feature→Platform→Page→Scenario→Testcase 五層)/ create_defect /"
+    " create_schedule\n"
+    "- 執行類:run_test_case(派 Celery 跑 Robot)/ start_recording(建錄製階段)\n"
+    "\n"
+    "重要:所有「會寫入或改變系統狀態」的操作(requires_confirmation=true)"
+    "**會自動跳出 confirm modal**,使用者按下「同意」才會真實執行 — 你不必"
+    "再用文字額外請使用者確認,直接呼叫 tool 即可。\n"
+    "\n"
+    "如果使用者請求需要使用 tool,**主動呼叫對應 tool**;若參數缺(例如"
+    "建專案沒給名字),才反問使用者。"
 )
 
 PLANNER_SYSTEM_PROMPT = (
@@ -491,6 +505,36 @@ async def _find_usage_row(
     return (await db.execute(stmt)).scalar_one_or_none()
 
 
+# 舊版 DEFAULT_SYSTEM_PROMPT 的特徵字串。如果 session.system_prompt 含這段,
+# 就視為「v1.2.0 之前建的 session」自動 in-place 升級到新版,避免 LLM
+# 看到舊提示後說「目前還不能執行任何測試」。
+_STALE_PROMPT_MARKERS = (
+    "目前還不能執行任何測試",
+    "目前還不能執行任何工具",
+    "只能回答關於平台、測試方法",
+)
+
+
+async def _refresh_session_prompt_if_stale(
+    db: AsyncSession, session: AgentSession
+) -> None:
+    """既有 session 若 system_prompt 是舊版「會否定 tool 能力」的版本,
+    自動升級到 mode 對應的當前 prompt。新建 session 不會撞到(create_session
+    已用最新 prompt)。"""
+    current = session.system_prompt or ""
+    if not any(marker in current for marker in _STALE_PROMPT_MARKERS):
+        return
+    new_prompt = system_prompt_for(session.mode or "chat")
+    if new_prompt == current:
+        return
+    log.info(
+        "session %s system_prompt auto-upgraded (mode=%s)",
+        session.id, session.mode or "chat",
+    )
+    session.system_prompt = new_prompt
+    await db.flush()
+
+
 async def _autofallback_session_model_if_needed(
     db: AsyncSession, session: AgentSession
 ) -> None:
@@ -746,6 +790,9 @@ async def send_message(
     # 目前 enabled 的 provider default_model + 寫進 session.model + 留一條
     # system message 提示使用者已換 model。
     await _autofallback_session_model_if_needed(db, session)
+    # 自動修復:舊版 system_prompt 會自我否定 tool 能力 → 升級到 mode 對應的
+    # 當前 prompt(只對「含舊版特徵字串」的 session 動作,user 自訂的不動)。
+    await _refresh_session_prompt_if_stale(db, session)
 
     user_seq = await _next_seq(db, session.id)
     user_msg = AgentMessage(
