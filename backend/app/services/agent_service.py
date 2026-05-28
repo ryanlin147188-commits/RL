@@ -494,24 +494,58 @@ async def _find_usage_row(
 async def _autofallback_session_model_if_needed(
     db: AsyncSession, session: AgentSession
 ) -> None:
-    """若 session.model 對應的 provider 在該 org 沒設 key,自動換成另一個
-    enabled provider 的 default_model,並寫一條 system tool-msg 提示。
+    """讓 session.model 跟著該 org 設定的 default_model 同步。
 
-    修兩種情境:
-    1. 既有 session 是 v1.2.0 預設 ``claude-opus-4-7``,但 user 後來只設了
-       OpenAI key — 送訊息時 backend 應該自動切到 gpt-5.x 而非 raise 400
-    2. 原 provider key 被 admin 刪掉,所有 session 自動 fallback 到還活著的家
+    修三種情境:
+    1. 既有 session 是 v1.2.0 預設 claude-opus-4-7,但 user 後來只設了 OpenAI
+       key — 自動切到 gpt-5.x 而非 raise 400
+    2. user 在 AI Token 設定改了 default_model(例:gpt-4o → gpt-5.5),
+       既有 session 應該也跟著走,讓 UI 顯示的 model 跟設定一致(否則
+       使用者會困惑「設定 gpt-5.5,聊天框卻顯示 gpt-4o」)
+    3. 原 provider key 被 admin 刪掉,所有 session 自動 fallback 到還活著的家
+
+    策略:
+    * 撈該 org enabled provider 的 default_model 當「目標」
+    * 若目標存在且跟 session.model 不同 → 同步並寫一條 system msg 提示
+    * 若目標不存在(該 org 沒設 key),才走原 fallback(讓 send 後面 raise 400)
     """
     from app.llm.router import infer_provider
     from app.services import llm_config_service
 
     current = session.model or settings.AGENT_DEFAULT_MODEL
+    target = await _pick_enabled_default_model(db, session.organization_id)
+
+    # case A:已同步 → no-op
+    if target and target == current:
+        return
+
+    # case B:有 target(org 設了 default_model)→ 直接同步(無論原本能不能 resolve)
+    if target:
+        session.model = target
+        log.info(
+            "session %s model synced to org default: %s → %s (org=%s)",
+            session.id, current, target, session.organization_id,
+        )
+        seq = await _next_seq(db, session.id)
+        db.add(AgentMessage(
+            id=str(uuid.uuid4()),
+            session_id=session.id,
+            role=Role.SYSTEM.value,
+            content=(
+                f"[系統] 模型已自動同步為組織設定的預設值:{current} → {target}。"
+                "如要改變,請至「設定 → AI Token」調整對應 provider 的「預設模型」。"
+            ),
+            seq=seq,
+        ))
+        await db.flush()
+        return
+
+    # case C:沒 target — 看 session.model 對應 provider 能不能跑;能就 no-op,不能就 fallback
     try:
         provider_name = infer_provider(current)
     except ValueError:
         provider_name = None
 
-    # 先看現有 model 對應的 provider 能不能跑 — 能就 no-op
     if provider_name:
         try:
             await llm_config_service.resolve_provider(
@@ -519,14 +553,13 @@ async def _autofallback_session_model_if_needed(
                 provider_name=provider_name,
                 organization_id=session.organization_id,
             )
-            return  # 走得通,不動 session
+            return  # session.model 仍可用
         except ValueError:
             pass  # 進 fallback path
 
-    # 找一個能用的 default_model
+    # 該 org 完全沒設 key — 讓 send 後面 raise(那個錯誤訊息已經夠清楚)
     new_model = await _pick_enabled_default_model(db, session.organization_id)
     if not new_model:
-        # 該 org 完全沒設 key — 讓後面正常 raise(404 訊息更明確)
         return
 
     old_model = current
