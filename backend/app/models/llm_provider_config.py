@@ -16,9 +16,9 @@ Why per-organization 而非 per-user:
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.auth.crypto import EncryptedString
@@ -52,6 +52,11 @@ class LlmProviderConfig(Base):
     base_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     # 該 provider 的預設模型(例如 OpenAI 設成 gpt-4o-mini,Anthropic 設成 claude-opus-4-7)
     default_model: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    # v1.2.x:統一思考度設定。格式 {"level": "off"|"low"|"medium"|"high"}。
+    # off 或 None = chat 時不傳 thinking field;low/medium/high → provider adapter
+    # 轉成各家對應參數(Anthropic budget_tokens / OpenAI reasoning_effort /
+    # Google thinkingBudget)。新欄位 nullable,舊 row 不影響。
+    thinking_config: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=datetime.utcnow

@@ -18,6 +18,11 @@ from typing import Any
 import httpx
 
 from app.llm.base import ChatResult, LLMProvider, Message, Role, ToolCall, ToolSpec, Usage
+from app.llm.model_catalog import (
+    budget_tokens_for,
+    is_active_level,
+    supports_thinking,
+)
 from app.llm.pricing import compute_cost_usd
 from app.llm.providers._http import post_json
 
@@ -52,6 +57,7 @@ class AnthropicProvider(LLMProvider):
         temperature: float = 0.7,
         timeout: float = 60.0,
         cache_system_and_tools: bool = True,
+        thinking_level: str | None = None,
     ) -> ChatResult:
         body: dict[str, Any] = {
             "model": model,
@@ -63,6 +69,16 @@ class AnthropicProvider(LLMProvider):
             body["system"] = _system_blocks(system, cache=cache_system_and_tools)
         if tools:
             body["tools"] = _to_anthropic_tools(tools, cache=cache_system_and_tools)
+        # Extended thinking — 只在 model 支援 + level 有效時送
+        if is_active_level(thinking_level) and supports_thinking("anthropic", model):
+            budget = budget_tokens_for(thinking_level)
+            if budget > 0:
+                # Anthropic 要求 budget_tokens < max_tokens;不夠的話自動拉高 max_tokens
+                if budget >= body["max_tokens"]:
+                    body["max_tokens"] = budget + 1024
+                body["thinking"] = {"type": "enabled", "budget_tokens": budget}
+                # extended thinking 不接受 temperature != 1
+                body["temperature"] = 1.0
 
         headers = {
             "x-api-key": self._api_key,

@@ -21,6 +21,11 @@ from typing import Any
 import httpx
 
 from app.llm.base import ChatResult, LLMProvider, Message, Role, ToolCall, ToolSpec, Usage
+from app.llm.model_catalog import (
+    budget_tokens_for,
+    is_active_level,
+    supports_thinking,
+)
 from app.llm.pricing import compute_cost_usd
 from app.llm.providers._http import post_json
 
@@ -54,6 +59,7 @@ class GoogleProvider(LLMProvider):
         temperature: float = 0.7,
         timeout: float = 60.0,
         cache_system_and_tools: bool = True,  # no-op,Google 自動 caching
+        thinking_level: str | None = None,
     ) -> ChatResult:
         del cache_system_and_tools
 
@@ -69,6 +75,13 @@ class GoogleProvider(LLMProvider):
         if tools:
             body["tools"] = [{"functionDeclarations": _to_google_tools(tools)}]
             body["toolConfig"] = {"functionCallingConfig": {"mode": "AUTO"}}
+        # Thinking config — Gemini 2.5+ 才支援
+        if is_active_level(thinking_level) and supports_thinking("google", model):
+            budget = budget_tokens_for(thinking_level)
+            if budget > 0:
+                body["generationConfig"]["thinkingConfig"] = {
+                    "thinkingBudget": budget,
+                }
 
         url = f"{self._base}/{model}:generateContent?key={self._api_key}"
         headers = {"Content-Type": "application/json"}

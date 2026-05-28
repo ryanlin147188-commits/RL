@@ -3989,8 +3989,22 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
 
                                     <div>
                                         <label class="block text-xs font-semibold text-stone-600 mb-1">預設模型</label>
-                                        <select class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 ai-prov-model"></select>
-                                        <p class="text-[10px] text-stone-400 mt-1">送訊息時可在浮動聊天框 model picker 另外覆寫。</p>
+                                        <select class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 ai-prov-model" disabled>
+                                            <option value="">(尚未取得模型清單,請先儲存 API key)</option>
+                                        </select>
+                                        <p class="text-[10px] text-stone-400 mt-1 ai-prov-model-hint">儲存 API key 後會自動列出供應商可用模型。</p>
+                                    </div>
+
+                                    <!-- 思考度 dropdown:model 支援才顯示 -->
+                                    <div class="ai-prov-thinking-wrap hidden">
+                                        <label class="block text-xs font-semibold text-stone-600 mb-1">
+                                            <i class="fa-solid fa-brain text-amber-500"></i> 思考度
+                                            <span class="text-stone-400 font-normal">(extended thinking / reasoning effort)</span>
+                                        </label>
+                                        <select class="w-full px-3 py-2 border border-stone-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 ai-prov-thinking">
+                                            <option value="off">關閉(快速回應)</option>
+                                        </select>
+                                        <p class="text-[10px] text-stone-400 mt-1">越高的思考度回應品質更好但較慢、消耗 token 較多。</p>
                                     </div>
 
                                     <div class="ai-prov-base-url-wrap hidden md:col-span-2">
@@ -18921,52 +18935,39 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         //   POST   /api/settings/llm-providers/{provider}/test
         //   GET    /api/agent/budget/status
 
+        // 移除 hardcoded model list — model dropdown 動態從 backend list-models 填入。
+        // 每家僅保留 metadata(描述 / icon / key hint / 是否顯示 base URL)。
         const _AI_PROVIDERS_DEF = [
             {
                 key: 'anthropic',
                 name: 'Anthropic Claude',
-                desc: 'Prompt caching 收益最大;預設 model 為 Phase 0 設計選的 Claude Opus 4.7',
+                desc: 'Prompt caching 收益最大;Opus 4.x 系列支援 extended thinking',
                 iconClass: 'fa-solid fa-brain text-orange-500',
                 keyHint: '貼 sk-ant-api03-xxx... key,從 https://console.anthropic.com/settings/keys 取得',
                 showBaseUrl: false,
-                models: [
-                    { id: 'claude-opus-4-7', label: 'Claude Opus 4.7(最強)' },
-                    { id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6(平衡)' },
-                    { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5(便宜快)' },
-                ],
             },
             {
                 key: 'openai',
                 name: 'OpenAI ChatGPT',
-                desc: '官方 GPT-4o / 4o-mini;Base URL 留空走官方,填入則接 OpenAI-compatible 本地推論',
+                desc: 'GPT-4o / o-series reasoning;Base URL 留空走官方,填入則接 OpenAI-compatible 本地推論',
                 iconClass: 'fa-solid fa-comments text-emerald-500',
                 keyHint: '貼 sk-proj-... 或 sk-... 從 https://platform.openai.com/api-keys 取得',
                 showBaseUrl: true,
-                models: [
-                    { id: 'gpt-4o', label: 'GPT-4o' },
-                    { id: 'gpt-4o-mini', label: 'GPT-4o mini(便宜)' },
-                    { id: 'gpt-4.1', label: 'GPT-4.1' },
-                    { id: 'gpt-4.1-mini', label: 'GPT-4.1 mini' },
-                    { id: 'o3-mini', label: 'o3-mini' },
-                ],
             },
             {
                 key: 'google',
                 name: 'Google Gemini',
-                desc: 'Gemini 2.5 Pro / Flash;Flash 是三家中最便宜的',
+                desc: 'Gemini 2.5 Pro / Flash;2.5 系列支援 thinking budget',
                 iconClass: 'fa-solid fa-microchip text-blue-500',
                 keyHint: '貼 AIza... 從 https://aistudio.google.com/apikey 取得',
                 showBaseUrl: false,
-                models: [
-                    { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
-                    { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash(便宜)' },
-                    { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
-                ],
             },
         ];
 
         // state:provider key → backend row data(或 null 表示未設)
         const _aiProviderState = { anthropic: null, openai: null, google: null };
+        // provider key → 該家 list-models 結果(model id → {supports_thinking, thinking_levels})
+        const _aiModelsByProvider = { anthropic: [], openai: [], google: [] };
 
         async function aiSettingsInit() {
             // 第一次切到 AI 分頁時 build cards;每次都 refresh budget + providers list
@@ -18983,8 +18984,6 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             _AI_PROVIDERS_DEF.forEach(def => {
                 const node = tpl.content.firstElementChild.cloneNode(true);
                 node.dataset.provider = def.key;
-                node.querySelector('.ai-prov-icon').className = 'fa-solid fa-circle-dot text-2xl ai-prov-icon ' + def.iconClass.split(' ').filter(c => c.startsWith('text-')).join(' ');
-                // 用 def.iconClass 整段覆寫(避免兩個 fa-* class 衝突)
                 const iconEl = node.querySelector('.ai-prov-icon');
                 iconEl.className = def.iconClass + ' text-2xl ai-prov-icon';
                 node.querySelector('.ai-prov-name').textContent = def.name;
@@ -18993,21 +18992,123 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 if (def.showBaseUrl) {
                     node.querySelector('.ai-prov-base-url-wrap').classList.remove('hidden');
                 }
-                const modelSel = node.querySelector('.ai-prov-model');
-                def.models.forEach(m => {
-                    const opt = document.createElement('option');
-                    opt.value = m.id;
-                    opt.textContent = m.label;
-                    modelSel.appendChild(opt);
-                });
+                // 模型 dropdown 不再 hardcode — 等使用者儲存 key 後動態 list-models 填入
                 // 綁事件
                 node.querySelector('.ai-prov-key-toggle').addEventListener('click', () => _aiToggleKeyVisibility(node));
                 node.querySelector('.ai-prov-save-btn').addEventListener('click', () => aiProviderSave(def.key));
                 node.querySelector('.ai-prov-test-btn').addEventListener('click', () => aiProviderTest(def.key));
                 node.querySelector('.ai-prov-change-btn').addEventListener('click', () => _aiSwitchToInputMode(node));
                 node.querySelector('.ai-prov-delete-btn').addEventListener('click', () => aiProviderDelete(def.key));
+                // model 變更 → 切換思考度 dropdown(該 model 不支援就隱藏)
+                node.querySelector('.ai-prov-model').addEventListener('change', () => _aiOnModelChanged(def.key));
                 list.appendChild(node);
             });
+        }
+
+        // ── 動態列出該 provider 可用模型 + thinking levels ─────────────────
+
+        async function aiProviderListModels(providerKey, tempApiKey, tempBaseUrl) {
+            // 傳 tempApiKey 給「使用者剛貼還沒存」的情境(讓他立刻看到清單);
+            // 留空就讓 backend 用 DB 已存的 key。
+            const payload = {
+                api_key: tempApiKey || null,
+                base_url: tempBaseUrl || null,
+            };
+            const resp = await window.apiFetch(
+                '/api/settings/llm-providers/' + providerKey + '/list-models',
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                },
+            );
+            if (resp.error) {
+                _aiSetModelsError(providerKey, resp.error);
+                _aiModelsByProvider[providerKey] = [];
+                return null;
+            }
+            _aiModelsByProvider[providerKey] = resp.models || [];
+            _aiPopulateModelDropdown(providerKey);
+            return resp.models || [];
+        }
+
+        function _aiPopulateModelDropdown(providerKey) {
+            const c = _aiCardFor(providerKey);
+            if (!c) return;
+            const modelSel = c.querySelector('.ai-prov-model');
+            const models = _aiModelsByProvider[providerKey] || [];
+            const previouslySelected = modelSel.value || (_aiProviderState[providerKey] || {}).default_model || '';
+            modelSel.innerHTML = '';
+            if (models.length === 0) {
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = '(沒有可用模型)';
+                modelSel.appendChild(opt);
+                modelSel.disabled = true;
+            } else {
+                modelSel.disabled = false;
+                // 預設一個 placeholder option 但允許選
+                models.forEach(m => {
+                    const opt = document.createElement('option');
+                    opt.value = m.id;
+                    opt.textContent = m.label + (m.supports_thinking ? '  🧠' : '');
+                    opt.dataset.supportsThinking = m.supports_thinking ? '1' : '0';
+                    opt.dataset.thinkingLevels = JSON.stringify(m.thinking_levels || []);
+                    modelSel.appendChild(opt);
+                });
+                // 還原選擇 — 既有 default_model 若仍在清單裡就選它
+                if (previouslySelected && models.some(m => m.id === previouslySelected)) {
+                    modelSel.value = previouslySelected;
+                }
+            }
+            c.querySelector('.ai-prov-model-hint').textContent =
+                models.length > 0
+                    ? '從 ' + providerKey + ' 拉到 ' + models.length + ' 個可用模型。🧠 表示支援思考度設定。'
+                    : '無模型清單;請檢查 API key 與網路。';
+            _aiOnModelChanged(providerKey);
+        }
+
+        function _aiSetModelsError(providerKey, errorMsg) {
+            const c = _aiCardFor(providerKey);
+            if (!c) return;
+            const modelSel = c.querySelector('.ai-prov-model');
+            modelSel.innerHTML = '<option value="">(載入失敗)</option>';
+            modelSel.disabled = true;
+            c.querySelector('.ai-prov-model-hint').textContent = '⚠ 列出模型失敗:' + errorMsg;
+        }
+
+        function _aiOnModelChanged(providerKey) {
+            const c = _aiCardFor(providerKey);
+            if (!c) return;
+            const modelSel = c.querySelector('.ai-prov-model');
+            const wrap = c.querySelector('.ai-prov-thinking-wrap');
+            const thinkingSel = c.querySelector('.ai-prov-thinking');
+            const selectedOpt = modelSel.options[modelSel.selectedIndex];
+            if (!selectedOpt || selectedOpt.dataset.supportsThinking !== '1') {
+                wrap.classList.add('hidden');
+                thinkingSel.value = 'off';
+                return;
+            }
+            // 該 model 支援 — 填入該 model 對應的 levels(目前都是統一四檔,但留彈性)
+            let levels = [];
+            try { levels = JSON.parse(selectedOpt.dataset.thinkingLevels || '[]'); } catch (_) {}
+            if (!levels.length) {
+                // 沒清單也至少給 off
+                levels = [{ value: 'off', label: '關閉(快速回應)' }];
+            }
+            // 還原既有設定(若有)
+            const prevLevel = ((_aiProviderState[providerKey] || {}).thinking_config || {}).level || 'off';
+            thinkingSel.innerHTML = '';
+            levels.forEach(lv => {
+                const opt = document.createElement('option');
+                opt.value = lv.value;
+                opt.textContent = lv.label;
+                thinkingSel.appendChild(opt);
+            });
+            if (levels.some(lv => lv.value === prevLevel)) {
+                thinkingSel.value = prevLevel;
+            }
+            wrap.classList.remove('hidden');
         }
 
         function _aiToggleKeyVisibility(cardEl) {
@@ -19044,6 +19145,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 const rows = await window.apiFetch('/api/settings/llm-providers');
                 const byKey = {};
                 (rows || []).forEach(r => { byKey[r.provider] = r; });
+                const tasks = [];
                 _AI_PROVIDERS_DEF.forEach(def => {
                     const row = byKey[def.key] || null;
                     _aiProviderState[def.key] = row;
@@ -19051,18 +19153,28 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                     if (!c) return;
                     // 啟用 toggle
                     c.querySelector('.ai-prov-enabled').checked = !!(row && row.enabled);
-                    // model
-                    const modelSel = c.querySelector('.ai-prov-model');
-                    if (row && row.default_model) modelSel.value = row.default_model;
                     // base URL
                     const baseInput = c.querySelector('.ai-prov-base-url');
                     if (baseInput) baseInput.value = (row && row.base_url) || '';
                     // key 顯示模式
                     if (row && row.has_api_key) {
                         _aiSwitchToDisplayMode(c, row.key_prefix);
+                        // 既存 key 自動列出可用模型(若還沒列過)
+                        if ((_aiModelsByProvider[def.key] || []).length === 0) {
+                            tasks.push(
+                                aiProviderListModels(def.key, null, row.base_url || null)
+                                    .catch(e => console.warn('list-models', def.key, e))
+                            );
+                        }
                     } else {
                         _aiSwitchToInputMode(c);
                         c.querySelector('.ai-prov-key-field').value = '';
+                        // 沒 key → 清空 model dropdown placeholder
+                        const modelSel = c.querySelector('.ai-prov-model');
+                        modelSel.innerHTML = '<option value="">(請先儲存 API key)</option>';
+                        modelSel.disabled = true;
+                        c.querySelector('.ai-prov-thinking-wrap').classList.add('hidden');
+                        c.querySelector('.ai-prov-model-hint').textContent = '儲存 API key 後會自動列出供應商可用模型。';
                     }
                     // status badge
                     const badge = c.querySelector('.ai-prov-status-badge');
@@ -19081,9 +19193,20 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                     c.classList.add(row && row.enabled && row.has_api_key ? 'border-emerald-200'
                         : row && row.has_api_key ? 'border-amber-200' : 'border-stone-200');
                 });
+                // 等所有 list-models 平行完成再 populate(避免 race)
+                if (tasks.length) {
+                    await Promise.allSettled(tasks);
+                    _AI_PROVIDERS_DEF.forEach(def => {
+                        if ((_aiModelsByProvider[def.key] || []).length > 0) {
+                            _aiPopulateModelDropdown(def.key);
+                        }
+                    });
+                }
             } catch (e) {
                 console.error('aiProvidersRefresh', e);
-                showToast('AI Token 設定載入失敗:' + (e.message || e), 'error');
+                if (typeof showToast === 'function') {
+                    showToast('AI Token 設定載入失敗:' + (e.message || e), 'error');
+                }
             }
         }
 
@@ -19092,10 +19215,15 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             if (!c) return;
             const def = _AI_PROVIDERS_DEF.find(d => d.key === providerKey);
             const enabled = c.querySelector('.ai-prov-enabled').checked;
-            const model = c.querySelector('.ai-prov-model').value || null;
+            const modelSel = c.querySelector('.ai-prov-model');
+            const model = modelSel && !modelSel.disabled ? (modelSel.value || null) : null;
             const baseUrl = def.showBaseUrl ? (c.querySelector('.ai-prov-base-url').value || '').trim() : '';
             const keyFieldVisible = !c.querySelector('.ai-prov-key-input').classList.contains('hidden');
             const apiKey = keyFieldVisible ? c.querySelector('.ai-prov-key-field').value.trim() : '';
+            const thinkingWrap = c.querySelector('.ai-prov-thinking-wrap');
+            const thinkingLevel = thinkingWrap && !thinkingWrap.classList.contains('hidden')
+                ? (c.querySelector('.ai-prov-thinking').value || 'off')
+                : 'off';
             const statusEl = c.querySelector('.ai-prov-status-text');
             statusEl.textContent = '儲存中…';
             statusEl.className = 'ml-2 text-xs text-stone-500 ai-prov-status-text';
@@ -19114,6 +19242,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 default_model: model,
                 base_url: baseUrl || null,
                 api_key: apiKey || null,  // 空 = 不動既有(backend 已處理)
+                thinking_config: { level: thinkingLevel },
             };
             try {
                 await window.apiFetch('/api/settings/llm-providers/' + providerKey, {
@@ -19121,10 +19250,17 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload),
                 });
-                statusEl.textContent = '✓ 已儲存';
+                statusEl.textContent = '✓ 已儲存,正在列出可用模型…';
                 statusEl.className = 'ml-2 text-xs text-emerald-600 ai-prov-status-text';
+                // 儲存成功 → 立刻自動列出可用模型(若 user 剛貼 key,用 tempApiKey;否則 backend 用 DB 存的)
+                try {
+                    await aiProviderListModels(providerKey, apiKey || null, baseUrl || null);
+                } catch (e) {
+                    console.warn('post-save list-models', e);
+                }
                 await aiProvidersRefresh();
                 await aiBudgetRefresh();
+                statusEl.textContent = '✓ 已儲存(' + (_aiModelsByProvider[providerKey] || []).length + ' 個可用模型)';
             } catch (e) {
                 statusEl.textContent = '✗ 儲存失敗:' + (e.message || e);
                 statusEl.className = 'ml-2 text-xs text-rose-600 ai-prov-status-text';

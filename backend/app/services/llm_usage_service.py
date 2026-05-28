@@ -91,6 +91,7 @@ async def chat_with_usage_log(
     temperature: float = 0.7,
     timeout: float = 60.0,
     cache_system_and_tools: bool = True,
+    thinking_level: Optional[str] = None,
 ) -> ChatResult:
     """跑 chat() 並寫 usage 記錄。任何 LLMError 直接 propagate(由上層處理重試 / 顯示)。
 
@@ -106,6 +107,7 @@ async def chat_with_usage_log(
         temperature=temperature,
         timeout=timeout,
         cache_system_and_tools=cache_system_and_tools,
+        thinking_level=thinking_level,
     )
     await record_usage(
         db,

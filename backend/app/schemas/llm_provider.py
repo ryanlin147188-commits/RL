@@ -50,6 +50,10 @@ class LlmProviderConfigUpdate(LlmProviderConfigBase):
         default=None,
         description="明文 API key;留空 = 不動現有值。",
     )
+    thinking_config: Optional[dict] = Field(
+        default=None,
+        description='思考度設定。格式 {"level": "off"|"low"|"medium"|"high"}。傳 None = 不動既有值。',
+    )
 
     @field_validator("base_url")
     @classmethod
@@ -75,6 +79,7 @@ class LlmProviderConfigResponse(BaseModel):
     provider: ProviderName
     base_url: Optional[str]
     default_model: Optional[str]
+    thinking_config: Optional[dict] = None
     enabled: bool
     has_api_key: bool
     key_prefix: Optional[str] = None
@@ -101,4 +106,25 @@ class LlmProviderTestResponse(BaseModel):
     input_tokens: int
     output_tokens: int
     cost_usd: float
+    error: Optional[str] = None
+
+
+class LlmProviderListModelsRequest(BaseModel):
+    """list-models 可選帶一把臨時 key(若 UI 還沒儲存)。不帶 → 用 DB 內存的。"""
+
+    api_key: Optional[str] = Field(default=None, description="臨時 key;留空 → 用 DB 已存的")
+    base_url: Optional[str] = Field(default=None, description="OpenAI-compatible 本地推論才需要")
+
+
+class LlmModelInfo(BaseModel):
+    id: str
+    label: str
+    supports_thinking: bool
+    thinking_levels: list[dict]
+
+
+class LlmProviderListModelsResponse(BaseModel):
+    provider: ProviderName
+    count: int
+    models: list[LlmModelInfo]
     error: Optional[str] = None

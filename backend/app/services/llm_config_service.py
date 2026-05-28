@@ -103,6 +103,11 @@ async def upsert_for_org(
     row.base_url = payload.base_url
     row.default_model = payload.default_model
     row.enabled = payload.enabled
+    # thinking_config:顯式傳 → 寫入(包含空 dict / None);留空欄位 → 不動
+    # Schema 預設是 None(代表「沒傳」), payload.thinking_config 為 dict 才動。
+    # 想清除 thinking config:傳 {} 或 {"level": "off"} 皆可。
+    if payload.thinking_config is not None:
+        row.thinking_config = payload.thinking_config
     # 空字串 / None = 不動;非空 = 寫入(EncryptedString 會自動 Fernet 加密)
     # 同時更新 key_prefix 給 UI 顯示遮罩(永遠不存完整 key)
     if payload.api_key:

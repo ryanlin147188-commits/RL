@@ -128,6 +128,7 @@ class LLMProvider(ABC):
         temperature: float = 0.7,
         timeout: float = 60.0,
         cache_system_and_tools: bool = True,
+        thinking_level: str | None = None,
     ) -> ChatResult:
         """同步呼叫一次 LLM,回完整 ChatResult。
 
@@ -142,6 +143,10 @@ class LLMProvider(ABC):
             timeout: HTTP 整體 timeout(秒)。長 tool 不在這裡 block。
             cache_system_and_tools: 是否要對 system + tools 加 prompt cache
                 breakpoint。只有 Anthropic 會有實際效果,其他家忽略。
+            thinking_level: 統一思考度("off"/"low"/"medium"/"high"/None)。
+                None 或 "off" → 不送 thinking 參數;其他 → provider 內部
+                翻成各家對應 API(budget_tokens / reasoning_effort 等)。
+                Model 不支援 thinking 時 provider 自動忽略。
 
         Raises:
             LLMAuthError: 401 / 403。

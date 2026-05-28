@@ -25,8 +25,11 @@ from app.models.llm_provider_config import LlmProviderConfig
 from app.models.user import User
 from app.schemas.llm_provider import (
     ALLOWED_PROVIDERS,
+    LlmModelInfo,
     LlmProviderConfigResponse,
     LlmProviderConfigUpdate,
+    LlmProviderListModelsRequest,
+    LlmProviderListModelsResponse,
     LlmProviderTestRequest,
     LlmProviderTestResponse,
     ProviderName,
@@ -44,6 +47,7 @@ def _to_response(row: LlmProviderConfig) -> dict:
         "provider": row.provider,
         "base_url": row.base_url,
         "default_model": row.default_model,
+        "thinking_config": row.thinking_config,
         "enabled": row.enabled,
         "has_api_key": bool(row.api_key),
         "key_prefix": row.key_prefix,
@@ -209,6 +213,79 @@ async def test_llm_provider(
         input_tokens=result.usage.input_tokens,
         output_tokens=result.usage.output_tokens,
         cost_usd=result.usage.cost_usd,
+    )
+
+
+# ─── list-models:用 (DB 或臨時) key 呼叫 provider list endpoint ─────
+
+
+@router.post(
+    "/settings/llm-providers/{provider}/list-models",
+    response_model=LlmProviderListModelsResponse,
+    tags=["S · 設定"],
+    dependencies=[Depends(require_casbin(P.SETTINGS_READ))],
+)
+async def list_provider_models(
+    payload: LlmProviderListModelsRequest,
+    provider: ProviderName = Path(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """列該 provider 在這把 key 下可用的 chat-capable 模型。
+
+    Key 取得順序:
+      1. payload.api_key(UI 剛輸入但還沒儲存 — 讓使用者「驗證 + 看清單」)
+      2. DB row(已儲存)
+      3. env fallback(部署期 bootstrap)
+
+    Provider 端任何錯誤(401 / 5xx / timeout)轉成 ok=False + error,讓前端
+    用 toast 顯示而非 500 stacktrace。
+    """
+    _validate_provider(provider)
+    from app.llm.providers._list_models import PROVIDER_LISTERS
+
+    # 決定要用哪把 key
+    api_key = (payload.api_key or "").strip()
+    base_url = (payload.base_url or "").strip() or None
+    if not api_key:
+        row = await llm_config_service.get_for_org(
+            db, user.organization_id, provider
+        )
+        if row and row.api_key:
+            api_key = row.api_key
+            base_url = base_url or row.base_url or None
+    if not api_key:
+        # env fallback(只 anthropic / openai / google)
+        from app.config import settings
+
+        env_map = {
+            "anthropic": settings.ANTHROPIC_API_KEY,
+            "openai": settings.OPENAI_API_KEY,
+            "google": settings.GOOGLE_API_KEY,
+        }
+        api_key = (env_map.get(provider) or "").strip()
+    if not api_key:
+        return LlmProviderListModelsResponse(
+            provider=provider, count=0, models=[],
+            error=f"{provider} 尚未設定 API key,無法列出模型。請先輸入 key。",
+        )
+
+    lister = PROVIDER_LISTERS[provider]
+    try:
+        if provider == "openai":
+            models = await lister(api_key, base_url=base_url)
+        else:
+            models = await lister(api_key)
+    except LLMError as e:
+        return LlmProviderListModelsResponse(
+            provider=provider, count=0, models=[],
+            error=f"[{type(e).__name__}] {e}",
+        )
+
+    return LlmProviderListModelsResponse(
+        provider=provider,
+        count=len(models),
+        models=[LlmModelInfo(**m) for m in models],
     )
 
 

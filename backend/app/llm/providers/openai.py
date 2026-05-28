@@ -20,6 +20,7 @@ from typing import Any
 import httpx
 
 from app.llm.base import ChatResult, LLMProvider, Message, Role, ToolCall, ToolSpec, Usage
+from app.llm.model_catalog import is_active_level, supports_thinking
 from app.llm.pricing import compute_cost_usd
 from app.llm.providers._http import post_json
 
@@ -56,6 +57,7 @@ class OpenAIProvider(LLMProvider):
         temperature: float = 0.7,
         timeout: float = 60.0,
         cache_system_and_tools: bool = True,  # no-op,OpenAI 自動 caching
+        thinking_level: str | None = None,
     ) -> ChatResult:
         del cache_system_and_tools  # 顯式忽略,避免 linter 抱怨
 
@@ -68,6 +70,13 @@ class OpenAIProvider(LLMProvider):
         if tools:
             body["tools"] = _to_openai_tools(tools)
             body["tool_choice"] = "auto"
+        # Reasoning effort — 只在 o-series / 支援的 model + level 有效時送
+        if is_active_level(thinking_level) and supports_thinking("openai", model):
+            body["reasoning_effort"] = thinking_level.lower()
+            # o-series 不接受 temperature,改成不送(provider 預設 1.0)
+            body.pop("temperature", None)
+            # o-series 用 max_completion_tokens 而非 max_tokens(新 API)
+            body["max_completion_tokens"] = body.pop("max_tokens", max_tokens)
 
         headers = {
             "Authorization": f"Bearer {self._api_key}",

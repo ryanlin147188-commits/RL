@@ -37,9 +37,11 @@ from app.agent.tools.base import ToolContext, ToolResult
 from app.agent.tools.registry import REGISTRY
 from app.config import settings
 from app.llm.base import Message, Role, ToolCall
-from app.llm.router import get_provider_for_chat
+from app.llm.model_catalog import normalize_level
+from app.llm.router import get_provider_for_chat, infer_provider
 from app.models.agent_session import AgentMessage, AgentSession
 from app.models.agent_token_usage import AgentTokenUsage
+from app.models.llm_provider_config import LlmProviderConfig
 from app.models.pending_action import PendingAction
 from app.models.user import User
 from app.services import agent_budget_service, pending_action_service
@@ -451,6 +453,28 @@ async def _find_usage_row(
     return (await db.execute(stmt)).scalar_one_or_none()
 
 
+async def _resolve_thinking_level(
+    db: AsyncSession, *, organization_id: Optional[str], model: str
+) -> Optional[str]:
+    """從 LlmProviderConfig 撈該 model 對應 provider 的 thinking level。
+
+    None / "off" 都會回 None,chat() 內就不送 thinking 參數。
+    """
+    try:
+        provider_name = infer_provider(model)
+    except ValueError:
+        return None
+    stmt = select(LlmProviderConfig).where(
+        LlmProviderConfig.organization_id == organization_id,
+        LlmProviderConfig.provider == provider_name,
+    )
+    row = (await db.execute(stmt)).scalar_one_or_none()
+    if row is None or not row.thinking_config:
+        return None
+    raw = row.thinking_config.get("level") if isinstance(row.thinking_config, dict) else None
+    return normalize_level(raw)
+
+
 async def _run_chat_loop(
     db: AsyncSession,
     session: AgentSession,
@@ -482,6 +506,11 @@ async def _run_chat_loop(
     available_tools = await filter_tools_for_user(db, user, REGISTRY.all_tools())
     tool_specs = [t.to_toolspec() for t in available_tools] or None
 
+    # 從 provider config 撈 thinking level(model 不支援的話 chat() 內會自動忽略)
+    thinking_level = await _resolve_thinking_level(
+        db, organization_id=session.organization_id, model=model
+    )
+
     last_assistant: Optional[AgentMessage] = None
     last_usage: Optional[AgentTokenUsage] = None
 
@@ -508,6 +537,7 @@ async def _run_chat_loop(
             max_tokens=settings.AGENT_MAX_TOKENS,
             temperature=settings.AGENT_TEMPERATURE,
             timeout=settings.LLM_HTTP_TIMEOUT_SEC,
+            thinking_level=thinking_level,
         )
 
         usage_row = await _find_usage_row(db, session.id, result.raw_response_id)
