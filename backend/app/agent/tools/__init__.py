@@ -16,18 +16,24 @@ from app.agent.tools.create_project import CreateProjectTool
 from app.agent.tools.create_tree_node import CreateTreeNodeTool
 from app.agent.tools.delete_defect import DeleteDefectTool
 from app.agent.tools.delete_tree_node import DeleteTreeNodeTool
+from app.agent.tools.export_report_pdf import ExportReportPdfTool
 from app.agent.tools.export_testcase_robot import ExportTestcaseRobotTool
+from app.agent.tools.manage_mock_endpoint import ManageMockEndpointTool
 from app.agent.tools.manage_schedule import CreateScheduleTool, QuerySchedulesTool
 from app.agent.tools.move_tree_node import MoveTreeNodeTool
+from app.agent.tools.query_audit_log import QueryAuditLogTool
 from app.agent.tools.query_defect import QueryDefectTool
 from app.agent.tools.query_report import QueryReportTool
 from app.agent.tools.query_step_logs import QueryStepLogsTool
 from app.agent.tools.registry import REGISTRY, ToolRegistry
+from app.agent.tools.remove_org_member import RemoveOrgMemberTool
+from app.agent.tools.remove_project_member import RemoveProjectMemberTool
 from app.agent.tools.resolve_review import ResolveReviewTool
 from app.agent.tools.run_test_case import RunTestCaseTool
 from app.agent.tools.start_recording import StartRecordingTool
 from app.agent.tools.submit_review import SubmitReviewTool
 from app.agent.tools.update_defect import UpdateDefectTool
+from app.agent.tools.update_schedule import DeleteScheduleTool, UpdateScheduleTool
 from app.agent.tools.update_testcase_steps import UpdateTestcaseStepsTool
 from app.agent.tools.update_tree_node import UpdateTreeNodeTool
 
@@ -40,7 +46,9 @@ def _bootstrap() -> None:
         QueryStepLogsTool,
         QueryDefectTool,
         QuerySchedulesTool,
+        QueryAuditLogTool,
         ExportTestcaseRobotTool,
+        ExportReportPdfTool,
         # 建立(create)
         CreateProjectTool,
         CreateTreeNodeTool,
@@ -52,6 +60,7 @@ def _bootstrap() -> None:
         UpdateTreeNodeTool,
         UpdateTestcaseStepsTool,
         UpdateDefectTool,
+        UpdateScheduleTool,
         AssignProjectRoleTool,
         MoveTreeNodeTool,
         # 審核流程
@@ -60,6 +69,11 @@ def _bootstrap() -> None:
         # 刪除(delete)
         DeleteTreeNodeTool,
         DeleteDefectTool,
+        DeleteScheduleTool,
+        RemoveOrgMemberTool,
+        RemoveProjectMemberTool,
+        # 管理 / mock(整合工具)
+        ManageMockEndpointTool,
         # 執行 / 錄製
         RunTestCaseTool,
         StartRecordingTool,
@@ -85,18 +99,25 @@ __all__ = [
     "CreateScheduleTool",
     "CreateTreeNodeTool",
     "DeleteDefectTool",
+    "DeleteScheduleTool",
     "DeleteTreeNodeTool",
+    "ExportReportPdfTool",
     "ExportTestcaseRobotTool",
+    "ManageMockEndpointTool",
     "MoveTreeNodeTool",
+    "QueryAuditLogTool",
     "QueryDefectTool",
     "QueryReportTool",
     "QueryStepLogsTool",
     "QuerySchedulesTool",
+    "RemoveOrgMemberTool",
+    "RemoveProjectMemberTool",
     "ResolveReviewTool",
     "RunTestCaseTool",
     "StartRecordingTool",
     "SubmitReviewTool",
     "UpdateDefectTool",
+    "UpdateScheduleTool",
     "UpdateTestcaseStepsTool",
     "UpdateTreeNodeTool",
 ]

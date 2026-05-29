@@ -45,39 +45,22 @@ def upgrade() -> None:
         op.drop_column("users", "preferred_agent")
 
     # 2) hermes_memory_consents
+    # 用 DROP INDEX IF EXISTS 處理「table 在但 index 已被手動清過」的 VM 狀態
     if _table_exists("hermes_memory_consents"):
-        op.drop_index(
-            "ix_hermes_memory_consents_org",
-            table_name="hermes_memory_consents",
-        )
+        op.execute("DROP INDEX IF EXISTS ix_hermes_memory_consents_org")
         op.drop_table("hermes_memory_consents")
 
     # 3) hermes_gateway_credentials
     if _table_exists("hermes_gateway_credentials"):
-        op.drop_index(
-            "ix_hermes_gateway_org",
-            table_name="hermes_gateway_credentials",
-        )
-        op.drop_index(
-            "ix_hermes_gateway_owner",
-            table_name="hermes_gateway_credentials",
-        )
+        op.execute("DROP INDEX IF EXISTS ix_hermes_gateway_org")
+        op.execute("DROP INDEX IF EXISTS ix_hermes_gateway_owner")
         op.drop_table("hermes_gateway_credentials")
 
     # 4) hermes_session_refs
     if _table_exists("hermes_session_refs"):
-        op.drop_index(
-            "ix_hermes_session_refs_org",
-            table_name="hermes_session_refs",
-        )
-        op.drop_index(
-            "ix_hermes_session_refs_workspace",
-            table_name="hermes_session_refs",
-        )
-        op.drop_index(
-            "ix_hermes_session_refs_owner",
-            table_name="hermes_session_refs",
-        )
+        op.execute("DROP INDEX IF EXISTS ix_hermes_session_refs_org")
+        op.execute("DROP INDEX IF EXISTS ix_hermes_session_refs_workspace")
+        op.execute("DROP INDEX IF EXISTS ix_hermes_session_refs_owner")
         op.drop_table("hermes_session_refs")
 
 

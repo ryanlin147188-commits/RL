@@ -275,6 +275,14 @@
                 handleSend();
             }
         });
+        // Phase 2b: trigger_keywords 命中 → 在輸入框上方顯示「建議切換 skill」chip
+        // debounce 250ms 避免每按一個字都 grep skills(目前最多 9 個 skill,所以 cost
+        // 不高,但留 debounce 比較通用)。
+        let _suggestTimer = null;
+        textarea.addEventListener("input", () => {
+            if (_suggestTimer) clearTimeout(_suggestTimer);
+            _suggestTimer = setTimeout(() => _updateSuggestionArea(textarea.value), 250);
+        });
         const sendBtn = el("button", {
             type: "button",
             class:
@@ -285,15 +293,21 @@
         const costLabel = el("div", {
             class: "text-[10px] text-stone-400 mt-1 text-right",
         }, "本對話成本:$0.000000");
+        // 建議切換 skill 的 chip 區(預設 hidden;只有命中 trigger_keywords 時才顯示)
+        const suggestionArea = el("div", {
+            class: "flex flex-wrap gap-1 mb-1.5 text-[11px] hidden",
+        });
         const footer = el("div", {
             class: "border-t border-stone-200 bg-white p-2",
         }, [
+            suggestionArea,
             el("div", { class: "flex gap-2 items-stretch" }, [textarea, sendBtn]),
             costLabel,
         ]);
         refs.textarea = textarea;
         refs.sendBtn = sendBtn;
         refs.costLabel = costLabel;
+        refs.suggestionArea = suggestionArea;
 
         panel.appendChild(header);
         panel.appendChild(body);
@@ -624,6 +638,63 @@
             if (refs.panel) {
                 refs.panel.classList.remove("ring-2", "ring-violet-200");
             }
+        }
+    }
+
+    // Phase 2b: 把 textarea 內容跟所有 skill 的 trigger_keywords 比對,命中就在
+    // textarea 上方顯示 chip 建議切換。不會自動套用 — 永遠等使用者點 chip 才切。
+    // 命中規則:文字含關鍵字(case-insensitive,substring match)。已 active 的
+    // skill 不會出現在建議內(切過去無意義)。最多顯示 3 個建議。
+    function _findSuggestedSkills(text) {
+        if (!text || typeof text !== "string") return [];
+        const t = text.toLowerCase();
+        if (t.trim().length < 2) return [];
+        const skills = state.skills || [];
+        const out = [];
+        for (const s of skills) {
+            if (s.id === state.activeSkillId) continue;
+            const kws = s.trigger_keywords || [];
+            if (!Array.isArray(kws) || kws.length === 0) continue;
+            for (const kw of kws) {
+                if (!kw) continue;
+                if (t.includes(String(kw).toLowerCase())) {
+                    out.push({ id: s.id, name: s.name, matched: kw });
+                    break;
+                }
+            }
+            if (out.length >= 3) break;
+        }
+        return out;
+    }
+
+    function _updateSuggestionArea(text) {
+        if (!refs.suggestionArea) return;
+        const matches = _findSuggestedSkills(text);
+        refs.suggestionArea.innerHTML = "";
+        if (matches.length === 0) {
+            refs.suggestionArea.classList.add("hidden");
+            return;
+        }
+        refs.suggestionArea.classList.remove("hidden");
+        // 前綴提示文字
+        refs.suggestionArea.appendChild(
+            el("span", { class: "text-stone-500 self-center mr-1" }, "💡 建議切換:")
+        );
+        for (const m of matches) {
+            const chip = el("button", {
+                type: "button",
+                class:
+                    "px-2 py-0.5 rounded-full border border-violet-300 bg-violet-50 " +
+                    "text-violet-700 hover:bg-violet-100 transition-colors",
+                title: `匹配關鍵字「${m.matched}」 — 點擊切換到 ${m.name} skill`,
+                onclick: () => {
+                    setActiveSkill(m.id);
+                    // 切換後立刻清掉建議(已 active 不會再 match 自己)
+                    refs.suggestionArea.innerHTML = "";
+                    refs.suggestionArea.classList.add("hidden");
+                },
+            }, m.name);
+            refs.suggestionArea.appendChild(chip);
         }
     }
 

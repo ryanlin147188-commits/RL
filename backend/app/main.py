@@ -584,6 +584,15 @@ async def lifespan(app: FastAPI):
         await _backfill_defect_reviews()
     except Exception:  # noqa: BLE001
         logging.getLogger(__name__).exception("defect review backfill failed")
+    # Seed 9 個預設 Platform Skill 到每個 org(對話框的 chip 切換功能)。
+    # 對既有 org backfill,新建 org 走 _seed_default_org_and_backfill 流程後
+    # 也會自動補上。idempotent:by name 跳過 — 不覆寫使用者改過的版本。
+    try:
+        from app.db.seed_skills import seed_default_skills
+
+        await seed_default_skills()
+    except Exception:  # noqa: BLE001
+        logging.getLogger(__name__).exception("default skill seed failed")
     # Casbin enforcer(opt-in via CASBIN_ENABLED=True)— 進程內單例,首個
     # request 進來前必須完成 init 否則 require_casbin 一律 deny。adapter 在
     # init 時會 auto-create ``casbin_rule`` 表,與既有 schema 共存。
