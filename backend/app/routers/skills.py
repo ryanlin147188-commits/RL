@@ -22,6 +22,7 @@ from app.auth.permissions import require_casbin
 from app.auth.permissions_catalog import P
 from app.database import get_db
 from app.models.agent_session import AgentSession
+from app.models.org_membership import OrgMembership
 from app.models.skill import Skill
 from app.models.user import User
 from app.services import skill_service
@@ -78,11 +79,26 @@ class SetActiveSkillRequest(BaseModel):
 # ── Helpers ──────────────────────────────────────────────────────────
 
 
-def _check_org_access(user: User, org_id: str) -> None:
-    """非 superuser 只能存取自己 org 的 skills。"""
+async def _check_org_access(db: AsyncSession, user: User, org_id: str) -> None:
+    """非 superuser 只能存取自己有 active OrgMembership 的 org 的 skills。
+
+    舊版只比 ``user.organization_id`` 是否等於 ``org_id``,但這個欄位是
+    「使用者主要 / 預設 org」的快取;當使用者切到他被邀請進去的其他 org
+    (透過 OrgMembership.is_default 切換),frontend 用 active org id 呼叫
+    這個 endpoint 會被誤拒。改成查 OrgMembership 才是真實的「使用者是否
+    為此 org 的 active 成員」。
+    """
     if user.is_superuser:
         return
-    if user.organization_id != org_id:
+    if user.organization_id == org_id:
+        return  # fast path:default org match 直接放行,不查 DB
+    stmt = (
+        select(OrgMembership)
+        .where(OrgMembership.username == user.username)
+        .where(OrgMembership.organization_id == org_id)
+        .where(OrgMembership.status == "active")
+    )
+    if (await db.execute(stmt)).scalar_one_or_none() is None:
         raise HTTPException(403, "無權存取此組織的 skills")
 
 
@@ -128,7 +144,7 @@ async def list_skills(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    _check_org_access(user, org_id)
+    await _check_org_access(db, user, org_id)
     rows = await skill_service.list_skills(
         db, organization_id=org_id, mode=mode, enabled_only=False
     )
@@ -147,7 +163,7 @@ async def create_skill(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    _check_org_access(user, org_id)
+    await _check_org_access(db, user, org_id)
     try:
         row = await skill_service.create_skill(
             db,
@@ -179,7 +195,7 @@ async def update_skill(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    _check_org_access(user, org_id)
+    await _check_org_access(db, user, org_id)
     # Pydantic 沒設的欄位用 model_dump exclude_unset 過濾 → service 才知道哪些要動
     body = payload.model_dump(exclude_unset=True)
     try:
@@ -203,7 +219,7 @@ async def delete_skill(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    _check_org_access(user, org_id)
+    await _check_org_access(db, user, org_id)
     try:
         await skill_service.delete_skill(
             db, skill_id=skill_id, organization_id=org_id
@@ -227,7 +243,7 @@ async def import_skill_from_markdown(
     db: AsyncSession = Depends(get_db),
 ):
     """上傳 ``SKILL.md`` 風格的檔案(YAML frontmatter + body)建立 / 覆寫 skill。"""
-    _check_org_access(user, org_id)
+    await _check_org_access(db, user, org_id)
     # 限 256KB(skill body 一般幾 KB;設個安全上限避免大檔 DoS)
     raw = await file.read()
     if len(raw) > 256 * 1024:

@@ -17,6 +17,7 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Path
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
@@ -24,6 +25,7 @@ from app.auth.permissions import require_casbin
 from app.auth.permissions_catalog import P
 from app.database import get_db
 from app.models.mcp_server import MCPServer
+from app.models.org_membership import OrgMembership
 from app.models.user import User
 from app.services import mcp_server_service
 
@@ -97,10 +99,24 @@ class MCPServerTestResponse(BaseModel):
 # ── Helpers ──────────────────────────────────────────────────────────
 
 
-def _check_org_access(user: User, org_id: str) -> None:
+async def _check_org_access(db: AsyncSession, user: User, org_id: str) -> None:
+    """非 superuser 只能存取自己有 active OrgMembership 的 org 的 MCP servers。
+
+    舊版只比 ``user.organization_id``,但這個欄位是「使用者主要 / 預設 org」
+    的快取;當使用者切到他被邀請進去的其他 org,frontend 用 active org id
+    呼叫這個 endpoint 會被誤拒。改用 OrgMembership 才是真實成員關係。
+    """
     if user.is_superuser:
         return
-    if user.organization_id != org_id:
+    if user.organization_id == org_id:
+        return  # fast path:default org match 直接放行
+    stmt = (
+        select(OrgMembership)
+        .where(OrgMembership.username == user.username)
+        .where(OrgMembership.organization_id == org_id)
+        .where(OrgMembership.status == "active")
+    )
+    if (await db.execute(stmt)).scalar_one_or_none() is None:
         raise HTTPException(403, "無權存取此組織的 MCP servers")
 
 
@@ -153,7 +169,7 @@ async def list_mcp_servers(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    _check_org_access(user, org_id)
+    await _check_org_access(db, user, org_id)
     rows = await mcp_server_service.list_servers(db, organization_id=org_id)
     return [await _to_response(db, r) for r in rows]
 
@@ -170,7 +186,7 @@ async def create_mcp_server(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    _check_org_access(user, org_id)
+    await _check_org_access(db, user, org_id)
     try:
         server = await mcp_server_service.create_server(
             db,
@@ -206,7 +222,7 @@ async def update_mcp_server(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    _check_org_access(user, org_id)
+    await _check_org_access(db, user, org_id)
     body = payload.model_dump(exclude_unset=True)
     secrets_update_raw = body.pop("secrets_update", None)
     # 把 "" 翻譯成 None(刪除);保留非空值
@@ -240,7 +256,7 @@ async def delete_mcp_server(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    _check_org_access(user, org_id)
+    await _check_org_access(db, user, org_id)
     try:
         await mcp_server_service.delete_server(
             db, server_id=server_id, organization_id=org_id
@@ -262,7 +278,7 @@ async def test_mcp_server_connection(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    _check_org_access(user, org_id)
+    await _check_org_access(db, user, org_id)
     try:
         server = await mcp_server_service.get_server(
             db, server_id=server_id, organization_id=org_id
@@ -284,7 +300,7 @@ async def refresh_mcp_tools(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    _check_org_access(user, org_id)
+    await _check_org_access(db, user, org_id)
     try:
         server = await mcp_server_service.get_server(
             db, server_id=server_id, organization_id=org_id
