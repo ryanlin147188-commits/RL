@@ -19366,6 +19366,11 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         const _SETTINGS_TAB_BTN_ON  = 'px-3 py-1.5 text-sm font-medium rounded text-amber-700 bg-amber-50 border border-amber-300';
         const _SETTINGS_TAB_BTN_OFF = 'px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50';
         function settingsSwitchTab(name) {
+            // [scroll-reset-v3] 切 tab 前先把 workspace scroll 強制歸零 — 阻止
+            // tab pane 內容 layout shift 時瀏覽器試圖保留舊 scrollTop。
+            const _ws = document.getElementById('userSettingsWorkspace');
+            if (_ws) _ws.scrollTop = 0;
+            try { console.debug('[settings] switching tab →', name, '(scroll-reset-v3)'); } catch (_) {}
             _SETTINGS_TABS.forEach(t => {
                 const btn = document.getElementById('setTab' + t.charAt(0).toUpperCase() + t.slice(1));
                 const pane = document.getElementById('setPane' + t.charAt(0).toUpperCase() + t.slice(1));
@@ -19393,14 +19398,20 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             if (name === 'memory') { try { memoryRefresh(); } catch (e) { console.error('memoryRefresh', e); } }
             if (name === 'skills') { try { skillsTabInit(); } catch (e) { console.error('skillsTabInit', e); } }
             if (name === 'mcp') { try { mcpTabInit(); } catch (e) { console.error('mcpTabInit', e); } }
-            // 切 tab 後把 scroll 重置到頂 — 9 個 pane 共享同一個 #userSettingsWorkspace
-            // (overflow-y-auto)的 scroll,沒重置會「繼承」上個 tab 的 scrollTop,
-            // 例如從很長的「設定」tab 切到 AI Token,viewport 會卡在「下面」誤導使用者
-            // 以為跳到底了。
-            try {
-                const ws = document.getElementById('userSettingsWorkspace');
-                if (ws) ws.scrollTop = 0;
-            } catch (_) {}
+            // [scroll-reset-v3] 再次強制歸零(切 pane 完 + tab init 跑完後):
+            //   1. sync 立刻重置
+            //   2. rAF 等下個 paint 前再重置一次(處理 layout reflow)
+            //   3. 50ms macro task 再重置(處理 async aiSettingsInit 等填 DOM)
+            // 三道防線確保無論哪個非同步 effect 修改 layout 都壓得住。
+            const _resetScroll = () => {
+                try {
+                    if (_ws) _ws.scrollTop = 0;
+                    window.scrollTo(0, 0);
+                } catch (_) {}
+            };
+            _resetScroll();
+            try { requestAnimationFrame(_resetScroll); } catch (_) {}
+            try { setTimeout(_resetScroll, 50); } catch (_) {}
         }
 
         // v1.1.10:settings 內四個進階 tab(notif / email / projectMembers / roles)
