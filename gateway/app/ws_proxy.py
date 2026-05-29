@@ -64,27 +64,36 @@ def _build_backend_ws_url(path: str, query: str) -> str:
 
 
 async def _pipe(reader, writer, direction: str):
-    """單向 frame 轉發。任一端收到 close 就拋出 ConnectionClosed,被 gather cancel 對面。"""
+    """單向 frame 轉發。任一端收到 close 就拋出 ConnectionClosed,被 gather cancel 對面。
+
+    direction 對應:
+      * ``"up"``  → client → backend(reader=starlette WebSocket, writer=websockets client)
+      * ``"down"`` → backend → client(reader=websockets client, writer=starlette WebSocket)
+
+    starlette WebSocket 用 ``.receive()``(回 dict);websockets client 用 ``.recv()``(直回 str/bytes)。
+    """
     try:
         while True:
-            msg = await reader.recv() if direction == "up" else await reader.receive()
-            # FastAPI WebSocket.receive() 回 dict {type, text|bytes};websockets.recv() 直回 str|bytes。
-            if direction == "down":
-                # backend → client(reader 是 websockets client)
+            if direction == "up":
+                # client → backend:reader 是 starlette WebSocket
+                msg = await reader.receive()
+                # starlette receive() 回 dict {type, text|bytes}
+                if isinstance(msg, dict):
+                    if msg.get("type") == "websocket.receive":
+                        if msg.get("text") is not None:
+                            await writer.send(msg["text"])
+                        elif msg.get("bytes") is not None:
+                            await writer.send(msg["bytes"])
+                    elif msg.get("type") == "websocket.disconnect":
+                        return
+            else:
+                # backend → client:reader 是 websockets client
+                msg = await reader.recv()
+                # websockets recv() 直回 str|bytes
                 if isinstance(msg, (bytes, bytearray)):
                     await writer.send_bytes(msg)
                 else:
                     await writer.send_text(str(msg))
-            else:
-                # client → backend(reader 是 starlette WebSocket)
-                if isinstance(msg, dict):
-                    if msg.get("type") == "websocket.receive":
-                        if "text" in msg and msg["text"] is not None:
-                            await writer.send(msg["text"])
-                        elif "bytes" in msg and msg["bytes"] is not None:
-                            await writer.send(msg["bytes"])
-                    elif msg.get("type") == "websocket.disconnect":
-                        return
     except (ConnectionClosed, asyncio.CancelledError):
         return
     except Exception as e:
