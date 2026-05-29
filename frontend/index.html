@@ -12695,7 +12695,15 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         function showUserSettingsView() {
             if (typeof confirmDiscardIfDirty === 'function' && !confirmDiscardIfDirty()) return false;
             _hideAllWorkspaces();
-            document.getElementById('userSettingsWorkspace').classList.remove('hidden');
+            const _wsEl = document.getElementById('userSettingsWorkspace');
+            _wsEl.classList.remove('hidden');
+            // 進入 user settings 時把 scroll 重置到頂 — workspace 自身是 overflow-y-auto
+            // scrollable container,從別頁(scroll 到下面)跳進來時不重置會繼承
+            // scrollTop,使用者看到的會卡在中間 / 下方而不是頂部的 tab row。
+            try { _wsEl.scrollTop = 0; } catch (_) {}
+            // 也順手把 document/body 的 scroll 重置 — 某些瀏覽器處理 hash 變化時
+            // 會試圖 scroll 到 fragment(#usersettings 不存在對應 id 但行為 inconsistent)。
+            try { window.scrollTo(0, 0); } catch (_) {}
             document.getElementById('mainHeader').classList.remove('hidden');
             document.getElementById('mainActions').classList.add('hidden');
             const fn = document.getElementById('viewFilename');
