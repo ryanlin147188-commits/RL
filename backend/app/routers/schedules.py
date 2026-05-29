@@ -26,6 +26,7 @@ from app.auth.scope import (
 )
 from app.database import get_db
 from app.models.schedule import RepeatType, Schedule
+from app.models.test_round import TestRound
 from app.models.tree_node import TreeNode
 from app.models.user import User
 from app.schemas.schedule import ScheduleCreate, ScheduleResponse, ScheduleUpdate
@@ -60,6 +61,7 @@ def _to_response(
     node_title: Optional[str],
     node_titles: Optional[list[str]] = None,
     node_ids: Optional[list[str]] = None,
+    test_round_name: Optional[str] = None,
 ) -> ScheduleResponse:
     nids = node_ids if node_ids is not None else _get_node_ids(schedule)
     return ScheduleResponse(
@@ -67,6 +69,8 @@ def _to_response(
         name=schedule.name,
         node_id=schedule.node_id,
         node_ids=nids,
+        test_round_id=getattr(schedule, "test_round_id", None),
+        test_round_name=test_round_name,
         project_id=schedule.project_id,
         node_title=node_title,
         node_titles=node_titles or [],
@@ -98,11 +102,23 @@ async def _attach_node_titles(
         all_ids.update(nids)
     rows = await db.execute(select(TreeNode).where(TreeNode.id.in_(all_ids)))
     titles = {n.id: n.name for n in rows.scalars()}
+
+    # 批次抓 TestRun name(列表頁顯示用)
+    round_ids = {s.test_round_id for s in schedules if getattr(s, "test_round_id", None)}
+    round_names: dict[str, str] = {}
+    if round_ids:
+        round_rows = await db.execute(select(TestRound).where(TestRound.id.in_(round_ids)))
+        round_names = {r.id: r.name for r in round_rows.scalars()}
+
     out: list[ScheduleResponse] = []
     for s, nids in zip(schedules, per_schedule):
         primary_title = titles.get(s.node_id)
         all_titles = [titles.get(nid, nid) for nid in nids]
-        out.append(_to_response(s, primary_title, node_titles=all_titles, node_ids=nids))
+        out.append(_to_response(
+            s, primary_title,
+            node_titles=all_titles, node_ids=nids,
+            test_round_name=round_names.get(getattr(s, "test_round_id", None) or ""),
+        ))
     return out
 
 
@@ -155,21 +171,48 @@ async def create_schedule(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    # 0054:支援綁定 TestRun。允許三種建立方式:
+    # 1. 只給 test_round_id(目標完全跟 TestRun 走);node_id 仍用 TestRun 的
+    #    primary 節點當作 backward-compat fallback
+    # 2. 只給 node_ids(原本行為)
+    # 3. 兩者都給(TestRun 為主、node_ids 為 fallback)
+    test_round: Optional[TestRound] = None
+    if payload.test_round_id:
+        test_round = await db.get(TestRound, payload.test_round_id)
+        if test_round is None:
+            raise HTTPException(status_code=400, detail="指定的 TestRun 不存在")
+        await ensure_project_in_scope(
+            db, test_round.project_id, user, not_found_detail="TestRun not in scope"
+        )
+
     nids = _resolve_payload_nodes(payload)
+    if not nids and test_round is not None:
+        # 用 TestRun 的 node_ids 當 fallback,讓 schema 的 node_id NOT NULL 滿足
+        try:
+            round_nids = json.loads(test_round.node_ids_json) if test_round.node_ids_json else []
+            if isinstance(round_nids, list):
+                nids = [n for n in round_nids if isinstance(n, str) and n]
+        except Exception:  # noqa: BLE001
+            nids = []
     if not nids:
-        raise HTTPException(status_code=400, detail="請至少選擇一個節點")
+        raise HTTPException(status_code=400, detail="請至少選擇一個節點或一個 TestRun")
+
     primary = nids[0]
     node = await db.get(TreeNode, primary)
-    await ensure_project_in_scope(
-        db, node.project_id if node else None, user, not_found_detail="Node not found"
+    target_project_id = (
+        test_round.project_id if test_round else (node.project_id if node else None)
     )
-    await ensure_project_writable(db, node.project_id, user)
+    await ensure_project_in_scope(
+        db, target_project_id, user, not_found_detail="Node not found"
+    )
+    await ensure_project_writable(db, target_project_id, user)
 
     schedule = Schedule(
         name=payload.name,
         node_id=primary,
         node_ids_json=json.dumps(nids, ensure_ascii=False),
-        project_id=node.project_id,
+        test_round_id=payload.test_round_id or None,
+        project_id=target_project_id,
         repeat_type=_normalize_repeat_type(payload.repeat_type),
         repeat_config=payload.repeat_config or None,
         next_run_at=payload.next_run_at,
@@ -178,11 +221,13 @@ async def create_schedule(
     )
     db.add(schedule)
     await db.flush()
-    # 回傳含所有節點 title
+    # 回傳含所有節點 title + test_round name
     rows = await db.execute(select(TreeNode).where(TreeNode.id.in_(nids)))
     titles = {n.id: n.name for n in rows.scalars()}
     return _to_response(
-        schedule, titles.get(primary), node_titles=[titles.get(i, i) for i in nids], node_ids=nids
+        schedule, titles.get(primary),
+        node_titles=[titles.get(i, i) for i in nids], node_ids=nids,
+        test_round_name=test_round.name if test_round else None,
     )
 
 
@@ -199,9 +244,14 @@ async def get_schedule(
     nids = _get_node_ids(schedule)
     rows = await db.execute(select(TreeNode).where(TreeNode.id.in_(nids)))
     titles = {n.id: n.name for n in rows.scalars()}
+    tr_name: Optional[str] = None
+    if getattr(schedule, "test_round_id", None):
+        tr_row = await db.get(TestRound, schedule.test_round_id)
+        tr_name = tr_row.name if tr_row else None
     return _to_response(
         schedule, titles.get(schedule.node_id),
         node_titles=[titles.get(i, i) for i in nids], node_ids=nids,
+        test_round_name=tr_name,
     )
 
 
@@ -239,13 +289,31 @@ async def update_schedule(
         schedule.node_id = new_nids[0]
         schedule.node_ids_json = json.dumps(new_nids, ensure_ascii=False)
 
+    # 0054:更新 TestRun 綁定;空字串 = 清除綁定(回到純 node_ids)
+    if payload.test_round_id is not None:
+        if payload.test_round_id == "":
+            schedule.test_round_id = None
+        else:
+            tr = await db.get(TestRound, payload.test_round_id)
+            if tr is None:
+                raise HTTPException(status_code=400, detail="指定的 TestRun 不存在")
+            await ensure_project_in_scope(
+                db, tr.project_id, user, not_found_detail="TestRun not in scope"
+            )
+            schedule.test_round_id = tr.id
+
     await db.flush()
     nids = _get_node_ids(schedule)
     rows = await db.execute(select(TreeNode).where(TreeNode.id.in_(nids)))
     titles = {n.id: n.name for n in rows.scalars()}
+    tr_name: Optional[str] = None
+    if schedule.test_round_id:
+        tr_row = await db.get(TestRound, schedule.test_round_id)
+        tr_name = tr_row.name if tr_row else None
     return _to_response(
         schedule, titles.get(schedule.node_id),
         node_titles=[titles.get(i, i) for i in nids], node_ids=nids,
+        test_round_name=tr_name,
     )
 
 

@@ -49,9 +49,6 @@ class User(Base):
         Boolean, nullable=False, default=False, server_default="false",
     )
     last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    # Agent runtime 偏好:'hermes' / 'openclaw' / NULL=auto
-    # 能力 gating 在應用層;DB 不約束(使用者刪光 token 後仍要讀得到舊偏好)。
-    preferred_agent: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
     # v1.1.5 OIDC 整合:第一次走 SSO 後紀錄 IdP 名稱 + stable subject。
     # NULL = 純本地密碼帳號;``(provider, subject)`` 一組 partial unique
     # index(migration 0024 建立)防止同一個 IdP 重複綁不同 row。

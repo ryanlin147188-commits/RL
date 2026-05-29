@@ -3395,6 +3395,8 @@ driver.swipe(100, 800, 100, 200, 500)"
                         <button id="setTabRoles"   onclick="settingsSwitchTab('roles')"   class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-shield-halved text-violet-500"></i> 角色與權限</button>
                         <button id="setTabAi"      onclick="settingsSwitchTab('ai')"      class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-wand-magic-sparkles text-amber-500"></i> <span data-i18n="settings.tab.ai">AI Token</span></button>
                         <button id="setTabMemory"  onclick="settingsSwitchTab('memory')" class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-brain text-indigo-500"></i> AI 記憶</button>
+                        <button id="setTabSkills"  onclick="settingsSwitchTab('skills')" class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-puzzle-piece text-violet-500"></i> AI Skills</button>
+                        <button id="setTabMcp"     onclick="settingsSwitchTab('mcp')" class="px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50"><i class="fa-solid fa-plug text-emerald-500"></i> MCP Servers</button>
                         <!-- 設定頁右上角:本月 LLM 用量/上限提示條(任何 tab 都看得到) -->
                         <div class="ml-auto flex items-center gap-2 text-xs text-stone-500 px-2 self-center" title="本月該組織的 LLM 用量 / 月度上限">
                             <i class="fa-solid fa-gauge-high text-amber-500"></i>
@@ -4058,8 +4060,224 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                         </section>
                     </div>  <!-- /setPaneMemory -->
 
+                    <!-- ─── Pane: AI Skills (per-org 工作流模板) ─── -->
+                    <div id="setPaneSkills" class="hidden space-y-4">
+                        <section class="bg-white rounded-xl border border-violet-100 shadow-sm p-4 sm:p-6">
+                            <div class="flex items-start gap-3">
+                                <i class="fa-solid fa-puzzle-piece text-violet-500 text-xl mt-0.5"></i>
+                                <div class="flex-1">
+                                    <h3 class="font-bold text-stone-700 text-base mb-1">AI Skills</h3>
+                                    <p class="text-xs text-stone-600 leading-relaxed">
+                                        Skill = 一鍵切換的「工作模式」,啟用後會在 system prompt 後面追加指引、並可選擇性限縮 LLM 能用的 tool。
+                                        每個組織各自管理,使用者在聊天框上方 chip 切換。
+                                    </p>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <label class="text-xs px-3 py-1.5 bg-violet-50 hover:bg-violet-100 text-violet-700 rounded cursor-pointer">
+                                        <i class="fa-solid fa-file-import"></i> 從 markdown 匯入
+                                        <input type="file" id="skillsImportInput" accept=".md,text/markdown" class="hidden" onchange="skillsImportFromFile(this)">
+                                    </label>
+                                    <button type="button" onclick="skillsOpenEditor(null)" class="text-xs px-3 py-1.5 bg-violet-500 hover:bg-violet-600 text-white rounded">
+                                        <i class="fa-solid fa-plus"></i> 新增 Skill
+                                    </button>
+                                </div>
+                            </div>
+                        </section>
+
+                        <section class="bg-white rounded-xl border border-stone-200 shadow-sm p-4 sm:p-6">
+                            <div id="skillsList" class="space-y-2">
+                                <div class="text-xs text-stone-400">載入中…</div>
+                            </div>
+                        </section>
+                    </div>  <!-- /setPaneSkills -->
+
+                    <!-- ─── Pane: MCP Servers (Phase 2b) ─── -->
+                    <div id="setPaneMcp" class="hidden space-y-4">
+                        <section class="bg-white rounded-xl border border-emerald-100 shadow-sm p-4 sm:p-6">
+                            <div class="flex items-start gap-3">
+                                <i class="fa-solid fa-plug text-emerald-500 text-xl mt-0.5"></i>
+                                <div class="flex-1">
+                                    <h3 class="font-bold text-stone-700 text-base mb-1">MCP Servers</h3>
+                                    <p class="text-xs text-stone-600 leading-relaxed">
+                                        Model Context Protocol(MCP)server 提供額外的 AI tool。設好之後 AI 對話框就能呼叫,結果會包邊界防 prompt injection。
+                                        Phase 2 只支援 streamable HTTP transport(stdio 留 Phase 3)。每筆會綁定到目前組織。
+                                    </p>
+                                </div>
+                                <button type="button" onclick="mcpOpenEditor(null)" class="text-xs px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded">
+                                    <i class="fa-solid fa-plus"></i> 新增 MCP Server
+                                </button>
+                            </div>
+                        </section>
+
+                        <section class="bg-white rounded-xl border border-stone-200 shadow-sm p-4 sm:p-6">
+                            <div id="mcpList" class="space-y-2">
+                                <div class="text-xs text-stone-400">載入中…</div>
+                            </div>
+                        </section>
+                    </div>  <!-- /setPaneMcp -->
+
                 </div>  <!-- /max-w-5xl mx-auto -->
             </div>  <!-- /userSettingsWorkspace -->
+
+            <!-- MCP Server 編輯 Modal -->
+            <div id="mcpEditorModal" class="hidden fixed inset-0 z-[160] bg-black/40 flex items-center justify-center p-4">
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl border border-emerald-200 max-h-[92vh] overflow-y-auto">
+                    <div class="px-6 py-4 border-b border-stone-200 bg-emerald-50/60 flex items-center justify-between">
+                        <h3 class="font-bold text-stone-700 text-base flex items-center gap-2">
+                            <i class="fa-solid fa-plug text-emerald-500"></i>
+                            <span id="mcpEditorTitle">新增 MCP Server</span>
+                            <span id="mcpEditorHealthBadge" class="text-[10px] px-2 py-0.5 rounded bg-stone-100 text-stone-500"></span>
+                        </h3>
+                        <button type="button" onclick="mcpCloseEditor()" class="text-stone-400 hover:text-stone-600 text-xl">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                    <div class="p-6 space-y-4">
+                        <input type="hidden" id="mcpEditorId" value="">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-stone-600 mb-1">名稱 *</label>
+                                <input type="text" id="mcpEditorName" maxlength="64" placeholder="例:github / playwright" class="w-full px-3 py-2 border border-stone-300 rounded text-sm">
+                                <p class="text-[10px] text-stone-400 mt-1">tool 對 LLM 命名為 <code>mcp__{name}__{tool}</code>。不可含連續底線。</p>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-stone-600 mb-1">Transport</label>
+                                <select id="mcpEditorTransport" class="w-full px-3 py-2 border border-stone-300 rounded text-sm bg-white" onchange="mcpEditorOnTransportChange()">
+                                    <option value="http">streamable HTTP</option>
+                                    <option value="stdio">stdio(本地 subprocess)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <!-- HTTP transport 欄位 -->
+                        <div id="mcpEditorHttpFields">
+                            <div>
+                                <label class="block text-xs font-semibold text-stone-600 mb-1">URL(streamable HTTP)*</label>
+                                <input type="text" id="mcpEditorUrl" placeholder="例:https://api.githubcopilot.com/mcp/" class="w-full px-3 py-2 border border-stone-300 rounded text-sm font-mono">
+                            </div>
+                            <div class="mt-3">
+                                <label class="block text-xs font-semibold text-stone-600 mb-1">HTTP Headers(JSON,可引用 secret ref)</label>
+                                <textarea id="mcpEditorHeadersJson" rows="3" placeholder='例:{"Authorization": "GITHUB_TOKEN"}  (值為 secret ref 名稱)' class="w-full px-3 py-2 border border-stone-300 rounded text-sm font-mono"></textarea>
+                                <p class="text-[10px] text-stone-400 mt-1">如果 value 在下方 Secrets 找到同名 ref,會替換成解密後的明文送出。</p>
+                            </div>
+                        </div>
+                        <!-- Stdio transport 欄位 -->
+                        <div id="mcpEditorStdioFields" class="hidden space-y-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-stone-600 mb-1">Command *(白名單:npx / uvx / node / python / python3)</label>
+                                <input type="text" id="mcpEditorCommand" placeholder="例:npx 或 uvx" class="w-full px-3 py-2 border border-stone-300 rounded text-sm font-mono">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-stone-600 mb-1">Args(逗號分隔)</label>
+                                <input type="text" id="mcpEditorArgsCsv" placeholder='例:-y, @playwright/mcp@latest' class="w-full px-3 py-2 border border-stone-300 rounded text-sm font-mono">
+                                <p class="text-[10px] text-stone-400 mt-1">會以 list 形式傳給 subprocess(不再做 shell parsing)。</p>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-stone-600 mb-1">Env(JSON,可引用 secret ref)</label>
+                                <textarea id="mcpEditorEnvJson" rows="3" placeholder='例:{"GITHUB_TOKEN": "GITHUB_TOKEN"}  (value 為 secret ref 名稱)' class="w-full px-3 py-2 border border-stone-300 rounded text-sm font-mono"></textarea>
+                                <p class="text-[10px] text-stone-400 mt-1">注入 subprocess env;value 在下方 Secrets 找到同名 ref → 替換成解密後明文。</p>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-stone-600 mb-1">Secrets(加密儲存,送出時自動解密注入 headers)</label>
+                            <div id="mcpEditorSecretsList" class="space-y-2 mb-2"></div>
+                            <button type="button" onclick="mcpEditorAddSecretRow()" class="text-xs px-2 py-1 bg-stone-100 hover:bg-stone-200 text-stone-600 rounded">
+                                <i class="fa-solid fa-plus"></i> 新增 secret
+                            </button>
+                            <p class="text-[10px] text-stone-400 mt-1">編輯時欄位顯示為 <code>***</code>;留空 = 不動;改空字串 = 刪除。</p>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div class="flex items-center gap-2">
+                                <input type="checkbox" id="mcpEditorEnabled" checked class="w-4 h-4 text-emerald-500 rounded">
+                                <label for="mcpEditorEnabled" class="text-xs text-stone-600">啟用(讓對話框可呼叫)</label>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <input type="checkbox" id="mcpEditorRequiresConfirm" checked class="w-4 h-4 text-emerald-500 rounded">
+                                <label for="mcpEditorRequiresConfirm" class="text-xs text-stone-600">tool 呼叫需二次確認(預設開,信任後可關)</label>
+                            </div>
+                        </div>
+                        <div id="mcpEditorLastError" class="hidden bg-rose-50 border border-rose-200 rounded p-2 text-xs text-rose-700"></div>
+                    </div>
+                    <div class="px-6 py-4 border-t border-stone-200 bg-stone-50 flex justify-between flex-wrap gap-2">
+                        <div class="flex gap-2">
+                            <button type="button" id="mcpEditorTestBtn" onclick="mcpTestConnectionFromEditor()" class="text-xs px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded hidden">
+                                <i class="fa-solid fa-vial"></i> 測試連線 / 刷新 tools
+                            </button>
+                            <button type="button" id="mcpEditorDeleteBtn" onclick="mcpDeleteFromEditor()" class="text-xs px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded hidden">
+                                <i class="fa-solid fa-trash"></i> 刪除
+                            </button>
+                        </div>
+                        <div class="flex gap-2">
+                            <button type="button" onclick="mcpCloseEditor()" class="text-sm px-4 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-600 rounded">取消</button>
+                            <button type="button" onclick="mcpSaveFromEditor()" class="text-sm px-4 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded font-semibold">
+                                <i class="fa-solid fa-save"></i> 儲存
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI Skill 編輯 Modal -->
+            <div id="skillEditorModal" class="hidden fixed inset-0 z-[160] bg-black/40 flex items-center justify-center p-4">
+                <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl border border-violet-200 max-h-[92vh] overflow-y-auto">
+                    <div class="px-6 py-4 border-b border-stone-200 bg-violet-50/60 flex items-center justify-between">
+                        <h3 class="font-bold text-stone-700 text-base flex items-center gap-2">
+                            <i class="fa-solid fa-puzzle-piece text-violet-500"></i>
+                            <span id="skillEditorTitle">新增 Skill</span>
+                        </h3>
+                        <button type="button" onclick="skillsCloseEditor()" class="text-stone-400 hover:text-stone-600 text-xl">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                    <div class="p-6 space-y-4">
+                        <input type="hidden" id="skillEditorId" value="">
+                        <div>
+                            <label class="block text-xs font-semibold text-stone-600 mb-1">名稱 *</label>
+                            <input type="text" id="skillEditorName" maxlength="64" placeholder="例:bdd-kdt-steps" class="w-full px-3 py-2 border border-stone-300 rounded text-sm">
+                            <p class="text-[10px] text-stone-400 mt-1">用於聊天框 chip 顯示 + ``/skill-name`` 觸發。長度 ≤ 64,組織內唯一。</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-stone-600 mb-1">描述</label>
+                            <input type="text" id="skillEditorDesc" placeholder="一句話描述這個 skill 的用途" class="w-full px-3 py-2 border border-stone-300 rounded text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-stone-600 mb-1">System Prompt 補充內容</label>
+                            <textarea id="skillEditorPrompt" rows="8" placeholder="例:你是 BDD-KDT 測試步驟設計師。每次必須輸出 Given/When/Then…" class="w-full px-3 py-2 border border-stone-300 rounded text-sm font-mono leading-relaxed"></textarea>
+                            <p class="text-[10px] text-stone-400 mt-1">啟用時會 append 到 base mode prompt 後面。可使用 markdown。</p>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-stone-600 mb-1">Trigger 關鍵字</label>
+                                <input type="text" id="skillEditorTriggers" placeholder="逗號分隔,例:BDD, 測試案例" class="w-full px-3 py-2 border border-stone-300 rounded text-sm">
+                                <p class="text-[10px] text-stone-400 mt-1">含關鍵字時聊天框會 suggest 啟用(不會自動套)。</p>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-stone-600 mb-1">適用 Mode</label>
+                                <input type="text" id="skillEditorModeScope" placeholder="逗號分隔,空白=全部。例:chat, planner" class="w-full px-3 py-2 border border-stone-300 rounded text-sm">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-stone-600 mb-1">Tool 白名單(allowed_tools)</label>
+                            <input type="text" id="skillEditorAllowedTools" placeholder="逗號分隔 glob,空白=不限縮。例:query_*, mcp__playwright__*" class="w-full px-3 py-2 border border-stone-300 rounded text-sm font-mono">
+                            <p class="text-[10px] text-stone-400 mt-1">啟用此 skill 時 LLM 只看得到符合的 tool。<code>*</code> 為通配。</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <input type="checkbox" id="skillEditorEnabled" checked class="w-4 h-4 text-violet-500 rounded">
+                            <label for="skillEditorEnabled" class="text-xs text-stone-600">啟用(讓使用者可在 chip 切換到此 skill)</label>
+                        </div>
+                    </div>
+                    <div class="px-6 py-4 border-t border-stone-200 bg-stone-50 flex justify-between">
+                        <button type="button" id="skillEditorDeleteBtn" onclick="skillsDeleteFromEditor()" class="text-xs px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded hidden">
+                            <i class="fa-solid fa-trash"></i> 刪除此 Skill
+                        </button>
+                        <div class="flex gap-2 ml-auto">
+                            <button type="button" onclick="skillsCloseEditor()" class="text-sm px-4 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-600 rounded">取消</button>
+                            <button type="button" onclick="skillsSaveFromEditor()" class="text-sm px-4 py-1.5 bg-violet-500 hover:bg-violet-600 text-white rounded font-semibold">
+                                <i class="fa-solid fa-save"></i> 儲存
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             <!-- 角色編輯 Modal：12 個資源 × 4 個動作 (查看 / 新增 / 修改 / 刪除) 矩陣 -->
             <div id="rolePermModal" class="hidden fixed inset-0 z-[160] bg-black/40 flex items-center justify-center p-4">
@@ -4803,6 +5021,18 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 <div>
                     <label for="schName" class="block text-sm font-medium text-slate-700 mb-1">排程名稱 <span class="text-rose-500">*</span></label>
                     <input type="text" id="schName" placeholder="例：每日首頁回歸" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-400 outline-none">
+                </div>
+                <div>
+                    <label for="schTestRoundId" class="block text-sm font-medium text-slate-700 mb-1">
+                        綁定 TestRun <span class="text-xs text-slate-400 font-normal">(選填,live link)</span>
+                    </label>
+                    <select id="schTestRoundId" onchange="updateScheduleTestRoundUi()" class="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-400 outline-none bg-white">
+                        <option value="">— 不綁定(用下方節點)—</option>
+                    </select>
+                    <p id="schTestRoundHint" class="text-xs text-slate-500 mt-1 hidden">
+                        <i class="fa-solid fa-link text-emerald-500"></i>
+                        綁定後排程觸發時以該 TestRun 當下的測試案例為準;下方節點選擇將作為 fallback。
+                    </p>
                 </div>
                 <div>
                     <div class="flex items-center justify-between mb-1">
@@ -5706,11 +5936,18 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 || String(summary.id || '').slice(0, 8);
             const _reportTitle = _dateStr ? `${_dateStr}-${_caseName}` : _caseName;
 
+            // backend status 是 RUNNING / PASSED / FAILED 三值;原本 ternary 把
+            // RUNNING 直接歸成 'Failed' → 詳情頁 badge 紅色「Failed」,使用者看執行中
+            // 的報告以為失敗。改為 3-way 對應,並讓下游 badge 渲染認三個值。
+            const _backendStatus = String(summary.status || '').toUpperCase();
+            const _frontendStatus = _backendStatus === 'PASSED'
+                ? 'Passed'
+                : (_backendStatus === 'RUNNING' ? 'Running' : 'Failed');
             return {
                 title: _reportTitle,
                 time: formatBackendTime(summary.created_at),
                 duration: summary.duration_ms != null ? `${(summary.duration_ms / 1000).toFixed(2)}s` : '—',
-                status: (summary.status === 'PASSED') ? 'Passed' : 'Failed',
+                status: _frontendStatus,
                 projectId: summary.project_id || null,
                 testCaseId: navCaseId,
                 trigger_type: summary.trigger_type || 'Manual',
@@ -7363,10 +7600,18 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             document.getElementById('detailReportDuration').innerText = report.duration;
 
             const badge = document.getElementById('detailReportStatusBadge');
-            badge.className = report.status === 'Passed'
-                ? 'bg-green-100 text-green-700 border border-green-200 px-3 py-1 rounded text-sm font-bold shadow-sm'
-                : 'bg-red-100 text-red-700 border border-red-200 px-3 py-1 rounded text-sm font-bold shadow-sm';
-            badge.innerText = report.status;
+            // 三值渲染:Passed / Running / Failed。RUNNING 用琥珀色 + spinner 旋轉 icon,
+            // 讓使用者一眼能分辨「執行中」與「失敗」。
+            if (report.status === 'Passed') {
+                badge.className = 'bg-green-100 text-green-700 border border-green-200 px-3 py-1 rounded text-sm font-bold shadow-sm';
+                badge.innerHTML = 'Passed';
+            } else if (report.status === 'Running') {
+                badge.className = 'bg-amber-100 text-amber-700 border border-amber-200 px-3 py-1 rounded text-sm font-bold shadow-sm';
+                badge.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i>RUNNING';
+            } else {
+                badge.className = 'bg-red-100 text-red-700 border border-red-200 px-3 py-1 rounded text-sm font-bold shadow-sm';
+                badge.innerHTML = report.status || 'Failed';
+            }
 
             const timelineContainer = document.getElementById('detailStepsTimeline');
             timelineContainer.innerHTML = '';
@@ -12846,12 +13091,44 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             document.getElementById('schMonthDayRow')?.classList.toggle('hidden', rt !== 'MONTHLY');
         }
 
+        // 載入 TestRun options 到 schedule modal 的下拉(由 openScheduleModal 呼叫)
+        async function _schLoadTestRoundOptions(selectedId) {
+            const sel = document.getElementById('schTestRoundId');
+            if (!sel) return;
+            // 先重設只剩「不綁定」
+            sel.innerHTML = '<option value="">— 不綁定(用下方節點)—</option>';
+            try {
+                const url = currentProjectId ? `/api/rounds?project_id=${currentProjectId}` : '/api/rounds';
+                const rows = await apiFetch(url);
+                (rows || []).forEach((r) => {
+                    const opt = document.createElement('option');
+                    opt.value = r.id;
+                    opt.textContent = r.name + (r.testcase_count != null ? ` (${r.testcase_count} 案例)` : '');
+                    if (selectedId && r.id === selectedId) opt.selected = true;
+                    sel.appendChild(opt);
+                });
+                if (selectedId) sel.value = selectedId;
+            } catch (e) {
+                // 拉不到不擋,使用者仍可只選節點
+                console.warn('load TestRun options failed', e);
+            }
+            updateScheduleTestRoundUi();
+        }
+
+        function updateScheduleTestRoundUi() {
+            const sel = document.getElementById('schTestRoundId');
+            const hint = document.getElementById('schTestRoundHint');
+            if (!sel || !hint) return;
+            hint.classList.toggle('hidden', !sel.value);
+        }
+
         function openScheduleModal(id) {
             scheduleEditingId = id || null;
             const modal = document.getElementById('scheduleModal');
             const title = document.getElementById('scheduleModalTitle');
             if (title) title.innerHTML = `<i class="fa-solid fa-calendar-days text-emerald-500"></i> ${id ? '編輯排程' : '新增排程'}`;
             schNodeSelection.clear();
+            let preselectedRoundId = '';
             if (id) {
                 const s = scheduleList.find(x => x.id === id);
                 if (s) {
@@ -12867,6 +13144,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                     }
                     const nids = s.node_ids && s.node_ids.length ? s.node_ids : (s.node_id ? [s.node_id] : []);
                     setScheduleSelection(nids);
+                    preselectedRoundId = s.test_round_id || '';
                     // weekly config
                     const wdList = (s.repeat_config || '').split(',').filter(Boolean);
                     renderScheduleWeekdays(wdList);
@@ -12888,6 +13166,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             }
             updateScheduleRepeatUi();
             renderScheduleNodeList();
+            _schLoadTestRoundOptions(preselectedRoundId);
             modal.classList.remove('hidden');
             requestAnimationFrame(() => {
                 modal.classList.remove('opacity-0');
@@ -12920,9 +13199,12 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 }
                 const repeatLabel = { ONCE: '單次', DAILY: '每天', WEEKLY: '每週', MONTHLY: '每月' };
                 tbody.innerHTML = scheduleList.map(s => {
-                    const nodeLabel = s.node_titles && s.node_titles.length > 1
-                        ? `${_esc(s.node_titles[0])} +${s.node_titles.length - 1}`
-                        : _esc(s.node_title || s.node_id || '—');
+                    // 綁定了 TestRun → 列表優先顯示 TestRun(用紫色 chip 跟節點區隔)
+                    const nodeLabel = s.test_round_id && s.test_round_name
+                        ? `<span class="bg-purple-50 text-purple-700 border border-purple-200 rounded px-1.5 py-0.5 text-xs font-medium"><i class="fa-solid fa-layer-group"></i> ${_esc(s.test_round_name)}</span>`
+                        : (s.node_titles && s.node_titles.length > 1
+                            ? `${_esc(s.node_titles[0])} +${s.node_titles.length - 1}`
+                            : _esc(s.node_title || s.node_id || '—'));
                     const modeIcon = s.execution_mode === 'local'
                         ? '<i class="fa-solid fa-laptop text-amber-500 mr-1" title="本機 Agent"></i>'
                         : '<i class="fa-brands fa-docker text-blue-500 mr-1" title="Docker (Celery)"></i>';
@@ -12953,8 +13235,13 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
         async function saveSchedule() {
             const name = document.getElementById('schName')?.value.trim();
             if (!name) { showToast('請輸入排程名稱', 'error'); return; }
+            const testRoundId = document.getElementById('schTestRoundId')?.value || '';
             const nodeIds = [...schNodeSelection];
-            if (!nodeIds.length) { showToast('請至少選擇一個節點', 'error'); return; }
+            // 只有沒綁 TestRun 時才強制要選節點;有綁 TestRun 時節點可為空(以 TestRun 為準)
+            if (!testRoundId && !nodeIds.length) {
+                showToast('請選擇 TestRun 或至少一個節點', 'error');
+                return;
+            }
             const repeatType = document.getElementById('schRepeatType')?.value || 'ONCE';
             let repeatConfig = null;
             if (repeatType === 'WEEKLY') {
@@ -12967,7 +13254,17 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             if (!nextRunAt) { showToast('請設定執行時間', 'error'); return; }
             const executionMode = document.getElementById('schExecutionMode')?.value || 'docker';
             const active = document.getElementById('schActive')?.checked ?? true;
-            const payload = { name, node_ids: nodeIds, node_id: nodeIds[0], repeat_type: repeatType, repeat_config: repeatConfig, next_run_at: nextRunAt, execution_mode: executionMode, active };
+            const payload = {
+                name,
+                node_ids: nodeIds,
+                node_id: nodeIds[0] || null,
+                test_round_id: testRoundId || (scheduleEditingId ? '' : null),  // 編輯時送 "" 清除既有綁定
+                repeat_type: repeatType,
+                repeat_config: repeatConfig,
+                next_run_at: nextRunAt,
+                execution_mode: executionMode,
+                active,
+            };
             try {
                 const url = scheduleEditingId ? `/api/schedules/${scheduleEditingId}` : '/api/schedules';
                 const method = scheduleEditingId ? 'PUT' : 'POST';
@@ -19057,7 +19354,7 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
 
         // ─── 設定（Settings）── user / notif / email / projectMembers / roles tabs
         // 後三個 admin-only,settingsTabsApplyVisibility() 載入時依 hasPerm 隱藏。
-        const _SETTINGS_TABS = ['user','notif','email','projectMembers','roles','ai','memory'];
+        const _SETTINGS_TABS = ['user','notif','email','projectMembers','roles','ai','memory','skills','mcp'];
         const _SETTINGS_TAB_BTN_ON  = 'px-3 py-1.5 text-sm font-medium rounded text-amber-700 bg-amber-50 border border-amber-300';
         const _SETTINGS_TAB_BTN_OFF = 'px-3 py-1.5 text-sm font-medium rounded text-stone-600 hover:bg-stone-50';
         function settingsSwitchTab(name) {
@@ -19086,6 +19383,8 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             if (name === 'roles') rolesLoadList();
             if (name === 'ai') { try { aiSettingsInit(); } catch (e) { console.error('aiSettingsInit', e); } }
             if (name === 'memory') { try { memoryRefresh(); } catch (e) { console.error('memoryRefresh', e); } }
+            if (name === 'skills') { try { skillsTabInit(); } catch (e) { console.error('skillsTabInit', e); } }
+            if (name === 'mcp') { try { mcpTabInit(); } catch (e) { console.error('mcpTabInit', e); } }
         }
 
         // v1.1.10:settings 內四個進階 tab(notif / email / projectMembers / roles)
@@ -19099,6 +19398,8 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             roles: 'role.manage',
             ai: 'settings.write',  // 設 LLM key 屬機敏設定
             // memory tab 不需 settings.write — 純 per-user 自己刪自己的記憶
+            skills: 'settings.write',
+            mcp: 'settings.write',
         };
         function _settingsTabApplyReadOnlyBanner(name) {
             const perm = _SETTINGS_TAB_PERM[name];
@@ -19242,6 +19543,560 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
                 await memoryRefresh();
             } catch (e) {
                 (await appAlert('清空失敗:' + (e.message || e)));
+            }
+        }
+
+        // ── AI Skills 設定分頁(Phase 2a) ─────────────────────────────────
+        // 對應 backend:
+        //   GET    /api/v1/orgs/{org_id}/skills
+        //   POST   /api/v1/orgs/{org_id}/skills
+        //   PUT    /api/v1/orgs/{org_id}/skills/{id}
+        //   DELETE /api/v1/orgs/{org_id}/skills/{id}
+        //   POST   /api/v1/orgs/{org_id}/skills/import (multipart .md)
+        // 從全域 _meOrgsCache 取目前 active org_id。原本錯誤地查 typeof currentOrg —
+        // 但 currentOrg 在這個 codebase 只是某些 function 內的 local const,不是全域,
+        // 結果一律拿到 null,Skills / MCP 兩個分頁都顯示「無法取得目前組織」,
+        // 「新增」按鈕也因為 helper 提前 return 而沒反應。改抓 _meOrgsCache.find(is_current),
+        // 跟設定頁其他 callers(如 _settingsTabApplyReadOnlyBanner)一致。
+        function _skillsCurrentOrgId() {
+            try {
+                const cache = Array.isArray(_meOrgsCache) ? _meOrgsCache : [];
+                const cur = cache.find(o => o && o.is_current) || cache[0];
+                if (cur) return cur.organization_id || cur.id || null;
+                // Fallback:從目前選的 project 推回 org(剛載入沒拿到 me/orgs 時)
+                if (typeof currentProjectId === 'string' && currentProjectId &&
+                    typeof projectsData === 'object' && projectsData) {
+                    const proj = projectsData[currentProjectId];
+                    if (proj && proj.organization_id) return proj.organization_id;
+                }
+                return null;
+            } catch (_) { return null; }
+        }
+
+        async function skillsTabInit() {
+            const orgId = _skillsCurrentOrgId();
+            const list = document.getElementById('skillsList');
+            if (!orgId) {
+                list.innerHTML = '<div class="text-xs text-rose-600">無法取得目前組織。</div>';
+                return;
+            }
+            list.innerHTML = '<div class="text-xs text-stone-400">載入中…</div>';
+            try {
+                const rows = await window.apiFetch(`/api/v1/orgs/${encodeURIComponent(orgId)}/skills`);
+                _skillsRenderList(rows || []);
+            } catch (e) {
+                list.innerHTML = `<div class="text-xs text-rose-600">載入失敗:${(e && e.message) || e}</div>`;
+            }
+        }
+
+        function _skillsRenderList(rows) {
+            const list = document.getElementById('skillsList');
+            list.innerHTML = '';
+            if (rows.length === 0) {
+                list.innerHTML = '<div class="text-xs text-stone-400 text-center py-6">尚未建立 Skill。點右上「新增 Skill」或匯入 markdown。</div>';
+                return;
+            }
+            for (const s of rows) {
+                const triggers = (s.trigger_keywords || []).join(', ');
+                const allowed = (s.allowed_tools || []).join(', ');
+                const dotClass = s.enabled ? 'bg-violet-500' : 'bg-stone-300';
+                const card = document.createElement('div');
+                card.className = 'border border-stone-200 rounded-lg p-3 hover:border-violet-300 hover:bg-violet-50/20 cursor-pointer transition';
+                card.onclick = () => skillsOpenEditor(s.id);
+                card.innerHTML = `
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="inline-block w-2 h-2 rounded-full ${dotClass}"></span>
+                        <div class="font-semibold text-sm text-stone-700">${escapeHtml(s.name)}</div>
+                        ${s.enabled ? '' : '<span class="text-[10px] px-1.5 py-0.5 rounded bg-stone-100 text-stone-500">已停用</span>'}
+                        <span class="ml-auto text-[10px] text-stone-400">v${s.version}</span>
+                    </div>
+                    ${s.description ? `<div class="text-xs text-stone-600 mb-1">${escapeHtml(s.description)}</div>` : ''}
+                    <div class="flex flex-wrap gap-3 text-[10px] text-stone-500">
+                        ${triggers ? `<span><i class="fa-solid fa-hashtag"></i> ${escapeHtml(triggers)}</span>` : ''}
+                        ${allowed ? `<span><i class="fa-solid fa-filter"></i> ${escapeHtml(allowed)}</span>` : '<span class="text-stone-400">tool 不限縮</span>'}
+                    </div>
+                `;
+                list.appendChild(card);
+            }
+        }
+
+        function _skillsEditorReset() {
+            document.getElementById('skillEditorId').value = '';
+            document.getElementById('skillEditorName').value = '';
+            document.getElementById('skillEditorDesc').value = '';
+            document.getElementById('skillEditorPrompt').value = '';
+            document.getElementById('skillEditorTriggers').value = '';
+            document.getElementById('skillEditorModeScope').value = '';
+            document.getElementById('skillEditorAllowedTools').value = '';
+            document.getElementById('skillEditorEnabled').checked = true;
+            document.getElementById('skillEditorDeleteBtn').classList.add('hidden');
+            document.getElementById('skillEditorTitle').textContent = '新增 Skill';
+        }
+
+        async function skillsOpenEditor(skillId) {
+            const orgId = _skillsCurrentOrgId();
+            if (!orgId) return;
+            _skillsEditorReset();
+            if (skillId) {
+                try {
+                    const rows = await window.apiFetch(`/api/v1/orgs/${encodeURIComponent(orgId)}/skills`);
+                    const s = (rows || []).find((x) => x.id === skillId);
+                    if (!s) throw new Error('skill 不存在');
+                    document.getElementById('skillEditorId').value = s.id;
+                    document.getElementById('skillEditorName').value = s.name || '';
+                    document.getElementById('skillEditorDesc').value = s.description || '';
+                    document.getElementById('skillEditorPrompt').value = s.system_prompt_addition || '';
+                    document.getElementById('skillEditorTriggers').value = (s.trigger_keywords || []).join(', ');
+                    document.getElementById('skillEditorModeScope').value = (s.mode_scope || []).join(', ');
+                    document.getElementById('skillEditorAllowedTools').value = (s.allowed_tools || []).join(', ');
+                    document.getElementById('skillEditorEnabled').checked = !!s.enabled;
+                    document.getElementById('skillEditorTitle').textContent = '編輯 Skill';
+                    document.getElementById('skillEditorDeleteBtn').classList.remove('hidden');
+                } catch (e) {
+                    await appAlert('載入 skill 失敗:' + (e.message || e));
+                    return;
+                }
+            }
+            document.getElementById('skillEditorModal').classList.remove('hidden');
+        }
+
+        function skillsCloseEditor() {
+            document.getElementById('skillEditorModal').classList.add('hidden');
+        }
+
+        function _skillsCsvToList(csv) {
+            return (csv || '')
+                .split(',')
+                .map((s) => s.trim())
+                .filter((s) => s.length > 0);
+        }
+
+        async function skillsSaveFromEditor() {
+            const orgId = _skillsCurrentOrgId();
+            if (!orgId) return;
+            const id = document.getElementById('skillEditorId').value;
+            const name = document.getElementById('skillEditorName').value.trim();
+            if (!name) {
+                await appAlert('名稱不可為空');
+                return;
+            }
+            const allowedRaw = _skillsCsvToList(document.getElementById('skillEditorAllowedTools').value);
+            const payload = {
+                name: name,
+                description: document.getElementById('skillEditorDesc').value,
+                system_prompt_addition: document.getElementById('skillEditorPrompt').value,
+                trigger_keywords: _skillsCsvToList(document.getElementById('skillEditorTriggers').value),
+                mode_scope: _skillsCsvToList(document.getElementById('skillEditorModeScope').value),
+                allowed_tools: allowedRaw.length > 0 ? allowedRaw : null,
+                enabled: document.getElementById('skillEditorEnabled').checked,
+            };
+            try {
+                if (id) {
+                    await window.apiFetch(
+                        `/api/v1/orgs/${encodeURIComponent(orgId)}/skills/${encodeURIComponent(id)}`,
+                        { method: 'PUT', body: JSON.stringify(payload) }
+                    );
+                } else {
+                    await window.apiFetch(
+                        `/api/v1/orgs/${encodeURIComponent(orgId)}/skills`,
+                        { method: 'POST', body: JSON.stringify(payload) }
+                    );
+                }
+                skillsCloseEditor();
+                await skillsTabInit();
+            } catch (e) {
+                await appAlert('儲存失敗:' + (e.message || e));
+            }
+        }
+
+        async function skillsDeleteFromEditor() {
+            const orgId = _skillsCurrentOrgId();
+            const id = document.getElementById('skillEditorId').value;
+            if (!orgId || !id) return;
+            if (!(await confirmDialog({title: '刪除 Skill', body: '確定刪除此 Skill?啟用此 skill 的 session 會自動退回「無 Skill」。', danger: true, confirmLabel: '刪除'}))) return;
+            try {
+                await window.apiFetch(
+                    `/api/v1/orgs/${encodeURIComponent(orgId)}/skills/${encodeURIComponent(id)}`,
+                    { method: 'DELETE' }
+                );
+                skillsCloseEditor();
+                await skillsTabInit();
+            } catch (e) {
+                await appAlert('刪除失敗:' + (e.message || e));
+            }
+        }
+
+        async function skillsImportFromFile(input) {
+            const orgId = _skillsCurrentOrgId();
+            if (!orgId || !input.files || input.files.length === 0) return;
+            const file = input.files[0];
+            input.value = '';   // 允許重新選同一檔
+            const fd = new FormData();
+            fd.append('file', file);
+            try {
+                const resp = await fetch(
+                    `/api/v1/orgs/${encodeURIComponent(orgId)}/skills/import?overwrite=true`,
+                    { method: 'POST', body: fd }
+                );
+                if (!resp.ok) {
+                    let detail = `HTTP ${resp.status}`;
+                    try { const j = await resp.json(); detail = j.detail || detail; } catch (_) { /* */ }
+                    throw new Error(detail);
+                }
+                await skillsTabInit();
+            } catch (e) {
+                await appAlert('匯入失敗:' + (e.message || e));
+            }
+        }
+
+        // ── MCP Servers 設定分頁(Phase 2b) ────────────────────────────
+        // 對應 backend:
+        //   GET    /api/v1/orgs/{org_id}/mcp-servers
+        //   POST   /api/v1/orgs/{org_id}/mcp-servers
+        //   PUT    /api/v1/orgs/{org_id}/mcp-servers/{id}
+        //   DELETE /api/v1/orgs/{org_id}/mcp-servers/{id}
+        //   POST   /api/v1/orgs/{org_id}/mcp-servers/{id}/test
+        //   POST   /api/v1/orgs/{org_id}/mcp-servers/{id}/refresh-tools
+        let _mcpEditorExistingRefs = [];   // 編輯模式下原本就有的 ref_name 清單
+
+        function _mcpHealthBadge(health) {
+            switch (health) {
+                case 'connected':
+                    return { cls: 'bg-emerald-100 text-emerald-700', label: '已連線', dot: 'bg-emerald-500' };
+                case 'error':
+                    return { cls: 'bg-rose-100 text-rose-700', label: '錯誤', dot: 'bg-rose-500' };
+                case 'disconnected':
+                    return { cls: 'bg-stone-100 text-stone-500', label: '未連線', dot: 'bg-stone-400' };
+                default:
+                    return { cls: 'bg-stone-100 text-stone-500', label: '未測試', dot: 'bg-stone-300' };
+            }
+        }
+
+        async function mcpTabInit() {
+            const orgId = _skillsCurrentOrgId();
+            const list = document.getElementById('mcpList');
+            if (!orgId) {
+                list.innerHTML = '<div class="text-xs text-rose-600">無法取得目前組織。</div>';
+                return;
+            }
+            list.innerHTML = '<div class="text-xs text-stone-400">載入中…</div>';
+            try {
+                const rows = await window.apiFetch(`/api/v1/orgs/${encodeURIComponent(orgId)}/mcp-servers`);
+                _mcpRenderList(rows || []);
+            } catch (e) {
+                list.innerHTML = `<div class="text-xs text-rose-600">載入失敗:${(e && e.message) || e}</div>`;
+            }
+        }
+
+        function _mcpRenderList(rows) {
+            const list = document.getElementById('mcpList');
+            list.innerHTML = '';
+            if (rows.length === 0) {
+                list.innerHTML = '<div class="text-xs text-stone-400 text-center py-6">尚未新增 MCP server。點右上「新增 MCP Server」。</div>';
+                return;
+            }
+            for (const s of rows) {
+                const badge = _mcpHealthBadge(s.last_health);
+                const card = document.createElement('div');
+                card.className = 'border border-stone-200 rounded-lg p-3 hover:border-emerald-300 hover:bg-emerald-50/20 cursor-pointer transition';
+                card.onclick = () => mcpOpenEditor(s.id);
+                card.innerHTML = `
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="inline-block w-2 h-2 rounded-full ${badge.dot}"></span>
+                        <div class="font-semibold text-sm text-stone-700">${escapeHtml(s.name)}</div>
+                        <span class="text-[10px] px-1.5 py-0.5 rounded ${badge.cls}">${badge.label}</span>
+                        ${s.enabled ? '' : '<span class="text-[10px] px-1.5 py-0.5 rounded bg-stone-100 text-stone-500">已停用</span>'}
+                        ${s.requires_confirmation ? '' : '<span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700" title="此 server 信任,tool 呼叫不再二次確認">免確認</span>'}
+                        <span class="ml-auto text-[10px] text-stone-400 font-mono">${s.transport}</span>
+                    </div>
+                    <div class="text-[11px] text-stone-500 truncate">${escapeHtml(s.url || s.command || '')}</div>
+                    <div class="text-[10px] text-stone-400 mt-1">
+                        ${s.tools_count} tools · ${(s.secret_ref_names || []).length} secrets
+                        ${s.last_error ? ` · <span class="text-rose-500" title="${escapeHtml(s.last_error)}">最後錯誤(hover 看詳情)</span>` : ''}
+                    </div>
+                `;
+                list.appendChild(card);
+            }
+        }
+
+        function _mcpEditorReset() {
+            document.getElementById('mcpEditorId').value = '';
+            document.getElementById('mcpEditorName').value = '';
+            document.getElementById('mcpEditorTransport').value = 'http';
+            document.getElementById('mcpEditorUrl').value = '';
+            document.getElementById('mcpEditorHeadersJson').value = '';
+            document.getElementById('mcpEditorCommand').value = '';
+            document.getElementById('mcpEditorArgsCsv').value = '';
+            document.getElementById('mcpEditorEnvJson').value = '';
+            document.getElementById('mcpEditorEnabled').checked = true;
+            document.getElementById('mcpEditorRequiresConfirm').checked = true;
+            document.getElementById('mcpEditorHealthBadge').textContent = '';
+            document.getElementById('mcpEditorHealthBadge').className = 'text-[10px] px-2 py-0.5 rounded bg-stone-100 text-stone-500';
+            document.getElementById('mcpEditorLastError').classList.add('hidden');
+            document.getElementById('mcpEditorTestBtn').classList.add('hidden');
+            document.getElementById('mcpEditorDeleteBtn').classList.add('hidden');
+            document.getElementById('mcpEditorTitle').textContent = '新增 MCP Server';
+            document.getElementById('mcpEditorSecretsList').innerHTML = '';
+            _mcpEditorExistingRefs = [];
+            mcpEditorOnTransportChange();
+        }
+
+        function mcpEditorOnTransportChange() {
+            const transport = document.getElementById('mcpEditorTransport').value;
+            const httpFields = document.getElementById('mcpEditorHttpFields');
+            const stdioFields = document.getElementById('mcpEditorStdioFields');
+            if (transport === 'stdio') {
+                httpFields.classList.add('hidden');
+                stdioFields.classList.remove('hidden');
+            } else {
+                httpFields.classList.remove('hidden');
+                stdioFields.classList.add('hidden');
+            }
+        }
+
+        function mcpEditorAddSecretRow(refName, isExisting) {
+            const wrap = document.createElement('div');
+            wrap.className = 'flex gap-2 items-center';
+            wrap.innerHTML = `
+                <input type="text" placeholder="ref name(例:GITHUB_TOKEN)" class="mcp-secret-ref flex-1 px-2 py-1 border border-stone-300 rounded text-xs font-mono" value="${escapeHtml(refName || '')}" ${isExisting ? 'readonly' : ''}>
+                <input type="password" placeholder="${isExisting ? '保留不動 / 留空+核刪除' : '貼上 token / API key'}" class="mcp-secret-val flex-1 px-2 py-1 border border-stone-300 rounded text-xs">
+                ${isExisting ? '<label class="text-[10px] text-rose-600 flex items-center gap-1"><input type="checkbox" class="mcp-secret-delete w-3 h-3"> 刪除</label>' : ''}
+                <button type="button" class="text-stone-400 hover:text-rose-500 text-sm" onclick="this.parentNode.remove()" title="移除此列">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            `;
+            document.getElementById('mcpEditorSecretsList').appendChild(wrap);
+        }
+
+        async function mcpOpenEditor(serverId) {
+            const orgId = _skillsCurrentOrgId();
+            if (!orgId) return;
+            _mcpEditorReset();
+            if (serverId) {
+                try {
+                    const rows = await window.apiFetch(`/api/v1/orgs/${encodeURIComponent(orgId)}/mcp-servers`);
+                    const s = (rows || []).find((x) => x.id === serverId);
+                    if (!s) throw new Error('MCP server 不存在');
+                    document.getElementById('mcpEditorId').value = s.id;
+                    document.getElementById('mcpEditorName').value = s.name || '';
+                    document.getElementById('mcpEditorTransport').value = s.transport || 'http';
+                    document.getElementById('mcpEditorUrl').value = s.url || '';
+                    document.getElementById('mcpEditorHeadersJson').value = s.headers_json ? JSON.stringify(s.headers_json, null, 2) : '';
+                    document.getElementById('mcpEditorCommand').value = s.command || '';
+                    document.getElementById('mcpEditorArgsCsv').value = (s.args_json || []).join(', ');
+                    document.getElementById('mcpEditorEnvJson').value = s.env_json ? JSON.stringify(s.env_json, null, 2) : '';
+                    document.getElementById('mcpEditorEnabled').checked = !!s.enabled;
+                    document.getElementById('mcpEditorRequiresConfirm').checked = !!s.requires_confirmation;
+                    mcpEditorOnTransportChange();
+                    _mcpEditorExistingRefs = s.secret_ref_names || [];
+                    for (const ref of _mcpEditorExistingRefs) {
+                        mcpEditorAddSecretRow(ref, true);
+                    }
+                    const badge = _mcpHealthBadge(s.last_health);
+                    const badgeEl = document.getElementById('mcpEditorHealthBadge');
+                    badgeEl.textContent = badge.label;
+                    badgeEl.className = `text-[10px] px-2 py-0.5 rounded ${badge.cls}`;
+                    if (s.last_error) {
+                        const err = document.getElementById('mcpEditorLastError');
+                        err.textContent = s.last_error;
+                        err.classList.remove('hidden');
+                    }
+                    document.getElementById('mcpEditorTitle').textContent = '編輯 MCP Server';
+                    document.getElementById('mcpEditorDeleteBtn').classList.remove('hidden');
+                    document.getElementById('mcpEditorTestBtn').classList.remove('hidden');
+                } catch (e) {
+                    await appAlert('載入 MCP server 失敗:' + (e.message || e));
+                    return;
+                }
+            }
+            document.getElementById('mcpEditorModal').classList.remove('hidden');
+        }
+
+        function mcpCloseEditor() {
+            document.getElementById('mcpEditorModal').classList.add('hidden');
+        }
+
+        function _mcpCollectSecretsFromEditor() {
+            const out = {};   // create: {ref: value}
+            const update = {};  // update: {ref: value | ""}
+            const rows = document.querySelectorAll('#mcpEditorSecretsList > div');
+            for (const row of rows) {
+                const ref = row.querySelector('.mcp-secret-ref').value.trim();
+                if (!ref) continue;
+                const valEl = row.querySelector('.mcp-secret-val');
+                const val = valEl.value;
+                const deleteEl = row.querySelector('.mcp-secret-delete');
+                const isExisting = _mcpEditorExistingRefs.includes(ref);
+                if (isExisting) {
+                    if (deleteEl && deleteEl.checked) {
+                        update[ref] = '';
+                    } else if (val !== '') {
+                        update[ref] = val;
+                    }
+                    // 值留空且未勾刪除 → 不動,不放進 update
+                } else {
+                    if (val !== '') out[ref] = val;
+                }
+            }
+            return { create: out, update };
+        }
+
+        function _mcpParseHeadersJson() {
+            const raw = document.getElementById('mcpEditorHeadersJson').value.trim();
+            if (!raw) return null;
+            try {
+                const parsed = JSON.parse(raw);
+                if (typeof parsed !== 'object' || Array.isArray(parsed) || parsed === null) {
+                    throw new Error('headers 必須是 JSON 物件');
+                }
+                return parsed;
+            } catch (e) {
+                throw new Error('headers JSON 格式錯誤: ' + (e.message || e));
+            }
+        }
+
+        function _mcpParseEnvJson() {
+            const raw = document.getElementById('mcpEditorEnvJson').value.trim();
+            if (!raw) return null;
+            try {
+                const parsed = JSON.parse(raw);
+                if (typeof parsed !== 'object' || Array.isArray(parsed) || parsed === null) {
+                    throw new Error('env 必須是 JSON 物件');
+                }
+                return parsed;
+            } catch (e) {
+                throw new Error('env JSON 格式錯誤: ' + (e.message || e));
+            }
+        }
+
+        async function mcpSaveFromEditor() {
+            const orgId = _skillsCurrentOrgId();
+            if (!orgId) return;
+            const id = document.getElementById('mcpEditorId').value;
+            const name = document.getElementById('mcpEditorName').value.trim();
+            if (!name) {
+                await appAlert('名稱不可為空');
+                return;
+            }
+            let headersJson, envJson;
+            try {
+                headersJson = _mcpParseHeadersJson();
+                envJson = _mcpParseEnvJson();
+            } catch (e) { await appAlert(e.message || e); return; }
+
+            const secrets = _mcpCollectSecretsFromEditor();
+            const enabled = document.getElementById('mcpEditorEnabled').checked;
+            const requires_confirmation = document.getElementById('mcpEditorRequiresConfirm').checked;
+            const transport = document.getElementById('mcpEditorTransport').value;
+            const url = document.getElementById('mcpEditorUrl').value.trim();
+            const command = document.getElementById('mcpEditorCommand').value.trim();
+            const argsCsv = document.getElementById('mcpEditorArgsCsv').value;
+            const argsList = argsCsv
+                .split(',').map((s) => s.trim()).filter((s) => s.length > 0);
+
+            // 前端基本檢查 — 詳細 validation 走 backend
+            if (transport === 'stdio' && !command) {
+                await appAlert('stdio transport 需要 command');
+                return;
+            }
+            if (transport === 'http' && !url) {
+                await appAlert('http transport 需要 url');
+                return;
+            }
+
+            try {
+                if (id) {
+                    const payload = {
+                        name, transport,
+                        url: transport === 'http' ? (url || null) : null,
+                        headers_json: transport === 'http' ? headersJson : null,
+                        command: transport === 'stdio' ? (command || null) : null,
+                        args_json: transport === 'stdio' ? argsList : null,
+                        env_json: transport === 'stdio' ? envJson : null,
+                        enabled, requires_confirmation,
+                    };
+                    if (Object.keys(secrets.update).length > 0) {
+                        payload.secrets_update = secrets.update;
+                    }
+                    await window.apiFetch(
+                        `/api/v1/orgs/${encodeURIComponent(orgId)}/mcp-servers/${encodeURIComponent(id)}`,
+                        { method: 'PUT', body: JSON.stringify(payload) }
+                    );
+                } else {
+                    const payload = {
+                        name, transport,
+                        url: transport === 'http' ? (url || null) : null,
+                        headers_json: transport === 'http' ? headersJson : null,
+                        command: transport === 'stdio' ? (command || null) : null,
+                        args_json: transport === 'stdio' ? argsList : null,
+                        env_json: transport === 'stdio' ? envJson : null,
+                        enabled, requires_confirmation,
+                        secrets: Object.keys(secrets.create).length > 0 ? secrets.create : null,
+                    };
+                    await window.apiFetch(
+                        `/api/v1/orgs/${encodeURIComponent(orgId)}/mcp-servers`,
+                        { method: 'POST', body: JSON.stringify(payload) }
+                    );
+                }
+                mcpCloseEditor();
+                await mcpTabInit();
+            } catch (e) {
+                await appAlert('儲存失敗:' + (e.message || e));
+            }
+        }
+
+        async function mcpDeleteFromEditor() {
+            const orgId = _skillsCurrentOrgId();
+            const id = document.getElementById('mcpEditorId').value;
+            if (!orgId || !id) return;
+            if (!(await confirmDialog({title: '刪除 MCP Server', body: '確定刪除此 MCP server?所有 tool 將從對話框消失。', danger: true, confirmLabel: '刪除'}))) return;
+            try {
+                await window.apiFetch(
+                    `/api/v1/orgs/${encodeURIComponent(orgId)}/mcp-servers/${encodeURIComponent(id)}`,
+                    { method: 'DELETE' }
+                );
+                mcpCloseEditor();
+                await mcpTabInit();
+            } catch (e) {
+                await appAlert('刪除失敗:' + (e.message || e));
+            }
+        }
+
+        async function mcpTestConnectionFromEditor() {
+            const orgId = _skillsCurrentOrgId();
+            const id = document.getElementById('mcpEditorId').value;
+            if (!orgId || !id) {
+                await appAlert('請先儲存 server 才能測試連線');
+                return;
+            }
+            const btn = document.getElementById('mcpEditorTestBtn');
+            const origText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 測試中…';
+            try {
+                const result = await window.apiFetch(
+                    `/api/v1/orgs/${encodeURIComponent(orgId)}/mcp-servers/${encodeURIComponent(id)}/test`,
+                    { method: 'POST' }
+                );
+                const badgeEl = document.getElementById('mcpEditorHealthBadge');
+                const errEl = document.getElementById('mcpEditorLastError');
+                if (result.ok) {
+                    const badge = _mcpHealthBadge('connected');
+                    badgeEl.textContent = badge.label + ` (${result.tools_count} tools)`;
+                    badgeEl.className = `text-[10px] px-2 py-0.5 rounded ${badge.cls}`;
+                    errEl.classList.add('hidden');
+                } else {
+                    const badge = _mcpHealthBadge('error');
+                    badgeEl.textContent = badge.label;
+                    badgeEl.className = `text-[10px] px-2 py-0.5 rounded ${badge.cls}`;
+                    errEl.textContent = result.error || '未知錯誤';
+                    errEl.classList.remove('hidden');
+                }
+            } catch (e) {
+                await appAlert('測試失敗:' + (e.message || e));
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = origText;
             }
         }
 
@@ -22990,7 +23845,6 @@ curl -X POST http://localhost:8000/api/defects \\
                 : '已建立待辦';
             if (typeof showToast === 'function') showToast(msg, linkFail ? 'error' : 'success');
             await _reloadTodoViews();
-            openTodoDetail(created.id);
         } catch (e) {
             showToast?.('建立失敗:' + (e.message||e), 'error');
         }

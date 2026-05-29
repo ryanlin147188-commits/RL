@@ -17,6 +17,8 @@ from .audit_log import AuditLog
 from .agent_session import AgentMessage, AgentSession
 from .agent_token_usage import AgentTokenUsage
 from .pending_action import PendingAction
+from .skill import Skill
+from .mcp_server import MCPServer, MCPServerSecret, MCPToolCache
 from .email_config import EmailConfig
 from .llm_provider_config import LlmProviderConfig
 from .entity_version import EntityVersion
@@ -76,7 +78,8 @@ __all__ = [
     # Settings + todos
     "Role", "NotificationPreference", "Notification", "EmailConfig",
     "LlmProviderConfig", "AgentTokenUsage",
-    "AgentSession", "AgentMessage", "PendingAction",
+    "AgentSession", "AgentMessage", "PendingAction", "Skill",
+    "MCPServer", "MCPServerSecret", "MCPToolCache",
     "TodoItem", "TodoItemType", "TodoStatus", "TodoPriority",
     "TodoLink", "ALLOWED_TARGET_TYPES",
     "SprintLink", "SPRINT_LINK_ALLOWED_TARGET_TYPES",

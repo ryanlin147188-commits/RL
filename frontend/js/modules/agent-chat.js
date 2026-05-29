@@ -38,6 +38,10 @@
         sessionId: null,
         sessionTitle: null,
         sessionModel: null,
+        sessionOrgId: null,    // session.organization_id;Skill 列表 fetch 用
+        activeSkillId: null,   // 目前 session active skill id
+        skills: null,          // org skills cache(載一次就放著);null = 尚未載
+        mcpServers: null,      // org MCP servers cache(只給 health icon hover 顯示用)
         messages: [],          // 完整 history,順序 by seq
         sending: false,        // chat 進行中,擋雙擊
         totalCostUsd: 0,       // session 累計成本
@@ -172,6 +176,48 @@
                 "text-[10px] text-stone-400 font-mono truncate max-w-[160px]",
             title: "目前 session 使用的模型(由設定 → AI Token 的 default_model 決定)",
         }, "");
+        // Skill chip:顯示 active skill name + 紫色 dot,點開下拉切換
+        const skillChip = el("button", {
+            type: "button",
+            class:
+                "flex items-center gap-1 px-2 py-0.5 text-[11px] rounded-full " +
+                "border border-stone-300 bg-white hover:bg-stone-50 text-stone-600 " +
+                "max-w-[120px] truncate",
+            title: "切換 Skill",
+            onclick: (ev) => { ev.stopPropagation(); openSkillPicker(); },
+        }, [
+            el("span", {
+                class: "inline-block w-1.5 h-1.5 rounded-full bg-stone-300",
+            }),
+            el("span", { class: "truncate" }, "無 Skill"),
+        ]);
+        refs.skillChip = skillChip;
+        refs.skillChipDot = skillChip.children[0];
+        refs.skillChipLabel = skillChip.children[1];
+        // MCP server 健康指示器(齒輪旁邊小圖示)。hover 顯示連線總數,點擊跳到設定頁
+        const mcpHealthBtn = el("button", {
+            type: "button",
+            class: "text-stone-400 hover:text-emerald-500 p-1 relative",
+            title: "MCP servers — 點擊管理",
+            onclick: () => {
+                // 開新分頁跳到設定 → MCP Servers
+                if (typeof window.switchView === "function") {
+                    try {
+                        window.switchView("userSettings");
+                        if (typeof window.settingsSwitchTab === "function") {
+                            window.settingsSwitchTab("mcp");
+                        }
+                    } catch (_) { /* 沒接到 view router 就靜默 */ }
+                }
+            },
+        }, [
+            el("i", { class: "fa-solid fa-plug" }),
+            el("span", {
+                class: "absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-stone-300",
+            }),
+        ]);
+        refs.mcpHealthBtn = mcpHealthBtn;
+        refs.mcpHealthDot = mcpHealthBtn.children[1];
         const historyBtn = el("button", {
             type: "button",
             class: "text-stone-400 hover:text-amber-500 p-1",
@@ -197,7 +243,9 @@
         }, [
             el("i", { class: "fa-solid fa-robot text-amber-500" }),
             sessionLabel,
+            skillChip,
             modelLabel,
+            mcpHealthBtn,
             historyBtn,
             newBtn,
             closeBtn,
@@ -456,6 +504,8 @@
                 state.sessionId = null;
                 state.sessionTitle = null;
                 state.sessionModel = null;
+                state.sessionOrgId = null;
+                state.activeSkillId = null;
                 state.messages = [];
                 state.totalCostUsd = 0;
                 state.pendingActions.clear();
@@ -465,6 +515,9 @@
                 state.taskSockets.clear();
                 state.taskProgress.clear();
                 _updateModelLabel();
+                _updateSkillChip();
+                state.mcpServers = null;
+                _updateMcpHealth();
                 refs.body.replaceChildren();
                 renderCost();
                 // 重新從 sessions list 抓最近一個或自動建新
@@ -497,7 +550,11 @@
             state.sessionId = session.id;
             state.sessionTitle = session.title || "對話";
             state.sessionModel = session.model;
+            state.sessionOrgId = session.organization_id || null;
+            state.activeSkillId = session.active_skill_id || null;
             _updateModelLabel();
+            await loadSkillsForSession();
+            await loadMcpServersForSession();
             await refreshMessages();
             await toggleSessionSidebar();
         } catch (e) {
@@ -545,6 +602,184 @@
         refs.modelLabel.textContent = state.sessionModel ? "· " + state.sessionModel : "";
     }
 
+    function _updateSkillChip() {
+        if (!refs.skillChip) return;
+        const active = (state.skills || []).find((s) => s.id === state.activeSkillId);
+        if (active) {
+            refs.skillChipLabel.textContent = active.name;
+            refs.skillChipDot.classList.remove("bg-stone-300");
+            refs.skillChipDot.classList.add("bg-violet-500");
+            refs.skillChip.classList.add("border-violet-300");
+            refs.skillChip.classList.remove("border-stone-300");
+            // active state — 給 panel 加紫色外框暗示
+            if (refs.panel) {
+                refs.panel.classList.add("ring-2", "ring-violet-200");
+            }
+        } else {
+            refs.skillChipLabel.textContent = "無 Skill";
+            refs.skillChipDot.classList.add("bg-stone-300");
+            refs.skillChipDot.classList.remove("bg-violet-500");
+            refs.skillChip.classList.remove("border-violet-300");
+            refs.skillChip.classList.add("border-stone-300");
+            if (refs.panel) {
+                refs.panel.classList.remove("ring-2", "ring-violet-200");
+            }
+        }
+    }
+
+    async function loadSkillsForSession(force = false) {
+        if (!state.sessionOrgId) {
+            state.skills = [];
+            _updateSkillChip();
+            return;
+        }
+        if (state.skills !== null && !force) return;
+        try {
+            const list = await api(
+                `/api/v1/orgs/${encodeURIComponent(state.sessionOrgId)}/skills`
+            );
+            // 只列 enabled 的給 picker — disabled 還是給 settings 頁管理
+            state.skills = (list || []).filter((s) => s.enabled);
+        } catch (e) {
+            // 無權限或 endpoint 還沒部署時靜默退化(不擋整個聊天框)
+            state.skills = [];
+        }
+        _updateSkillChip();
+    }
+
+    function openSkillPicker() {
+        if (state.sending) return;
+        // 已開 → 收起
+        if (refs.skillPicker && refs.skillPicker.parentNode) {
+            refs.skillPicker.remove();
+            refs.skillPicker = null;
+            return;
+        }
+        const picker = el("div", {
+            class:
+                "absolute z-20 bg-white border border-stone-200 rounded-lg shadow-lg " +
+                "py-1 text-xs max-h-[280px] overflow-y-auto",
+            style: "min-width:180px; max-width:240px;",
+        });
+        // 「無 Skill」清空選項
+        const clearItem = el("button", {
+            type: "button",
+            class:
+                "w-full text-left px-3 py-1.5 hover:bg-stone-100 flex items-center " +
+                "gap-2 text-stone-600",
+            onclick: () => setActiveSkill(null),
+        }, [
+            el("span", { class: "inline-block w-1.5 h-1.5 rounded-full bg-stone-300" }),
+            el("span", {}, "無 Skill"),
+        ]);
+        picker.appendChild(clearItem);
+        const skills = state.skills || [];
+        if (skills.length === 0) {
+            picker.appendChild(el("div", {
+                class: "px-3 py-2 text-stone-400",
+            }, "尚未建立 Skill"));
+        } else {
+            picker.appendChild(el("div", {
+                class: "border-t border-stone-100 my-1",
+            }));
+        }
+        for (const s of skills) {
+            const isActive = s.id === state.activeSkillId;
+            const item = el("button", {
+                type: "button",
+                class:
+                    "w-full text-left px-3 py-1.5 hover:bg-violet-50 flex items-center " +
+                    "gap-2 " + (isActive ? "bg-violet-50 text-violet-700" : "text-stone-700"),
+                title: s.description || s.name,
+                onclick: () => setActiveSkill(s.id),
+            }, [
+                el("span", {
+                    class:
+                        "inline-block w-1.5 h-1.5 rounded-full " +
+                        (isActive ? "bg-violet-500" : "bg-stone-300"),
+                }),
+                el("span", { class: "truncate" }, s.name),
+            ]);
+            picker.appendChild(item);
+        }
+        // 放在 chip 正下方;ParentNode 用 panel 當錨點(panel 本來就 position:fixed)
+        const rect = refs.skillChip.getBoundingClientRect();
+        picker.style.position = "fixed";
+        picker.style.top = (rect.bottom + 4) + "px";
+        picker.style.left = rect.left + "px";
+        document.body.appendChild(picker);
+        refs.skillPicker = picker;
+        // 點外面關掉
+        const off = (ev) => {
+            if (!picker.contains(ev.target) && ev.target !== refs.skillChip) {
+                picker.remove();
+                refs.skillPicker = null;
+                document.removeEventListener("mousedown", off, true);
+            }
+        };
+        setTimeout(() => document.addEventListener("mousedown", off, true), 0);
+    }
+
+    function _updateMcpHealth() {
+        if (!refs.mcpHealthDot || !refs.mcpHealthBtn) return;
+        const servers = state.mcpServers || [];
+        if (servers.length === 0) {
+            // 沒設 MCP server → 維持灰色,title 改成提示
+            refs.mcpHealthDot.classList.remove("bg-emerald-500", "bg-rose-500", "bg-amber-500");
+            refs.mcpHealthDot.classList.add("bg-stone-300");
+            refs.mcpHealthBtn.title = "尚未設定 MCP server — 點擊管理";
+            return;
+        }
+        const enabled = servers.filter((s) => s.enabled);
+        const connected = enabled.filter((s) => s.last_health === "connected").length;
+        const errored = enabled.filter((s) => s.last_health === "error").length;
+        refs.mcpHealthDot.classList.remove("bg-stone-300", "bg-emerald-500", "bg-rose-500", "bg-amber-500");
+        if (errored > 0) {
+            refs.mcpHealthDot.classList.add("bg-rose-500");
+        } else if (connected === enabled.length && enabled.length > 0) {
+            refs.mcpHealthDot.classList.add("bg-emerald-500");
+        } else {
+            refs.mcpHealthDot.classList.add("bg-amber-500");
+        }
+        refs.mcpHealthBtn.title = `MCP — ${connected}/${enabled.length} connected${errored > 0 ? `, ${errored} error` : ''}`;
+    }
+
+    async function loadMcpServersForSession(force = false) {
+        if (!state.sessionOrgId) {
+            state.mcpServers = [];
+            _updateMcpHealth();
+            return;
+        }
+        if (state.mcpServers !== null && !force) return;
+        try {
+            const list = await api(
+                `/api/v1/orgs/${encodeURIComponent(state.sessionOrgId)}/mcp-servers`
+            );
+            state.mcpServers = list || [];
+        } catch (e) {
+            state.mcpServers = [];
+        }
+        _updateMcpHealth();
+    }
+
+    async function setActiveSkill(skillId) {
+        if (!state.sessionId) return;
+        if (refs.skillPicker) { refs.skillPicker.remove(); refs.skillPicker = null; }
+        try {
+            await api(
+                `/api/v1/agent/sessions/${encodeURIComponent(state.sessionId)}/skill`,
+                {
+                    method: "POST",
+                    body: JSON.stringify({ skill_id: skillId }),
+                }
+            );
+            state.activeSkillId = skillId || null;
+            _updateSkillChip();
+        } catch (e) {
+            renderSystemMessage(`切換 Skill 失敗:${e.message}`, "rose");
+        }
+    }
+
     async function startNewSession() {
         try {
             state.sending = true;
@@ -558,7 +793,11 @@
             state.sessionId = session.id;
             state.sessionTitle = session.title || "新對話";
             state.sessionModel = session.model;
+            state.sessionOrgId = session.organization_id || null;
+            state.activeSkillId = session.active_skill_id || null;
             _updateModelLabel();
+            await loadSkillsForSession();
+            await loadMcpServersForSession();
             state.messages = [];
             state.totalCostUsd = 0;
             state.pendingActions.clear();
@@ -585,7 +824,11 @@
                 state.sessionId = sessions[0].id;
                 state.sessionTitle = sessions[0].title || "對話";
                 state.sessionModel = sessions[0].model;
+                state.sessionOrgId = sessions[0].organization_id || null;
+                state.activeSkillId = sessions[0].active_skill_id || null;
                 _updateModelLabel();
+                await loadSkillsForSession();
+            await loadMcpServersForSession();
                 await refreshMessages();
             } else {
                 await startNewSession();
@@ -607,7 +850,20 @@
             if (session) {
                 state.sessionModel = session.model;
                 if (session.title) state.sessionTitle = session.title;
+                state.sessionOrgId = session.organization_id || null;
+                state.activeSkillId = session.active_skill_id || null;
                 _updateModelLabel();
+                // org 改變(切 session)或還沒載過 skills 才 fetch;否則只更新 chip
+                if (state.skills === null) {
+                    await loadSkillsForSession();
+                } else {
+                    _updateSkillChip();
+                }
+                if (state.mcpServers === null) {
+                    await loadMcpServersForSession();
+                } else {
+                    _updateMcpHealth();
+                }
             }
             state.messages = msgs || [];
             recomputeCost();
@@ -1031,6 +1287,18 @@
         const isAwaiting = parsed && parsed.status === "awaiting_user_confirmation";
         const isRejected = parsed && parsed.status === "user_rejected";
 
+        // 偵測 MCP tool result(後端會用 <external_tool_data server="X" tool="Y"> 包)
+        // 包括 pending placeholder 也偵測 — 看 parsed.tool_name 是否 mcp__ 開頭
+        let mcpServerName = null;
+        if (m.content && typeof m.content === "string") {
+            const match = m.content.match(/^<external_tool_data\s+server="([^"]+)"/);
+            if (match) mcpServerName = match[1];
+        }
+        if (!mcpServerName && parsed && typeof parsed.tool_name === "string") {
+            const m2 = parsed.tool_name.match(/^mcp__([^_]+(?:_[^_]+)*)__/);
+            if (m2) mcpServerName = m2[1];
+        }
+
         // 摘要 line(永遠顯示)
         let badgeText = "tool result";
         let badgeColor = "bg-stone-100 text-stone-600";
@@ -1043,6 +1311,9 @@
         } else if (m.task_id) {
             badgeText = "已派出非同步任務";
             badgeColor = "bg-blue-100 text-blue-700";
+        } else if (mcpServerName) {
+            badgeText = "MCP";
+            badgeColor = "bg-emerald-100 text-emerald-700";
         }
 
         const progressText = m.task_id ? state.taskProgress.get(m.task_id) : null;
@@ -1051,8 +1322,13 @@
                 "flex items-center gap-2 text-[11px] " + badgeColor +
                 " rounded px-2 py-1 cursor-pointer select-none",
         }, [
-            el("i", { class: "fa-solid fa-screwdriver-wrench" }),
+            el("i", {
+                class: mcpServerName ? "fa-solid fa-plug" : "fa-solid fa-screwdriver-wrench",
+            }),
             el("span", { class: "font-semibold" }, badgeText),
+            mcpServerName
+                ? el("span", { class: "font-mono opacity-80" }, mcpServerName)
+                : null,
             m.task_id
                 ? el("span", { class: "font-mono opacity-70" }, m.task_id.slice(0, 8))
                 : null,
@@ -1072,7 +1348,10 @@
             detail.classList.toggle("hidden");
         });
 
-        const wrap = el("div", { class: "flex flex-col gap-1 px-2" }, [summary, detail]);
+        const wrapClass = mcpServerName
+            ? "flex flex-col gap-1 pl-3 pr-2 border-l-2 border-emerald-300"
+            : "flex flex-col gap-1 px-2";
+        const wrap = el("div", { class: wrapClass }, [summary, detail]);
 
         // 加 approve/reject 按鈕(只在 pending 且 awaiting 時)
         if (isPending && isAwaiting) {

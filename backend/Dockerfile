@@ -7,16 +7,22 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# 系統依賴：mysqlclient 編譯所需（aiomysql/pymysql 為 pure-python 但保留 build-essential 以防日後擴充）
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
-    && rm -rf /var/lib/apt/lists/*
+# 系統依賴:
+# * curl — 基本工具
+# * nodejs + npm — Phase 3 MCP stdio:跑 `npx -y @playwright/mcp@latest` 之類
+#   官方 MCP server。Debian bookworm 內建 nodejs 18 LTS,大多 MCP server 都吃。
+#   若需更新版可換 NodeSource setup,但這層增加 image 約 150MB。
+# * ca-certificates — npx 拉套件走 HTTPS 必備
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates nodejs npm && rm -rf /var/lib/apt/lists/*
 
 # Backend installs the shared base only. Robotframework-* deps live in
 # requirements-celery.txt and are NOT installed here — backend never runs
 # tests directly (Celery worker does).
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
+# Phase 3 MCP stdio:`uvx` 用來跑 Python-based MCP server(例:uvx mcp-server-fetch)
+# 從 pip 裝 ~10MB,提供 uv / uvx CLI
+RUN pip install --no-cache-dir uv==0.5.30
 
 COPY . /app
 

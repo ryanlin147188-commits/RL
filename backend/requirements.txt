@@ -76,3 +76,6 @@ docker==7.1.0
 # Robot Framework + Playwright stack lives in requirements-celery.txt.
 # Backend image installs only this file; Celery worker image installs
 # both this file and requirements-celery.txt.
+
+# MCP client SDK (Phase 2):接外部 MCP server,streamable HTTP transport
+mcp==1.10.1

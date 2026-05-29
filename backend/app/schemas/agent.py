@@ -42,6 +42,7 @@ class AgentSessionResponse(BaseModel):
     model: Optional[str]
     system_prompt: Optional[str]
     memory_enabled: bool = True
+    active_skill_id: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 

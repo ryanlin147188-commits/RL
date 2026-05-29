@@ -10,7 +10,7 @@
 
 不在這層處理的事:
 * 工具註冊與執行(屬 agent/ 模組,Phase 1)
-* 對話 session 與訊息歷史儲存(屬 hermes/agent_sessions,Phase 1)
+* 對話 session 與訊息歷史儲存(屬 agent_sessions 模組,Phase 1)
 * API key 入 DB + Fernet 加密(屬 llm_provider_configs,Phase 0 後半段)
 """
 from app.llm.base import (

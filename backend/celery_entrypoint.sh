@@ -42,5 +42,11 @@ fi
 # Phase 6.3:同進程啟動 beat scheduler(``-B``),讓 Casdoor 5 分鐘 reconcile
 # 自動跑;``-s /tmp/celerybeat-schedule`` 把 schedule state 寫在容器 tmpfs,
 # 重啟即重置(無狀態 beat,我們的 schedule 都是純秒數間隔,不依賴 last-run)。
-exec celery -A tasks.celery_app worker --loglevel=info --concurrency=2 \
+#
+# CELERY_CONCURRENCY:prefork pool 大小。每個 slot 同時可跑一個 run_tests,
+# 該 task 內會 spawn 一個 robot-runner container(平均 1-2GB 記憶體)。預設
+# 4 — 對中型 VM 適合;若 VM 資源緊張可在 .env 改 2,寬鬆改 8。原本寫死 2,
+# 任何長 test 都會把整個 worker pool 卡住,後續 task 全在 valkey queue 排隊。
+exec celery -A tasks.celery_app worker --loglevel=info \
+    --concurrency="${CELERY_CONCURRENCY:-4}" \
     -B -s /tmp/celerybeat-schedule

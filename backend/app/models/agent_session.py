@@ -62,6 +62,16 @@ class AgentSession(Base):
     )
     # 系統提示。Phase 1a 預設由 service 填一份;Phase 1b 起 tool 進來時會擴充。
     system_prompt: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Phase 2a:active skill。set 後 _compose_system_prompt 會把 skill 的
+    # system_prompt_addition append 到 base mode prompt 尾端,且
+    # compose_tools_for_session 會套用 skill.allowed_tools 白名單。
+    # ondelete=SET NULL:skill 被刪掉時 session 自動退回「無 skill」,不丟資料。
+    active_skill_id: Mapped[Optional[str]] = mapped_column(
+        String(36),
+        ForeignKey("skills.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=datetime.utcnow, index=True
     )

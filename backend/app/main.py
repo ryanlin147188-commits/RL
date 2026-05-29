@@ -17,7 +17,7 @@ logging.basicConfig(
 
 from app.config import settings
 from app.database import init_db
-from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings, local_runner, test_rounds, project_settings, screenshot_baselines, system, test_data_sets, settings as app_settings, todos, todo_links, auth, audit_logs, organizations, notifications, mock_endpoints, groups, reviews, artifacts, entity_versions, oidc_auth, project_role_permissions, shell_exec, schedules, defects, test_schedules, sprint_links, api_keys, llm_providers, agent
+from app.routers import projects, tree_nodes, testcases, executions, reports, upload, import_export, recordings, local_runner, test_rounds, project_settings, screenshot_baselines, system, test_data_sets, settings as app_settings, todos, todo_links, auth, audit_logs, organizations, notifications, mock_endpoints, groups, reviews, artifacts, entity_versions, oidc_auth, project_role_permissions, shell_exec, schedules, defects, test_schedules, sprint_links, api_keys, llm_providers, agent, skills, mcp_servers
 # v1.1.5:Casdoor sidecar 下架,OIDC 改 in-process(authlib + Zoho),由
 # ``oidc_auth`` router 承接。舊的 ``oidc`` / ``casdoor_*`` 模組已刪除。
 # 確保新增 model 在 init_db() 前已 import 註冊到 Base.metadata
@@ -645,6 +645,12 @@ async def lifespan(app: FastAPI):
             _casbin.shutdown_enforcer()
         except Exception:  # noqa: BLE001
             logging.getLogger(__name__).exception("casbin shutdown_enforcer failed")
+        # 關掉所有 MCP server 連線(stdio 進程 / http keep-alive)
+        try:
+            from app.mcp.connection_pool import POOL as _mcp_pool
+            await _mcp_pool.close_all()
+        except Exception:  # noqa: BLE001
+            logging.getLogger(__name__).exception("mcp pool close_all failed")
 
 
 
@@ -705,6 +711,8 @@ app.include_router(test_data_sets.router,  prefix="/api", tags=["P · 測試資�
 app.include_router(app_settings.router,    prefix="/api", tags=["S · 設定"])
 app.include_router(llm_providers.router,   prefix="/api", tags=["S · 設定"])
 app.include_router(agent.router,           prefix="/api", tags=["AE · Agent"])
+app.include_router(skills.router,          prefix="/api", tags=["AE · Agent"])
+app.include_router(mcp_servers.router,     prefix="/api", tags=["AE · Agent"])
 app.include_router(todos.router,           prefix="/api", tags=["T · 待辦"])
 app.include_router(todo_links.router,      prefix="/api", tags=["T · 待辦"])
 app.include_router(auth.router,            prefix="/api", tags=["U · 認證"])

@@ -38,6 +38,13 @@ class Schedule(TenantScoped, Base):
     )
     # 多選節點清單（JSON array of string）；若為 None/空陣列，就退化為只使用 node_id
     node_ids_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # 0054:綁定 TestRun。設定後排程觸發時 backend 以 TestRun 當下的 node_ids_json
+    # 為準(live link;TestRun 修改自動反映)。test_round_id 為 None 時走原本
+    # node_ids_json / node_id 邏輯,維持向後相容。
+    # ondelete=SET NULL — 刪除 TestRun 時排程退回「無綁定」,不連帶刪除排程。
+    test_round_id: Mapped[Optional[str]] = mapped_column(
+        String(36), ForeignKey("test_rounds.id", ondelete="SET NULL"), nullable=True
+    )
     # 同時紀錄 project_id，方便列表 / 查詢 / 刪除時過濾
     project_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False

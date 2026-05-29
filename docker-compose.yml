@@ -350,6 +350,15 @@ services:
       # 跑 rebuild_user_grants 時要 init enforcer);跟 backend 共享同一個
       # CASBIN_ENABLED gate。
       CASBIN_ENABLED: ${CASBIN_ENABLED:-True}
+      # Worker pool 大小。寫死 2 時任何 7+ 分鐘的 robot test 都會把整個 worker
+      # 卡住、後續 task 全部 queued。預設 4 給中型 VM(每個 slot 跑時會 spawn
+      # 一個 robot-runner container,記憶體約 1-2GB)。
+      CELERY_CONCURRENCY: ${CELERY_CONCURRENCY:-4}
+      # robot-runner container 執行上限(秒)。預設 900s = 15 分鐘,涵蓋 99% 的
+      # E2E test;若你有跑超長 test(>15min)在 .env 設更大值。逾時會強制
+      # docker kill + 寫 synthetic FAILED step 到 report,避免 worker slot 被
+      # 無限佔用。原始程式碼預設 1800 (30 min),這裡改 900 縮短反應時間。
+      RUNNER_CONTAINER_TIMEOUT_SEC: ${RUNNER_CONTAINER_TIMEOUT_SEC:-900}
 
   # ── API Gateway(v1.1.10 新增)─────────────────────────────
   # 在 nginx 後面、backend 前面的 Python FastAPI 流量入口。

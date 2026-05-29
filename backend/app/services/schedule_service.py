@@ -137,18 +137,34 @@ async def _trigger_schedule(
       - 背景自動觸發（scheduler_loop）：目前固定為 "docker"
     """
     from app.services.execution_service import collect_testcase_ids, create_report
+    from app.models.test_round import TestRound
     import json as _json
 
-    # 多選節點：node_ids_json 優先；否則退化為 [schedule.node_id]
+    # 0054:若綁了 TestRun,優先以 TestRun 當下的 node_ids 為準(live link)。
+    # 找不到 TestRun(可能已被刪除,FK ondelete=SET NULL 後 test_round_id 為 None,
+    # 但若資料異常仍是 stale id)→ 回退到 schedule 自己的 node_ids_json。
     node_ids: list[str] = []
-    raw_ids = getattr(schedule, "node_ids_json", None)
-    if raw_ids:
-        try:
-            parsed = _json.loads(raw_ids)
-            if isinstance(parsed, list):
-                node_ids = [n for n in parsed if isinstance(n, str) and n]
-        except Exception:  # noqa: BLE001
-            node_ids = []
+    tr_id = getattr(schedule, "test_round_id", None)
+    if tr_id:
+        tr = await db.get(TestRound, tr_id)
+        if tr is not None and tr.node_ids_json:
+            try:
+                parsed = _json.loads(tr.node_ids_json)
+                if isinstance(parsed, list):
+                    node_ids = [n for n in parsed if isinstance(n, str) and n]
+            except Exception:  # noqa: BLE001
+                node_ids = []
+
+    # 沒 TestRun 或 TestRun 沒節點 → 走原本 node_ids_json
+    if not node_ids:
+        raw_ids = getattr(schedule, "node_ids_json", None)
+        if raw_ids:
+            try:
+                parsed = _json.loads(raw_ids)
+                if isinstance(parsed, list):
+                    node_ids = [n for n in parsed if isinstance(n, str) and n]
+            except Exception:  # noqa: BLE001
+                node_ids = []
     if not node_ids:
         node_ids = [schedule.node_id] if schedule.node_id else []
 
@@ -266,11 +282,15 @@ async def _reap_stale_running_reports(db: AsyncSession, max_age_minutes: int = 1
     避免 Celery 子行程卡住或 crash 時，報告永遠停在 RUNNING 狀態。
     門檻設為 2 小時，讓正常長時間跑的測試（包含排程觸發的 DDT 批次）不會被誤殺；
     若測試真的會跑 >2 小時，請在終端機手動按「停止」而不要靠這個 watchdog。
+
+    時區紅線:``created_at`` 用 ``datetime.utcnow()`` 寫(naive UTC),所以這裡
+    必須也用 ``utcnow()`` 比較;若用 ``datetime.now()``(container 內 TZ=Asia/Taipei
+    時會差 +8 小時),會讓所有 1 分鐘前才剛建立的 RUNNING report 全被誤殺成 FAILED。
     """
     from datetime import timedelta
     from app.models.execution_report import ExecutionReport, ReportStatus
 
-    threshold = datetime.now() - timedelta(minutes=max_age_minutes)
+    threshold = datetime.utcnow() - timedelta(minutes=max_age_minutes)
     result = await db.execute(
         select(ExecutionReport).where(
             ExecutionReport.status == ReportStatus.RUNNING,

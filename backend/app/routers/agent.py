@@ -71,6 +71,7 @@ def _session_to_response(s: AgentSession) -> dict:
         "model": s.model,
         "system_prompt": s.system_prompt,
         "memory_enabled": bool(getattr(s, "memory_enabled", True)),
+        "active_skill_id": getattr(s, "active_skill_id", None),
         "created_at": s.created_at,
         "updated_at": s.updated_at,
     }
