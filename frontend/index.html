@@ -19385,6 +19385,14 @@ ZOHO_REDIRECT_URL=http://192.168.4.89/api/auth/zoho/callback</pre>
             if (name === 'memory') { try { memoryRefresh(); } catch (e) { console.error('memoryRefresh', e); } }
             if (name === 'skills') { try { skillsTabInit(); } catch (e) { console.error('skillsTabInit', e); } }
             if (name === 'mcp') { try { mcpTabInit(); } catch (e) { console.error('mcpTabInit', e); } }
+            // 切 tab 後把 scroll 重置到頂 — 9 個 pane 共享同一個 #userSettingsWorkspace
+            // (overflow-y-auto)的 scroll,沒重置會「繼承」上個 tab 的 scrollTop,
+            // 例如從很長的「設定」tab 切到 AI Token,viewport 會卡在「下面」誤導使用者
+            // 以為跳到底了。
+            try {
+                const ws = document.getElementById('userSettingsWorkspace');
+                if (ws) ws.scrollTop = 0;
+            } catch (_) {}
         }
 
         // v1.1.10:settings 內四個進階 tab(notif / email / projectMembers / roles)
