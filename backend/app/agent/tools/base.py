@@ -94,7 +94,11 @@ class Tool(ABC):
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
         # Subclass 必須提供 name/description/input_schema
-        if cls.__name__ == "Tool":
+        # 跳過 Tool 基底自身;也跳過 MCPToolAdapterBase — 它是 factory 用的 abstract
+        # base,真正的 MCP tool subclass 是 make_mcp_tool_adapter() 動態生成時才填
+        # name/description/input_schema(會通過底下的檢查),Base 本身 name="" 是
+        # placeholder,不該被 enforce。
+        if cls.__name__ in ("Tool", "MCPToolAdapterBase"):
             return
         for attr in ("name", "description"):
             if not getattr(cls, attr, ""):
